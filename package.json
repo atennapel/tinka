@@ -1,0 +1,31 @@
+{
+  "name": "tinka",
+  "version": "0.1.0",
+  "description": "",
+  "main": "build/src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "runindex": "yarn run build && node build/src/index",
+    "main": "yarn run build && node build/src/main",
+    "cli": "yarn run build && node build/src/cli",
+    "bundle": "yarn run build && browserify build/src/web.js -o bundle.js",
+    "start": "node build/src/cli"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atennapel/tinka.git"
+  },
+  "author": "Albert ten Napel",
+  "email": "aptennap@gmail.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/atennapel/tinka/issues"
+  },
+  "homepage": "https://github.com/atennapel/tinka#readme",
+  "devDependencies": {
+    "@types/node": "^13.9.1",
+    "browserify": "^16.5.0",
+    "typescript": "^3.8.3"
+  }
+}
