@@ -5,7 +5,7 @@ import { showDefs } from './surface';
 
 if (process.argv[2]) {
   const option = process.argv[3];
-  if (option === '-d') setConfig({ debug: true });
+  if (option === '-d') setConfig({ debug: true, showEnvs: true });
   try {
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
     parseDefs(sc, {}).then(ds => {
