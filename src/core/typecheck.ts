@@ -2,10 +2,11 @@ import { Term, showTerm, Pi } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV } from './domain';
 import { Nil, index, List, Cons, listToString } from '../utils/list';
 import { Ix } from '../names';
-import { terr, impossible } from '../utils/util';
+import { terr } from '../utils/util';
 import { unify } from './unify';
 import { Plicity } from '../surface';
 import { log, config } from '../config';
+import { globalGet } from '../globalenv';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity };
 type EnvT = List<EntryT>;
@@ -55,8 +56,9 @@ const synth = (local: Local, tm: Term): Val => {
     return entry.type;
   }
   if (tm.tag === 'Global') {
-    const entry: any = impossible(`global ${tm.name} not found`);
-    return entry ? entry.type : impossible(`global ${tm.name} not found`);
+    const entry = globalGet(tm.name);
+    if (!entry) return terr(`global ${tm.name} not found`);
+    return entry.coretype;
   }
   if (tm.tag === 'App') {
     const ty = force(synth(local, tm.left));

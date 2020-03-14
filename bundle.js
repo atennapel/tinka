@@ -21,6 +21,7 @@ const list_1 = require("../utils/list");
 const syntax_1 = require("./syntax");
 const util_1 = require("../utils/util");
 const lazy_1 = require("../utils/lazy");
+const globalenv_1 = require("../globalenv");
 exports.HVar = (index) => ({ tag: 'HVar', index });
 exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
@@ -55,11 +56,11 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.Lazy(() => val));
+        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
     }
     if (t.tag === 'Global') {
-        const entry = util_1.impossible(`evaluate: global ${t.name} has no value`);
-        return exports.VGlued(exports.HGlobal(t.name), list_1.Nil, lazy_1.Lazy(() => entry.val));
+        const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
+        return exports.VGlued(exports.HGlobal(t.name), list_1.Nil, lazy_1.lazyOf(entry.coreval));
     }
     if (t.tag === 'App')
         return exports.vapp(exports.evaluate(t.left, vs), t.plicity, exports.evaluate(t.right, vs));
@@ -99,7 +100,7 @@ exports.quote = (v, k, full) => {
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
 exports.showTermQ = (v, k = 0, full = false) => syntax_1.showTerm(exports.quote(v, k, full));
 
-},{"../utils/lazy":9,"../utils/list":10,"../utils/util":11,"./syntax":3}],3:[function(require,module,exports){
+},{"../globalenv":6,"../utils/lazy":10,"../utils/list":11,"../utils/util":12,"./syntax":3}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("../utils/list");
@@ -146,7 +147,7 @@ exports.fromSurface = (t, ns = list_1.Nil, k = 0) => {
     return util_1.impossible(`fromSurface: ${t.tag}`);
 };
 
-},{"../utils/list":10,"../utils/util":11}],4:[function(require,module,exports){
+},{"../utils/list":11,"../utils/util":12}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -155,6 +156,7 @@ const list_1 = require("../utils/list");
 const util_1 = require("../utils/util");
 const unify_1 = require("./unify");
 const config_1 = require("../config");
+const globalenv_1 = require("../globalenv");
 const extendT = (ts, val, bound, plicity) => list_1.Cons({ type: val, bound, plicity }, ts);
 const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'def '}${entry.plicity ? '-' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
 const localEmpty = { ts: list_1.Nil, vs: list_1.Nil, index: 0, inType: false };
@@ -194,8 +196,10 @@ const synth = (local, tm) => {
         return entry.type;
     }
     if (tm.tag === 'Global') {
-        const entry = util_1.impossible(`global ${tm.name} not found`);
-        return entry ? entry.type : util_1.impossible(`global ${tm.name} not found`);
+        const entry = globalenv_1.globalGet(tm.name);
+        if (!entry)
+            return util_1.terr(`global ${tm.name} not found`);
+        return entry.coretype;
     }
     if (tm.tag === 'App') {
         const ty = domain_1.force(synth(local, tm.left));
@@ -225,7 +229,7 @@ const synth = (local, tm) => {
 };
 exports.typecheck = (tm, local = localEmpty) => synth(local, tm);
 
-},{"../config":1,"../utils/list":10,"../utils/util":11,"./domain":2,"./syntax":3,"./unify":5}],5:[function(require,module,exports){
+},{"../config":1,"../globalenv":6,"../utils/list":11,"../utils/util":12,"./domain":2,"./syntax":3,"./unify":5}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("../utils/util");
@@ -290,7 +294,23 @@ exports.unify = (k, a, b) => {
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 
-},{"../utils/lazy":9,"../utils/list":10,"../utils/util":11,"./domain":2}],6:[function(require,module,exports){
+},{"../utils/lazy":10,"../utils/list":11,"../utils/util":12,"./domain":2}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+let env = {};
+exports.globalReset = () => {
+    env = {};
+};
+exports.globalMap = () => env;
+exports.globalGet = (name) => env[name] || null;
+exports.globalSet = (name, coreterm, coreval, coretype) => {
+    env[name] = { coreterm, coreval, coretype };
+};
+exports.globalDelete = (name) => {
+    delete env[name];
+};
+
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./utils/util");
@@ -648,7 +668,7 @@ exports.parseDefs = async (s, importMap) => {
     return ds.reduce((x, y) => x.concat(y), []);
 };
 
-},{"./config":1,"./surface":8,"./utils/util":11}],7:[function(require,module,exports){
+},{"./config":1,"./surface":9,"./utils/util":12}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -731,7 +751,7 @@ exports.runREPL = (_s, _cb) => {
     }
 };
 
-},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./parser":6,"./surface":8,"./utils/list":10,"./utils/util":11}],8:[function(require,module,exports){
+},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./parser":7,"./surface":9,"./utils/list":11,"./utils/util":12}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Var = (name) => ({ tag: 'Var', name });
@@ -820,10 +840,11 @@ exports.showDef = (d) => {
 };
 exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = (fn) => ({ fn, val: null, forced: false });
+exports.lazyOf = (val) => ({ fn: () => val, val, forced: true });
 exports.forceLazy = (lazy) => {
     if (lazy.forced)
         return lazy.val;
@@ -834,7 +855,7 @@ exports.forceLazy = (lazy) => {
 };
 exports.mapLazy = (lazy, fn) => exports.Lazy(() => fn(exports.forceLazy(lazy)));
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Nil = { tag: 'Nil' };
@@ -961,7 +982,7 @@ exports.range = (n) => n <= 0 ? exports.Nil : exports.Cons(n - 1, exports.range(
 exports.contains = (l, v) => l.tag === 'Cons' ? (l.head === v || exports.contains(l.tail, v)) : false;
 exports.max = (l) => exports.foldl((a, b) => b > a ? b : a, Number.MIN_SAFE_INTEGER, l);
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = (msg) => {
@@ -988,7 +1009,7 @@ exports.loadFile = (fn) => {
     }
 };
 
-},{"fs":13}],12:[function(require,module,exports){
+},{"fs":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1044,6 +1065,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":7}],13:[function(require,module,exports){
+},{"./repl":8}],14:[function(require,module,exports){
 
-},{}]},{},[12]);
+},{}]},{},[13]);

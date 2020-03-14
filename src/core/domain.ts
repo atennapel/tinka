@@ -2,8 +2,9 @@ import { Ix, Name } from '../names';
 import { List, Cons, Nil, listToString, index, foldr } from '../utils/list';
 import { Term, showTerm, Type, Var, App, Abs, Pi, Global } from './syntax';
 import { impossible } from '../utils/util';
-import { Lazy, mapLazy, forceLazy } from '../utils/lazy';
+import { Lazy, mapLazy, forceLazy, lazyOf } from '../utils/lazy';
 import { Plicity } from '../surface';
+import { globalGet } from '../globalenv';
 
 export type Head = HVar | HGlobal;
 
@@ -58,11 +59,11 @@ export const evaluate = (t: Term, vs: EnvV =Nil): Val => {
   if (t.tag === 'Type') return VType;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
-    return VGlued(HVar(t.index), Nil, Lazy(() => val));
+    return VGlued(HVar(t.index), Nil, lazyOf(val));
   }
   if (t.tag === 'Global') {
-    const entry: any = impossible(`evaluate: global ${t.name} has no value`);
-    return VGlued(HGlobal(t.name), Nil, Lazy(() => entry.val));
+    const entry = globalGet(t.name) || impossible(`evaluate: global ${t.name} has no value`);
+    return VGlued(HGlobal(t.name), Nil, lazyOf(entry.coreval));
   }
   if (t.tag === 'App')
     return vapp(evaluate(t.left, vs), t.plicity, evaluate(t.right, vs));
