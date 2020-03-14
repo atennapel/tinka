@@ -37,7 +37,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       return _cb(`debug: ${config.debug}`);
     }
     if (_s.toLowerCase() === ':showenvs') {
-      setConfig({ debug: !config.showEnvs });
+      setConfig({ showEnvs: !config.showEnvs });
       return _cb(`showEnvs: ${config.showEnvs}`);
     }
     if (_s.startsWith(':def') || _s.startsWith(':import')) {

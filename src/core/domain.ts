@@ -55,11 +55,12 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   return impossible(`core vapp: ${a.tag}`);
 };
 
-export const evaluate = (t: Term, vs: EnvV =Nil): Val => {
+export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Type') return VType;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
-    return VGlued(HVar(t.index), Nil, lazyOf(val));
+    // TODO: figure out glued for vars
+    return val;
   }
   if (t.tag === 'Global') {
     const entry = globalGet(t.name) || impossible(`evaluate: global ${t.name} has no value`);

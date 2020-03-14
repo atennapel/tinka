@@ -56,7 +56,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
+        // TODO: figure out glued for vars
+        return val;
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
@@ -158,7 +159,7 @@ const unify_1 = require("./unify");
 const config_1 = require("../config");
 const globalenv_1 = require("../globalenv");
 const extendT = (ts, val, bound, plicity) => list_1.Cons({ type: val, bound, plicity }, ts);
-const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'def '}${entry.plicity ? '-' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
+const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
 const localEmpty = { ts: list_1.Nil, vs: list_1.Nil, index: 0, inType: false };
 const extend = (l, ty, bound, plicity, val, inType = l.inType) => ({
     ts: extendT(l.ts, ty, bound, plicity),
@@ -172,7 +173,7 @@ const localInType = (l, inType = true) => ({
     index: l.index,
     inType,
 });
-const showLocal = (l) => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts)}, ${domain_1.showEnvV(l.vs)})`;
+const showLocal = (l, full = false) => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${domain_1.showEnvV(l.vs, l.index, full)})`;
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${syntax_1.showTerm(tm)} : ${domain_1.showTermQ(ty)}${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
     const ty2 = synth(local, tm);
@@ -236,6 +237,7 @@ const util_1 = require("../utils/util");
 const domain_1 = require("./domain");
 const lazy_1 = require("../utils/lazy");
 const list_1 = require("../utils/list");
+const config_1 = require("../config");
 const eqHead = (a, b) => {
     if (a === b)
         return true;
@@ -253,6 +255,7 @@ const unifyElim = (k, a, b, x, y) => {
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a, b) => {
+    config_1.log(() => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
     if (a.tag === 'VType' && b.tag === 'VType')
@@ -294,7 +297,7 @@ exports.unify = (k, a, b) => {
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 
-},{"../utils/lazy":10,"../utils/list":11,"../utils/util":12,"./domain":2}],6:[function(require,module,exports){
+},{"../config":1,"../utils/lazy":10,"../utils/list":11,"../utils/util":12,"./domain":2}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 let env = {};
@@ -706,7 +709,7 @@ exports.runREPL = (_s, _cb) => {
             return _cb(`debug: ${config_1.config.debug}`);
         }
         if (_s.toLowerCase() === ':showenvs') {
-            config_1.setConfig({ debug: !config_1.config.showEnvs });
+            config_1.setConfig({ showEnvs: !config_1.config.showEnvs });
             return _cb(`showEnvs: ${config_1.config.showEnvs}`);
         }
         if (_s.startsWith(':def') || _s.startsWith(':import')) {

@@ -13,7 +13,7 @@ type EnvT = List<EntryT>;
 const extendT = (ts: EnvT, val: Val, bound: boolean, plicity: Plicity): EnvT =>
   Cons({ type: val, bound, plicity }, ts);
 const showEnvT = (ts: EnvT, k: Ix = 0, full: boolean = false): string =>
-  listToString(ts, entry => `${entry.bound ? '' : 'def '}${entry.plicity ? '-' : ''}${showTermQ(entry.type, k, full)}`);
+  listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${showTermQ(entry.type, k, full)}`);
 
 interface Local {
   ts: EnvT;
@@ -34,7 +34,8 @@ const localInType = (l: Local, inType: boolean = true): Local => ({
   index: l.index,
   inType,
 });
-const showLocal = (l: Local): string => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts)}, ${showEnvV(l.vs)})`;
+const showLocal = (l: Local, full: boolean = false): string =>
+  `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${showEnvV(l.vs, l.index, full)})`;
 
 const check = (local: Local, tm: Term, ty: Val): void => {
   log(() => `check ${showTerm(tm)} : ${showTermQ(ty)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
