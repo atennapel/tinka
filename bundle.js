@@ -56,8 +56,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        // TODO: figure out glued for vars
-        return val;
+        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
@@ -80,6 +79,13 @@ const quoteHead = (h, k) => {
         return syntax_1.Global(h.name);
     return h;
 };
+const quoteHeadGlued = (h, k) => {
+    if (h.tag === 'HVar' && h.index < k)
+        return syntax_1.Var(k - (h.index + 1));
+    if (h.tag === 'HGlobal')
+        return syntax_1.Global(h.name);
+    return null;
+};
 const quoteElim = (t, e, k, full) => {
     if (e.tag === 'EApp')
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
@@ -90,8 +96,14 @@ exports.quote = (v, k, full) => {
         return syntax_1.Type;
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
-    if (v.tag === 'VGlued')
-        return full ? exports.quote(lazy_1.forceLazy(v.val), k, full) : list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
+    if (v.tag === 'VGlued') {
+        if (full)
+            return exports.quote(lazy_1.forceLazy(v.val), k, full);
+        const head = quoteHeadGlued(v.head, k);
+        if (!head)
+            return exports.quote(lazy_1.forceLazy(v.val), k, full);
+        return list_1.foldr((x, y) => quoteElim(y, x, k, full), head, v.args);
+    }
     if (v.tag === 'VAbs')
         return syntax_1.Abs(v.plicity, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VPi')
