@@ -1,5 +1,5 @@
 import { Ix, Name } from '../names';
-import { List, Cons, Nil, listToString, index, foldr } from '../utils/list';
+import { List, Cons, Nil, listToString, index, foldr, length } from '../utils/list';
 import { Term, showTerm, Type, Var, App, Abs, Pi, Global } from './syntax';
 import { impossible } from '../utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from '../utils/lazy';
@@ -59,7 +59,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Type') return VType;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
-    return VGlued(HVar(t.index), Nil, lazyOf(val));
+    return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
   }
   if (t.tag === 'Global') {
     const entry = globalGet(t.name) || impossible(`evaluate: global ${t.name} has no value`);

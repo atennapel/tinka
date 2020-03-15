@@ -57,7 +57,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
+        return exports.VGlued(exports.HVar(list_1.length(vs) - t.index - 1), list_1.Nil, lazy_1.lazyOf(val));
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
@@ -369,7 +369,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
+        return exports.VGlued(exports.HVar(list_1.length(vs) - t.index - 1), list_1.Nil, lazy_1.lazyOf(val));
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
@@ -889,7 +889,8 @@ exports.runREPL = (_s, _cb) => {
         if (_s.startsWith(':def') || _s.startsWith(':import')) {
             const rest = _s.slice(1);
             parser_1.parseDefs(rest, importMap).then(ds => {
-                return _cb(surface_1.showDefs(ds));
+                const xs = typecheck_1.typecheckDefs(ds, true);
+                return _cb(`defined ${xs.join(' ')}`);
             }).catch(err => _cb('' + err, true));
             return;
         }
@@ -933,6 +934,7 @@ exports.runREPL = (_s, _cb) => {
             const res = globalenv_1.globalGet(name);
             if (!res)
                 return _cb(`undefined global: ${name}`, true);
+            config_1.log(() => syntax_1.showTerm(res.term));
             return _cb(syntax_1.showSurface(res.term));
         }
         if (_s.startsWith(':gtermc')) {
@@ -963,29 +965,6 @@ exports.runREPL = (_s, _cb) => {
                 return _cb(`undefined global: ${name}`, true);
             return _cb(domain_1.showTermS(res.val, list_1.Nil, 0, true));
         }
-        if (_s.startsWith(':'))
-            return _cb('invalid command', true);
-        /*
-        const t = parse(_s);
-        const tstr = showTerm(t);
-        log(() => tstr);
-        const core = C.fromSurface(t);
-        const corestr = C.showTerm(core);
-        log(() => corestr);
-        const type = CT.typecheck(core);
-        const typestr = CD.showTermQ(type);
-        log(() => typestr);
-        const typn = CD.quote(type, 0, true);
-        const typnstr = C.showTerm(typn);
-        log(() => typnstr);
-        const norm = CD.normalize(core, Nil, 0, false);
-        const normstr = C.showTerm(norm);
-        log(() => normstr);
-        const norf = CD.normalize(core, Nil, 0, true);
-        const norfstr = C.showTerm(norf);
-        log(() => norfstr);
-        return _cb(`term: ${tstr}\ncore: ${corestr}\ntype: ${typestr}\ntypn: ${typnstr}\nnorm: ${normstr}\nnorf: ${norfstr}`);
-        */
         let typeOnly = false;
         let core = false;
         if (_s.startsWith(':t')) {
@@ -1267,6 +1246,17 @@ const typecheck_1 = require("./core/typecheck");
 const CD = require("./core/domain");
 const extendT = (ts, val, bound, plicity, inserted) => list_1.Cons({ type: val, bound, plicity, inserted }, ts);
 const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${entry.inserted ? 'i ' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
+const indexT = (ts, ix) => {
+    let l = ts;
+    while (l.tag === 'Cons') {
+        if (ix === 0)
+            return l.head;
+        if (!l.head.inserted)
+            ix--;
+        l = l.tail;
+    }
+    return null;
+};
 const localEmpty = { names: list_1.Nil, ts: list_1.Nil, vs: list_1.Nil, index: 0, inType: false };
 const extend = (l, name, ty, bound, plicity, inserted, val, inType = l.inType) => ({
     names: list_1.Cons(name, l.names),
@@ -1285,6 +1275,24 @@ const localInType = (l, inType = true) => ({
 const showLocal = (l, full = false) => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${domain_1.showEnvV(l.vs, l.index, full)}, ${list_1.listToString(l.names)})`;
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+    const fty = domain_1.force(ty);
+    if (tm.tag === 'Type' && fty.tag === 'VType')
+        return syntax_1.Type;
+    if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
+        const v = domain_1.VVar(local.index);
+        const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
+        return syntax_1.Abs(tm.plicity, tm.name, domain_1.quote(fty.type, local.index, false), body);
+    }
+    if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
+        const v = domain_1.VVar(local.index);
+        const term = check(extend(local, fty.name, fty.type, true, true, true, v), tm, fty.body(v));
+        return syntax_1.Abs(fty.plicity, fty.name, domain_1.quote(fty.type, local.index, false), term);
+    }
+    if (tm.tag === 'Let') {
+        const [val, vty] = synth(local, tm.val);
+        const body = check(extend(local, tm.name, vty, false, tm.plicity, false, domain_1.evaluate(val, local.vs)), tm.body, ty);
+        return syntax_1.Let(tm.plicity, tm.name, val, body);
+    }
     const [etm, ty2] = synth(local, tm);
     try {
         unify_1.unify(local.index, ty2, ty);
@@ -1309,7 +1317,7 @@ const synth = (local, tm) => {
             return [syntax_1.Global(tm.name), entry.type];
         }
         else {
-            const entry = list_1.index(local.ts, i) || util_1.terr(`var out of scope ${S.showTerm(tm)}`);
+            const entry = indexT(local.ts, i) || util_1.terr(`var out of scope ${S.showTerm(tm)}`);
             if (entry.plicity && !local.inType)
                 return util_1.terr(`erased parameter ${S.showTerm(tm)} used`);
             return [syntax_1.Var(i), entry.type];
@@ -1319,7 +1327,7 @@ const synth = (local, tm) => {
         const [left, ty] = synth(local, tm.left);
         const fty = domain_1.force(ty);
         if (fty.tag === 'VPi' && fty.plicity === tm.plicity) {
-            const right = check(local, tm.right, fty.type);
+            const right = check(tm.plicity ? localInType(local) : local, tm.right, fty.type);
             const rt = fty.body(domain_1.evaluate(right, local.vs));
             return [syntax_1.App(left, tm.plicity, right), rt];
         }
@@ -1339,8 +1347,14 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Pi') {
         const type = check(localInType(local), tm.type, domain_1.VType);
-        const body = check(extend(local, tm.name, domain_1.evaluate(type, local.vs), true, tm.plicity, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
+        const body = check(extend(local, tm.name, domain_1.evaluate(type, local.vs), true, false, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
         return [syntax_1.Pi(tm.plicity, tm.name, type, body), domain_1.VType];
+    }
+    if (tm.tag === 'Ann') {
+        const type = check(localInType(local), tm.type, domain_1.VType);
+        const vtype = domain_1.evaluate(type, local.vs);
+        const term = check(local, tm.term, vtype);
+        return [term, vtype];
     }
     return util_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };

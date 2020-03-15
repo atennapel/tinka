@@ -1,6 +1,6 @@
 import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS } from './domain';
-import { Nil, index, List, Cons, listToString, indexOf } from './utils/list';
+import { Nil, List, Cons, listToString, indexOf } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
 import { unify } from './unify';
@@ -18,6 +18,15 @@ const extendT = (ts: EnvT, val: Val, bound: boolean, plicity: Plicity, inserted:
   Cons({ type: val, bound, plicity, inserted }, ts);
 const showEnvT = (ts: EnvT, k: Ix = 0, full: boolean = false): string =>
   listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${entry.inserted ? 'i ' : ''}${showTermQ(entry.type, k, full)}`);
+const indexT = (ts: EnvT, ix: Ix): EntryT | null => {
+  let l = ts;
+  while (l.tag === 'Cons') {
+    if (ix === 0) return l.head;
+    if (!l.head.inserted) ix--;
+    l = l.tail;
+  }
+  return null;
+};
 
 interface Local {
   names: List<Name>;
@@ -46,6 +55,23 @@ const showLocal = (l: Local, full: boolean = false): string =>
 
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  const fty = force(ty);
+  if (tm.tag === 'Type' && fty.tag === 'VType') return Type;
+  if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
+    const v = VVar(local.index);
+    const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
+    return Abs(tm.plicity, tm.name, quote(fty.type, local.index, false), body);
+  }
+  if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
+    const v = VVar(local.index);
+    const term = check(extend(local, fty.name, fty.type, true, true, true, v), tm, fty.body(v));
+    return Abs(fty.plicity, fty.name, quote(fty.type, local.index, false), term);
+  }
+  if (tm.tag === 'Let') {
+    const [val, vty] = synth(local, tm.val);
+    const body = check(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body, ty);
+    return Let(tm.plicity, tm.name, val, body);
+  }
   const [etm, ty2] = synth(local, tm);
   try {
     unify(local.index, ty2, ty);
@@ -66,7 +92,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       if (!entry) return terr(`global ${tm.name} not found`);
       return [Global(tm.name), entry.type];
     } else {
-      const entry = index(local.ts, i) || terr(`var out of scope ${S.showTerm(tm)}`);
+      const entry = indexT(local.ts, i) || terr(`var out of scope ${S.showTerm(tm)}`);
       if (entry.plicity && !local.inType) return terr(`erased parameter ${S.showTerm(tm)} used`);
       return [Var(i), entry.type];
     }
@@ -75,7 +101,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const [left, ty] = synth(local, tm.left);
     const fty = force(ty);
     if (fty.tag === 'VPi' && fty.plicity === tm.plicity) {
-      const right = check(local, tm.right, fty.type);
+      const right = check(tm.plicity ? localInType(local) : local, tm.right, fty.type);
       const rt = fty.body(evaluate(right, local.vs));
       return [App(left, tm.plicity, right), rt];
     }
@@ -95,8 +121,14 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   }
   if (tm.tag === 'Pi') {
     const type = check(localInType(local), tm.type, VType);
-    const body = check(extend(local, tm.name, evaluate(type, local.vs), true, tm.plicity, false, VVar(local.index)), tm.body, VType);
+    const body = check(extend(local, tm.name, evaluate(type, local.vs), true, false, false, VVar(local.index)), tm.body, VType);
     return [Pi(tm.plicity, tm.name, type, body), VType];
+  }
+  if (tm.tag === 'Ann') {
+    const type = check(localInType(local), tm.type, VType);
+    const vtype = evaluate(type, local.vs);
+    const term = check(local, tm.term, vtype);
+    return [term, vtype];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

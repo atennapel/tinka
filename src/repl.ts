@@ -1,5 +1,5 @@
 import { log, setConfig, config } from './config';
-import { showTerm, showDefs } from './surface';
+import { showTerm } from './surface';
 import { parseDefs, parse, ImportMap } from './parser';
 import { loadFile } from './utils/util';
 import * as C from './core/syntax';
@@ -8,8 +8,8 @@ import * as CD from './core/domain';
 import { Nil } from './utils/list';
 import { globalDelete, globalMap, globalGet } from './globalenv';
 import { showTermS, normalize } from './domain';
-import { showSurface, Term } from './syntax';
-import { typecheck } from './typecheck';
+import { showTerm as showTermI, showSurface, Term } from './syntax';
+import { typecheck, typecheckDefs } from './typecheck';
 
 const help = `
 EXAMPLES
@@ -75,7 +75,8 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.startsWith(':def') || _s.startsWith(':import')) {
       const rest = _s.slice(1);
       parseDefs(rest, importMap).then(ds => {
-        return _cb(showDefs(ds));
+        const xs = typecheckDefs(ds, true);
+        return _cb(`defined ${xs.join(' ')}`);
       }).catch(err => _cb(''+err, true));
       return;
     }
@@ -114,6 +115,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const name = _s.slice(6).trim();
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
+      log(() => showTermI(res.term));
       return _cb(showSurface(res.term));
     }
     if (_s.startsWith(':gtermc')) {
@@ -140,28 +142,6 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       if (!res) return _cb(`undefined global: ${name}`, true);
       return _cb(showTermS(res.val, Nil, 0, true));
     }
-    if (_s.startsWith(':')) return _cb('invalid command', true);
-    /*
-    const t = parse(_s);
-    const tstr = showTerm(t);
-    log(() => tstr);
-    const core = C.fromSurface(t);
-    const corestr = C.showTerm(core);
-    log(() => corestr);
-    const type = CT.typecheck(core);
-    const typestr = CD.showTermQ(type);
-    log(() => typestr);
-    const typn = CD.quote(type, 0, true);
-    const typnstr = C.showTerm(typn);
-    log(() => typnstr);
-    const norm = CD.normalize(core, Nil, 0, false);
-    const normstr = C.showTerm(norm);
-    log(() => normstr);
-    const norf = CD.normalize(core, Nil, 0, true);
-    const norfstr = C.showTerm(norf);
-    log(() => norfstr);
-    return _cb(`term: ${tstr}\ncore: ${corestr}\ntype: ${typestr}\ntypn: ${typnstr}\nnorm: ${normstr}\nnorf: ${norfstr}`);
-    */
     let typeOnly = false;
     let core = false;
     if (_s.startsWith(':t')) {
