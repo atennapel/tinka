@@ -57,7 +57,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(list_1.length(vs) - t.index - 1), list_1.Nil, lazy_1.lazyOf(val));
+        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
@@ -81,8 +81,6 @@ const quoteHead = (h, k) => {
     return h;
 };
 const quoteHeadGlued = (h, k) => {
-    if (h.tag === 'HVar' && h.index < k)
-        return syntax_1.Var(k - (h.index + 1));
     if (h.tag === 'HGlobal')
         return syntax_1.Global(h.name);
     return null;
@@ -369,7 +367,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(list_1.length(vs) - t.index - 1), list_1.Nil, lazy_1.lazyOf(val));
+        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || util_1.impossible(`evaluate: global ${t.name} has no value`);
@@ -393,8 +391,6 @@ const quoteHead = (h, k) => {
     return h;
 };
 const quoteHeadGlued = (h, k) => {
-    if (h.tag === 'HVar' && h.index < k)
-        return syntax_1.Var(k - (h.index + 1));
     if (h.tag === 'HGlobal')
         return syntax_1.Global(h.name);
     return null;
