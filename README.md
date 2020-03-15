@@ -2,5 +2,5 @@
 
 ```
 TODO:
-- add surface typechecker
+- elaborate from surface syntax to internal syntax
 ```

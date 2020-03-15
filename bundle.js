@@ -318,8 +318,8 @@ exports.globalReset = () => {
 };
 exports.globalMap = () => env;
 exports.globalGet = (name) => env[name] || null;
-exports.globalSet = (name, coreterm, coreval, coretype) => {
-    env[name] = { coreterm, coreval, coretype };
+exports.globalSet = (name, term, val, type, coreterm, coreval, coretype) => {
+    env[name] = { term, val, type, coreterm, coreval, coretype };
 };
 exports.globalDelete = (name) => {
     delete env[name];
