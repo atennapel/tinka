@@ -3,6 +3,7 @@ import { Plicity } from '../surface';
 import * as S from '../surface';
 import { Nil, List, lookup, Cons } from '../utils/list';
 import { impossible } from '../utils/util';
+import { Term as ITerm } from '../syntax';
 
 export type Term = Var | Global | App | Abs | Let | Pi | Type;
 
@@ -43,4 +44,15 @@ export const fromSurface = (t: S.Term, ns: List<[Name, Ix]> = Nil, k: Ix = 0): T
   if (t.tag === 'Pi') return Pi(t.plicity, fromSurface(t.type, ns, k), fromSurface(t.body, Cons([t.name, k], ns), k + 1));
   if (t.tag === 'Type') return Type;
   return impossible(`fromSurface: ${t.tag}`);
+};
+
+export const toCore = (t: ITerm): Term => {
+  if (t.tag === 'Type') return Type;
+  if (t.tag === 'Var') return Var(t.index);
+  if (t.tag === 'Global') return Global(t.name);
+  if (t.tag === 'App') return App(toCore(t.left), t.plicity, toCore(t.right));
+  if (t.tag === 'Pi') return Pi(t.plicity, toCore(t.type), toCore(t.body));
+  if (t.tag === 'Let') return Let(t.plicity, toCore(t.val), toCore(t.body));
+  if (t.tag === 'Abs' && t.type) return Abs(t.plicity, toCore(t.type), toCore(t.body));
+  return impossible(`toCore: ${t.tag}`);
 };

@@ -1,15 +1,27 @@
 import { parseDefs } from './parser';
 import { initREPL, runREPL } from './repl';
 import { setConfig } from './config';
-import { showDefs } from './surface';
+import { globalReset, globalMap } from './globalenv';
+import { typecheckDefs } from './typecheck';
+import { showTermS } from './domain';
+import { showSurface } from './syntax';
 
 if (process.argv[2]) {
   const option = process.argv[3];
-  if (option === '-d') setConfig({ debug: true, showEnvs: true });
+  if (option.includes('d')) setConfig({ debug: true });
+  if (option.includes('e')) setConfig({ showEnvs: true });
+  if (option.includes('c')) setConfig({ checkCore: true });
   try {
+    globalReset();
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
     parseDefs(sc, {}).then(ds => {
-      console.log(showDefs(ds));
+      const ns = typecheckDefs(ds);
+      const m = globalMap();
+      const main = m.main;
+      if (!main) console.log(`defined ${ns.join(' ')}`);
+      else {
+        console.log(`${showSurface(main.term)} : ${showTermS(main.type)}`);
+      }
       process.exit();
     }).catch(err => {
       console.error(err);

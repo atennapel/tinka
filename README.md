@@ -2,5 +2,5 @@
 
 ```
 TODO:
-- elaborate from surface syntax to internal syntax
+- use bidirection typechecking
 ```
