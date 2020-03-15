@@ -233,7 +233,7 @@ const synth = (local, tm) => {
     if (tm.tag === 'App') {
         const ty = domain_1.force(synth(local, tm.left));
         if (ty.tag === 'VPi' && ty.plicity === tm.plicity) {
-            check(local, tm.right, ty.type);
+            check(tm.plicity ? localInType(local) : local, tm.right, ty.type);
             return ty.body(domain_1.evaluate(tm.right, local.vs));
         }
         return util_1.terr(`invalid type or plicity mismatch in synthapp in ${syntax_1.showTerm(tm)}: ${domain_1.showTermQ(ty, local.index)} ${tm.plicity ? '-' : ''}@ ${syntax_1.showTerm(tm.right)}`);
@@ -251,7 +251,7 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Pi') {
         check(localInType(local), tm.type, domain_1.VType);
-        check(extend(local, domain_1.evaluate(tm.type, local.vs), true, tm.plicity, domain_1.VVar(local.index)), tm.body, domain_1.VType);
+        check(extend(local, domain_1.evaluate(tm.type, local.vs), true, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
         return domain_1.VType;
     }
     return util_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
