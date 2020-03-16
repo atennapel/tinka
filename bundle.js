@@ -6,6 +6,7 @@ exports.config = {
     showEnvs: false,
     checkCore: false,
     quoteLevel: 0,
+    alwaysUnfold: [],
 };
 exports.setConfig = (c) => {
     for (let k in c)
@@ -334,6 +335,7 @@ const syntax_1 = require("./syntax");
 const util_1 = require("./utils/util");
 const lazy_1 = require("./utils/lazy");
 const globalenv_1 = require("./globalenv");
+const config_1 = require("./config");
 exports.HVar = (index) => ({ tag: 'HVar', index });
 exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
@@ -407,6 +409,8 @@ exports.quote = (v, k, full) => {
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
     if (v.tag === 'VGlued') {
+        if (v.head.tag === 'HGlobal' && config_1.config.alwaysUnfold.includes(v.head.name))
+            return exports.quote(lazy_1.forceLazy(v.val), k, full);
         if (full > 0)
             return exports.quote(lazy_1.forceLazy(v.val), k, full - 1);
         const head = quoteHeadGlued(v.head, k);
@@ -424,7 +428,7 @@ exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k
 exports.showTermQ = (v, k = 0, full = 0) => syntax_1.showTerm(exports.quote(v, k, full));
 exports.showTermS = (v, ns = list_1.Nil, k = 0, full = 0) => syntax_1.showSurface(exports.quote(v, k, full), ns);
 
-},{"./globalenv":7,"./syntax":12,"./utils/lazy":15,"./utils/list":16,"./utils/util":17}],7:[function(require,module,exports){
+},{"./config":1,"./globalenv":7,"./syntax":12,"./utils/lazy":15,"./utils/list":16,"./utils/util":17}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 let env = {};
@@ -835,7 +839,8 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showEnvs or :showenvs] toggle showing environments in debug log messages
 [:checkCore or :checkcore] toggle rechecking of core terms
-[:quotelevel n] how much to normalize
+[:quoteLevel n] how much to normalize
+[:alwaysUnfold x y z] always unfold names
 [:def definitions] define names
 [:defs] show all defs
 [:del name] delete a name
@@ -881,7 +886,18 @@ exports.runREPL = (_s, _cb) => {
             if (isNaN(m))
                 return _cb(`invalid quoteLevel: ${n}`, true);
             config_1.setConfig({ quoteLevel: m });
-            return _cb(`quoteLevel: ${m}`);
+            return _cb(`quoteLevel: ${config_1.config.quoteLevel}`);
+        }
+        if (_s.toLowerCase().startsWith(':alwaysunfold')) {
+            let rest = _s.slice(13).trim();
+            let add = false;
+            if (rest[0] === '+') {
+                add = true;
+                rest = rest.slice(1);
+            }
+            const names = rest.split(/\s+/g);
+            config_1.setConfig({ alwaysUnfold: add ? config_1.config.alwaysUnfold.concat(names) : names });
+            return _cb(`alwaysUnfold: ${config_1.config.alwaysUnfold.join(' ')}`);
         }
         if (_s === ':defs') {
             const e = globalenv_1.globalMap();

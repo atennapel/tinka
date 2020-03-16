@@ -5,6 +5,7 @@ import { impossible } from './utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity } from './surface';
 import { globalGet } from './globalenv';
+import { config } from './config';
 
 export type Head = HVar | HGlobal;
 
@@ -98,6 +99,8 @@ export const quote = (v: Val, k: Ix, full: number): Term => {
       v.args,
     );
   if (v.tag === 'VGlued') {
+    if (v.head.tag === 'HGlobal' && config.alwaysUnfold.includes(v.head.name))
+      return quote(forceLazy(v.val), k, full);
     if (full > 0) return quote(forceLazy(v.val), k, full - 1);
     const head = quoteHeadGlued(v.head, k);
     if (!head) return quote(forceLazy(v.val), k, full);

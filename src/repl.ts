@@ -21,7 +21,8 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showEnvs or :showenvs] toggle showing environments in debug log messages
 [:checkCore or :checkcore] toggle rechecking of core terms
-[:quotelevel n] how much to normalize
+[:quoteLevel n] how much to normalize
+[:alwaysUnfold x y z] always unfold names
 [:def definitions] define names
 [:defs] show all defs
 [:del name] delete a name
@@ -69,7 +70,18 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const m = +n;
       if (isNaN(m)) return _cb(`invalid quoteLevel: ${n}`, true);
       setConfig({ quoteLevel: m });
-      return _cb(`quoteLevel: ${m}`);
+      return _cb(`quoteLevel: ${config.quoteLevel}`);
+    }
+    if (_s.toLowerCase().startsWith(':alwaysunfold')) {
+      let rest = _s.slice(13).trim();
+      let add = false;
+      if (rest[0] === '+') {
+        add = true;
+        rest = rest.slice(1);
+      }
+      const names = rest.split(/\s+/g);
+      setConfig({ alwaysUnfold: add ? config.alwaysUnfold.concat(names) : names });
+      return _cb(`alwaysUnfold: ${config.alwaysUnfold.join(' ')}`);
     }
     if (_s === ':defs') {
       const e = globalMap();
