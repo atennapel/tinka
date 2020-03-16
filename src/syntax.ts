@@ -3,8 +3,9 @@ import { Plicity } from './surface';
 import { List, indecesOf, Nil, index, Cons } from './utils/list';
 import * as S from './surface';
 import { impossible } from './utils/util';
+import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Pi | Type | Ann | Hole;
+export type Term = Var | Global | App | Abs | Let | Pi | Type | Ann | Hole | Meta;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -24,9 +25,12 @@ export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
 export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
+export type Meta = { tag: 'Meta', index: Ix };
+export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
+  if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs')
@@ -60,6 +64,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
 
 export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Hole') return true;
+  if (t.tag === 'Meta') return true;
   if (t.tag === 'App') return isUnsolved(t.left) || isUnsolved(t.right);
   if (t.tag === 'Abs') return (t.type && isUnsolved(t.type)) || isUnsolved(t.body);
   if (t.tag === 'Let') return isUnsolved(t.val) || isUnsolved(t.body);
@@ -79,6 +84,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     const l = index(ns, t.index);
     return l ? S.Var(l) : impossible(`var index out of range in toSurface: ${t.index}`);
   }
+  if (t.tag === 'Meta') return S.Meta(t.index);
   if (t.tag === 'Type') return S.Type;
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
@@ -99,3 +105,5 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   return t;
 };
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));
+export const showSurfaceZ = (t: Term, ns: List<Name> = Nil, vs: EnvV = Nil, k: Ix = 0, full: number = 0): string =>
+  S.showTerm(toSurface(zonk(t, vs, k, full), ns));

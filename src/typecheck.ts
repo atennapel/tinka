@@ -1,6 +1,6 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS } from './domain';
-import { Nil, List, Cons, listToString, indexOf } from './utils/list';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta } from './domain';
+import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
 import { unify } from './unify';
@@ -11,6 +11,7 @@ import { globalGet, globalSet } from './globalenv';
 import { toCore, showTerm as showTermC } from './core/syntax';
 import { typecheck as typecheckC } from './core/typecheck';
 import * as CD from './core/domain';
+import { freshMeta, freshMetaId } from './metas';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -63,10 +64,19 @@ const localInType = (l: Local, inType: boolean = true): Local => ({
 const showLocal = (l: Local, full: number = 0): string =>
   `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${showEnvV(l.vs, l.index, full)}, ${listToString(l.names)}, ${listToString(l.namesSurface)})`;
 
+const newMeta = (ts: EnvT): Term => {
+  const spine = filter(mapIndex(ts, (i, { bound }) => bound ? Var(i) : null), x => x !== null) as List<Var>;
+  return foldr((x, y) => App(y, false, x), freshMeta() as Term, spine);
+};
+
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
   if (tm.tag === 'Type' && fty.tag === 'VType') return Type;
+  if (tm.tag === 'Hole') {
+    const x = newMeta(local.ts);
+    return x;
+  }
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
     const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
@@ -92,6 +102,13 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   }
 };
 
+const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
+  const a = newMeta(ts);
+  const va = evaluate(a, vs);
+  const b = newMeta(extendT(ts, va, true, impl, false));
+  return VPi(impl, x, va, v => evaluate(b, extendV(vs, v)));
+};
+
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Type') return [Type, VType];
@@ -107,17 +124,28 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       return [Var(j), entry.type];
     }
   }
+  if (tm.tag === 'Hole') {
+    const t = newMeta(local.ts);
+    const vt = evaluate(newMeta(local.ts), local.vs);
+    return [t, vt];
+  }
   if (tm.tag === 'App') {
     const [left, ty] = synth(local, tm.left);
     const [right, rty] = synthapp(local, ty, tm.plicity, tm.right, tm);
     return [App(left, tm.plicity, right), rty];
   }
-  if (tm.tag === 'Abs' && tm.type) {
-    const type = check(localInType(local), tm.type, VType);
-    const vtype = evaluate(type, local.vs);
-    const [body, rt] = synth(extend(local, tm.name, vtype, true, tm.plicity, false, VVar(local.index)), tm.body);
-    const pi = evaluate(Pi(tm.plicity, tm.name, type, quote(rt, local.index + 1, 0)), local.vs);
-    return [Abs(tm.plicity, tm.name, type, body), pi];
+  if (tm.tag === 'Abs') {
+    if (tm.type) {
+      const type = check(localInType(local), tm.type, VType);
+      const vtype = evaluate(type, local.vs);
+      const [body, rt] = synth(extend(local, tm.name, vtype, true, tm.plicity, false, VVar(local.index)), tm.body);
+      const pi = evaluate(Pi(tm.plicity, tm.name, type, quote(rt, local.index + 1, 0)), local.vs);
+      return [Abs(tm.plicity, tm.name, type, body), pi];
+    } else {
+      const pi = freshPi(local.ts, local.vs, tm.name, tm.plicity);
+      const term = check(local, tm, pi);
+      return [term, pi];
+    }
   }
   if (tm.tag === 'Let') {
     const [val, vty] = synth(local, tm.val);
@@ -138,19 +166,32 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 
-export const synthapp = (local: Local, ty: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val] => {
-  log(() => `synthapp ${showTermS(ty, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  const fty = force(ty);
-  if (fty.tag === 'VPi' && fty.plicity === plicity) {
-    const right = check(plicity ? localInType(local) : local, tm, fty.type);
-    const rt = fty.body(evaluate(right, local.vs));
+export const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val] => {
+  log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  const ty = force(ty_);
+  if (ty.tag === 'VPi' && ty.plicity === plicity) {
+    const right = check(plicity ? localInType(local) : local, tm, ty.type);
+    const rt = ty.body(evaluate(right, local.vs));
     return [right, rt];
+  }
+  // TODO fix the following
+  if (ty.tag === 'VNe' && ty.head.tag === 'HMeta') {
+    const a = freshMetaId();
+    const b = freshMetaId();
+    const pi = VPi(plicity, '_', VNe(HMeta(a), ty.args), () => VNe(HMeta(b), ty.args));
+    unify(local.index, ty, pi);
+    return synthapp(local, pi, plicity, tm, tmall);
   }
   return terr(`invalid type or plicity mismatch in synthapp in ${S.showTerm(tmall)}: ${showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}`);
 };
 
-export const typecheck = (tm: S.Term, local: Local = localEmpty): [Term, Val] =>
-  synth(local, tm);
+export const typecheck = (tm: S.Term, local: Local = localEmpty): [Term, Val] => {
+  const [etm, ty] = synth(local, tm);
+  const ztm = zonk(etm, local.vs, local.index);
+  if (isUnsolved(ztm))
+    return terr(`elaborated term was unsolved: ${showSurfaceZ(ztm)}`);
+  return [ztm, ty];
+};
 
 export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): Name[] => {
   log(() => `typecheckDefs ${ds.map(x => x.name).join(' ')}`);
@@ -166,7 +207,8 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
     const d = ds[i];
     log(() => `typecheckDefs ${S.showDef(d)}`);
     if (d.tag === 'DDef') {
-      const [tm, ty] = typecheck(d.value);
+      const [tm_, ty] = typecheck(d.value);
+      const tm = zonk(tm_);
       log(() => `set ${d.name} = ${showTerm(tm)}`);
       const zty = quote(ty, 0, 0);
       const ctm = toCore(tm);

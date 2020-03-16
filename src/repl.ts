@@ -7,8 +7,8 @@ import * as CT from './core/typecheck';
 import * as CD from './core/domain';
 import { Nil } from './utils/list';
 import { globalDelete, globalMap, globalGet } from './globalenv';
-import { showTermS, normalize } from './domain';
-import { showTerm as showTermI, showSurface, Term } from './syntax';
+import { showTermSZ, normalize } from './domain';
+import { showTerm as showTermI, showSurfaceZ, Term } from './syntax';
 import { typecheck, typecheckDefs } from './typecheck';
 
 const help = `
@@ -85,7 +85,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     if (_s === ':defs') {
       const e = globalMap();
-      const msg = Object.keys(e).map(k => `def ${k} : ${showTermS(e[k].type)} = ${showSurface(e[k].term)} ~> ${showTermS(e[k].val)}`).join('\n');
+      const msg = Object.keys(e).map(k => `def ${k} : ${showTermSZ(e[k].type)} = ${showSurfaceZ(e[k].term)} ~> ${showTermSZ(e[k].val)}`).join('\n');
       return _cb(msg || 'no definitions');
     }
     if (_s.startsWith(':del')) {
@@ -124,7 +124,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const name = _s.slice(6).trim();
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
-      return _cb(showTermS(res.type, Nil, 0, Infinity));
+      return _cb(showTermSZ(res.type, Nil, Nil, 0, Infinity));
     }
     if (_s.startsWith(':gelabc')) {
       const name = _s.slice(7).trim();
@@ -137,7 +137,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
       log(() => showTermI(res.term));
-      return _cb(showSurface(res.term));
+      return _cb(showSurfaceZ(res.term));
     }
     if (_s.startsWith(':gtermc')) {
       const name = _s.slice(7).trim();
@@ -149,7 +149,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const name = _s.slice(7).trim();
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
-      return _cb(showTermS(res.val));
+      return _cb(showTermSZ(res.val));
     }
     if (_s.startsWith(':gnormc')) {
       const name = _s.slice(7).trim();
@@ -161,7 +161,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const name = _s.slice(7).trim();
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
-      return _cb(showTermS(res.val, Nil, 0, Infinity));
+      return _cb(showTermSZ(res.val, Nil, Nil, 0, Infinity));
     }
     let typeOnly = false;
     let core = false;
@@ -182,9 +182,9 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       log(() => showTerm(t));
       const [ztm, vty] = typecheck(t);
       tm_ = ztm;
-      log(() => showTermS(vty));
-      log(() => showSurface(tm_));
-      msg += `type: ${showTermS(vty)}\nterm: ${showSurface(tm_)}`;
+      log(() => showTermSZ(vty));
+      log(() => showSurfaceZ(tm_));
+      msg += `type: ${showTermSZ(vty)}\nterm: ${showSurfaceZ(tm_)}`;
       if (core) {
         const ctm = C.toCore(ztm);
         tmc_ = ctm;
@@ -201,8 +201,8 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     try {
       const n = normalize(tm_, Nil, 0, config.quoteLevel);
-      log(() => showSurface(n));
-      return _cb(`${msg}\nnorm: ${showSurface(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}` : ''}`);
+      log(() => showSurfaceZ(n));
+      return _cb(`${msg}\nnorm: ${showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}` : ''}`);
     } catch (err) {
       log(() => ''+err);
       msg += '\n'+err;

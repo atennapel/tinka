@@ -3,8 +3,8 @@ import { initREPL, runREPL } from './repl';
 import { setConfig } from './config';
 import { globalReset, globalMap } from './globalenv';
 import { typecheckDefs } from './typecheck';
-import { showTermS } from './domain';
-import { showSurface } from './syntax';
+import { showTermSZ } from './domain';
+import { showSurfaceZ } from './syntax';
 
 if (process.argv[2]) {
   const option = process.argv[3] || '';
@@ -20,7 +20,7 @@ if (process.argv[2]) {
       const main = m.main;
       if (!main) console.log(`defined ${ns.join(' ')}`);
       else {
-        console.log(`${showSurface(main.term)} : ${showTermS(main.type)}`);
+        console.log(`${showSurfaceZ(main.term)} : ${showTermSZ(main.type)}`);
       }
       process.exit();
     }).catch(err => {
