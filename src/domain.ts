@@ -37,7 +37,7 @@ export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
 
 export type EnvV = List<Val>;
 export const extendV = (vs: EnvV, val: Val): EnvV => Cons(val, vs);
-export const showEnvV = (l: EnvV, k: Ix = 0, full: boolean = false): string => listToString(l, v => showTerm(quote(v, k, full)));
+export const showEnvV = (l: EnvV, k: Ix = 0, full: number = 0): string => listToString(l, v => showTerm(quote(v, k, full)));
 
 export const force = (v: Val): Val => {
   if (v.tag === 'VGlued') return force(forceLazy(v.val));
@@ -85,11 +85,11 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
   if (h.tag === 'HGlobal') return Global(h.name);
   return null;
 };
-const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
+const quoteElim = (t: Term, e: Elim, k: Ix, full: number): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   return e.tag;
 };
-export const quote = (v: Val, k: Ix, full: boolean): Term => {
+export const quote = (v: Val, k: Ix, full: number): Term => {
   if (v.tag === 'VType') return Type;
   if (v.tag === 'VNe')
     return foldr(
@@ -98,7 +98,7 @@ export const quote = (v: Val, k: Ix, full: boolean): Term => {
       v.args,
     );
   if (v.tag === 'VGlued') {
-    if (full) return quote(forceLazy(v.val), k, full);
+    if (full > 0) return quote(forceLazy(v.val), k, full - 1);
     const head = quoteHeadGlued(v.head, k);
     if (!head) return quote(forceLazy(v.val), k, full);
     return foldr(
@@ -114,9 +114,9 @@ export const quote = (v: Val, k: Ix, full: boolean): Term => {
   return v;
 };
 
-export const normalize = (t: Term, vs: EnvV, k: Ix, full: boolean): Term =>
+export const normalize = (t: Term, vs: EnvV, k: Ix, full: number): Term =>
   quote(evaluate(t, vs), k, full);
 
-export const showTermQ = (v: Val, k: number = 0, full: boolean = false): string => showTerm(quote(v, k, full));
-export const showTermS = (v: Val, ns: List<Name> = Nil, k: number = 0, full: boolean = false): string =>
+export const showTermQ = (v: Val, k: number = 0, full: number = 0): string => showTerm(quote(v, k, full));
+export const showTermS = (v: Val, ns: List<Name> = Nil, k: number = 0, full: number = 0): string =>
   showSurface(quote(v, k, full), ns);

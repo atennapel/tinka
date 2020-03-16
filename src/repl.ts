@@ -21,6 +21,7 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showEnvs or :showenvs] toggle showing environments in debug log messages
 [:checkCore or :checkcore] toggle rechecking of core terms
+[:quotelevel n] how much to normalize
 [:def definitions] define names
 [:defs] show all defs
 [:del name] delete a name
@@ -43,6 +44,7 @@ let importMap: ImportMap = {};
 
 export const initREPL = () => {
   importMap = {};
+  setConfig({ quoteLevel: Infinity });
 };
 
 export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
@@ -61,6 +63,13 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.toLowerCase() === ':checkcore') {
       setConfig({ checkCore: !config.checkCore });
       return _cb(`checkCore: ${config.checkCore}`);
+    }
+    if (_s.toLowerCase().startsWith(':quotelevel')) {
+      const n = _s.slice(11);
+      const m = +n;
+      if (isNaN(m)) return _cb(`invalid quoteLevel: ${n}`, true);
+      setConfig({ quoteLevel: m });
+      return _cb(`quoteLevel: ${m}`);
     }
     if (_s === ':defs') {
       const e = globalMap();
@@ -103,7 +112,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const name = _s.slice(6).trim();
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
-      return _cb(showTermS(res.type, Nil, 0, true));
+      return _cb(showTermS(res.type, Nil, 0, Infinity));
     }
     if (_s.startsWith(':gelabc')) {
       const name = _s.slice(7).trim();
@@ -140,7 +149,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const name = _s.slice(7).trim();
       const res = globalGet(name);
       if (!res) return _cb(`undefined global: ${name}`, true);
-      return _cb(showTermS(res.val, Nil, 0, true));
+      return _cb(showTermS(res.val, Nil, 0, Infinity));
     }
     let typeOnly = false;
     let core = false;
@@ -179,7 +188,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       return _cb(''+err, true);
     }
     try {
-      const n = normalize(tm_, Nil, 0, true);
+      const n = normalize(tm_, Nil, 0, config.quoteLevel);
       log(() => showSurface(n));
       return _cb(`${msg}\nnorm: ${showSurface(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}` : ''}`);
     } catch (err) {

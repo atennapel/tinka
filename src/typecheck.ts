@@ -16,7 +16,7 @@ type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean }
 type EnvT = List<EntryT>;
 const extendT = (ts: EnvT, val: Val, bound: boolean, plicity: Plicity, inserted: boolean): EnvT =>
   Cons({ type: val, bound, plicity, inserted }, ts);
-const showEnvT = (ts: EnvT, k: Ix = 0, full: boolean = false): string =>
+const showEnvT = (ts: EnvT, k: Ix = 0, full: number = 0): string =>
   listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${entry.inserted ? 'i ' : ''}${showTermQ(entry.type, k, full)}`);
 const indexT = (ts: EnvT, ix: Ix): [EntryT, Ix] | null => {
   let l = ts;
@@ -60,7 +60,7 @@ const localInType = (l: Local, inType: boolean = true): Local => ({
   index: l.index,
   inType,
 });
-const showLocal = (l: Local, full: boolean = false): string =>
+const showLocal = (l: Local, full: number = 0): string =>
   `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${showEnvV(l.vs, l.index, full)}, ${listToString(l.names)}, ${listToString(l.namesSurface)})`;
 
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
@@ -70,12 +70,12 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
     const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
-    return Abs(tm.plicity, tm.name, quote(fty.type, local.index, false), body);
+    return Abs(tm.plicity, tm.name, quote(fty.type, local.index, 0), body);
   }
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
     const v = VVar(local.index);
     const term = check(extend(local, fty.name, fty.type, true, true, true, v), tm, fty.body(v));
-    return Abs(fty.plicity, fty.name, quote(fty.type, local.index, false), term);
+    return Abs(fty.plicity, fty.name, quote(fty.type, local.index, 0), term);
   }
   if (tm.tag === 'Let') {
     const [val, vty] = synth(local, tm.val);
@@ -116,7 +116,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const type = check(localInType(local), tm.type, VType);
     const vtype = evaluate(type, local.vs);
     const [body, rt] = synth(extend(local, tm.name, vtype, true, tm.plicity, false, VVar(local.index)), tm.body);
-    const pi = evaluate(Pi(tm.plicity, tm.name, type, quote(rt, local.index + 1, false)), local.vs);
+    const pi = evaluate(Pi(tm.plicity, tm.name, type, quote(rt, local.index + 1, 0)), local.vs);
     return [Abs(tm.plicity, tm.name, type, body), pi];
   }
   if (tm.tag === 'Let') {
@@ -168,7 +168,7 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
     if (d.tag === 'DDef') {
       const [tm, ty] = typecheck(d.value);
       log(() => `set ${d.name} = ${showTerm(tm)}`);
-      const zty = quote(ty, 0, false);
+      const zty = quote(ty, 0, 0);
       const ctm = toCore(tm);
       if (config.checkCore) {
         log(() => `typecheck in core: ${showTermC(ctm)}`);

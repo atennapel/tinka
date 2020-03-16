@@ -5,6 +5,7 @@ exports.config = {
     debug: false,
     showEnvs: false,
     checkCore: false,
+    quoteLevel: 0,
 };
 exports.setConfig = (c) => {
     for (let k in c)
@@ -344,7 +345,7 @@ exports.VType = { tag: 'VType' };
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
-exports.showEnvV = (l, k = 0, full = false) => list_1.listToString(l, v => syntax_1.showTerm(exports.quote(v, k, full)));
+exports.showEnvV = (l, k = 0, full = 0) => list_1.listToString(l, v => syntax_1.showTerm(exports.quote(v, k, full)));
 exports.force = (v) => {
     if (v.tag === 'VGlued')
         return exports.force(lazy_1.forceLazy(v.val));
@@ -406,8 +407,8 @@ exports.quote = (v, k, full) => {
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
     if (v.tag === 'VGlued') {
-        if (full)
-            return exports.quote(lazy_1.forceLazy(v.val), k, full);
+        if (full > 0)
+            return exports.quote(lazy_1.forceLazy(v.val), k, full - 1);
         const head = quoteHeadGlued(v.head, k);
         if (!head)
             return exports.quote(lazy_1.forceLazy(v.val), k, full);
@@ -420,8 +421,8 @@ exports.quote = (v, k, full) => {
     return v;
 };
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
-exports.showTermQ = (v, k = 0, full = false) => syntax_1.showTerm(exports.quote(v, k, full));
-exports.showTermS = (v, ns = list_1.Nil, k = 0, full = false) => syntax_1.showSurface(exports.quote(v, k, full), ns);
+exports.showTermQ = (v, k = 0, full = 0) => syntax_1.showTerm(exports.quote(v, k, full));
+exports.showTermS = (v, ns = list_1.Nil, k = 0, full = 0) => syntax_1.showSurface(exports.quote(v, k, full), ns);
 
 },{"./globalenv":7,"./syntax":12,"./utils/lazy":15,"./utils/list":16,"./utils/util":17}],7:[function(require,module,exports){
 "use strict";
@@ -834,6 +835,7 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showEnvs or :showenvs] toggle showing environments in debug log messages
 [:checkCore or :checkcore] toggle rechecking of core terms
+[:quotelevel n] how much to normalize
 [:def definitions] define names
 [:defs] show all defs
 [:del name] delete a name
@@ -854,6 +856,7 @@ COMMANDS
 let importMap = {};
 exports.initREPL = () => {
     importMap = {};
+    config_1.setConfig({ quoteLevel: Infinity });
 };
 exports.runREPL = (_s, _cb) => {
     try {
@@ -871,6 +874,14 @@ exports.runREPL = (_s, _cb) => {
         if (_s.toLowerCase() === ':checkcore') {
             config_1.setConfig({ checkCore: !config_1.config.checkCore });
             return _cb(`checkCore: ${config_1.config.checkCore}`);
+        }
+        if (_s.toLowerCase().startsWith(':quotelevel')) {
+            const n = _s.slice(11);
+            const m = +n;
+            if (isNaN(m))
+                return _cb(`invalid quoteLevel: ${n}`, true);
+            config_1.setConfig({ quoteLevel: m });
+            return _cb(`quoteLevel: ${m}`);
         }
         if (_s === ':defs') {
             const e = globalenv_1.globalMap();
@@ -916,7 +927,7 @@ exports.runREPL = (_s, _cb) => {
             const res = globalenv_1.globalGet(name);
             if (!res)
                 return _cb(`undefined global: ${name}`, true);
-            return _cb(domain_1.showTermS(res.type, list_1.Nil, 0, true));
+            return _cb(domain_1.showTermS(res.type, list_1.Nil, 0, Infinity));
         }
         if (_s.startsWith(':gelabc')) {
             const name = _s.slice(7).trim();
@@ -959,7 +970,7 @@ exports.runREPL = (_s, _cb) => {
             const res = globalenv_1.globalGet(name);
             if (!res)
                 return _cb(`undefined global: ${name}`, true);
-            return _cb(domain_1.showTermS(res.val, list_1.Nil, 0, true));
+            return _cb(domain_1.showTermS(res.val, list_1.Nil, 0, Infinity));
         }
         let typeOnly = false;
         let core = false;
@@ -1001,7 +1012,7 @@ exports.runREPL = (_s, _cb) => {
             return _cb('' + err, true);
         }
         try {
-            const n = domain_1.normalize(tm_, list_1.Nil, 0, true);
+            const n = domain_1.normalize(tm_, list_1.Nil, 0, config_1.config.quoteLevel);
             config_1.log(() => syntax_1.showSurface(n));
             return _cb(`${msg}\nnorm: ${syntax_1.showSurface(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, list_1.Nil, 0, true))}` : ''}`);
         }
@@ -1241,7 +1252,7 @@ const syntax_2 = require("./core/syntax");
 const typecheck_1 = require("./core/typecheck");
 const CD = require("./core/domain");
 const extendT = (ts, val, bound, plicity, inserted) => list_1.Cons({ type: val, bound, plicity, inserted }, ts);
-const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${entry.inserted ? 'i ' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
+const showEnvT = (ts, k = 0, full = 0) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${entry.inserted ? 'i ' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
 const indexT = (ts, ix) => {
     let l = ts;
     let i = 0;
@@ -1276,7 +1287,7 @@ const localInType = (l, inType = true) => ({
     index: l.index,
     inType,
 });
-const showLocal = (l, full = false) => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${domain_1.showEnvV(l.vs, l.index, full)}, ${list_1.listToString(l.names)}, ${list_1.listToString(l.namesSurface)})`;
+const showLocal = (l, full = 0) => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${domain_1.showEnvV(l.vs, l.index, full)}, ${list_1.listToString(l.names)}, ${list_1.listToString(l.namesSurface)})`;
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
     const fty = domain_1.force(ty);
@@ -1285,12 +1296,12 @@ const check = (local, tm, ty) => {
     if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
         const v = domain_1.VVar(local.index);
         const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
-        return syntax_1.Abs(tm.plicity, tm.name, domain_1.quote(fty.type, local.index, false), body);
+        return syntax_1.Abs(tm.plicity, tm.name, domain_1.quote(fty.type, local.index, 0), body);
     }
     if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
         const v = domain_1.VVar(local.index);
         const term = check(extend(local, fty.name, fty.type, true, true, true, v), tm, fty.body(v));
-        return syntax_1.Abs(fty.plicity, fty.name, domain_1.quote(fty.type, local.index, false), term);
+        return syntax_1.Abs(fty.plicity, fty.name, domain_1.quote(fty.type, local.index, 0), term);
     }
     if (tm.tag === 'Let') {
         const [val, vty] = synth(local, tm.val);
@@ -1336,7 +1347,7 @@ const synth = (local, tm) => {
         const type = check(localInType(local), tm.type, domain_1.VType);
         const vtype = domain_1.evaluate(type, local.vs);
         const [body, rt] = synth(extend(local, tm.name, vtype, true, tm.plicity, false, domain_1.VVar(local.index)), tm.body);
-        const pi = domain_1.evaluate(syntax_1.Pi(tm.plicity, tm.name, type, domain_1.quote(rt, local.index + 1, false)), local.vs);
+        const pi = domain_1.evaluate(syntax_1.Pi(tm.plicity, tm.name, type, domain_1.quote(rt, local.index + 1, 0)), local.vs);
         return [syntax_1.Abs(tm.plicity, tm.name, type, body), pi];
     }
     if (tm.tag === 'Let') {
@@ -1384,7 +1395,7 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
         if (d.tag === 'DDef') {
             const [tm, ty] = exports.typecheck(d.value);
             config_1.log(() => `set ${d.name} = ${syntax_1.showTerm(tm)}`);
-            const zty = domain_1.quote(ty, 0, false);
+            const zty = domain_1.quote(ty, 0, 0);
             const ctm = syntax_2.toCore(tm);
             if (config_1.config.checkCore) {
                 config_1.log(() => `typecheck in core: ${syntax_2.showTerm(ctm)}`);
