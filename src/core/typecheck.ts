@@ -8,12 +8,12 @@ import { Plicity } from '../surface';
 import { log, config } from '../config';
 import { globalGet } from '../globalenv';
 
-type EntryT = { type: Val, bound: boolean, plicity: Plicity };
+type EntryT = { type: Val, plicity: Plicity };
 type EnvT = List<EntryT>;
-const extendT = (ts: EnvT, val: Val, bound: boolean, plicity: Plicity): EnvT =>
-  Cons({ type: val, bound, plicity }, ts);
+const extendT = (ts: EnvT, val: Val, plicity: Plicity): EnvT =>
+  Cons({ type: val, plicity }, ts);
 const showEnvT = (ts: EnvT, k: Ix = 0, full: boolean = false): string =>
-  listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${showTermQ(entry.type, k, full)}`);
+  listToString(ts, entry => `${entry.plicity ? 'e ' : ''}${showTermQ(entry.type, k, full)}`);
 
 interface Local {
   ts: EnvT;
@@ -22,8 +22,8 @@ interface Local {
   inType: boolean;
 }
 const localEmpty: Local = { ts: Nil, vs: Nil, index: 0, inType: false };
-const extend = (l: Local, ty: Val, bound: boolean, plicity: Plicity, val: Val, inType: boolean = l.inType): Local => ({
-  ts: extendT(l.ts, ty, bound, plicity),
+const extend = (l: Local, ty: Val, plicity: Plicity, val: Val, inType: boolean = l.inType): Local => ({
+  ts: extendT(l.ts, ty, plicity),
   vs: extendV(l.vs, val),
   index: l.index + 1,
   inType,
@@ -72,17 +72,17 @@ const synth = (local: Local, tm: Term): Val => {
   if (tm.tag === 'Abs') {
     check(localInType(local), tm.type, VType);
     const type = evaluate(tm.type, local.vs);
-    const rt = synth(extend(local, type, true, tm.plicity, VVar(local.index)), tm.body);
+    const rt = synth(extend(local, type, tm.plicity, VVar(local.index)), tm.body);
     return evaluate(Pi(tm.plicity, tm.type, quote(rt, local.index + 1, false)), local.vs);
   }
   if (tm.tag === 'Let') {
     const vty = synth(local, tm.val);
-    const rt = synth(extend(local, vty, true, tm.plicity, VVar(local.index)), tm.body);
+    const rt = synth(extend(local, vty, tm.plicity, VVar(local.index)), tm.body);
     return rt;
   }
   if (tm.tag === 'Pi') {
     check(localInType(local), tm.type, VType);
-    check(extend(local, evaluate(tm.type, local.vs), true, false, VVar(local.index)), tm.body, VType);
+    check(extend(local, evaluate(tm.type, local.vs), false, VVar(local.index)), tm.body, VType);
     return VType;
   }
   return terr(`cannot synth ${showTerm(tm)}`);
