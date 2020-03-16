@@ -1,5 +1,3 @@
-import lib/unit.p
-import lib/sum.p
 import lib/fix.p
 
 def NatF = \(r : *). {t : *} -> t -> (r -> t) -> t

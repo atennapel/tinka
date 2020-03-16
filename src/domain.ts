@@ -54,12 +54,10 @@ export const force = (v: Val): Val => {
   return v;
 };
 export const forceGlue = (v: Val): Val => {
-  if (v.tag === 'VGlued') return VGlued(v.head, v.args, mapLazy(v.val, forceGlue));
   if (v.tag === 'VNe' && v.head.tag === 'HMeta') {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
-    const delayed = Lazy(() => forceGlue(foldr((elim, y) => vapp(y, elim.plicity, elim.arg), val.val, v.args)));
-    return VGlued(v.head, v.args, delayed);
+    return forceGlue(foldr((elim, y) => vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
 };
@@ -79,7 +77,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Type') return VType;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
-    return VGlued(HVar(t.index), Nil, lazyOf(val));
+    // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
+    return val;
   }
   if (t.tag === 'Meta') {
     const s = metaGet(t.index);
@@ -115,7 +114,8 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: number): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   return e.tag;
 };
-export const quote = (v: Val, k: Ix, full: number): Term => {
+export const quote = (v_: Val, k: Ix, full: number): Term => {
+  const v = forceGlue(v_);
   if (v.tag === 'VType') return Type;
   if (v.tag === 'VNe')
     return foldr(

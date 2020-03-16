@@ -363,14 +363,11 @@ exports.force = (v) => {
     return v;
 };
 exports.forceGlue = (v) => {
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, v.args, lazy_1.mapLazy(v.val, exports.forceGlue));
     if (v.tag === 'VNe' && v.head.tag === 'HMeta') {
         const val = metas_1.metaGet(v.head.index);
         if (val.tag === 'Unsolved')
             return v;
-        const delayed = lazy_1.Lazy(() => exports.forceGlue(list_1.foldr((elim, y) => exports.vapp(y, elim.plicity, elim.arg), val.val, v.args)));
-        return exports.VGlued(v.head, v.args, delayed);
+        return exports.forceGlue(list_1.foldr((elim, y) => exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -391,7 +388,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VType;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
-        return exports.VGlued(exports.HVar(t.index), list_1.Nil, lazy_1.lazyOf(val));
+        // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
+        return val;
     }
     if (t.tag === 'Meta') {
         const s = metas_1.metaGet(t.index);
@@ -432,7 +430,8 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     return e.tag;
 };
-exports.quote = (v, k, full) => {
+exports.quote = (v_, k, full) => {
+    const v = exports.forceGlue(v_);
     if (v.tag === 'VType')
         return syntax_1.Type;
     if (v.tag === 'VNe')
@@ -1627,8 +1626,11 @@ const unifyElim = (k, a, b, x, y) => {
         return exports.unify(k, a.arg, b.arg);
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
-exports.unify = (k, a, b) => {
-    config_1.log(() => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
+exports.unify = (k, a_, b_) => {
+    config_1.log(() => `unify1(${k}) ${domain_1.showTermQ(a_, k)} ~ ${domain_1.showTermQ(b_, k)}`);
+    const a = domain_1.forceGlue(a_);
+    const b = domain_1.forceGlue(b_);
+    config_1.log(() => `unify2(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
     if (a.tag === 'VType' && b.tag === 'VType')
