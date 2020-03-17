@@ -1,6 +1,6 @@
 import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta } from './domain';
-import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr } from './utils/list';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
+import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
 import { unify } from './unify';
@@ -11,7 +11,7 @@ import { globalGet, globalSet } from './globalenv';
 import { toCore, showTerm as showTermC } from './core/syntax';
 import { typecheck as typecheckC } from './core/typecheck';
 import * as CD from './core/domain';
-import { freshMeta, freshMetaId } from './metas';
+import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -69,6 +69,17 @@ const newMeta = (ts: EnvT): Term => {
   return foldr((x, y) => App(y, false, x), freshMeta() as Term, spine);
 };
 
+const inst = (ts: EnvT, vs: EnvV, ty_: Val): [Val, List<Term>] => {
+  const ty = forceGlue(ty_);
+  if (ty.tag === 'VPi' && ty.plicity) {
+    const m = newMeta(ts);
+    const vm = evaluate(m, vs);
+    const [res, args] = inst(ts, vs, ty.body(vm));
+    return [res, Cons(m, args)];
+  }
+  return [ty, Nil];
+};
+
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
@@ -92,13 +103,28 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     const body = check(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body, ty);
     return Let(tm.plicity, tm.name, val, body);
   }
-  const [etm, ty2] = synth(local, tm);
+  const [term, ty2] = synth(local, tm);
   try {
+    log(() => `unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
+    metaPush();
     unify(local.index, ty2, ty);
-    return etm;
+    metaDiscard();
+    return term;
   } catch(err) {
     if (!(err instanceof TypeError)) throw err;
-    return terr(`failed to unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}: ${err.message}`);
+    try {
+      metaPop();
+      metaPush();
+      const [ty2inst, ms] = inst(local.ts, local.vs, ty2); 
+      log(() => `unify-inst ${showTermS(ty2inst, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
+      unify(local.index, ty2inst, ty);
+      metaDiscard();
+      return foldl((a, m) => App(a, true, m), term, ms);
+    } catch {
+      if (!(err instanceof TypeError)) throw err;
+      metaPop();
+      return terr(`failed to unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}: ${err.message}`);
+    }
   }
 };
 
@@ -131,8 +157,8 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   }
   if (tm.tag === 'App') {
     const [left, ty] = synth(local, tm.left);
-    const [right, rty] = synthapp(local, ty, tm.plicity, tm.right, tm);
-    return [App(left, tm.plicity, right), rty];
+    const [right, rty, ms] = synthapp(local, ty, tm.plicity, tm.right, tm);
+    return [App(foldl((f, a) => App(f, true, a), left, ms), tm.plicity, right), rty];
   }
   if (tm.tag === 'Abs') {
     if (tm.type) {
@@ -166,13 +192,19 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 
-export const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val] => {
+export const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val, List<Term>] => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);
+  if (ty.tag === 'VPi' && ty.plicity && !plicity) {
+    const m = newMeta(local.ts);
+    const vm = evaluate(m, local.vs);
+    const [rest, rt, l] = synthapp(local, ty.body(vm), plicity, tm, tmall);
+    return [rest, rt, Cons(m, l)];
+  }
   if (ty.tag === 'VPi' && ty.plicity === plicity) {
     const right = check(plicity ? localInType(local) : local, tm, ty.type);
     const rt = ty.body(evaluate(right, local.vs));
-    return [right, rt];
+    return [right, rt, Nil];
   }
   // TODO fix the following
   if (ty.tag === 'VNe' && ty.head.tag === 'HMeta') {

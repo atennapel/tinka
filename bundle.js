@@ -1437,6 +1437,16 @@ const newMeta = (ts) => {
     const spine = list_1.filter(list_1.mapIndex(ts, (i, { bound }) => bound ? syntax_1.Var(i) : null), x => x !== null);
     return list_1.foldr((x, y) => syntax_1.App(y, false, x), metas_1.freshMeta(), spine);
 };
+const inst = (ts, vs, ty_) => {
+    const ty = domain_1.forceGlue(ty_);
+    if (ty.tag === 'VPi' && ty.plicity) {
+        const m = newMeta(ts);
+        const vm = domain_1.evaluate(m, vs);
+        const [res, args] = inst(ts, vs, ty.body(vm));
+        return [res, list_1.Cons(m, args)];
+    }
+    return [ty, list_1.Nil];
+};
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
     const fty = domain_1.force(ty);
@@ -1461,15 +1471,32 @@ const check = (local, tm, ty) => {
         const body = check(extend(local, tm.name, vty, false, tm.plicity, false, domain_1.evaluate(val, local.vs)), tm.body, ty);
         return syntax_1.Let(tm.plicity, tm.name, val, body);
     }
-    const [etm, ty2] = synth(local, tm);
+    const [term, ty2] = synth(local, tm);
     try {
+        config_1.log(() => `unify ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}`);
+        metas_1.metaPush();
         unify_1.unify(local.index, ty2, ty);
-        return etm;
+        metas_1.metaDiscard();
+        return term;
     }
     catch (err) {
         if (!(err instanceof TypeError))
             throw err;
-        return util_1.terr(`failed to unify ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
+        try {
+            metas_1.metaPop();
+            metas_1.metaPush();
+            const [ty2inst, ms] = inst(local.ts, local.vs, ty2);
+            config_1.log(() => `unify-inst ${domain_1.showTermS(ty2inst, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}`);
+            unify_1.unify(local.index, ty2inst, ty);
+            metas_1.metaDiscard();
+            return list_1.foldl((a, m) => syntax_1.App(a, true, m), term, ms);
+        }
+        catch {
+            if (!(err instanceof TypeError))
+                throw err;
+            metas_1.metaPop();
+            return util_1.terr(`failed to unify ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
+        }
     }
 };
 const freshPi = (ts, vs, x, impl) => {
@@ -1504,8 +1531,8 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'App') {
         const [left, ty] = synth(local, tm.left);
-        const [right, rty] = exports.synthapp(local, ty, tm.plicity, tm.right, tm);
-        return [syntax_1.App(left, tm.plicity, right), rty];
+        const [right, rty, ms] = exports.synthapp(local, ty, tm.plicity, tm.right, tm);
+        return [syntax_1.App(list_1.foldl((f, a) => syntax_1.App(f, true, a), left, ms), tm.plicity, right), rty];
     }
     if (tm.tag === 'Abs') {
         if (tm.type) {
@@ -1542,10 +1569,16 @@ const synth = (local, tm) => {
 exports.synthapp = (local, ty_, plicity, tm, tmall) => {
     config_1.log(() => `synthapp ${domain_1.showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
     const ty = domain_1.force(ty_);
+    if (ty.tag === 'VPi' && ty.plicity && !plicity) {
+        const m = newMeta(local.ts);
+        const vm = domain_1.evaluate(m, local.vs);
+        const [rest, rt, l] = exports.synthapp(local, ty.body(vm), plicity, tm, tmall);
+        return [rest, rt, list_1.Cons(m, l)];
+    }
     if (ty.tag === 'VPi' && ty.plicity === plicity) {
         const right = check(plicity ? localInType(local) : local, tm, ty.type);
         const rt = ty.body(domain_1.evaluate(right, local.vs));
-        return [right, rt];
+        return [right, rt, list_1.Nil];
     }
     // TODO fix the following
     if (ty.tag === 'VNe' && ty.head.tag === 'HMeta') {
@@ -1627,10 +1660,9 @@ const unifyElim = (k, a, b, x, y) => {
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a_, b_) => {
-    config_1.log(() => `unify1(${k}) ${domain_1.showTermQ(a_, k)} ~ ${domain_1.showTermQ(b_, k)}`);
     const a = domain_1.forceGlue(a_);
     const b = domain_1.forceGlue(b_);
-    config_1.log(() => `unify2(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
+    config_1.log(() => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
     if (a.tag === 'VType' && b.tag === 'VType')

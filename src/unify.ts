@@ -22,10 +22,9 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
-  log(() => `unify1(${k}) ${showTermQ(a_, k)} ~ ${showTermQ(b_, k)}`);
   const a = forceGlue(a_);
   const b = forceGlue(b_);
-  log(() => `unify2(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
+  log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
