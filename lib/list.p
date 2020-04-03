@@ -4,6 +4,9 @@ import lib/pair.p
 import lib/fix.p
 import lib/functor.p
 
+import lib/prim.p
+import lib/nat.p
+
 def ListF = \(t : *) (r : *). {x : *} -> x -> (t -> r -> x) -> x
 def List = \(t : *). Fix (ListF t)
 def Nil : {t : *} -> List t = \{t}. In {ListF t} \{x} n c. n
@@ -21,3 +24,5 @@ def mapList : {a b : *} -> (a -> b) -> List a -> List b
   = \{a b} f l. foldList {a} {List b} l (Nil {b}) (\hd r. Cons {b} (f hd) r)
 
 def functorList : Functor List = mapList
+
+def toPrimStr : List Nat -> PrimStr = \l. foldList (mapList toPrimChar l) PrimStrNil PrimStrCons 

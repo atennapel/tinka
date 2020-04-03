@@ -1096,8 +1096,12 @@ const list_1 = require("../utils/list");
 const syntax_1 = require("./syntax");
 const util_1 = require("../utils/util");
 exports.HVar = (index) => ({ tag: 'HVar', index });
+exports.EApp = (arg) => ({ tag: 'EApp', arg });
+exports.EInc = { tag: 'EInc' };
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VAbs = (body) => ({ tag: 'VAbs', body });
+exports.VNum = (value) => ({ tag: 'VNum', value });
+exports.VPair = (fst, snd) => ({ tag: 'VPair', fst, snd });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
 exports.showEnvV = (l, k = 0) => list_1.listToString(l, v => syntax_1.showTerm(exports.quote(v, k)));
@@ -1105,8 +1109,15 @@ exports.vapp = (a, b) => {
     if (a.tag === 'VAbs')
         return a.body(b);
     if (a.tag === 'VNe')
-        return exports.VNe(a.head, list_1.Cons(b, a.args));
-    return a;
+        return exports.VNe(a.head, list_1.Cons(exports.EApp(b), a.args));
+    return util_1.impossible(`pure vapp: ${a.tag}`);
+};
+exports.vinc = (a) => {
+    if (a.tag === 'VNum')
+        return exports.VNum(a.value + 1);
+    if (a.tag === 'VNe')
+        return exports.VNe(a.head, list_1.Cons(exports.EInc, a.args));
+    return util_1.impossible(`pure vinc: ${a.tag}`);
 };
 exports.evaluate = (t, vs) => {
     if (t.tag === 'Var')
@@ -1115,13 +1126,30 @@ exports.evaluate = (t, vs) => {
         return exports.vapp(exports.evaluate(t.left, vs), exports.evaluate(t.right, vs));
     if (t.tag === 'Abs')
         return exports.VAbs(v => exports.evaluate(t.body, exports.extendV(vs, v)));
+    if (t.tag === 'Num')
+        return exports.VNum(t.value);
+    if (t.tag === 'Inc')
+        return exports.vinc(exports.evaluate(t.term, vs));
+    if (t.tag === 'Pair')
+        return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs));
     return t;
+};
+const quoteElim = (t, e, k) => {
+    if (e.tag === 'EApp')
+        return syntax_1.App(t, exports.quote(e.arg, k));
+    if (e.tag === 'EInc')
+        return syntax_1.Inc(t);
+    return e;
 };
 exports.quote = (v, k) => {
     if (v.tag === 'VNe')
-        return list_1.foldr((x, y) => syntax_1.App(y, exports.quote(x, k)), syntax_1.Var(k - (v.head.index + 1)), v.args);
+        return list_1.foldr((x, y) => quoteElim(y, x, k), syntax_1.Var(k - (v.head.index + 1)), v.args);
     if (v.tag === 'VAbs')
         return syntax_1.Abs(exports.quote(v.body(exports.VVar(k)), k + 1));
+    if (v.tag === 'VNum')
+        return syntax_1.Num(v.value);
+    if (v.tag === 'VPair')
+        return syntax_1.Pair(exports.quote(v.fst, k), exports.quote(v.snd, k));
     return v;
 };
 exports.normalize = (t, vs = list_1.Nil, k = 0) => exports.quote(exports.evaluate(t, vs), k);
@@ -1134,6 +1162,9 @@ const globalenv_1 = require("../globalenv");
 exports.Var = (index) => ({ tag: 'Var', index });
 exports.App = (left, right) => ({ tag: 'App', left, right });
 exports.Abs = (body) => ({ tag: 'Abs', body });
+exports.Num = (value) => ({ tag: 'Num', value });
+exports.Inc = (term) => ({ tag: 'Inc', term });
+exports.Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
 exports.idTerm = exports.Abs(exports.Var(0));
 exports.showTermS = (t) => {
     if (t.tag === 'Var')
@@ -1142,6 +1173,12 @@ exports.showTermS = (t) => {
         return `(${exports.showTermS(t.left)} ${exports.showTermS(t.right)})`;
     if (t.tag === 'Abs')
         return `(\\${exports.showTermS(t.body)})`;
+    if (t.tag === 'Num')
+        return `#${t.value}`;
+    if (t.tag === 'Inc')
+        return `(inc ${exports.showTermS(t.term)})`;
+    if (t.tag === 'Pair')
+        return `(${exports.showTermS(t.fst)}, ${exports.showTermS(t.snd)})`;
     return t;
 };
 exports.flattenApp = (t) => {
@@ -1158,10 +1195,16 @@ exports.showTerm = (t) => {
         return `${t.index}`;
     if (t.tag === 'App') {
         const [f, as] = exports.flattenApp(t);
-        return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'App', f)} ${as.map((t, i) => `${exports.showTermP(t.tag === 'App' || (t.tag === 'Abs' && i < as.length - 1), t)}`).join(' ')}`;
+        return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'App', f)} ${as.map((t, i) => `${exports.showTermP(t.tag === 'App' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Inc', t)}`).join(' ')}`;
     }
     if (t.tag === 'Abs')
         return `\\${exports.showTerm(t.body)}`;
+    if (t.tag === 'Num')
+        return `#${t.value}`;
+    if (t.tag === 'Inc')
+        return `inc ${exports.showTermP(t.term.tag === 'App', t.term)}`;
+    if (t.tag === 'Pair')
+        return `(${exports.showTerm(t.fst)}, ${exports.showTerm(t.snd)})`;
     return t;
 };
 exports.shift = (d, c, t) => {
@@ -1171,6 +1214,10 @@ exports.shift = (d, c, t) => {
         return exports.Abs(exports.shift(d, c + 1, t.body));
     if (t.tag === 'App')
         return exports.App(exports.shift(d, c, t.left), exports.shift(d, c, t.right));
+    if (t.tag === 'Inc')
+        return exports.Inc(exports.shift(d, c, t.term));
+    if (t.tag === 'Pair')
+        return exports.Pair(exports.shift(d, c, t.fst), exports.shift(d, c, t.snd));
     return t;
 };
 exports.erase = (t) => {
@@ -1392,6 +1439,7 @@ exports.runREPL = (_s, _cb) => {
         let msg = '';
         let tm_;
         let tmc_ = null;
+        let cty_ = null;
         try {
             const t = parser_1.parse(_s);
             config_1.log(() => surface_1.showTerm(t));
@@ -1406,6 +1454,7 @@ exports.runREPL = (_s, _cb) => {
                 config_1.log(() => C.showTerm(ctm));
                 const cty = CT.typecheck(ctm);
                 const ctyq = CD.quote(cty, 0, false);
+                cty_ = ctyq;
                 config_1.log(() => C.showTerm(ctyq));
                 msg += `\nctyp: ${C.showTerm(ctyq)}\ncter: ${C.showTerm(tmc_)}`;
             }
@@ -1419,7 +1468,38 @@ exports.runREPL = (_s, _cb) => {
         try {
             const n = domain_1.normalize(tm_, list_1.Nil, 0, config_1.config.quoteLevel);
             config_1.log(() => syntax_1.showSurfaceZ(n));
-            return _cb(`${msg}\nnorm: ${syntax_1.showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, list_1.Nil, 0, true))}\npnor: ${P.showTerm(PD.normalize(P.erase(tmc_)))}` : ''}`);
+            let pnor = '';
+            let pdsp = '';
+            if (core && tmc_) {
+                const p = PD.normalize(P.erase(tmc_));
+                pnor = `\npnor: ${P.showTerm(p)}`;
+                if (cty_ && cty_.tag === 'Global') {
+                    // const fty = CD.normalize(cty_, Nil, 0, true);
+                    // TODO: check type
+                    if (cty_.name === 'PrimNat') {
+                        const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Inc(P.Var(0)))));
+                        if (g.tag === 'Num')
+                            pdsp = `\npdsp: ${g.value}`;
+                    }
+                    else if (cty_.name === 'PrimChar') {
+                        const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Inc(P.Var(0)))));
+                        if (g.tag === 'Num')
+                            pdsp = `\npdsp: ${JSON.stringify(String.fromCodePoint(g.value))}`;
+                    }
+                    else if (cty_.name === 'PrimStr') {
+                        const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Pair(P.App(P.App(P.Var(1), P.Num(0)), P.Abs(P.Inc(P.Var(0)))), P.Var(0)))));
+                        const cp = [];
+                        let c = g;
+                        while (c.tag === 'Pair') {
+                            if (c.fst.tag === 'Num')
+                                cp.push(c.fst.value);
+                            c = c.snd;
+                        }
+                        pdsp = `\npdsp: ${JSON.stringify(String.fromCodePoint(...cp))}`;
+                    }
+                }
+            }
+            return _cb(`${msg}\nnorm: ${syntax_1.showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, list_1.Nil, 0, true))}${pnor}${pdsp}` : ''}`);
         }
         catch (err) {
             config_1.log(() => '' + err);

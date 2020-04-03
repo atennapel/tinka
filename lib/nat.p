@@ -1,3 +1,4 @@
+import lib/prim.p
 import lib/fix.p
 
 def NatF = \(r : *). {t : *} -> t -> (r -> t) -> t
@@ -12,6 +13,9 @@ def recNat : {t : *} -> Nat -> t -> ((Nat -> t) -> Nat -> t) -> t
 
 def foldNat : {t : *} -> Nat -> t -> (t -> t) -> t
   = \n z s. recNat n z (\rec m. s (rec m))
+
+def toPrimNat : Nat -> PrimNat = \n. foldNat n PrimNatZ PrimNatS
+def toPrimChar : Nat -> PrimChar = toPrimNat
 
 def pred : Nat -> Nat = \n. caseNat n Z (\n. n)
 

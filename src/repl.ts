@@ -179,6 +179,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     let msg = '';
     let tm_: Term;
     let tmc_: C.Term | null = null;
+    let cty_: C.Term | null = null;
     try {
       const t = parse(_s);
       log(() => showTerm(t));
@@ -193,6 +194,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
         log(() => C.showTerm(ctm));
         const cty = CT.typecheck(ctm);
         const ctyq = CD.quote(cty, 0, false);
+        cty_ = ctyq;
         log(() => C.showTerm(ctyq));
         msg += `\nctyp: ${C.showTerm(ctyq)}\ncter: ${C.showTerm(tmc_)}`;
       }
@@ -204,7 +206,33 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     try {
       const n = normalize(tm_, Nil, 0, config.quoteLevel);
       log(() => showSurfaceZ(n));
-      return _cb(`${msg}\nnorm: ${showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}\npnor: ${P.showTerm(PD.normalize(P.erase(tmc_)))}` : ''}`);
+      let pnor = '';
+      let pdsp = '';
+      if (core && tmc_) {
+        const p = PD.normalize(P.erase(tmc_));
+        pnor = `\npnor: ${P.showTerm(p)}`;
+        if (cty_ && cty_.tag === 'Global') {
+          // const fty = CD.normalize(cty_, Nil, 0, true);
+          // TODO: check type
+          if (cty_.name === 'PrimNat') {
+            const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Inc(P.Var(0)))));
+            if (g.tag === 'Num') pdsp = `\npdsp: ${g.value}`;
+          } else if (cty_.name === 'PrimChar') {
+            const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Inc(P.Var(0)))));
+            if (g.tag === 'Num') pdsp = `\npdsp: ${JSON.stringify(String.fromCodePoint(g.value))}`;
+          } else if (cty_.name === 'PrimStr') {
+            const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Pair(P.App(P.App(P.Var(1), P.Num(0)), P.Abs(P.Inc(P.Var(0)))), P.Var(0)))));
+            const cp: number[] = [];
+            let c = g;
+            while (c.tag === 'Pair') {
+              if (c.fst.tag === 'Num') cp.push(c.fst.value);
+              c = c.snd;
+            }
+            pdsp = `\npdsp: ${JSON.stringify(String.fromCodePoint(...cp))}`;
+          }
+        }
+      }
+      return _cb(`${msg}\nnorm: ${showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}${pnor}${pdsp}` : ''}`);
     } catch (err) {
       log(() => ''+err);
       msg += '\n'+err;
