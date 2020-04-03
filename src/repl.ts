@@ -85,7 +85,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     if (_s === ':defs') {
       const e = globalMap();
-      const msg = Object.keys(e).map(k => `def ${k} : ${showTermSZ(e[k].type)} = ${showSurfaceZ(e[k].term)} ~> ${showTermSZ(e[k].val)}`).join('\n');
+      const msg = Object.keys(e).map(k => `def ${k} : ${showTermSZ(e[k].type)} = ${showSurfaceZ(e[k].term)}`).join('\n');
       return _cb(msg || 'no definitions');
     }
     if (_s.startsWith(':del')) {

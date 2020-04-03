@@ -1176,7 +1176,7 @@ exports.runREPL = (_s, _cb) => {
         }
         if (_s === ':defs') {
             const e = globalenv_1.globalMap();
-            const msg = Object.keys(e).map(k => `def ${k} : ${domain_1.showTermSZ(e[k].type)} = ${syntax_1.showSurfaceZ(e[k].term)} ~> ${domain_1.showTermSZ(e[k].val)}`).join('\n');
+            const msg = Object.keys(e).map(k => `def ${k} : ${domain_1.showTermSZ(e[k].type)} = ${syntax_1.showSurfaceZ(e[k].term)}`).join('\n');
             return _cb(msg || 'no definitions');
         }
         if (_s.startsWith(':del')) {
