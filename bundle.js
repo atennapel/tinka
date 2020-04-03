@@ -1487,7 +1487,7 @@ exports.runREPL = (_s, _cb) => {
                             pdsp = `\npdsp: ${JSON.stringify(String.fromCodePoint(g.value))}`;
                     }
                     else if (cty_.name === 'PrimStr') {
-                        const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Pair(P.App(P.App(P.Var(1), P.Num(0)), P.Abs(P.Inc(P.Var(0)))), P.Var(0)))));
+                        const g = PD.normalize(P.App(P.App(p, P.Num(0)), P.Abs(P.Abs(P.Pair(P.App(P.App(P.Var(1), P.Num(0)), P.Abs(P.Inc(P.Var(0)))), P.Var(0))))));
                         const cp = [];
                         let c = g;
                         while (c.tag === 'Pair') {
