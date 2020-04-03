@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann, Unroll, Fix, Roll } from './syntax';
 import { impossible } from './utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity } from './surface';
@@ -17,13 +17,15 @@ export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 
-export type Elim = EApp;
+export type Elim = EApp | EUnroll;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
+export type EUnroll = { tag: 'EUnroll' };
+export const EUnroll: EUnroll = { tag: 'EUnroll' };
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VFix | VType | VRoll;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -33,8 +35,12 @@ export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, type: Val, body:
 export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, type, body});
 export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: Clos };
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
+export type VFix = { tag: 'VFix', name: Name, type: Val, body: Clos };
+export const VFix = (name: Name, type: Val, body: Clos): VFix => ({ tag: 'VFix', name, type, body});
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
+export type VRoll = { tag: 'VRoll', type: Val, term: Val };
+export const VRoll = (type: Val, term: Val): VRoll => ({ tag: 'VRoll', type, term });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -49,7 +55,9 @@ export const force = (v: Val): Val => {
   if (v.tag === 'VNe' && v.head.tag === 'HMeta') {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
-    return force(foldr((elim, y) => vapp(y, elim.plicity, elim.arg), val.val, v.args));
+    return force(foldr((elim, y) =>
+      elim.tag === 'EUnroll' ? vunroll(y) :
+      vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
 };
@@ -57,7 +65,9 @@ export const forceGlue = (v: Val): Val => {
   if (v.tag === 'VNe' && v.head.tag === 'HMeta') {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
-    return forceGlue(foldr((elim, y) => vapp(y, elim.plicity, elim.arg), val.val, v.args));
+    return forceGlue(foldr((elim, y) =>
+      elim.tag === 'EUnroll' ? vunroll(y) :
+      vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
 };
@@ -71,6 +81,14 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`core vapp: ${a.tag}`);
+};
+export const vunroll = (v: Val): Val => {
+  // unroll (roll v) = v
+  if (v.tag === 'VRoll') return v.term;
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EUnroll, v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EUnroll, v.args), mapLazy(v.val, v => vunroll(v)));
+  return impossible(`vunroll: ${v.tag}`);
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
@@ -96,6 +114,12 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return evaluate(t.body, extendV(vs, evaluate(t.val, vs)));
   if (t.tag === 'Pi')
     return VPi(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+  if (t.tag === 'Roll' && t.type)
+    return VRoll(evaluate(t.type, vs), evaluate(t.term, vs));
+  if (t.tag === 'Fix')
+    return VFix(t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+  if (t.tag === 'Unroll')
+    return vunroll(evaluate(t.term, vs));
   return impossible(`evaluate: ${t.tag}`);
 };
 
@@ -112,7 +136,8 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 };
 const quoteElim = (t: Term, e: Elim, k: Ix, full: number): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
-  return e.tag;
+  if (e.tag === 'EUnroll') return Unroll(t);
+  return e;
 };
 export const quote = (v_: Val, k: Ix, full: number): Term => {
   const v = forceGlue(v_);
@@ -139,6 +164,10 @@ export const quote = (v_: Val, k: Ix, full: number): Term => {
     return Abs(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPi')
     return Pi(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+  if (v.tag === 'VFix')
+    return Fix(v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+  if (v.tag === 'VRoll')
+    return Roll(quote(v.type, k, full), quote(v.term, k, full));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Term =>
@@ -184,6 +213,8 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
   }
   if (tm.tag === 'Pi')
     return Pi(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
+  if (tm.tag === 'Fix')
+    return Fix(tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Let')
     return Let(tm.plicity, tm.name, zonk(tm.val, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Ann') return Ann(zonk(tm.term, vs, k, full), zonk(tm.type, vs, k, full));
@@ -195,5 +226,9 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
       App(spine[1], tm.plicity, zonk(tm.right, vs, k, full)) :
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
+  if (tm.tag === 'Unroll')
+    return Unroll(zonk(tm.term, vs, k, full));
+  if (tm.tag === 'Roll')
+    return Roll(tm.type && zonk(tm.type, vs, k, full), zonk(tm.term, vs, k, full));
   return tm;
 };

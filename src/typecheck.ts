@@ -1,4 +1,4 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ } from './syntax';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -103,6 +103,10 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     const body = check(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body, ty);
     return Let(tm.plicity, tm.name, val, body);
   }
+  if (tm.tag === 'Roll' && !tm.type && fty.tag === 'VFix') {
+    const term = check(local, tm.term, fty.body(ty));
+    return Roll(quote(ty, local.index, 0), term);
+  }
   const [term, ty2] = synth(local, tm);
   try {
     log(() => `unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
@@ -183,6 +187,28 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const body = check(extend(local, tm.name, evaluate(type, local.vs), true, false, false, VVar(local.index)), tm.body, VType);
     return [Pi(tm.plicity, tm.name, type, body), VType];
   }
+  if (tm.tag === 'Fix') {
+    const type = check(local, tm.type, VType);
+    const vt = evaluate(type, local.vs);
+    const body = check(extend(local, tm.name, vt, true, false, false, VVar(local.index)), tm.body, vt);
+    return [Fix(tm.name, type, body), vt];
+  }
+  if (tm.tag === 'Roll' && tm.type) {
+    const type = check(local, tm.type, VType);
+    const vt = evaluate(type, local.vs);
+    const vtf = force(vt);
+    if (vtf.tag === 'VFix') {
+      const term = check(local, tm.term, vtf.body(vt));
+      return [Roll(type, term), vt];
+    }
+    return terr(`fix type expected in ${S.showTerm(tm)}: ${showTermS(vt, local.names, local.index)}`);
+  }
+  if (tm.tag === 'Unroll') {
+    const [term, ty] = synth(local, tm.term);
+    const vt = force(ty);
+    if (vt.tag === 'VFix') return [Unroll(term), vt.body(ty)];
+    return terr(`fix type expected in ${S.showTerm(tm)}: ${showTermS(vt, local.names, local.index)}`);
+  }
   if (tm.tag === 'Ann') {
     const type = check(localInType(local), tm.type, VType);
     const vtype = evaluate(type, local.vs);
@@ -195,6 +221,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
 export const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val, List<Term>] => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);
+  // TODO: case where ty.tag === 'VFix', insert unroll
   if (ty.tag === 'VPi' && ty.plicity && !plicity) {
     const m = newMeta(local.ts);
     const vm = evaluate(m, local.vs);
