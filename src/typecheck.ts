@@ -12,6 +12,8 @@ import { toCore, showTerm as showTermC } from './core/syntax';
 import { typecheck as typecheckC } from './core/typecheck';
 import * as CD from './core/domain';
 import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
+import * as PD from './pure/domain';
+import * as P from './pure/syntax';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -276,9 +278,9 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
         log(() => `typecheck in core: ${showTermC(ctm)}`);
         const cty = typecheckC(ctm);
         log(() => `core type: ${showTermC(CD.quote(cty, 0, false))}`);
-        globalSet(d.name, tm, evaluate(tm, Nil), ty, ctm, CD.evaluate(ctm, Nil), cty);
+        globalSet(d.name, tm, evaluate(tm, Nil), ty, ctm, CD.evaluate(ctm, Nil), cty, PD.normalize(P.erase(ctm)));
       } else {
-        globalSet(d.name, tm, evaluate(tm, Nil), ty, ctm, CD.evaluate(ctm, Nil), CD.evaluate(toCore(zty), Nil));
+        globalSet(d.name, tm, evaluate(tm, Nil), ty, ctm, CD.evaluate(ctm, Nil), CD.evaluate(toCore(zty), Nil), PD.normalize(P.erase(ctm)));
       }
       xs.push(d.name);
     }

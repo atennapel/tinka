@@ -1,3 +1,4 @@
+import lib/combinators.p
 import lib/void.p
 import lib/unit.p
 import lib/pair.p

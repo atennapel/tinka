@@ -10,6 +10,8 @@ import { globalDelete, globalMap, globalGet } from './globalenv';
 import { showTermSZ, normalize } from './domain';
 import { showTerm as showTermI, showSurfaceZ, Term } from './syntax';
 import { typecheck, typecheckDefs } from './typecheck';
+import * as P from './pure/syntax';
+import * as PD from './pure/domain';
 
 const help = `
 EXAMPLES
@@ -85,7 +87,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     if (_s === ':defs') {
       const e = globalMap();
-      const msg = Object.keys(e).map(k => `def ${k} : ${showTermSZ(e[k].type)} = ${showSurfaceZ(e[k].term)}`).join('\n');
+      const msg = Object.keys(e).map(k => `def ${k} : ${showTermSZ(e[k].type)} = ${showSurfaceZ(e[k].term)} ~> ${P.showTerm(e[k].pure)}`).join('\n');
       return _cb(msg || 'no definitions');
     }
     if (_s.startsWith(':del')) {
@@ -202,7 +204,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     try {
       const n = normalize(tm_, Nil, 0, config.quoteLevel);
       log(() => showSurfaceZ(n));
-      return _cb(`${msg}\nnorm: ${showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}` : ''}`);
+      return _cb(`${msg}\nnorm: ${showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}\npnor: ${P.showTerm(PD.normalize(P.erase(tmc_)))}` : ''}`);
     } catch (err) {
       log(() => ''+err);
       msg += '\n'+err;
