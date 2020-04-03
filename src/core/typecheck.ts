@@ -85,6 +85,26 @@ const synth = (local: Local, tm: Term): Val => {
     check(extend(local, evaluate(tm.type, local.vs), false, VVar(local.index)), tm.body, VType);
     return VType;
   }
+  if (tm.tag === 'Fix') {
+    check(localInType(local), tm.type, VType);
+    const vt = evaluate(tm.type, local.vs);
+    check(extend(local, evaluate(tm.type, local.vs), false, VVar(local.index)), tm.body, vt);
+    return vt;
+  }
+  if (tm.tag === 'Roll') {
+    check(localInType(local), tm.type, VType);
+    const vt = force(evaluate(tm.type, local.vs));
+    if (vt.tag === 'VFix') {
+      check(local, tm.term, vt.body(vt));
+      return vt;
+    }
+    return terr(`fix type expected in ${showTerm(tm)}: ${showTermQ(vt, local.index)}`);
+  }
+  if (tm.tag === 'Unroll') {
+    const vt = force(synth(local, tm.term));
+    if (vt.tag === 'VFix') return vt.body(vt);
+    return terr(`fix type expected in ${showTerm(tm)}: ${showTermQ(vt, local.index)}`);
+  }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 

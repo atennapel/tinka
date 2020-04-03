@@ -188,13 +188,13 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     return [Pi(tm.plicity, tm.name, type, body), VType];
   }
   if (tm.tag === 'Fix') {
-    const type = check(local, tm.type, VType);
+    const type = check(localInType(local), tm.type, VType);
     const vt = evaluate(type, local.vs);
     const body = check(extend(local, tm.name, vt, true, false, false, VVar(local.index)), tm.body, vt);
     return [Fix(tm.name, type, body), vt];
   }
   if (tm.tag === 'Roll' && tm.type) {
-    const type = check(local, tm.type, VType);
+    const type = check(localInType(local), tm.type, VType);
     const vt = evaluate(type, local.vs);
     const vtf = force(vt);
     if (vtf.tag === 'VFix') {

@@ -1,4 +1,9 @@
-def Alg = \(f : * -> *) (t : *). {r : *} -> (r -> t) -> f r -> t
-def Fix = \(f : * -> *). {t : *} -> Alg f t -> t
-def fold : {f : * -> *} -> {t : *} -> Alg f t -> Fix f -> t = \alg x. x alg
-def In : {f : * -> *} -> f (Fix f) -> Fix f = \x alg. alg (fold alg) x
+def Fix = \(f : * -> *). fix (r : *). {x : *} -> ((r -> x) -> f r -> x) -> x
+
+def fold : {f : * -> *} -> {x : *} -> ((Fix f -> x) -> f (Fix f) -> x) -> Fix f -> x
+  = \{_ x} alg r. unroll r {x} alg
+def In : {f : * -> *} -> f (Fix f) -> Fix f
+  = \x. roll \{t} alg. alg (fold {_} {t} alg) x
+
+def caseFix : {f : * -> *} -> Fix f -> f (Fix f)
+  = \{f} x. fold {f} {f (Fix f)} (\_ x. x) x
