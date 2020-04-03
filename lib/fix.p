@@ -1,7 +1,7 @@
 def Fix = \(f : * -> *). fix (r : *). {x : *} -> ((r -> x) -> f r -> x) -> x
 
 def fold : {f : * -> *} -> {x : *} -> ((Fix f -> x) -> f (Fix f) -> x) -> Fix f -> x
-  = \{_ x} alg r. unroll r {x} alg
+  = \{f x} alg r. unroll r {x} alg
 def In : {f : * -> *} -> f (Fix f) -> Fix f
   = \x. roll \{t} alg. alg (fold {_} {t} alg) x
 

@@ -90,8 +90,9 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   }
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
-    const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
-    return Abs(tm.plicity, tm.name, quote(fty.type, local.index, 0), body);
+    const x = tm.name === '_' ? fty.name : tm.name;
+    const body = check(extend(local, x, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
+    return Abs(tm.plicity, x, quote(fty.type, local.index, 0), body);
   }
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
     const v = VVar(local.index);

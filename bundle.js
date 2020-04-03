@@ -1669,8 +1669,9 @@ const check = (local, tm, ty) => {
     }
     if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
         const v = domain_1.VVar(local.index);
-        const body = check(extend(local, tm.name, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
-        return syntax_1.Abs(tm.plicity, tm.name, domain_1.quote(fty.type, local.index, 0), body);
+        const x = tm.name === '_' ? fty.name : tm.name;
+        const body = check(extend(local, x, fty.type, true, fty.plicity, false, v), tm.body, fty.body(v));
+        return syntax_1.Abs(tm.plicity, x, domain_1.quote(fty.type, local.index, 0), body);
     }
     if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
         const v = domain_1.VVar(local.index);

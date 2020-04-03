@@ -9,7 +9,6 @@ todo:
 - add named holes
 - figure out glued vars
 - handle fix better in inference
-- add fix/roll/unroll in core
 - add some way to pretty print values for repl
 - add untyped pure core
 ```
