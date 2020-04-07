@@ -55,6 +55,8 @@ export const length = <T>(l: List<T>): number => {
   return n;
 };
 
+export const isEmpty = <T>(l: List<T>): boolean => l.tag === 'Nil';
+
 export const reverse = <T>(l: List<T>): List<T> =>
   listFrom(toArray(l, x => x).reverse());
 

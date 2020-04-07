@@ -138,7 +138,7 @@ exports.quote = (v, k, full) => {
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
 exports.showTermQ = (v, k = 0, full = false) => syntax_1.showTerm(exports.quote(v, k, full));
 
-},{"../globalenv":7,"../utils/lazy":18,"../utils/list":19,"../utils/util":20,"./syntax":3}],3:[function(require,module,exports){
+},{"../globalenv":7,"../utils/lazy":19,"../utils/list":20,"../utils/util":21,"./syntax":3}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("../utils/list");
@@ -223,7 +223,7 @@ exports.toCore = (t) => {
     return util_1.impossible(`toCore: ${t.tag}`);
 };
 
-},{"../utils/list":19,"../utils/util":20}],4:[function(require,module,exports){
+},{"../utils/list":20,"../utils/util":21}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -326,7 +326,7 @@ const synth = (local, tm) => {
 };
 exports.typecheck = (tm, local = localEmpty) => synth(local, tm);
 
-},{"../config":1,"../globalenv":7,"../utils/list":19,"../utils/util":20,"./domain":2,"./syntax":3,"./unify":5}],5:[function(require,module,exports){
+},{"../config":1,"../globalenv":7,"../utils/list":20,"../utils/util":21,"./domain":2,"./syntax":3,"./unify":5}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("../utils/util");
@@ -404,7 +404,7 @@ exports.unify = (k, a, b) => {
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 
-},{"../config":1,"../utils/lazy":18,"../utils/list":19,"../utils/util":20,"./domain":2}],6:[function(require,module,exports){
+},{"../config":1,"../utils/lazy":19,"../utils/list":20,"../utils/util":21,"./domain":2}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("./utils/list");
@@ -615,7 +615,7 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = 0) => {
     return tm;
 };
 
-},{"./config":1,"./globalenv":7,"./metas":8,"./syntax":15,"./utils/lazy":18,"./utils/list":19,"./utils/util":20}],7:[function(require,module,exports){
+},{"./config":1,"./globalenv":7,"./metas":9,"./syntax":16,"./utils/lazy":19,"./utils/list":20,"./utils/util":21}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 let env = {};
@@ -632,6 +632,80 @@ exports.globalDelete = (name) => {
 };
 
 },{}],8:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const domain_1 = require("./domain");
+const util_1 = require("./utils/util");
+const list_1 = require("./utils/list");
+const syntax_1 = require("./syntax");
+const lazy_1 = require("./utils/lazy");
+exports.makeInductionPrinciple = (k, v_, x) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VPi' && v.plicity)
+        return domain_1.VPi(true, 'P', domain_1.VPi(false, '_', v_, _ => domain_1.VType), P => makeInductionPrincipleR(k, v_, k + 1, k, P, 0, x, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
+};
+const makeInductionPrincipleR = (ik, T, k, t, P, i, x, v_) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
+        return domain_1.vapp(P, false, x);
+    if (v.tag === 'VPi' && !v.plicity)
+        return domain_1.VPi(false, v.name, makeInductionPrincipleC(ik, T, k, t, P, i, x, 0, v.type), _ => makeInductionPrincipleR(ik, T, k + 1, t, P, i + 1, x, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle (R) for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
+};
+const makeInductionPrincipleC = (ik, T, k, t, P, i, x, args, v_) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
+        return domain_1.vapp(P, false, makeInductionPrincipleCon(ik, t, P, i, 0, x, args, T));
+    if (v.tag === 'VPi')
+        return domain_1.VPi(v.plicity, name(v.name, 'a', args), v.type, _ => makeInductionPrincipleC(ik, T, k + 1, t, P, i, x, args + 1, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle (C) for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
+};
+const makeInductionPrincipleCon = (k, t, P, i, i2, x, args, v_) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
+        return [domain_1.VVar(k + i * 2 - i2 + 2 + args)].concat(Array.from({ length: args }, (_, j) => domain_1.VVar(k + i * 2 - i2 + args - j)).reverse()).reduce((x, y) => domain_1.vapp(x, false, y));
+    if (v.tag === 'VPi')
+        return domain_1.VAbs(v.plicity, name(v.name, 'a', i2), shift(i + args + 1, k, v.type), _ => makeInductionPrincipleCon(k + 1, t, P, i, i2 + 1, x, args, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle (Con) for ${syntax_1.showTerm(domain_1.quote(v, k, 0))}`);
+};
+const name = (y, x, i) => y === '_' ? `${x}${i}` : y;
+const shiftHead = (d, c, h) => {
+    if (h.tag === 'HGlobal')
+        return h;
+    if (h.tag === 'HMeta')
+        return h;
+    if (h.tag === 'HVar')
+        return h.index >= c ? h : domain_1.HVar(h.index + d);
+    return h;
+};
+const shiftElim = (d, c, e) => {
+    if (e.tag === 'EApp')
+        return domain_1.EApp(e.plicity, shift(d, c, e.arg));
+    if (e.tag === 'EUnroll')
+        return e;
+    return e;
+};
+const shift = (d, c, v_) => {
+    const v = domain_1.forceGlue(v_);
+    if (v.tag === 'VType')
+        return v;
+    if (v.tag === 'VNe')
+        return domain_1.VNe(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)));
+    if (v.tag === 'VGlued')
+        return domain_1.VGlued(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)), lazy_1.mapLazy(v.val, x => shift(d, c, x)));
+    if (v.tag === 'VAbs')
+        return domain_1.VAbs(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c + 1, v.body(x)));
+    if (v.tag === 'VPi')
+        return domain_1.VPi(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c + 1, v.body(x)));
+    if (v.tag === 'VFix')
+        return domain_1.VFix(v.name, shift(d, c, v.type), x => shift(d, c + 1, v.body(x)));
+    if (v.tag === 'VRoll')
+        return domain_1.VRoll(shift(d, c, v.type), shift(d, c, v.term));
+    return v;
+};
+
+},{"./domain":6,"./syntax":16,"./utils/lazy":19,"./utils/list":20,"./utils/util":21}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -668,7 +742,7 @@ exports.metaPop = () => {
 };
 exports.metaDiscard = () => { stack.pop(); };
 
-},{"./syntax":15,"./utils/util":20}],9:[function(require,module,exports){
+},{"./syntax":16,"./utils/util":21}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextName = (x) => {
@@ -680,7 +754,7 @@ exports.nextName = (x) => {
     return `${x}\$0`;
 };
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./utils/util");
@@ -1089,7 +1163,7 @@ exports.parseDefs = async (s, importMap) => {
     return ds.reduce((x, y) => x.concat(y), []);
 };
 
-},{"./config":1,"./surface":14,"./utils/util":20}],11:[function(require,module,exports){
+},{"./config":1,"./surface":15,"./utils/util":21}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("../utils/list");
@@ -1154,7 +1228,7 @@ exports.quote = (v, k) => {
 };
 exports.normalize = (t, vs = list_1.Nil, k = 0) => exports.quote(exports.evaluate(t, vs), k);
 
-},{"../utils/list":19,"../utils/util":20,"./syntax":12}],12:[function(require,module,exports){
+},{"../utils/list":20,"../utils/util":21,"./syntax":13}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("../utils/util");
@@ -1248,7 +1322,7 @@ exports.erase = (t) => {
     return t;
 };
 
-},{"../globalenv":7,"../utils/util":20}],13:[function(require,module,exports){
+},{"../globalenv":7,"../utils/util":21}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1265,6 +1339,7 @@ const syntax_1 = require("./syntax");
 const typecheck_1 = require("./typecheck");
 const P = require("./pure/syntax");
 const PD = require("./pure/domain");
+const induction_1 = require("./induction");
 const help = `
 EXAMPLES
 identity = \\{t : *} (x : t). x
@@ -1426,6 +1501,7 @@ exports.runREPL = (_s, _cb) => {
         }
         let typeOnly = false;
         let core = false;
+        let induction = false;
         if (_s.startsWith(':t')) {
             _s = _s.slice(_s.startsWith(':type') ? 5 : 2);
             typeOnly = true;
@@ -1433,6 +1509,10 @@ exports.runREPL = (_s, _cb) => {
         if (_s.startsWith(':core')) {
             _s = _s.slice(5);
             core = true;
+        }
+        if (_s.startsWith(':ind')) {
+            _s = _s.slice(4);
+            induction = true;
         }
         if (_s.startsWith(':'))
             return _cb('invalid command', true);
@@ -1444,6 +1524,13 @@ exports.runREPL = (_s, _cb) => {
             const t = parser_1.parse(_s);
             config_1.log(() => surface_1.showTerm(t));
             const [ztm, vty] = typecheck_1.typecheck(t);
+            if (induction) {
+                const v = domain_1.evaluate(ztm);
+                const ind = domain_1.VPi(false, 'x', v, x => induction_1.makeInductionPrinciple(1, v, x));
+                const q = domain_1.quote(ind, 0, 0);
+                console.log(syntax_1.showTerm(q));
+                console.log(syntax_1.showSurfaceZ(q));
+            }
             tm_ = ztm;
             config_1.log(() => domain_1.showTermSZ(vty));
             config_1.log(() => syntax_1.showSurfaceZ(tm_));
@@ -1513,7 +1600,7 @@ exports.runREPL = (_s, _cb) => {
     }
 };
 
-},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./domain":6,"./globalenv":7,"./parser":10,"./pure/domain":11,"./pure/syntax":12,"./surface":14,"./syntax":15,"./typecheck":16,"./utils/list":19,"./utils/util":20}],14:[function(require,module,exports){
+},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./domain":6,"./globalenv":7,"./induction":8,"./parser":11,"./pure/domain":12,"./pure/syntax":13,"./surface":15,"./syntax":16,"./typecheck":17,"./utils/list":20,"./utils/util":21}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Var = (name) => ({ tag: 'Var', name });
@@ -1622,7 +1709,7 @@ exports.showDef = (d) => {
 };
 exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -1786,7 +1873,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
 exports.showSurface = (t, ns = list_1.Nil) => S.showTerm(exports.toSurface(t, ns));
 exports.showSurfaceZ = (t, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = 0) => S.showTerm(exports.toSurface(domain_1.zonk(t, vs, k, full), ns));
 
-},{"./domain":6,"./names":9,"./surface":14,"./utils/list":19,"./utils/util":20}],16:[function(require,module,exports){
+},{"./domain":6,"./names":10,"./surface":15,"./utils/list":20,"./utils/util":21}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -2067,7 +2154,7 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
     return xs;
 };
 
-},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./domain":6,"./globalenv":7,"./metas":8,"./pure/domain":11,"./pure/syntax":12,"./surface":14,"./syntax":15,"./unify":17,"./utils/list":19,"./utils/util":20}],17:[function(require,module,exports){
+},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./domain":6,"./globalenv":7,"./metas":9,"./pure/domain":12,"./pure/syntax":13,"./surface":15,"./syntax":16,"./unify":18,"./utils/list":20,"./utils/util":21}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./utils/util");
@@ -2249,7 +2336,7 @@ const checkSolution = (k, m, is, t) => {
     return util_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };
 
-},{"./config":1,"./domain":6,"./metas":8,"./syntax":15,"./utils/lazy":18,"./utils/list":19,"./utils/util":20}],18:[function(require,module,exports){
+},{"./config":1,"./domain":6,"./metas":9,"./syntax":16,"./utils/lazy":19,"./utils/list":20,"./utils/util":21}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = (fn) => ({ fn, val: null, forced: false });
@@ -2264,7 +2351,7 @@ exports.forceLazy = (lazy) => {
 };
 exports.mapLazy = (lazy, fn) => exports.Lazy(() => fn(exports.forceLazy(lazy)));
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Nil = { tag: 'Nil' };
@@ -2306,6 +2393,7 @@ exports.length = (l) => {
     }
     return n;
 };
+exports.isEmpty = (l) => l.tag === 'Nil';
 exports.reverse = (l) => exports.listFrom(exports.toArray(l, x => x).reverse());
 exports.toArray = (l, fn) => {
     let c = l;
@@ -2391,7 +2479,7 @@ exports.range = (n) => n <= 0 ? exports.Nil : exports.Cons(n - 1, exports.range(
 exports.contains = (l, v) => l.tag === 'Cons' ? (l.head === v || exports.contains(l.tail, v)) : false;
 exports.max = (l) => exports.foldl((a, b) => b > a ? b : a, Number.MIN_SAFE_INTEGER, l);
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = (msg) => {
@@ -2418,7 +2506,7 @@ exports.loadFile = (fn) => {
     }
 };
 
-},{"fs":22}],21:[function(require,module,exports){
+},{"fs":23}],22:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2474,6 +2562,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":13}],22:[function(require,module,exports){
+},{"./repl":14}],23:[function(require,module,exports){
 
-},{}]},{},[21]);
+},{}]},{},[22]);
