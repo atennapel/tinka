@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Ind } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -266,6 +266,25 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const val = exprs(vals, '(');
     const body = exprs(ts.slice(i + 1), '(');
     return Let(impl, name, val, body);
+  }
+  if (isName(ts[0], 'induction')) {
+    if (ts.length < 2) return serr(`something went wrong when parsing induction`);
+    if (ts.length === 2) {
+      const [term, tb] = expr(ts[1]);
+      if (tb) return serr(`something went wrong when parsing induction`);
+      return Ind(null, term);
+    }
+    if (ts.length === 3) {
+      const [type, tb1] = expr(ts[1]);
+      if (!tb1) return serr(`something went wrong when parsing induction`);
+      const [term, tb2] = expr(ts[2]);
+      if (tb2) return serr(`something went wrong when parsing induction`);
+      return Ind(type, term);
+    }
+    const hasType = ts[1].tag === 'List' && ts[1].bracket === '{';
+    const indPart = ts.slice(0, hasType ? 3 : 2);
+    const rest = ts.slice(hasType ? 3 : 2);
+    return exprs([TList(indPart, '(')].concat(rest), '(');
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

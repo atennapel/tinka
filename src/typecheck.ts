@@ -1,5 +1,5 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Ind } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, showTermQZ, showTermSZ } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
@@ -14,6 +14,7 @@ import * as CD from './core/domain';
 import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
 import * as PD from './pure/domain';
 import * as P from './pure/syntax';
+import { makeInductionPrinciple } from './induction';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -38,7 +39,7 @@ const indexT = (ts: EnvT, ix: Ix): [EntryT, Ix] | null => {
   return null;
 };
 
-interface Local {
+export interface Local {
   names: List<Name>;
   namesSurface: List<Name>;
   ts: EnvT;
@@ -46,8 +47,8 @@ interface Local {
   index: Ix;
   inType: boolean;
 }
-const localEmpty: Local = { names: Nil, namesSurface: Nil, ts: Nil, vs: Nil, index: 0, inType: false };
-const extend = (l: Local, name: Name, ty: Val, bound: boolean, plicity: Plicity, inserted: boolean, val: Val, inType: boolean = l.inType): Local => ({
+export const localEmpty: Local = { names: Nil, namesSurface: Nil, ts: Nil, vs: Nil, index: 0, inType: false };
+export const extend = (l: Local, name: Name, ty: Val, bound: boolean, plicity: Plicity, inserted: boolean, val: Val, inType: boolean = l.inType): Local => ({
   names: Cons(name, l.names),
   namesSurface: inserted ? l.namesSurface : Cons(name, l.namesSurface),
   ts: extendT(l.ts, ty, bound, plicity, inserted),
@@ -55,7 +56,7 @@ const extend = (l: Local, name: Name, ty: Val, bound: boolean, plicity: Plicity,
   index: l.index + 1,
   inType,
 });
-const localInType = (l: Local, inType: boolean = true): Local => ({
+export const localInType = (l: Local, inType: boolean = true): Local => ({
   names: l.names,
   namesSurface: l.namesSurface,
   ts: l.ts,
@@ -63,7 +64,7 @@ const localInType = (l: Local, inType: boolean = true): Local => ({
   index: l.index,
   inType,
 });
-const showLocal = (l: Local, full: number = 0): string =>
+export const showLocal = (l: Local, full: number = 0): string =>
   `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${showEnvV(l.vs, l.index, full)}, ${listToString(l.names)}, ${listToString(l.namesSurface)})`;
 
 const newMeta = (ts: EnvT): Term => {
@@ -217,6 +218,25 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [term, vtype];
+  }
+  if (tm.tag === 'Ind') {
+    let vt;
+    let type;
+    let term;
+    if (tm.type) {
+      type = check(local, tm.type, VType);
+      vt = evaluate(type, local.vs);
+      term = check(local, tm.term, vt);
+    } else {
+      const [term_, ty] = synth(local, tm.term);
+      type = quote(ty, local.index, 0);
+      vt = ty;
+      term = term_;
+    }
+    const ind = makeInductionPrinciple(local.index, vt, evaluate(term, local.vs));   
+    log(() => showTermQZ(ind, local.vs, local.index, 0));
+    log(() => showTermSZ(ind, local.names, local.vs, local.index, 0));
+    return [Ind(type, term), ind];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

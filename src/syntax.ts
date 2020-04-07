@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/util';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Pi | Fix | Type | Ann | Hole | Meta;
+export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Ind | Pi | Fix | Type | Ann | Hole | Meta;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -33,6 +33,8 @@ export type Hole = { tag: 'Hole', name: Name | null };
 export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
+export type Ind = { tag: 'Ind', type: Term | null, term: Term };
+export const Ind = (type: Term | null, term: Term): Ind => ({ tag: 'Ind', type, term });
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
@@ -49,6 +51,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Type') return '*';
   if (t.tag === 'Ann') return `(${showTerm(t.term)} : ${showTerm(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
+  if (t.tag === 'Ind') return `(induction ${t.type ? `{${showTerm(t.type)}} ` : ''}${showTerm(t.term)})`;
   return t;
 };
 
@@ -62,6 +65,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Pi') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Fix') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Ann') return globalUsed(k, t.term) || globalUsed(k, t.type);
+  if (t.tag === 'Ind') return (t.type && globalUsed(k, t.type)) || globalUsed(k, t.term);
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -74,6 +78,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Fix') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Ann') return indexUsed(k, t.term) || indexUsed(k, t.type);
+  if (t.tag === 'Ind') return (t.type && indexUsed(k, t.type)) || indexUsed(k, t.term);
   return false;
 };
 
@@ -88,6 +93,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Fix') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Ann') return isUnsolved(t.term) || isUnsolved(t.type);
+  if (t.tag === 'Ind') return (t.type && isUnsolved(t.type)) || isUnsolved(t.term);
   return false;
 };
 
@@ -126,6 +132,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     const x = decideName(t.name, t.body, ns);
     return S.Fix(x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
   }
+  if (t.tag === 'Ind') return S.Ind(t.type && toSurface(t.type, ns), toSurface(t.term, ns));
   return t;
 };
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));
