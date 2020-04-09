@@ -1,6 +1,6 @@
 import { Ix, Name } from '../names';
 import { List, Cons, Nil, listToString, index, foldr } from '../utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, Unroll, Fix, Roll } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, Unroll, Fix, Roll, Ind } from './syntax';
 import { impossible } from '../utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from '../utils/lazy';
 import { Plicity } from '../surface';
@@ -13,12 +13,14 @@ export const HVar = (index: Ix): HVar => ({ tag: 'HVar', index });
 export type HGlobal = { tag: 'HGlobal', name: Name };
 export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 
-export type Elim = EApp | EUnroll;
+export type Elim = EApp | EUnroll | EInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
 export type EUnroll = { tag: 'EUnroll' };
 export const EUnroll: EUnroll = { tag: 'EUnroll' };
+export type EInd = { tag: 'EInd', type: Val };
+export const EInd = (type: Val): EInd => ({ tag: 'EInd', type });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VFix | VType | VRoll;
@@ -65,7 +67,23 @@ export const vunroll = (v: Val): Val => {
   if (v.tag === 'VNe') return VNe(v.head, Cons(EUnroll, v.args));
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EUnroll, v.args), mapLazy(v.val, v => vunroll(v)));
-  return impossible(`vunroll: ${v.tag}`);
+  return impossible(`core vunroll: ${v.tag}`);
+};
+
+export const vind = (ty: Val, v: Val): Val => {
+  // todo: perform induction if v has the correct form
+  if (isCorrectFormForInd(v))
+    return VAbs(true, VPi(false, ty, _ => VType), P => vapp(v, true, vapp(P, false, v)));
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EInd(ty), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EInd(ty), v.args), mapLazy(v.val, v => vind(ty, v)));
+  return impossible(`core vind: ${v.tag}`);
+};
+const isCorrectFormForInd = (v: Val, k: Ix = 1000): boolean => {
+  if (v.tag === 'VAbs') return isCorrectFormForInd(v.body(VVar(k)), k + 1);
+  if (v.tag === 'VNe' || v.tag === 'VGlued')
+    return v.head.tag === 'HVar' && v.head.index >= k;
+  return false;
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
@@ -92,6 +110,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VPi(t.plicity, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Fix')
     return VFix(evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+  if (t.tag === 'Ind')
+    return vind(evaluate(t.type, vs), evaluate(t.term, vs));
   return t;
 };
 
@@ -107,6 +127,7 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   if (e.tag === 'EUnroll') return Unroll(t);
+  if (e.tag === 'EInd') return Ind(quote(e.type, k, full), t);
   return e;
 };
 export const quote = (v: Val, k: Ix, full: boolean): Term => {

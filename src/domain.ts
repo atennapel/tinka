@@ -86,13 +86,6 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`vapp: ${a.tag}`);
 };
-export const vind = (ty: Val, v: Val): Val => {
-  // todo: perform induction if v has the correct form
-  if (v.tag === 'VNe') return VNe(v.head, Cons(EInd(ty), v.args));
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EInd(ty), v.args), mapLazy(v.val, v => vind(ty, v)));
-  return impossible(`vind: ${v.tag}`);
-};
 export const vunroll = (v: Val): Val => {
   // unroll (roll v) = v
   if (v.tag === 'VRoll') return v.term;
@@ -100,6 +93,22 @@ export const vunroll = (v: Val): Val => {
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EUnroll, v.args), mapLazy(v.val, v => vunroll(v)));
   return impossible(`vunroll: ${v.tag}`);
+};
+
+export const vind = (ty: Val, v: Val): Val => {
+  // todo: perform induction if v has the correct form
+  if (isCorrectFormForInd(v))
+    return VAbs(true, 'P', VPi(false, '_', ty, _ => VType), P => vapp(v, true, vapp(P, false, v)));
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EInd(ty), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EInd(ty), v.args), mapLazy(v.val, v => vind(ty, v)));
+  return impossible(`vind: ${v.tag}`);
+};
+const isCorrectFormForInd = (v: Val, k: Ix = 1000): boolean => {
+  if (v.tag === 'VAbs') return isCorrectFormForInd(v.body(VVar(k)), k + 1);
+  if (v.tag === 'VNe' || v.tag === 'VGlued')
+    return v.head.tag === 'HVar' && v.head.index >= k;
+  return false;
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {

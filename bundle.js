@@ -29,6 +29,7 @@ exports.HVar = (index) => ({ tag: 'HVar', index });
 exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EUnroll = { tag: 'EUnroll' };
+exports.EInd = (type) => ({ tag: 'EInd', type });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, type, body) => ({ tag: 'VAbs', plicity, type, body });
@@ -64,7 +65,24 @@ exports.vunroll = (v) => {
         return exports.VNe(v.head, list_1.Cons(exports.EUnroll, v.args));
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EUnroll, v.args), lazy_1.mapLazy(v.val, v => exports.vunroll(v)));
-    return util_1.impossible(`vunroll: ${v.tag}`);
+    return util_1.impossible(`core vunroll: ${v.tag}`);
+};
+exports.vind = (ty, v) => {
+    // todo: perform induction if v has the correct form
+    if (isCorrectFormForInd(v))
+        return exports.VAbs(true, exports.VPi(false, ty, _ => exports.VType), P => exports.vapp(v, true, exports.vapp(P, false, v)));
+    if (v.tag === 'VNe')
+        return exports.VNe(v.head, list_1.Cons(exports.EInd(ty), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EInd(ty), v.args), lazy_1.mapLazy(v.val, v => exports.vind(ty, v)));
+    return util_1.impossible(`core vind: ${v.tag}`);
+};
+const isCorrectFormForInd = (v, k = 1000) => {
+    if (v.tag === 'VAbs')
+        return isCorrectFormForInd(v.body(exports.VVar(k)), k + 1);
+    if (v.tag === 'VNe' || v.tag === 'VGlued')
+        return v.head.tag === 'HVar' && v.head.index >= k;
+    return false;
 };
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
@@ -91,6 +109,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VPi(t.plicity, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Fix')
         return exports.VFix(exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
+    if (t.tag === 'Ind')
+        return exports.vind(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
     return t;
 };
 const quoteHead = (h, k) => {
@@ -110,6 +130,8 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     if (e.tag === 'EUnroll')
         return syntax_1.Unroll(t);
+    if (e.tag === 'EInd')
+        return syntax_1.Ind(exports.quote(e.type, k, full), t);
     return e;
 };
 exports.quote = (v, k, full) => {
@@ -138,7 +160,77 @@ exports.quote = (v, k, full) => {
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
 exports.showTermQ = (v, k = 0, full = false) => syntax_1.showTerm(exports.quote(v, k, full));
 
-},{"../globalenv":7,"../utils/lazy":19,"../utils/list":20,"../utils/util":21,"./syntax":3}],3:[function(require,module,exports){
+},{"../globalenv":8,"../utils/lazy":20,"../utils/list":21,"../utils/util":22,"./syntax":4}],3:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const domain_1 = require("./domain");
+const util_1 = require("../utils/util");
+const list_1 = require("../utils/list");
+const syntax_1 = require("./syntax");
+const lazy_1 = require("../utils/lazy");
+exports.makeInductionPrinciple = (k, v_, x) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VPi' && v.plicity)
+        return domain_1.VPi(true, domain_1.VPi(false, v_, _ => domain_1.VType), P => makeInductionPrincipleR(k, v_, k + 1, k, P, 0, x, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle for ${syntax_1.showTerm(domain_1.quote(v_, k, false))}`);
+};
+const makeInductionPrincipleR = (ik, T, k, t, P, i, x, v_) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
+        return domain_1.vapp(P, false, x);
+    if (v.tag === 'VPi' && !v.plicity)
+        return domain_1.VPi(false, makeInductionPrincipleC(ik, T, k, t, P, i, x, 0, v.type), _ => makeInductionPrincipleR(ik, T, k + 1, t, P, i + 1, x, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle (R) for ${syntax_1.showTerm(domain_1.quote(v_, k, false))}`);
+};
+const makeInductionPrincipleC = (ik, T, k, t, P, i, x, args, v_) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
+        return domain_1.vapp(P, false, makeInductionPrincipleCon(ik, ik, t, P, i, 0, x, args, T));
+    if (v.tag === 'VPi')
+        return domain_1.VPi(v.plicity, v.type, _ => makeInductionPrincipleC(ik, T, k + 1, t, P, i, x, args + 1, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle (C) for ${syntax_1.showTerm(domain_1.quote(v_, k, false))}`);
+};
+const makeInductionPrincipleCon = (ok, k, t, P, i, i2, x, args, v_) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
+        return [domain_1.VVar(k + i * 2 - i2 + 2 + args)].concat(Array.from({ length: args }, (_, j) => domain_1.VVar(k + i - i2 + args - j)).reverse()).reduce((x, y) => domain_1.vapp(x, false, y));
+    if (v.tag === 'VPi')
+        return domain_1.VAbs(v.plicity, shift(args + i + 1, ok, v.type), _ => makeInductionPrincipleCon(ok, k + 1, t, P, i, i2 + 1, x, args, v.body(domain_1.VVar(k))));
+    return util_1.terr(`failed to generate induction principle (Con) for ${syntax_1.showTerm(domain_1.quote(v, k, false))}`);
+};
+const shiftHead = (d, c, h) => {
+    if (h.tag === 'HGlobal')
+        return h;
+    if (h.tag === 'HVar')
+        return h.index < c ? h : domain_1.HVar(h.index + d);
+    return h;
+};
+const shiftElim = (d, c, e) => {
+    if (e.tag === 'EApp')
+        return domain_1.EApp(e.plicity, shift(d, c, e.arg));
+    if (e.tag === 'EUnroll')
+        return e;
+    return e;
+};
+const shift = (d, c, v) => {
+    if (v.tag === 'VType')
+        return v;
+    if (v.tag === 'VNe')
+        return domain_1.VNe(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)));
+    if (v.tag === 'VGlued')
+        return domain_1.VGlued(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)), lazy_1.mapLazy(v.val, x => shift(d, c, x)));
+    if (v.tag === 'VAbs')
+        return domain_1.VAbs(v.plicity, shift(d, c, v.type), x => shift(d, c, v.body(x)));
+    if (v.tag === 'VPi')
+        return domain_1.VPi(v.plicity, shift(d, c, v.type), x => shift(d, c, v.body(x)));
+    if (v.tag === 'VFix')
+        return domain_1.VFix(shift(d, c, v.type), x => shift(d, c, v.body(x)));
+    if (v.tag === 'VRoll')
+        return domain_1.VRoll(shift(d, c, v.type), shift(d, c, v.term));
+    return v;
+};
+
+},{"../utils/lazy":20,"../utils/list":21,"../utils/util":22,"./domain":2,"./syntax":4}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("../utils/list");
@@ -153,6 +245,7 @@ exports.Unroll = (term) => ({ tag: 'Unroll', term });
 exports.Pi = (plicity, type, body) => ({ tag: 'Pi', plicity, type, body });
 exports.Fix = (type, body) => ({ tag: 'Fix', type, body });
 exports.Type = { tag: 'Type' };
+exports.Ind = (type, term) => ({ tag: 'Ind', type, term });
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
         return `${t.index}`;
@@ -174,6 +267,8 @@ exports.showTerm = (t) => {
         return `(fix ${exports.showTerm(t.type)}. ${exports.showTerm(t.body)})`;
     if (t.tag === 'Type')
         return '*';
+    if (t.tag === 'Ind')
+        return `(induction {${exports.showTerm(t.type)}} ${exports.showTerm(t.term)})`;
     return t;
 };
 exports.fromSurface = (t, ns = list_1.Nil, k = 0) => {
@@ -194,9 +289,11 @@ exports.fromSurface = (t, ns = list_1.Nil, k = 0) => {
     if (t.tag === 'Type')
         return exports.Type;
     if (t.tag === 'Roll' && t.type)
-        return exports.Roll(exports.fromSurface(t.type, ns, k), exports.fromSurface(t, ns, k));
+        return exports.Roll(exports.fromSurface(t.type, ns, k), exports.fromSurface(t.term, ns, k));
     if (t.tag === 'Unroll')
         return exports.Unroll(exports.fromSurface(t.term, ns, k));
+    if (t.tag === 'Ind' && t.type)
+        return exports.Ind(exports.fromSurface(t.type, ns, k), exports.fromSurface(t.term, ns, k));
     return util_1.impossible(`fromSurface: ${t.tag}`);
 };
 exports.toCore = (t) => {
@@ -220,10 +317,12 @@ exports.toCore = (t) => {
         return exports.Roll(exports.toCore(t.type), exports.toCore(t.term));
     if (t.tag === 'Unroll')
         return exports.Unroll(exports.toCore(t.term));
+    if (t.tag === 'Ind' && t.type)
+        return exports.Ind(exports.toCore(t.type), exports.toCore(t.term));
     return util_1.impossible(`toCore: ${t.tag}`);
 };
 
-},{"../utils/list":20,"../utils/util":21}],4:[function(require,module,exports){
+},{"../utils/list":21,"../utils/util":22}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -233,6 +332,7 @@ const util_1 = require("../utils/util");
 const unify_1 = require("./unify");
 const config_1 = require("../config");
 const globalenv_1 = require("../globalenv");
+const induction_1 = require("./induction");
 const extendT = (ts, val, plicity) => list_1.Cons({ type: val, plicity }, ts);
 const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.plicity ? 'e ' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
 const localEmpty = { ts: list_1.Nil, vs: list_1.Nil, index: 0, inType: false };
@@ -322,11 +422,18 @@ const synth = (local, tm) => {
             return vt.body(vt);
         return util_1.terr(`fix type expected in ${syntax_1.showTerm(tm)}: ${domain_1.showTermQ(vt, local.index)}`);
     }
+    if (tm.tag === 'Ind') {
+        check(localInType(local), tm.type, domain_1.VType);
+        const vt = domain_1.evaluate(tm.type, local.vs);
+        check(local, tm.term, vt);
+        const ind = induction_1.makeInductionPrinciple(local.index, vt, domain_1.evaluate(tm.term, local.vs));
+        return ind;
+    }
     return util_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };
 exports.typecheck = (tm, local = localEmpty) => synth(local, tm);
 
-},{"../config":1,"../globalenv":7,"../utils/list":20,"../utils/util":21,"./domain":2,"./syntax":3,"./unify":5}],5:[function(require,module,exports){
+},{"../config":1,"../globalenv":8,"../utils/list":21,"../utils/util":22,"./domain":2,"./induction":3,"./syntax":4,"./unify":6}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("../utils/util");
@@ -350,6 +457,8 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
+    if (a.tag === 'EInd' && b.tag === 'EInd')
+        return exports.unify(k, a.type, b.type);
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a, b) => {
@@ -404,7 +513,7 @@ exports.unify = (k, a, b) => {
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 
-},{"../config":1,"../utils/lazy":19,"../utils/list":20,"../utils/util":21,"./domain":2}],6:[function(require,module,exports){
+},{"../config":1,"../utils/lazy":20,"../utils/list":21,"../utils/util":22,"./domain":2}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("./utils/list");
@@ -468,13 +577,6 @@ exports.vapp = (a, plicity, b) => {
         return exports.VGlued(a.head, list_1.Cons(exports.EApp(plicity, b), a.args), lazy_1.mapLazy(a.val, v => exports.vapp(v, plicity, b)));
     return util_1.impossible(`vapp: ${a.tag}`);
 };
-exports.vind = (ty, v) => {
-    if (v.tag === 'VNe')
-        return exports.VNe(v.head, list_1.Cons(exports.EInd(ty), v.args));
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EInd(ty), v.args), lazy_1.mapLazy(v.val, v => exports.vind(ty, v)));
-    return util_1.impossible(`vind: ${v.tag}`);
-};
 exports.vunroll = (v) => {
     // unroll (roll v) = v
     if (v.tag === 'VRoll')
@@ -484,6 +586,23 @@ exports.vunroll = (v) => {
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EUnroll, v.args), lazy_1.mapLazy(v.val, v => exports.vunroll(v)));
     return util_1.impossible(`vunroll: ${v.tag}`);
+};
+exports.vind = (ty, v) => {
+    // todo: perform induction if v has the correct form
+    if (isCorrectFormForInd(v))
+        return exports.VAbs(true, 'P', exports.VPi(false, '_', ty, _ => exports.VType), P => exports.vapp(v, true, exports.vapp(P, false, v)));
+    if (v.tag === 'VNe')
+        return exports.VNe(v.head, list_1.Cons(exports.EInd(ty), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EInd(ty), v.args), lazy_1.mapLazy(v.val, v => exports.vind(ty, v)));
+    return util_1.impossible(`vind: ${v.tag}`);
+};
+const isCorrectFormForInd = (v, k = 1000) => {
+    if (v.tag === 'VAbs')
+        return isCorrectFormForInd(v.body(exports.VVar(k)), k + 1);
+    if (v.tag === 'VNe' || v.tag === 'VGlued')
+        return v.head.tag === 'HVar' && v.head.index >= k;
+    return false;
 };
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
@@ -631,7 +750,7 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = 0) => {
     return tm;
 };
 
-},{"./config":1,"./globalenv":7,"./metas":9,"./syntax":16,"./utils/lazy":19,"./utils/list":20,"./utils/util":21}],7:[function(require,module,exports){
+},{"./config":1,"./globalenv":8,"./metas":10,"./syntax":17,"./utils/lazy":20,"./utils/list":21,"./utils/util":22}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 let env = {};
@@ -647,7 +766,7 @@ exports.globalDelete = (name) => {
     delete env[name];
 };
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const domain_1 = require("./domain");
@@ -657,6 +776,7 @@ const syntax_1 = require("./syntax");
 const lazy_1 = require("./utils/lazy");
 exports.makeInductionPrinciple = (k, v_, x) => {
     const v = domain_1.force(v_);
+    console.log(k);
     if (v.tag === 'VPi' && v.plicity)
         return domain_1.VPi(true, 'P', domain_1.VPi(false, '_', v_, _ => domain_1.VType), P => makeInductionPrincipleR(k, v_, k + 1, k, P, 0, x, v.body(domain_1.VVar(k))));
     return util_1.terr(`failed to generate induction principle for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
@@ -672,17 +792,22 @@ const makeInductionPrincipleR = (ik, T, k, t, P, i, x, v_) => {
 const makeInductionPrincipleC = (ik, T, k, t, P, i, x, args, v_) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return domain_1.vapp(P, false, makeInductionPrincipleCon(ik, t, P, i, 0, x, args, T));
+        return domain_1.vapp(P, false, makeInductionPrincipleCon(ik, ik, t, P, i, 0, x, args, T));
     if (v.tag === 'VPi')
         return domain_1.VPi(v.plicity, name(v.name, 'a', args), v.type, _ => makeInductionPrincipleC(ik, T, k + 1, t, P, i, x, args + 1, v.body(domain_1.VVar(k))));
     return util_1.terr(`failed to generate induction principle (C) for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
 };
-const makeInductionPrincipleCon = (k, t, P, i, i2, x, args, v_) => {
+const makeInductionPrincipleCon = (ok, k, t, P, i, i2, x, args, v_) => {
     const v = domain_1.force(v_);
+    // console.log(ok, t, v);
+    console.log(syntax_1.showTerm(domain_1.quote(v, k, 0)));
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return [domain_1.VVar(k + i * 2 - i2 + 2 + args)].concat(Array.from({ length: args }, (_, j) => domain_1.VVar(k + i * 2 - i2 + args - j)).reverse()).reduce((x, y) => domain_1.vapp(x, false, y));
-    if (v.tag === 'VPi')
-        return domain_1.VAbs(v.plicity, name(v.name, 'a', i2), shift(i + args + 1, k, v.type), _ => makeInductionPrincipleCon(k + 1, t, P, i, i2 + 1, x, args, v.body(domain_1.VVar(k))));
+        return [domain_1.VVar(k + i * 2 - i2 + 2 + args)].concat(Array.from({ length: args }, (_, j) => domain_1.VVar(k + i - i2 + args - j)).reverse()).reduce((x, y) => domain_1.vapp(x, false, y));
+    if (v.tag === 'VPi') {
+        console.log(`pi: ${syntax_1.showTerm(domain_1.quote(v.type, k, 0))}`);
+        console.log(`pi: ${syntax_1.showTerm(domain_1.quote(shift(args + i + 1, ok, v.type), k, 0))}`);
+        return domain_1.VAbs(v.plicity, name(v.name, 'a', i2), shift(args + i + 1, ok, v.type), _ => makeInductionPrincipleCon(ok, k + 1, t, P, i, i2 + 1, x, args, v.body(domain_1.VVar(k))));
+    }
     return util_1.terr(`failed to generate induction principle (Con) for ${syntax_1.showTerm(domain_1.quote(v, k, 0))}`);
 };
 const name = (y, x, i) => y === '_' ? `${x}${i}` : y;
@@ -692,7 +817,7 @@ const shiftHead = (d, c, h) => {
     if (h.tag === 'HMeta')
         return h;
     if (h.tag === 'HVar')
-        return h.index >= c ? h : domain_1.HVar(h.index + d);
+        return h.index < c ? h : domain_1.HVar(h.index + d);
     return h;
 };
 const shiftElim = (d, c, e) => {
@@ -711,17 +836,17 @@ const shift = (d, c, v_) => {
     if (v.tag === 'VGlued')
         return domain_1.VGlued(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)), lazy_1.mapLazy(v.val, x => shift(d, c, x)));
     if (v.tag === 'VAbs')
-        return domain_1.VAbs(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c + 1, v.body(x)));
+        return domain_1.VAbs(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c, v.body(x)));
     if (v.tag === 'VPi')
-        return domain_1.VPi(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c + 1, v.body(x)));
+        return domain_1.VPi(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c, v.body(x)));
     if (v.tag === 'VFix')
-        return domain_1.VFix(v.name, shift(d, c, v.type), x => shift(d, c + 1, v.body(x)));
+        return domain_1.VFix(v.name, shift(d, c, v.type), x => shift(d, c, v.body(x)));
     if (v.tag === 'VRoll')
         return domain_1.VRoll(shift(d, c, v.type), shift(d, c, v.term));
     return v;
 };
 
-},{"./domain":6,"./syntax":16,"./utils/lazy":19,"./utils/list":20,"./utils/util":21}],9:[function(require,module,exports){
+},{"./domain":7,"./syntax":17,"./utils/lazy":20,"./utils/list":21,"./utils/util":22}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -758,7 +883,7 @@ exports.metaPop = () => {
 };
 exports.metaDiscard = () => { stack.pop(); };
 
-},{"./syntax":16,"./utils/util":21}],10:[function(require,module,exports){
+},{"./syntax":17,"./utils/util":22}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextName = (x) => {
@@ -770,7 +895,7 @@ exports.nextName = (x) => {
     return `${x}\$0`;
 };
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./utils/util");
@@ -1202,7 +1327,7 @@ exports.parseDefs = async (s, importMap) => {
     return ds.reduce((x, y) => x.concat(y), []);
 };
 
-},{"./config":1,"./surface":15,"./utils/util":21}],12:[function(require,module,exports){
+},{"./config":1,"./surface":16,"./utils/util":22}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("../utils/list");
@@ -1267,7 +1392,7 @@ exports.quote = (v, k) => {
 };
 exports.normalize = (t, vs = list_1.Nil, k = 0) => exports.quote(exports.evaluate(t, vs), k);
 
-},{"../utils/list":20,"../utils/util":21,"./syntax":13}],13:[function(require,module,exports){
+},{"../utils/list":21,"../utils/util":22,"./syntax":14}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("../utils/util");
@@ -1352,6 +1477,8 @@ exports.erase = (t) => {
         return exports.erase(t.term);
     if (t.tag === 'Unroll')
         return exports.erase(t.term);
+    if (t.tag === 'Ind')
+        return exports.erase(t.term);
     if (t.tag === 'Pi')
         return exports.idTerm;
     if (t.tag === 'Fix')
@@ -1361,7 +1488,7 @@ exports.erase = (t) => {
     return t;
 };
 
-},{"../globalenv":7,"../utils/util":21}],14:[function(require,module,exports){
+},{"../globalenv":8,"../utils/util":22}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1639,7 +1766,7 @@ exports.runREPL = (_s, _cb) => {
     }
 };
 
-},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./domain":6,"./globalenv":7,"./induction":8,"./parser":11,"./pure/domain":12,"./pure/syntax":13,"./surface":15,"./syntax":16,"./typecheck":17,"./utils/list":20,"./utils/util":21}],15:[function(require,module,exports){
+},{"./config":1,"./core/domain":2,"./core/syntax":4,"./core/typecheck":5,"./domain":7,"./globalenv":8,"./induction":9,"./parser":12,"./pure/domain":13,"./pure/syntax":14,"./surface":16,"./syntax":17,"./typecheck":18,"./utils/list":21,"./utils/util":22}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Var = (name) => ({ tag: 'Var', name });
@@ -1753,7 +1880,7 @@ exports.showDef = (d) => {
 };
 exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -1927,8 +2054,31 @@ exports.toSurface = (t, ns = list_1.Nil) => {
 };
 exports.showSurface = (t, ns = list_1.Nil) => S.showTerm(exports.toSurface(t, ns));
 exports.showSurfaceZ = (t, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = 0) => S.showTerm(exports.toSurface(domain_1.zonk(t, vs, k, full), ns));
+exports.shift = (d, c, t) => {
+    if (t.tag === 'Var')
+        return t.index < c ? t : exports.Var(t.index + d);
+    if (t.tag === 'Abs')
+        return exports.Abs(t.plicity, t.name, t.type && exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'App')
+        return exports.App(exports.shift(d, c, t.left), t.plicity, exports.shift(d, c, t.right));
+    if (t.tag === 'Let')
+        return exports.Let(t.plicity, t.name, exports.shift(d, c, t.val), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Roll')
+        return exports.Roll(t.type && exports.shift(d, c, t.type), exports.shift(d, c, t.term));
+    if (t.tag === 'Unroll')
+        return exports.Unroll(exports.shift(d, c, t.term));
+    if (t.tag === 'Pi')
+        return exports.Pi(t.plicity, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Fix')
+        return exports.Fix(t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Ann')
+        return exports.Ann(exports.shift(d, c, t.term), exports.shift(d, c, t.type));
+    if (t.tag === 'Ind')
+        return exports.Ind(t.type && exports.shift(d, c, t.type), exports.shift(d, c, t.term));
+    return t;
+};
 
-},{"./domain":6,"./names":10,"./surface":15,"./utils/list":20,"./utils/util":21}],17:[function(require,module,exports){
+},{"./domain":7,"./names":11,"./surface":16,"./utils/list":21,"./utils/util":22}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -2147,7 +2297,7 @@ const synth = (local, tm) => {
         let type;
         let term;
         if (tm.type) {
-            type = check(local, tm.type, domain_1.VType);
+            type = check(exports.localInType(local), tm.type, domain_1.VType);
             vt = domain_1.evaluate(type, local.vs);
             term = check(local, tm.term, vt);
         }
@@ -2230,7 +2380,7 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
     return xs;
 };
 
-},{"./config":1,"./core/domain":2,"./core/syntax":3,"./core/typecheck":4,"./domain":6,"./globalenv":7,"./induction":8,"./metas":9,"./pure/domain":12,"./pure/syntax":13,"./surface":15,"./syntax":16,"./unify":18,"./utils/list":20,"./utils/util":21}],18:[function(require,module,exports){
+},{"./config":1,"./core/domain":2,"./core/syntax":4,"./core/typecheck":5,"./domain":7,"./globalenv":8,"./induction":9,"./metas":10,"./pure/domain":13,"./pure/syntax":14,"./surface":16,"./syntax":17,"./unify":19,"./utils/list":21,"./utils/util":22}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./utils/util");
@@ -2421,7 +2571,7 @@ const checkSolution = (k, m, is, t) => {
     return util_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };
 
-},{"./config":1,"./domain":6,"./metas":9,"./syntax":16,"./utils/lazy":19,"./utils/list":20,"./utils/util":21}],19:[function(require,module,exports){
+},{"./config":1,"./domain":7,"./metas":10,"./syntax":17,"./utils/lazy":20,"./utils/list":21,"./utils/util":22}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = (fn) => ({ fn, val: null, forced: false });
@@ -2436,7 +2586,7 @@ exports.forceLazy = (lazy) => {
 };
 exports.mapLazy = (lazy, fn) => exports.Lazy(() => fn(exports.forceLazy(lazy)));
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Nil = { tag: 'Nil' };
@@ -2564,7 +2714,7 @@ exports.range = (n) => n <= 0 ? exports.Nil : exports.Cons(n - 1, exports.range(
 exports.contains = (l, v) => l.tag === 'Cons' ? (l.head === v || exports.contains(l.tail, v)) : false;
 exports.max = (l) => exports.foldl((a, b) => b > a ? b : a, Number.MIN_SAFE_INTEGER, l);
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = (msg) => {
@@ -2591,7 +2741,7 @@ exports.loadFile = (fn) => {
     }
 };
 
-},{"fs":23}],22:[function(require,module,exports){
+},{"fs":24}],23:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2647,6 +2797,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":14}],23:[function(require,module,exports){
+},{"./repl":15}],24:[function(require,module,exports){
 
-},{}]},{},[22]);
+},{}]},{},[23]);

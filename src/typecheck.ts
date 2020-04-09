@@ -224,7 +224,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     let type;
     let term;
     if (tm.type) {
-      type = check(local, tm.type, VType);
+      type = check(localInType(local), tm.type, VType);
       vt = evaluate(type, local.vs);
       term = check(local, tm.term, vt);
     } else {
@@ -233,7 +233,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       vt = ty;
       term = term_;
     }
-    const ind = makeInductionPrinciple(local.index, vt, evaluate(term, local.vs));   
+    const ind = makeInductionPrinciple(local.index, vt, evaluate(term, local.vs));
     log(() => showTermQZ(ind, local.vs, local.index, 0));
     log(() => showTermSZ(ind, local.names, local.vs, local.index, 0));
     return [Ind(type, term), ind];

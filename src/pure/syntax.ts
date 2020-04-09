@@ -78,6 +78,7 @@ export const erase = (t: TTerm): Term => {
   if (t.tag === 'Let') return t.plicity ? shift(-1, 0, erase(t.body)) : App(Abs(erase(t.body)), erase(t.val));
   if (t.tag === 'Roll') return erase(t.term);
   if (t.tag === 'Unroll') return erase(t.term);
+  if (t.tag === 'Ind') return erase(t.term);
   if (t.tag === 'Pi') return idTerm;
   if (t.tag === 'Fix') return idTerm;
   if (t.tag === 'Type') return idTerm;
