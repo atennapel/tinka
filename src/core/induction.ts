@@ -1,67 +1,40 @@
-import { Val, force, VVar, quote, VPi, VType, vapp, VAbs, VRoll, VFix, VNe, VGlued, Head, Elim, EApp, HVar } from './domain';
+import { Term, Pi, Type, App, Var, shift, Abs } from './syntax';
+import { Val, force, quote, VVar } from './domain';
 import { Ix } from '../names';
-import { terr } from '../utils/util';
-import { isEmpty, map } from '../utils/list';
-import { showTerm } from './syntax';
-import { mapLazy } from '../utils/lazy';
+import { impossible } from '../utils/util';
+import { isEmpty, Nil, List, Cons, foldr } from '../utils/list';
 
-export const makeInductionPrinciple = (k: Ix, v_: Val, x: Val): Val => {
+export const makeInductionPrinciple = (k: Ix, v_: Val, x: Term): Term => {
+  const ty = quote(v_, k, false);
   const v = force(v_);
-  if (v.tag === 'VPi' && v.plicity)
-    return VPi(true, VPi(false, v_, _ => VType), P => makeInductionPrincipleR(k, v_, k + 1, k, P, 0, x, v.body(VVar(k))));
-  return terr(`failed to generate induction principle for ${showTerm(quote(v_, k, false))}`);
+  if (v.tag === 'VPi' && v.plicity && force(v.type).tag === 'VType')
+    return Pi(v.plicity, Pi(false, ty, Type), makeInductionPrincipleCon(k + 1, k, 0, v.body(VVar(k)), x, v_));
+  return impossible(`makeInductionPrinciple ${v.tag}`);
 };
 
-const makeInductionPrincipleR = (ik: Ix, T: Val, k: Ix, t: Ix, P: Val, i: number, x: Val, v_: Val): Val => {
+const makeInductionPrincipleCon = (k: Ix, t: Ix, cons: number, v_: Val, x: Term, ty: Val): Term => {
   const v = force(v_);
   if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && isEmpty(v.args))
-    return vapp(P, false, x);
+    return App(Var(k - (t + 1)), false, shift(1 + cons, 0, x));
   if (v.tag === 'VPi' && !v.plicity)
-    return VPi(false, makeInductionPrincipleC(ik, T, k, t, P, i, x, 0, v.type), _ => makeInductionPrincipleR(ik, T, k + 1, t, P, i + 1, x, v.body(VVar(k))));
-  return terr(`failed to generate induction principle (R) for ${showTerm(quote(v_, k, false))}`);
+    return Pi(false, makeInductionPrincipleCon2(k, t, cons, 0, Nil, v.type, x, ty), makeInductionPrincipleCon(k + 1, t, cons + 1, v.body(VVar(k)), x, ty));
+  return impossible(`makeInductionPrincipleCon ${v.tag}`);
 };
 
-const makeInductionPrincipleC = (ik: Ix, T: Val, k: Ix, t: Ix, P: Val, i: number, x: Val, args: number, v_: Val): Val => {
+const makeInductionPrincipleCon2 = (k: Ix, t: Ix, cons: number, args: number, plics: List<boolean>, v_: Val, x: Term, ty: Val): Term => {
   const v = force(v_);
   if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && isEmpty(v.args))
-    return vapp(P, false, makeInductionPrincipleCon(ik, ik, t, P, i, 0, x, args, T));
+    return App(Var(k - (t + 1)), false, makeInductionPrincipleCon3(k, t, t, cons, 0, args, plics, x, ty));
   if (v.tag === 'VPi')
-    return VPi(v.plicity, v.type, _ => makeInductionPrincipleC(ik, T, k + 1, t, P, i, x, args + 1, v.body(VVar(k))));
-  return terr(`failed to generate induction principle (C) for ${showTerm(quote(v_, k, false))}`);
+    return Pi(v.plicity, quote(v.type, k, false), makeInductionPrincipleCon2(k + 1, t, cons, args + 1, Cons(v.plicity, plics), v.body(VVar(k)), x, ty));
+  return impossible(`makeInductionPrincipleCon2 ${v.tag}`);
 };
 
-const makeInductionPrincipleCon = (ok: Ix, k: Ix, t: Ix, P: Val, i: number, i2: number, x: Val, args: number, v_: Val): Val => {
+const makeInductionPrincipleCon3 = (ok: Ix, k: Ix, t: Ix, i: number, cons: number, args: number, plics: List<boolean>, x: Term, v_: Val): Term => {
   const v = force(v_);
   if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && isEmpty(v.args))
-    return [VVar(k + i*2 - i2 + 2 + args) as Val].concat(Array.from({ length: args }, (_, j) => VVar(k + i - i2 + args - j)).reverse()).reduce((x, y) => vapp(x, false, y));
+    return foldr((pl, y, i) => App(y, pl, Var(i + cons)), Var(cons - 1 - i - 1) as Term, plics);
   if (v.tag === 'VPi')
-    return VAbs(v.plicity, shift(args + i + 1, ok, v.type), _ => makeInductionPrincipleCon(ok, k + 1, t, P, i, i2 + 1, x, args, v.body(VVar(k))));
-  return terr(`failed to generate induction principle (Con) for ${showTerm(quote(v, k, false))}`);
-};
-
-const shiftHead = (d: Ix, c: Ix, h: Head): Head => {
-  if (h.tag === 'HGlobal') return h;
-  if (h.tag === 'HVar') return h.index < c ? h : HVar(h.index + d);
-  return h;
-};
-const shiftElim = (d: Ix, c: Ix, e: Elim): Elim => {
-  if (e.tag === 'EApp') return EApp(e.plicity, shift(d, c, e.arg));
-  if (e.tag === 'EUnroll') return e;
-  return e;
-};
-const shift = (d: Ix, c: Ix, v: Val): Val => {
-  if (v.tag === 'VType') return v;
-  if (v.tag === 'VNe')
-    return VNe(shiftHead(d, c, v.head), map(v.args, x => shiftElim(d, c, x)));
-  if (v.tag === 'VGlued')
-    return VGlued(shiftHead(d, c, v.head), map(v.args, x => shiftElim(d, c, x)), mapLazy(v.val, x => shift(d, c, x)));
-  if (v.tag === 'VAbs')
-    return VAbs(v.plicity, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-  if (v.tag === 'VPi')
-    return VPi(v.plicity, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-  if (v.tag === 'VFix')
-    return VFix(shift(d, c, v.type), x => shift(d, c, v.body(x)));
-  if (v.tag === 'VRoll')
-    return VRoll(shift(d, c, v.type), shift(d, c, v.term));
-  return v;
+    return Abs(v.plicity, shift(i + args + 1, cons, quote(v.type, k, false)), makeInductionPrincipleCon3(ok + 1, k + 1, t, i, cons + 1, args, plics, x, v.body(VVar(k))));
+  return impossible(`makeInductionPrincipleCon3 ${v.tag}`);
 };

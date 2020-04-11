@@ -110,8 +110,8 @@ const synth = (local: Local, tm: Term): Val => {
     check(localInType(local), tm.type, VType);
     const vt = evaluate(tm.type, local.vs);
     check(local, tm.term, vt);
-    const ind = makeInductionPrinciple(local.index, vt, evaluate(tm.term, local.vs));
-    return ind;
+    const ind = makeInductionPrinciple(local.index, vt, tm.term);
+    return evaluate(ind, local.vs);
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

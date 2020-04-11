@@ -76,3 +76,16 @@ export const toCore = (t: ITerm): Term => {
   if (t.tag === 'Ind' && t.type) return Ind(toCore(t.type), toCore(t.term));
   return impossible(`toCore: ${t.tag}`);
 };
+
+export const shift = (d: Ix, c: Ix, t: Term): Term => {
+  if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);
+  if (t.tag === 'Abs') return Abs(t.plicity, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'App') return App(shift(d, c, t.left), t.plicity, shift(d, c, t.right));
+  if (t.tag === 'Let') return Let(t.plicity, shift(d, c, t.val), shift(d, c + 1, t.body));
+  if (t.tag === 'Roll') return Roll(shift(d, c, t.type), shift(d, c, t.term));
+  if (t.tag === 'Unroll') return Unroll(shift(d, c, t.term));
+  if (t.tag === 'Pi') return Pi(t.plicity, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Fix') return Fix(shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Ind') return Ind(shift(d, c, t.type), shift(d, c, t.term));
+  return t;
+};

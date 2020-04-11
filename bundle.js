@@ -163,74 +163,43 @@ exports.showTermQ = (v, k = 0, full = false) => syntax_1.showTerm(exports.quote(
 },{"../globalenv":8,"../utils/lazy":20,"../utils/list":21,"../utils/util":22,"./syntax":4}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const syntax_1 = require("./syntax");
 const domain_1 = require("./domain");
 const util_1 = require("../utils/util");
 const list_1 = require("../utils/list");
-const syntax_1 = require("./syntax");
-const lazy_1 = require("../utils/lazy");
 exports.makeInductionPrinciple = (k, v_, x) => {
+    const ty = domain_1.quote(v_, k, false);
     const v = domain_1.force(v_);
-    if (v.tag === 'VPi' && v.plicity)
-        return domain_1.VPi(true, domain_1.VPi(false, v_, _ => domain_1.VType), P => makeInductionPrincipleR(k, v_, k + 1, k, P, 0, x, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle for ${syntax_1.showTerm(domain_1.quote(v_, k, false))}`);
+    if (v.tag === 'VPi' && v.plicity && domain_1.force(v.type).tag === 'VType')
+        return syntax_1.Pi(v.plicity, syntax_1.Pi(false, ty, syntax_1.Type), makeInductionPrincipleCon(k + 1, k, 0, v.body(domain_1.VVar(k)), x, v_));
+    return util_1.impossible(`makeInductionPrinciple ${v.tag}`);
 };
-const makeInductionPrincipleR = (ik, T, k, t, P, i, x, v_) => {
+const makeInductionPrincipleCon = (k, t, cons, v_, x, ty) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return domain_1.vapp(P, false, x);
+        return syntax_1.App(syntax_1.Var(k - (t + 1)), false, syntax_1.shift(1 + cons, 0, x));
     if (v.tag === 'VPi' && !v.plicity)
-        return domain_1.VPi(false, makeInductionPrincipleC(ik, T, k, t, P, i, x, 0, v.type), _ => makeInductionPrincipleR(ik, T, k + 1, t, P, i + 1, x, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle (R) for ${syntax_1.showTerm(domain_1.quote(v_, k, false))}`);
+        return syntax_1.Pi(false, makeInductionPrincipleCon2(k, t, cons, 0, list_1.Nil, v.type, x, ty), makeInductionPrincipleCon(k + 1, t, cons + 1, v.body(domain_1.VVar(k)), x, ty));
+    return util_1.impossible(`makeInductionPrincipleCon ${v.tag}`);
 };
-const makeInductionPrincipleC = (ik, T, k, t, P, i, x, args, v_) => {
+const makeInductionPrincipleCon2 = (k, t, cons, args, plics, v_, x, ty) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return domain_1.vapp(P, false, makeInductionPrincipleCon(ik, ik, t, P, i, 0, x, args, T));
+        return syntax_1.App(syntax_1.Var(k - (t + 1)), false, makeInductionPrincipleCon3(k, t, t, cons, 0, args, plics, x, ty));
     if (v.tag === 'VPi')
-        return domain_1.VPi(v.plicity, v.type, _ => makeInductionPrincipleC(ik, T, k + 1, t, P, i, x, args + 1, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle (C) for ${syntax_1.showTerm(domain_1.quote(v_, k, false))}`);
+        return syntax_1.Pi(v.plicity, domain_1.quote(v.type, k, false), makeInductionPrincipleCon2(k + 1, t, cons, args + 1, list_1.Cons(v.plicity, plics), v.body(domain_1.VVar(k)), x, ty));
+    return util_1.impossible(`makeInductionPrincipleCon2 ${v.tag}`);
 };
-const makeInductionPrincipleCon = (ok, k, t, P, i, i2, x, args, v_) => {
+const makeInductionPrincipleCon3 = (ok, k, t, i, cons, args, plics, x, v_) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return [domain_1.VVar(k + i * 2 - i2 + 2 + args)].concat(Array.from({ length: args }, (_, j) => domain_1.VVar(k + i - i2 + args - j)).reverse()).reduce((x, y) => domain_1.vapp(x, false, y));
+        return list_1.foldr((pl, y, i) => syntax_1.App(y, pl, syntax_1.Var(i + cons)), syntax_1.Var(cons - 1 - i - 1), plics);
     if (v.tag === 'VPi')
-        return domain_1.VAbs(v.plicity, shift(args + i + 1, ok, v.type), _ => makeInductionPrincipleCon(ok, k + 1, t, P, i, i2 + 1, x, args, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle (Con) for ${syntax_1.showTerm(domain_1.quote(v, k, false))}`);
-};
-const shiftHead = (d, c, h) => {
-    if (h.tag === 'HGlobal')
-        return h;
-    if (h.tag === 'HVar')
-        return h.index < c ? h : domain_1.HVar(h.index + d);
-    return h;
-};
-const shiftElim = (d, c, e) => {
-    if (e.tag === 'EApp')
-        return domain_1.EApp(e.plicity, shift(d, c, e.arg));
-    if (e.tag === 'EUnroll')
-        return e;
-    return e;
-};
-const shift = (d, c, v) => {
-    if (v.tag === 'VType')
-        return v;
-    if (v.tag === 'VNe')
-        return domain_1.VNe(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)));
-    if (v.tag === 'VGlued')
-        return domain_1.VGlued(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)), lazy_1.mapLazy(v.val, x => shift(d, c, x)));
-    if (v.tag === 'VAbs')
-        return domain_1.VAbs(v.plicity, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-    if (v.tag === 'VPi')
-        return domain_1.VPi(v.plicity, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-    if (v.tag === 'VFix')
-        return domain_1.VFix(shift(d, c, v.type), x => shift(d, c, v.body(x)));
-    if (v.tag === 'VRoll')
-        return domain_1.VRoll(shift(d, c, v.type), shift(d, c, v.term));
-    return v;
+        return syntax_1.Abs(v.plicity, syntax_1.shift(i + args + 1, cons, domain_1.quote(v.type, k, false)), makeInductionPrincipleCon3(ok + 1, k + 1, t, i, cons + 1, args, plics, x, v.body(domain_1.VVar(k))));
+    return util_1.impossible(`makeInductionPrincipleCon3 ${v.tag}`);
 };
 
-},{"../utils/lazy":20,"../utils/list":21,"../utils/util":22,"./domain":2,"./syntax":4}],4:[function(require,module,exports){
+},{"../utils/list":21,"../utils/util":22,"./domain":2,"./syntax":4}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const list_1 = require("../utils/list");
@@ -320,6 +289,27 @@ exports.toCore = (t) => {
     if (t.tag === 'Ind' && t.type)
         return exports.Ind(exports.toCore(t.type), exports.toCore(t.term));
     return util_1.impossible(`toCore: ${t.tag}`);
+};
+exports.shift = (d, c, t) => {
+    if (t.tag === 'Var')
+        return t.index < c ? t : exports.Var(t.index + d);
+    if (t.tag === 'Abs')
+        return exports.Abs(t.plicity, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'App')
+        return exports.App(exports.shift(d, c, t.left), t.plicity, exports.shift(d, c, t.right));
+    if (t.tag === 'Let')
+        return exports.Let(t.plicity, exports.shift(d, c, t.val), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Roll')
+        return exports.Roll(exports.shift(d, c, t.type), exports.shift(d, c, t.term));
+    if (t.tag === 'Unroll')
+        return exports.Unroll(exports.shift(d, c, t.term));
+    if (t.tag === 'Pi')
+        return exports.Pi(t.plicity, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Fix')
+        return exports.Fix(exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Ind')
+        return exports.Ind(exports.shift(d, c, t.type), exports.shift(d, c, t.term));
+    return t;
 };
 
 },{"../utils/list":21,"../utils/util":22}],5:[function(require,module,exports){
@@ -426,8 +416,8 @@ const synth = (local, tm) => {
         check(localInType(local), tm.type, domain_1.VType);
         const vt = domain_1.evaluate(tm.type, local.vs);
         check(local, tm.term, vt);
-        const ind = induction_1.makeInductionPrinciple(local.index, vt, domain_1.evaluate(tm.term, local.vs));
-        return ind;
+        const ind = induction_1.makeInductionPrinciple(local.index, vt, tm.term);
+        return domain_1.evaluate(ind, local.vs);
     }
     return util_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };
@@ -769,84 +759,44 @@ exports.globalDelete = (name) => {
 },{}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const syntax_1 = require("./syntax");
 const domain_1 = require("./domain");
 const util_1 = require("./utils/util");
 const list_1 = require("./utils/list");
-const syntax_1 = require("./syntax");
-const lazy_1 = require("./utils/lazy");
 exports.makeInductionPrinciple = (k, v_, x) => {
+    const ty = domain_1.quote(v_, k, 0);
     const v = domain_1.force(v_);
-    console.log(k);
-    if (v.tag === 'VPi' && v.plicity)
-        return domain_1.VPi(true, 'P', domain_1.VPi(false, '_', v_, _ => domain_1.VType), P => makeInductionPrincipleR(k, v_, k + 1, k, P, 0, x, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
+    if (v.tag === 'VPi' && v.plicity && domain_1.force(v.type).tag === 'VType')
+        return syntax_1.Pi(v.plicity, 'P', syntax_1.Pi(false, '_', ty, syntax_1.Type), makeInductionPrincipleCon(k + 1, k, 0, v.body(domain_1.VVar(k)), x, v_));
+    return util_1.impossible(`makeInductionPrinciple ${v.tag}`);
 };
-const makeInductionPrincipleR = (ik, T, k, t, P, i, x, v_) => {
+const makeInductionPrincipleCon = (k, t, cons, v_, x, ty) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return domain_1.vapp(P, false, x);
+        return syntax_1.App(syntax_1.Var(k - (t + 1)), false, syntax_1.shift(1 + cons, 0, x));
     if (v.tag === 'VPi' && !v.plicity)
-        return domain_1.VPi(false, v.name, makeInductionPrincipleC(ik, T, k, t, P, i, x, 0, v.type), _ => makeInductionPrincipleR(ik, T, k + 1, t, P, i + 1, x, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle (R) for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
+        return syntax_1.Pi(false, v.name, makeInductionPrincipleCon2(k, t, cons, 0, list_1.Nil, v.type, x, ty), makeInductionPrincipleCon(k + 1, t, cons + 1, v.body(domain_1.VVar(k)), x, ty));
+    return util_1.impossible(`makeInductionPrincipleCon ${v.tag}`);
 };
-const makeInductionPrincipleC = (ik, T, k, t, P, i, x, args, v_) => {
+const makeInductionPrincipleCon2 = (k, t, cons, args, plics, v_, x, ty) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return domain_1.vapp(P, false, makeInductionPrincipleCon(ik, ik, t, P, i, 0, x, args, T));
+        return syntax_1.App(syntax_1.Var(k - (t + 1)), false, makeInductionPrincipleCon3(k, t, t, cons, 0, args, plics, x, ty));
     if (v.tag === 'VPi')
-        return domain_1.VPi(v.plicity, name(v.name, 'a', args), v.type, _ => makeInductionPrincipleC(ik, T, k + 1, t, P, i, x, args + 1, v.body(domain_1.VVar(k))));
-    return util_1.terr(`failed to generate induction principle (C) for ${syntax_1.showTerm(domain_1.quote(v_, k, 0))}`);
+        return syntax_1.Pi(v.plicity, name(v.name, 'x', args), domain_1.quote(v.type, k, 0), makeInductionPrincipleCon2(k + 1, t, cons, args + 1, list_1.Cons(v.plicity, plics), v.body(domain_1.VVar(k)), x, ty));
+    return util_1.impossible(`makeInductionPrincipleCon2 ${v.tag}`);
 };
-const makeInductionPrincipleCon = (ok, k, t, P, i, i2, x, args, v_) => {
+const makeInductionPrincipleCon3 = (ok, k, t, i, cons, args, plics, x, v_) => {
     const v = domain_1.force(v_);
-    // console.log(ok, t, v);
-    console.log(syntax_1.showTerm(domain_1.quote(v, k, 0)));
     if (v.tag === 'VNe' && v.head.tag === 'HVar' && v.head.index === t && list_1.isEmpty(v.args))
-        return [domain_1.VVar(k + i * 2 - i2 + 2 + args)].concat(Array.from({ length: args }, (_, j) => domain_1.VVar(k + i - i2 + args - j)).reverse()).reduce((x, y) => domain_1.vapp(x, false, y));
-    if (v.tag === 'VPi') {
-        console.log(`pi: ${syntax_1.showTerm(domain_1.quote(v.type, k, 0))}`);
-        console.log(`pi: ${syntax_1.showTerm(domain_1.quote(shift(args + i + 1, ok, v.type), k, 0))}`);
-        return domain_1.VAbs(v.plicity, name(v.name, 'a', i2), shift(args + i + 1, ok, v.type), _ => makeInductionPrincipleCon(ok, k + 1, t, P, i, i2 + 1, x, args, v.body(domain_1.VVar(k))));
-    }
-    return util_1.terr(`failed to generate induction principle (Con) for ${syntax_1.showTerm(domain_1.quote(v, k, 0))}`);
+        return list_1.foldr((pl, y, i) => syntax_1.App(y, pl, syntax_1.Var(i + cons)), syntax_1.Var(cons - 1 - i - 1), plics);
+    if (v.tag === 'VPi')
+        return syntax_1.Abs(v.plicity, name(v.name, 'a', cons - 1), syntax_1.shift(i + args + 1, cons, domain_1.quote(v.type, k, 0)), makeInductionPrincipleCon3(ok + 1, k + 1, t, i, cons + 1, args, plics, x, v.body(domain_1.VVar(k))));
+    return util_1.impossible(`makeInductionPrincipleCon3 ${v.tag}`);
 };
 const name = (y, x, i) => y === '_' ? `${x}${i}` : y;
-const shiftHead = (d, c, h) => {
-    if (h.tag === 'HGlobal')
-        return h;
-    if (h.tag === 'HMeta')
-        return h;
-    if (h.tag === 'HVar')
-        return h.index < c ? h : domain_1.HVar(h.index + d);
-    return h;
-};
-const shiftElim = (d, c, e) => {
-    if (e.tag === 'EApp')
-        return domain_1.EApp(e.plicity, shift(d, c, e.arg));
-    if (e.tag === 'EUnroll')
-        return e;
-    return e;
-};
-const shift = (d, c, v_) => {
-    const v = domain_1.forceGlue(v_);
-    if (v.tag === 'VType')
-        return v;
-    if (v.tag === 'VNe')
-        return domain_1.VNe(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)));
-    if (v.tag === 'VGlued')
-        return domain_1.VGlued(shiftHead(d, c, v.head), list_1.map(v.args, x => shiftElim(d, c, x)), lazy_1.mapLazy(v.val, x => shift(d, c, x)));
-    if (v.tag === 'VAbs')
-        return domain_1.VAbs(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-    if (v.tag === 'VPi')
-        return domain_1.VPi(v.plicity, v.name, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-    if (v.tag === 'VFix')
-        return domain_1.VFix(v.name, shift(d, c, v.type), x => shift(d, c, v.body(x)));
-    if (v.tag === 'VRoll')
-        return domain_1.VRoll(shift(d, c, v.type), shift(d, c, v.term));
-    return v;
-};
 
-},{"./domain":7,"./syntax":17,"./utils/lazy":20,"./utils/list":21,"./utils/util":22}],10:[function(require,module,exports){
+},{"./domain":7,"./syntax":17,"./utils/list":21,"./utils/util":22}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const syntax_1 = require("./syntax");
@@ -1505,7 +1455,6 @@ const syntax_1 = require("./syntax");
 const typecheck_1 = require("./typecheck");
 const P = require("./pure/syntax");
 const PD = require("./pure/domain");
-const induction_1 = require("./induction");
 const help = `
 EXAMPLES
 identity = \\{t : *} (x : t). x
@@ -1667,7 +1616,6 @@ exports.runREPL = (_s, _cb) => {
         }
         let typeOnly = false;
         let core = false;
-        let induction = false;
         if (_s.startsWith(':t')) {
             _s = _s.slice(_s.startsWith(':type') ? 5 : 2);
             typeOnly = true;
@@ -1675,10 +1623,6 @@ exports.runREPL = (_s, _cb) => {
         if (_s.startsWith(':core')) {
             _s = _s.slice(5);
             core = true;
-        }
-        if (_s.startsWith(':ind')) {
-            _s = _s.slice(4);
-            induction = true;
         }
         if (_s.startsWith(':'))
             return _cb('invalid command', true);
@@ -1690,13 +1634,6 @@ exports.runREPL = (_s, _cb) => {
             const t = parser_1.parse(_s);
             config_1.log(() => surface_1.showTerm(t));
             const [ztm, vty] = typecheck_1.typecheck(t);
-            if (induction) {
-                const v = domain_1.evaluate(ztm);
-                const ind = domain_1.VPi(false, 'x', v, x => induction_1.makeInductionPrinciple(1, v, x));
-                const q = domain_1.quote(ind, 0, 0);
-                console.log(syntax_1.showTerm(q));
-                console.log(syntax_1.showSurfaceZ(q));
-            }
             tm_ = ztm;
             config_1.log(() => domain_1.showTermSZ(vty));
             config_1.log(() => syntax_1.showSurfaceZ(tm_));
@@ -1766,7 +1703,7 @@ exports.runREPL = (_s, _cb) => {
     }
 };
 
-},{"./config":1,"./core/domain":2,"./core/syntax":4,"./core/typecheck":5,"./domain":7,"./globalenv":8,"./induction":9,"./parser":12,"./pure/domain":13,"./pure/syntax":14,"./surface":16,"./syntax":17,"./typecheck":18,"./utils/list":21,"./utils/util":22}],16:[function(require,module,exports){
+},{"./config":1,"./core/domain":2,"./core/syntax":4,"./core/typecheck":5,"./domain":7,"./globalenv":8,"./parser":12,"./pure/domain":13,"./pure/syntax":14,"./surface":16,"./syntax":17,"./typecheck":18,"./utils/list":21,"./utils/util":22}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Var = (name) => ({ tag: 'Var', name });
@@ -2307,10 +2244,10 @@ const synth = (local, tm) => {
             vt = ty;
             term = term_;
         }
-        const ind = induction_1.makeInductionPrinciple(local.index, vt, domain_1.evaluate(term, local.vs));
-        config_1.log(() => domain_1.showTermQZ(ind, local.vs, local.index, 0));
-        config_1.log(() => domain_1.showTermSZ(ind, local.names, local.vs, local.index, 0));
-        return [syntax_1.Ind(type, term), ind];
+        const ind = induction_1.makeInductionPrinciple(local.index, vt, term);
+        config_1.log(() => syntax_1.showTerm(ind));
+        config_1.log(() => syntax_1.showSurfaceZ(ind, local.names, local.vs, local.index, 0));
+        return [syntax_1.Ind(type, term), domain_1.evaluate(ind, local.vs)];
     }
     return util_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
@@ -2691,7 +2628,7 @@ exports.lookup = (l, name, eq = (x, y) => x === y) => {
     }
     return null;
 };
-exports.foldr = (f, i, l) => l.tag === 'Nil' ? i : f(l.head, exports.foldr(f, i, l.tail));
+exports.foldr = (f, i, l, j = 0) => l.tag === 'Nil' ? i : f(l.head, exports.foldr(f, i, l.tail, j + 1), j);
 exports.foldl = (f, i, l) => l.tag === 'Nil' ? i : exports.foldl(f, f(i, l.head), l.tail);
 exports.foldrprim = (f, i, l, ind = 0) => l.tag === 'Nil' ? i : f(l.head, exports.foldrprim(f, i, l.tail, ind + 1), l, ind);
 exports.foldlprim = (f, i, l, ind = 0) => l.tag === 'Nil' ? i : exports.foldlprim(f, f(l.head, i, l, ind), l.tail, ind + 1);

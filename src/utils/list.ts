@@ -128,8 +128,8 @@ export const lookup = <K, T>(l: List<[K, T]>, name: K, eq: (a: K, b: K) => boole
   return null;
 };
 
-export const foldr = <T, R>(f: (h: T, a: R) => R, i: R, l: List<T>): R =>
-  l.tag === 'Nil' ? i : f(l.head, foldr(f, i, l.tail));
+export const foldr = <T, R>(f: (h: T, a: R, j: number) => R, i: R, l: List<T>, j: number = 0): R =>
+  l.tag === 'Nil' ? i : f(l.head, foldr(f, i, l.tail, j + 1), j);
 export const foldl = <T, R>(f: (a: R, h: T) => R, i: R, l: List<T>): R =>
   l.tag === 'Nil' ? i : foldl(f, f(i, l.head), l.tail);
 export const foldrprim = <T, R>(f: (h: T, a: R, l: List<T>, j: number) => R, i: R, l: List<T>, ind: number = 0): R =>

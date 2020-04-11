@@ -7,12 +7,11 @@ import * as CT from './core/typecheck';
 import * as CD from './core/domain';
 import { Nil } from './utils/list';
 import { globalDelete, globalMap, globalGet } from './globalenv';
-import { showTermSZ, normalize, evaluate, VPi, quote } from './domain';
+import { showTermSZ, normalize } from './domain';
 import { showTerm as showTermI, showSurfaceZ, Term } from './syntax';
 import { typecheck, typecheckDefs } from './typecheck';
 import * as P from './pure/syntax';
 import * as PD from './pure/domain';
-import { makeInductionPrinciple } from './induction';
 
 const help = `
 EXAMPLES
@@ -168,7 +167,6 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     let typeOnly = false;
     let core = false;
-    let induction = false;
     if (_s.startsWith(':t')) {
       _s = _s.slice(_s.startsWith(':type') ? 5 : 2);
       typeOnly = true;
@@ -176,10 +174,6 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.startsWith(':core')) {
       _s = _s.slice(5);
       core = true;
-    }
-    if (_s.startsWith(':ind')) {
-      _s = _s.slice(4);
-      induction = true;
     }
     if (_s.startsWith(':')) return _cb('invalid command', true);
     let msg = '';
@@ -190,13 +184,6 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const t = parse(_s);
       log(() => showTerm(t));
       const [ztm, vty] = typecheck(t);
-      if (induction) {
-        const v = evaluate(ztm);
-        const ind = VPi(false, 'x', v, x => makeInductionPrinciple(1, v, x));
-        const q = quote(ind, 0, 0);
-        console.log(showTermI(q));
-        console.log(showSurfaceZ(q));
-      }
       tm_ = ztm;
       log(() => showTermSZ(vty));
       log(() => showSurfaceZ(tm_));

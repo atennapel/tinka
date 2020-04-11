@@ -1,5 +1,5 @@
 import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Ind } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, showTermQZ, showTermSZ } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
@@ -233,10 +233,10 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       vt = ty;
       term = term_;
     }
-    const ind = makeInductionPrinciple(local.index, vt, evaluate(term, local.vs));
-    log(() => showTermQZ(ind, local.vs, local.index, 0));
-    log(() => showTermSZ(ind, local.names, local.vs, local.index, 0));
-    return [Ind(type, term), ind];
+    const ind = makeInductionPrinciple(local.index, vt, term);
+    log(() => showTerm(ind));
+    log(() => showSurfaceZ(ind, local.names, local.vs, local.index, 0));
+    return [Ind(type, term), evaluate(ind, local.vs)];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
