@@ -1,6 +1,6 @@
 # tinka
 
-Try it out at https://atennapel.github.io/coc-os
+Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
