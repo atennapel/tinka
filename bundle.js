@@ -29,7 +29,6 @@ exports.HVar = (index) => ({ tag: 'HVar', index });
 exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EUnroll = { tag: 'EUnroll' };
-exports.EInd = (type) => ({ tag: 'EInd', type });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, type, body) => ({ tag: 'VAbs', plicity, type, body });
@@ -37,6 +36,7 @@ exports.VPi = (plicity, type, body) => ({ tag: 'VPi', plicity, type, body });
 exports.VFix = (type, body) => ({ tag: 'VFix', type, body });
 exports.VType = { tag: 'VType' };
 exports.VRoll = (type, term) => ({ tag: 'VRoll', type, term });
+exports.VInd = (type, term) => ({ tag: 'VInd', type, term });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
@@ -71,11 +71,7 @@ exports.vind = (ty, v) => {
     // todo: perform induction if v has the correct form
     if (isCorrectFormForInd(v))
         return exports.VAbs(true, exports.VPi(false, ty, _ => exports.VType), P => exports.vapp(v, true, exports.vapp(P, false, v)));
-    if (v.tag === 'VNe')
-        return exports.VNe(v.head, list_1.Cons(exports.EInd(ty), v.args));
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EInd(ty), v.args), lazy_1.mapLazy(v.val, v => exports.vind(ty, v)));
-    return util_1.impossible(`core vind: ${v.tag}`);
+    return exports.VInd(ty, v);
 };
 const isCorrectFormForInd = (v, k = 1000) => {
     if (v.tag === 'VAbs')
@@ -130,8 +126,6 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     if (e.tag === 'EUnroll')
         return syntax_1.Unroll(t);
-    if (e.tag === 'EInd')
-        return syntax_1.Ind(exports.quote(e.type, k, full), t);
     return e;
 };
 exports.quote = (v, k, full) => {
@@ -155,6 +149,8 @@ exports.quote = (v, k, full) => {
         return syntax_1.Fix(exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VRoll')
         return syntax_1.Roll(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
+    if (v.tag === 'VInd')
+        return syntax_1.Ind(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
     return v;
 };
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
@@ -447,8 +443,6 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
-    if (a.tag === 'EInd' && b.tag === 'EInd')
-        return exports.unify(k, a.type, b.type);
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a, b) => {
@@ -458,6 +452,10 @@ exports.unify = (k, a, b) => {
     if (a.tag === 'VType' && b.tag === 'VType')
         return;
     if (a.tag === 'VRoll' && b.tag === 'VRoll') {
+        exports.unify(k, a.type, b.type);
+        return exports.unify(k, a.term, b.term);
+    }
+    if (a.tag === 'VInd' && b.tag === 'VInd') {
         exports.unify(k, a.type, b.type);
         return exports.unify(k, a.term, b.term);
     }
@@ -518,7 +516,6 @@ exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HMeta = (index) => ({ tag: 'HMeta', index });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EUnroll = { tag: 'EUnroll' };
-exports.EInd = (type) => ({ tag: 'EInd', type });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -526,6 +523,7 @@ exports.VPi = (plicity, name, type, body) => ({ tag: 'VPi', plicity, name, type,
 exports.VFix = (name, type, body) => ({ tag: 'VFix', name, type, body });
 exports.VType = { tag: 'VType' };
 exports.VRoll = (type, term) => ({ tag: 'VRoll', type, term });
+exports.VInd = (type, term) => ({ tag: 'VInd', type, term });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
@@ -539,8 +537,7 @@ exports.force = (v) => {
         if (val.tag === 'Unsolved')
             return v;
         return exports.force(list_1.foldr((elim, y) => elim.tag === 'EUnroll' ? exports.vunroll(y) :
-            elim.tag === 'EInd' ? exports.vind(elim.type, y) :
-                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -550,8 +547,7 @@ exports.forceGlue = (v) => {
         if (val.tag === 'Unsolved')
             return v;
         return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EUnroll' ? exports.vunroll(y) :
-            elim.tag === 'EInd' ? exports.vind(elim.type, y) :
-                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -581,11 +577,7 @@ exports.vind = (ty, v) => {
     // todo: perform induction if v has the correct form
     if (isCorrectFormForInd(v))
         return exports.VAbs(true, 'P', exports.VPi(false, '_', ty, _ => exports.VType), P => exports.vapp(v, true, exports.vapp(P, false, v)));
-    if (v.tag === 'VNe')
-        return exports.VNe(v.head, list_1.Cons(exports.EInd(ty), v.args));
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EInd(ty), v.args), lazy_1.mapLazy(v.val, v => exports.vind(ty, v)));
-    return util_1.impossible(`vind: ${v.tag}`);
+    return exports.VInd(ty, v);
 };
 const isCorrectFormForInd = (v, k = 1000) => {
     if (v.tag === 'VAbs')
@@ -649,8 +641,6 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     if (e.tag === 'EUnroll')
         return syntax_1.Unroll(t);
-    if (e.tag === 'EInd')
-        return syntax_1.Ind(exports.quote(e.type, k, full), t);
     return e;
 };
 exports.quote = (v_, k, full) => {
@@ -677,6 +667,8 @@ exports.quote = (v_, k, full) => {
         return syntax_1.Fix(v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VRoll')
         return syntax_1.Roll(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
+    if (v.tag === 'VInd')
+        return syntax_1.Ind(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
     return v;
 };
 exports.quoteZ = (v, vs = list_1.Nil, k = 0, full = 0) => exports.zonk(exports.quote(v, k, full), vs, k, full);
@@ -2345,8 +2337,6 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
-    if (a.tag === 'EInd' && b.tag === 'EInd')
-        return exports.unify(k, a.type, b.type);
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a_, b_) => {
@@ -2358,6 +2348,10 @@ exports.unify = (k, a_, b_) => {
     if (a.tag === 'VType' && b.tag === 'VType')
         return;
     if (a.tag === 'VRoll' && b.tag === 'VRoll') {
+        exports.unify(k, a.type, b.type);
+        return exports.unify(k, a.term, b.term);
+    }
+    if (a.tag === 'VInd' && b.tag === 'VInd') {
         exports.unify(k, a.type, b.type);
         return exports.unify(k, a.term, b.term);
     }
@@ -2443,8 +2437,6 @@ const solve = (k, m, spine, val) => {
 const checkSpine = (k, spine) => list_1.map(spine, elim => {
     if (elim.tag === 'EUnroll')
         return util_1.terr(`unroll in meta spine`);
-    if (elim.tag === 'EInd')
-        return util_1.terr(`induction in meta spine`);
     if (elim.tag === 'EApp') {
         const v = domain_1.forceGlue(elim.arg);
         if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && list_1.length(v.args) === 0)
