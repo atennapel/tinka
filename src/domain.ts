@@ -8,7 +8,7 @@ import { globalGet } from './globalenv';
 import { config } from './config';
 import { metaGet } from './metas';
 
-export type Head = HVar | HGlobal | HMeta;
+export type Head = HVar | HGlobal | HMeta | VInd;
 
 export type HVar = { tag: 'HVar', index: Ix };
 export const HVar = (index: Ix): HVar => ({ tag: 'HVar', index });
@@ -82,6 +82,8 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VNe') return VNe(a.head, Cons(EApp(plicity, b), a.args));
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
+  if (a.tag === 'VInd')
+    return VNe(a, Cons(EApp(plicity, b), Nil));
   return impossible(`vapp: ${a.tag}`);
 };
 export const vunroll = (v: Val): Val => {
@@ -90,6 +92,8 @@ export const vunroll = (v: Val): Val => {
   if (v.tag === 'VNe') return VNe(v.head, Cons(EUnroll, v.args));
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EUnroll, v.args), mapLazy(v.val, v => vunroll(v)));
+  if (v.tag === 'VInd')
+    return VNe(v, Cons(EUnroll, Nil));
   return impossible(`vunroll: ${v.tag}`);
 };
 
@@ -140,10 +144,11 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   return impossible(`evaluate: ${t.tag}`);
 };
 
-const quoteHead = (h: Head, k: Ix): Term => {
+const quoteHead = (h: Head, k: Ix, full: number): Term => {
   if (h.tag === 'HVar') return Var(k - (h.index + 1));
   if (h.tag === 'HGlobal') return Global(h.name);
   if (h.tag === 'HMeta') return Meta(h.index);
+  if (h.tag === 'VInd') return quote(h, k, full);
   return h;
 };
 const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
@@ -162,7 +167,7 @@ export const quote = (v_: Val, k: Ix, full: number): Term => {
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),
-      quoteHead(v.head, k),
+      quoteHead(v.head, k, full),
       v.args,
     );
   if (v.tag === 'VGlued') {

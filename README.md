@@ -4,6 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- fix induction in neutral head
 - do more check if induction can be performed
 - add induction for recursive types
 - add annotation to let, to preserve elaborated global type in core

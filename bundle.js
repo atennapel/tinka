@@ -56,6 +56,8 @@ exports.vapp = (a, plicity, b) => {
         return exports.VNe(a.head, list_1.Cons(exports.EApp(plicity, b), a.args));
     if (a.tag === 'VGlued')
         return exports.VGlued(a.head, list_1.Cons(exports.EApp(plicity, b), a.args), lazy_1.mapLazy(a.val, v => exports.vapp(v, plicity, b)));
+    if (a.tag === 'VInd')
+        return exports.VNe(a, list_1.Cons(exports.EApp(plicity, b), list_1.Nil));
     return util_1.impossible(`core vapp: ${a.tag}`);
 };
 exports.vunroll = (v) => {
@@ -65,6 +67,8 @@ exports.vunroll = (v) => {
         return exports.VNe(v.head, list_1.Cons(exports.EUnroll, v.args));
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EUnroll, v.args), lazy_1.mapLazy(v.val, v => exports.vunroll(v)));
+    if (v.tag === 'VInd')
+        return exports.VNe(v, list_1.Cons(exports.EUnroll, list_1.Nil));
     return util_1.impossible(`core vunroll: ${v.tag}`);
 };
 exports.vind = (ty, v) => {
@@ -109,11 +113,13 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.vind(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
     return t;
 };
-const quoteHead = (h, k) => {
+const quoteHead = (h, k, full) => {
     if (h.tag === 'HVar')
         return syntax_1.Var(k - (h.index + 1));
     if (h.tag === 'HGlobal')
         return syntax_1.Global(h.name);
+    if (h.tag === 'VInd')
+        return exports.quote(h, k, full);
     return h;
 };
 const quoteHeadGlued = (h, k) => {
@@ -132,7 +138,7 @@ exports.quote = (v, k, full) => {
     if (v.tag === 'VType')
         return syntax_1.Type;
     if (v.tag === 'VNe')
-        return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
+        return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k, full), v.args);
     if (v.tag === 'VGlued') {
         if (full)
             return exports.quote(lazy_1.forceLazy(v.val), k, full);
@@ -434,6 +440,8 @@ const eqHead = (a, b) => {
         return b.tag === 'HVar' && a.index === b.index;
     if (a.tag === 'HGlobal')
         return b.tag === 'HGlobal' && a.name === b.name;
+    if (a.tag === 'VInd')
+        return false;
     return a;
 };
 const unifyElim = (k, a, b, x, y) => {
@@ -561,6 +569,8 @@ exports.vapp = (a, plicity, b) => {
         return exports.VNe(a.head, list_1.Cons(exports.EApp(plicity, b), a.args));
     if (a.tag === 'VGlued')
         return exports.VGlued(a.head, list_1.Cons(exports.EApp(plicity, b), a.args), lazy_1.mapLazy(a.val, v => exports.vapp(v, plicity, b)));
+    if (a.tag === 'VInd')
+        return exports.VNe(a, list_1.Cons(exports.EApp(plicity, b), list_1.Nil));
     return util_1.impossible(`vapp: ${a.tag}`);
 };
 exports.vunroll = (v) => {
@@ -571,6 +581,8 @@ exports.vunroll = (v) => {
         return exports.VNe(v.head, list_1.Cons(exports.EUnroll, v.args));
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EUnroll, v.args), lazy_1.mapLazy(v.val, v => exports.vunroll(v)));
+    if (v.tag === 'VInd')
+        return exports.VNe(v, list_1.Cons(exports.EUnroll, list_1.Nil));
     return util_1.impossible(`vunroll: ${v.tag}`);
 };
 exports.vind = (ty, v) => {
@@ -620,13 +632,15 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.vind(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
     return util_1.impossible(`evaluate: ${t.tag}`);
 };
-const quoteHead = (h, k) => {
+const quoteHead = (h, k, full) => {
     if (h.tag === 'HVar')
         return syntax_1.Var(k - (h.index + 1));
     if (h.tag === 'HGlobal')
         return syntax_1.Global(h.name);
     if (h.tag === 'HMeta')
         return syntax_1.Meta(h.index);
+    if (h.tag === 'VInd')
+        return exports.quote(h, k, full);
     return h;
 };
 const quoteHeadGlued = (h, k) => {
@@ -648,7 +662,7 @@ exports.quote = (v_, k, full) => {
     if (v.tag === 'VType')
         return syntax_1.Type;
     if (v.tag === 'VNe')
-        return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
+        return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k, full), v.args);
     if (v.tag === 'VGlued') {
         if (v.head.tag === 'HGlobal' && config_1.config.alwaysUnfold.includes(v.head.name))
             return exports.quote(lazy_1.forceLazy(v.val), k, full);
@@ -2328,6 +2342,8 @@ const eqHead = (a, b) => {
         return b.tag === 'HGlobal' && a.name === b.name;
     if (a.tag === 'HMeta')
         return b.tag === 'HMeta' && a.index === b.index;
+    if (a.tag === 'VInd')
+        return false;
     return a;
 };
 const unifyElim = (k, a, b, x, y) => {

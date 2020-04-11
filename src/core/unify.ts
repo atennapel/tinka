@@ -9,6 +9,7 @@ const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.index === b.index;
   if (a.tag === 'HGlobal') return b.tag === 'HGlobal' && a.name === b.name;
+  if (a.tag === 'VInd') return false;
   return a;
 };
 const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
