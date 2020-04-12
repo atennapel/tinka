@@ -105,10 +105,14 @@ export const vind = (ty: Val, v: Val): Val => {
   return impossible(`vind: ${v.tag}`);
 };
 const isCorrectFormForInd = (v: Val, k: Ix = 1000): boolean => {
+  /*
+  TODO: fix this
   if (v.tag === 'VAbs') return isCorrectFormForInd(v.body(VVar(k)), k + 1);
   if (v.tag === 'VNe' || v.tag === 'VGlued')
     return v.head.tag === 'HVar' && v.head.index >= k;
   return false;
+  */
+  return v.tag === 'VAbs' && v.plicity && force(v.type).tag === 'VType';
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {

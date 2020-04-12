@@ -68,7 +68,6 @@ exports.vunroll = (v) => {
     return util_1.impossible(`core vunroll: ${v.tag}`);
 };
 exports.vind = (ty, v) => {
-    // todo: perform induction if v has the correct form
     if (isCorrectFormForInd(exports.force(v)))
         return exports.VAbs(true, exports.VPi(false, ty, _ => exports.VType), P => exports.vapp(v, true, exports.vapp(P, false, v)));
     if (v.tag === 'VNe')
@@ -78,11 +77,14 @@ exports.vind = (ty, v) => {
     return util_1.impossible(`core vind: ${v.tag}`);
 };
 const isCorrectFormForInd = (v, k = 1000) => {
-    if (v.tag === 'VAbs')
-        return isCorrectFormForInd(v.body(exports.VVar(k)), k + 1);
+    /*
+    TODO: fix this
+    if (v.tag === 'VAbs') return isCorrectFormForInd(v.body(VVar(k)), k + 1);
     if (v.tag === 'VNe' || v.tag === 'VGlued')
-        return v.head.tag === 'HVar' && v.head.index >= k;
+      return v.head.tag === 'HVar' && v.head.index >= k;
     return false;
+    */
+    return v.tag === 'VAbs' && v.plicity && exports.force(v.type).tag === 'VType';
 };
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
@@ -588,11 +590,14 @@ exports.vind = (ty, v) => {
     return util_1.impossible(`vind: ${v.tag}`);
 };
 const isCorrectFormForInd = (v, k = 1000) => {
-    if (v.tag === 'VAbs')
-        return isCorrectFormForInd(v.body(exports.VVar(k)), k + 1);
+    /*
+    TODO: fix this
+    if (v.tag === 'VAbs') return isCorrectFormForInd(v.body(VVar(k)), k + 1);
     if (v.tag === 'VNe' || v.tag === 'VGlued')
-        return v.head.tag === 'HVar' && v.head.index >= k;
+      return v.head.tag === 'HVar' && v.head.index >= k;
     return false;
+    */
+    return v.tag === 'VAbs' && v.plicity && exports.force(v.type).tag === 'VType';
 };
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
