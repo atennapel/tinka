@@ -560,7 +560,7 @@ exports.forceGlue = (v) => {
 exports.vapp = (a, plicity, b) => {
     if (a.tag === 'VAbs') {
         if (a.plicity !== plicity)
-            return util_1.impossible(`plicity mismatch in core vapp`);
+            return util_1.impossible(`plicity mismatch in vapp`);
         return a.body(b);
     }
     if (a.tag === 'VNe')

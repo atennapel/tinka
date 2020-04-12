@@ -78,7 +78,7 @@ export const forceGlue = (v: Val): Val => {
 
 export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VAbs') {
-    if (a.plicity !== plicity) return impossible(`plicity mismatch in core vapp`);
+    if (a.plicity !== plicity) return impossible(`plicity mismatch in vapp`);
     return a.body(b);
   }
   if (a.tag === 'VNe') return VNe(a.head, Cons(EApp(plicity, b), a.args));
