@@ -5,7 +5,7 @@ import { Nil, List, lookup, Cons } from '../utils/list';
 import { impossible } from '../utils/util';
 import { Term as ITerm } from '../syntax';
 
-export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Ind | Pi | Fix | Type;
+export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Pi | Fix | Type;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -27,8 +27,6 @@ export type Fix = { tag: 'Fix', type: Term, body: Term };
 export const Fix = (type: Term, body: Term): Fix => ({ tag: 'Fix', type, body });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
-export type Ind = { tag: 'Ind', type: Term, term: Term };
-export const Ind = (type: Term, term: Term): Ind => ({ tag: 'Ind', type, term });
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
@@ -41,7 +39,6 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Pi') return `(/${t.plicity ? '-' : ''}${showTerm(t.type)}. ${showTerm(t.body)})`;
   if (t.tag === 'Fix') return `(fix ${showTerm(t.type)}. ${showTerm(t.body)})`;
   if (t.tag === 'Type') return '*';
-  if (t.tag === 'Ind') return `(induction {${showTerm(t.type)}} ${showTerm(t.term)})`;
   return t;
 };
 
@@ -58,7 +55,6 @@ export const fromSurface = (t: S.Term, ns: List<[Name, Ix]> = Nil, k: Ix = 0): T
   if (t.tag === 'Type') return Type;
   if (t.tag === 'Roll' && t.type) return Roll(fromSurface(t.type, ns, k), fromSurface(t.term, ns, k));
   if (t.tag === 'Unroll') return Unroll(fromSurface(t.term, ns, k));
-  if (t.tag === 'Ind' && t.type) return Ind(fromSurface(t.type, ns, k), fromSurface(t.term, ns, k))
   return impossible(`fromSurface: ${t.tag}`);
 };
 
@@ -73,7 +69,6 @@ export const toCore = (t: ITerm): Term => {
   if (t.tag === 'Abs' && t.type) return Abs(t.plicity, toCore(t.type), toCore(t.body));
   if (t.tag === 'Roll' && t.type) return Roll(toCore(t.type), toCore(t.term));
   if (t.tag === 'Unroll') return Unroll(toCore(t.term));
-  if (t.tag === 'Ind' && t.type) return Ind(toCore(t.type), toCore(t.term));
   return impossible(`toCore: ${t.tag}`);
 };
 
@@ -86,6 +81,5 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Unroll') return Unroll(shift(d, c, t.term));
   if (t.tag === 'Pi') return Pi(t.plicity, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Fix') return Fix(shift(d, c, t.type), shift(d, c + 1, t.body));
-  if (t.tag === 'Ind') return Ind(shift(d, c, t.type), shift(d, c, t.term));
   return t;
 };

@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix, Ind } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix } from './syntax';
 import { Plicity } from './surface';
 
 const eqHead = (a: Head, b: Head): boolean => {
@@ -20,8 +20,6 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'EUnroll' && b.tag === 'EUnroll') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
-  if (a.tag === 'EInd' && b.tag === 'EInd')
-    return unify(k, a.type, b.type);
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -111,7 +109,6 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnroll') return terr(`unroll in meta spine`);
-    if (elim.tag === 'EInd') return terr(`induction in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
@@ -165,11 +162,6 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Unroll') {
     const tm = checkSolution(k, m, is, t.term);
     return Unroll(tm);
-  }
-  if (t.tag === 'Ind' && t.type) {
-    const ty = checkSolution(k, m, is, t.type);
-    const tm = checkSolution(k, m, is, t.term);
-    return Ind(ty, tm);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

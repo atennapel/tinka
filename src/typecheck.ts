@@ -1,4 +1,4 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Ind } from './syntax';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -14,7 +14,6 @@ import * as CD from './core/domain';
 import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
 import * as PD from './pure/domain';
 import * as P from './pure/syntax';
-import { makeInductionPrinciple } from './induction';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -218,25 +217,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [term, vtype];
-  }
-  if (tm.tag === 'Ind') {
-    let vt;
-    let type;
-    let term;
-    if (tm.type) {
-      type = check(localInType(local), tm.type, VType);
-      vt = evaluate(type, local.vs);
-      term = check(local, tm.term, vt);
-    } else {
-      const [term_, ty] = synth(local, tm.term);
-      type = quote(ty, local.index, 0);
-      vt = ty;
-      term = term_;
-    }
-    const ind = makeInductionPrinciple(local.index, vt, term);
-    log(() => showTerm(ind));
-    log(() => showSurfaceZ(ind, local.names, local.vs, local.index, 0));
-    return [Ind(type, term), evaluate(ind, local.vs)];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

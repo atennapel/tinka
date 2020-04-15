@@ -7,7 +7,6 @@ import { unify } from './unify';
 import { Plicity } from '../surface';
 import { log, config } from '../config';
 import { globalGet } from '../globalenv';
-import { makeInductionPrinciple } from './induction';
 
 type EntryT = { type: Val, plicity: Plicity };
 type EnvT = List<EntryT>;
@@ -105,13 +104,6 @@ const synth = (local: Local, tm: Term): Val => {
     const vt = force(synth(local, tm.term));
     if (vt.tag === 'VFix') return vt.body(vt);
     return terr(`fix type expected in ${showTerm(tm)}: ${showTermQ(vt, local.index)}`);
-  }
-  if (tm.tag === 'Ind') {
-    check(localInType(local), tm.type, VType);
-    const vt = evaluate(tm.type, local.vs);
-    check(local, tm.term, vt);
-    const ind = makeInductionPrinciple(local.index, vt, tm.term);
-    return evaluate(ind, local.vs);
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
