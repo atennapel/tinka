@@ -76,9 +76,10 @@ const synth = (local: Local, tm: Term): Val => {
     return evaluate(Pi(tm.plicity, tm.type, quote(rt, local.index + 1, false)), local.vs);
   }
   if (tm.tag === 'Let') {
-    const vty = synth(local, tm.val);
-    const rt = synth(extend(local, vty, tm.plicity, VVar(local.index)), tm.body);
-    return rt;
+    check(localInType(local), tm.type, VType);
+    const vty = evaluate(tm.type, local.vs);
+    check(extend(local, vty, tm.plicity, VVar(local.index)), tm.body, vty);
+    return vty;
   }
   if (tm.tag === 'Pi') {
     check(localInType(local), tm.type, VType);

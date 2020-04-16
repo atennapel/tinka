@@ -15,8 +15,8 @@ export type App = { tag: 'App', left: Term, plicity: Plicity, right: Term };
 export const App = (left: Term, plicity: Plicity, right: Term): App => ({ tag: 'App', left, plicity, right });
 export type Abs = { tag: 'Abs', plicity: Plicity, type: Term, body: Term };
 export const Abs = (plicity: Plicity, type: Term, body: Term): Abs => ({ tag: 'Abs', plicity, type, body });
-export type Let = { tag: 'Let', plicity: Plicity, val: Term, body: Term };
-export const Let = (plicity: Plicity, val: Term, body: Term): Let => ({ tag: 'Let', plicity, val, body });
+export type Let = { tag: 'Let', plicity: Plicity, type: Term, val: Term, body: Term };
+export const Let = (plicity: Plicity, type: Term, val: Term, body: Term): Let => ({ tag: 'Let', plicity, type, val, body });
 export type Roll = { tag: 'Roll', type: Term, term: Term };
 export const Roll = (type: Term, term: Term): Roll => ({ tag: 'Roll', type, term });
 export type Unroll = { tag: 'Unroll', term: Term };
@@ -33,7 +33,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs') return `(\\${t.plicity ? '-' : ''}${showTerm(t.type)}. ${showTerm(t.body)})`;
-  if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${showTerm(t.val)} in ${showTerm(t.body)})`;
+  if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${showTerm(t.type)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Roll') return `(roll ${showTerm(t.type)} ${showTerm(t.term)})`;
   if (t.tag === 'Unroll') return `(unroll ${showTerm(t.term)})`;
   if (t.tag === 'Pi') return `(/${t.plicity ? '-' : ''}${showTerm(t.type)}. ${showTerm(t.body)})`;
@@ -49,7 +49,7 @@ export const fromSurface = (t: S.Term, ns: List<[Name, Ix]> = Nil, k: Ix = 0): T
   }
   if (t.tag === 'App') return App(fromSurface(t.left, ns, k), t.plicity, fromSurface(t.right, ns, k));
   if (t.tag === 'Abs' && t.type) return Abs(t.plicity, fromSurface(t.type, ns, k), fromSurface(t.body, Cons([t.name, k], ns), k + 1));
-  if (t.tag === 'Let') return Let(t.plicity, fromSurface(t.val, ns, k), fromSurface(t.body, Cons([t.name, k], ns), k + 1));
+  if (t.tag === 'Let' && t.type) return Let(t.plicity, fromSurface(t.type, ns, k), fromSurface(t.val, ns, k), fromSurface(t.body, Cons([t.name, k], ns), k + 1));
   if (t.tag === 'Pi') return Pi(t.plicity, fromSurface(t.type, ns, k), fromSurface(t.body, Cons([t.name, k], ns), k + 1));
   if (t.tag === 'Fix') return Fix(fromSurface(t.type, ns, k), fromSurface(t.body, Cons([t.name, k], ns), k + 1));
   if (t.tag === 'Type') return Type;
@@ -65,7 +65,7 @@ export const toCore = (t: ITerm): Term => {
   if (t.tag === 'App') return App(toCore(t.left), t.plicity, toCore(t.right));
   if (t.tag === 'Pi') return Pi(t.plicity, toCore(t.type), toCore(t.body));
   if (t.tag === 'Fix') return Fix(toCore(t.type), toCore(t.body));
-  if (t.tag === 'Let') return Let(t.plicity, toCore(t.val), toCore(t.body));
+  if (t.tag === 'Let' && t.type) return Let(t.plicity, toCore(t.type), toCore(t.val), toCore(t.body));
   if (t.tag === 'Abs' && t.type) return Abs(t.plicity, toCore(t.type), toCore(t.body));
   if (t.tag === 'Roll' && t.type) return Roll(toCore(t.type), toCore(t.term));
   if (t.tag === 'Unroll') return Unroll(toCore(t.term));
@@ -76,7 +76,7 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);
   if (t.tag === 'Abs') return Abs(t.plicity, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'App') return App(shift(d, c, t.left), t.plicity, shift(d, c, t.right));
-  if (t.tag === 'Let') return Let(t.plicity, shift(d, c, t.val), shift(d, c + 1, t.body));
+  if (t.tag === 'Let') return Let(t.plicity, shift(d, c, t.val), shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Roll') return Roll(shift(d, c, t.type), shift(d, c, t.term));
   if (t.tag === 'Unroll') return Unroll(shift(d, c, t.term));
   if (t.tag === 'Pi') return Pi(t.plicity, shift(d, c, t.type), shift(d, c + 1, t.body));

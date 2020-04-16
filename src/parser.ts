@@ -265,7 +265,7 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (vals.length === 0) return serr(`empty val in let`);
     const val = exprs(vals, '(');
     const body = exprs(ts.slice(i + 1), '(');
-    return Let(impl, name, val, body);
+    return Let(impl, name, null, val, body);
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

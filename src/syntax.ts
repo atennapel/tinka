@@ -15,8 +15,8 @@ export type App = { tag: 'App', left: Term, plicity: Plicity, right: Term };
 export const App = (left: Term, plicity: Plicity, right: Term): App => ({ tag: 'App', left, plicity, right });
 export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term | null, body: Term };
 export const Abs = (plicity: Plicity, name: Name, type: Term | null, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
-export type Let = { tag: 'Let', plicity: Plicity, name: Name, val: Term, body: Term };
-export const Let = (plicity: Plicity, name: Name, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, val, body });
+export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
+export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Roll = { tag: 'Roll', type: Term | null, term: Term };
 export const Roll = (type: Term | null, term: Term): Roll => ({ tag: 'Roll', type, term });
 export type Unroll = { tag: 'Unroll', term: Term };
@@ -41,7 +41,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs')
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTerm(t.body)})`;
-  if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
+  if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTerm(t.type)}` : ''} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Roll') return t.type ? `(roll {${showTerm(t.type)}} ${showTerm(t.term)})` : `(roll ${showTerm(t.term)})`;
   if (t.tag === 'Unroll') return `(unroll ${showTerm(t.term)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
@@ -56,7 +56,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Global') return t.name === k;
   if (t.tag === 'App') return globalUsed(k, t.left) || globalUsed(k, t.right);
   if (t.tag === 'Abs') return (t.type && globalUsed(k, t.type)) || globalUsed(k, t.body);
-  if (t.tag === 'Let') return globalUsed(k, t.val) || globalUsed(k, t.body);
+  if (t.tag === 'Let') return (t.type && globalUsed(k, t.type)) || globalUsed(k, t.val) || globalUsed(k, t.body);
   if (t.tag === 'Roll') return (t.type && globalUsed(k, t.type)) || globalUsed(k, t.term)
   if (t.tag === 'Unroll') return globalUsed(k, t.term);
   if (t.tag === 'Pi') return globalUsed(k, t.type) || globalUsed(k, t.body);
@@ -68,7 +68,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Var') return t.index === k;
   if (t.tag === 'App') return indexUsed(k, t.left) || indexUsed(k, t.right);
   if (t.tag === 'Abs') return (t.type && indexUsed(k, t.type)) || indexUsed(k + 1, t.body);
-  if (t.tag === 'Let') return indexUsed(k, t.val) || indexUsed(k + 1, t.body);
+  if (t.tag === 'Let') return (t.type && indexUsed(k, t.type)) || indexUsed(k, t.val) || indexUsed(k + 1, t.body);
   if (t.tag === 'Roll') return (t.type && indexUsed(k, t.type)) || indexUsed(k, t.term);
   if (t.tag === 'Unroll') return indexUsed(k, t.term);
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
@@ -82,7 +82,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Meta') return true;
   if (t.tag === 'App') return isUnsolved(t.left) || isUnsolved(t.right);
   if (t.tag === 'Abs') return (t.type && isUnsolved(t.type)) || isUnsolved(t.body);
-  if (t.tag === 'Let') return isUnsolved(t.val) || isUnsolved(t.body);
+  if (t.tag === 'Let') return (t.type && isUnsolved(t.type)) || isUnsolved(t.val) || isUnsolved(t.body);
   if (t.tag === 'Roll') return (t.type && isUnsolved(t.type)) || isUnsolved(t.term);
   if (t.tag === 'Unroll') return isUnsolved(t.term);
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
@@ -116,7 +116,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   }
   if (t.tag === 'Let') {
     const x = decideName(t.name, t.body, ns);
-    return S.Let(t.plicity, x, toSurface(t.val, ns), toSurface(t.body, Cons(x, ns)));
+    return S.Let(t.plicity, x, t.type && toSurface(t.type, ns), toSurface(t.val, ns), toSurface(t.body, Cons(x, ns)));
   }
   if (t.tag === 'Pi') {
     const x = decideName(t.name, t.body, ns);
@@ -136,7 +136,7 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);
   if (t.tag === 'Abs') return Abs(t.plicity, t.name, t.type && shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'App') return App(shift(d, c, t.left), t.plicity, shift(d, c, t.right));
-  if (t.tag === 'Let') return Let(t.plicity, t.name, shift(d, c, t.val), shift(d, c + 1, t.body));
+  if (t.tag === 'Let') return Let(t.plicity, t.name, t.type && shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Roll') return Roll(t.type && shift(d, c, t.type), shift(d, c, t.term));
   if (t.tag === 'Unroll') return Unroll(shift(d, c, t.term));
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));

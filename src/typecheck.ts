@@ -102,9 +102,19 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     return Abs(fty.plicity, fty.name, quote(fty.type, local.index, 0), term);
   }
   if (tm.tag === 'Let') {
-    const [val, vty] = synth(local, tm.val);
+    let vty;
+    let val;
+    let type;
+    if (tm.type) {
+      type = check(localInType(local), tm.type, VType);
+      vty = evaluate(type, local.vs);
+      val = check(local, tm.val, vty);
+    } else {
+      [val, vty] = synth(local, tm.val);
+      type = quote(vty, local.index, 0);
+    }
     const body = check(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body, ty);
-    return Let(tm.plicity, tm.name, val, body);
+    return Let(tm.plicity, tm.name, type, val, body);
   }
   if (tm.tag === 'Roll' && !tm.type && fty.tag === 'VFix') {
     const term = check(local, tm.term, fty.body(ty));
@@ -181,9 +191,19 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     }
   }
   if (tm.tag === 'Let') {
-    const [val, vty] = synth(local, tm.val);
+    let vty;
+    let val;
+    let type;
+    if (tm.type) {
+      type = check(localInType(local), tm.type, VType);
+      vty = evaluate(type, local.vs);
+      val = check(local, tm.val, vty);
+    } else {
+      [val, vty] = synth(local, tm.val);
+      type = quote(vty, local.index, 0);
+    }
     const [body, rt] = synth(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body);
-    return [Let(tm.plicity, tm.name, val, body), rt];
+    return [Let(tm.plicity, tm.name, type, val, body), rt];
   }
   if (tm.tag === 'Pi') {
     const type = check(localInType(local), tm.type, VType);
@@ -216,7 +236,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const type = check(localInType(local), tm.type, VType);
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
-    return [term, vtype];
+    return [Let(false, 'x', type, term, Var(0)), vtype];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
