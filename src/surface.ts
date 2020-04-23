@@ -2,7 +2,7 @@ import { Name, Ix } from './names';
 
 export type Plicity = boolean;
 
-export type Term = Var | App | Abs | Let | Roll | Unroll | Pi | Fix | Data | Type | Desc | Ann | Hole | Meta;
+export type Term = Var | App | Abs | Let | Roll | Unroll | Pi | Fix | Data | Type | Ann | Hole | Meta;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -24,8 +24,6 @@ export type Data = { tag: 'Data', name: Name, cons: Term[] };
 export const Data = (name: Name, cons: Term[]): Data => ({ tag: 'Data', name, cons });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
-export type Desc = { tag: 'Desc' };
-export const Desc: Desc = { tag: 'Desc' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -46,7 +44,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Fix') return `(fix (${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
   if (t.tag === 'Data') return `(data ${t.name}. ${t.cons.map(showTermS).join(' | ')})`;
   if (t.tag === 'Type') return '*';
-  if (t.tag === 'Desc') return '**';
   if (t.tag === 'Ann') return `(${showTermS(t.term)} : ${showTermS(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   return t;
@@ -81,7 +78,6 @@ export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Type') return '*';
-  if (t.tag === 'Desc') return '**';
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'App') {

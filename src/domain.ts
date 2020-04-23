@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann, Unroll, Fix, Roll, Desc, Data } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann, Unroll, Fix, Roll, Data } from './syntax';
 import { impossible } from './utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity } from './surface';
@@ -25,7 +25,7 @@ export type EUnroll = { tag: 'EUnroll' };
 export const EUnroll: EUnroll = { tag: 'EUnroll' };
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VFix | VData | VType | VDesc | VRoll;
+export type Val = VNe | VGlued | VAbs | VPi | VFix | VData | VType | VRoll;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -41,8 +41,6 @@ export type VData = { tag: 'VData', name: Name, cons: Clos[] };
 export const VData = (name: Name, cons: Clos[]): VData => ({ tag: 'VData', name, cons });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
-export type VDesc = { tag: 'VDesc' };
-export const VDesc: VDesc = { tag: 'VDesc' };
 export type VRoll = { tag: 'VRoll', type: Val, term: Val };
 export const VRoll = (type: Val, term: Val): VRoll => ({ tag: 'VRoll', type, term });
 
@@ -97,7 +95,6 @@ export const vunroll = (v: Val): Val => {
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Type') return VType;
-  if (t.tag === 'Desc') return VDesc;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -149,7 +146,6 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: number): Term => {
 export const quote = (v_: Val, k: Ix, full: number): Term => {
   const v = forceGlue(v_);
   if (v.tag === 'VType') return Type;
-  if (v.tag === 'VDesc') return Desc;
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),

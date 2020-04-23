@@ -28,7 +28,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
-  if (a.tag === 'VDesc' && b.tag === 'VDesc') return;
   if (a.tag === 'VRoll' && b.tag === 'VRoll') {
     unify(k, a.type, b.type);
     return unify(k, a.term, b.term);
@@ -129,7 +128,6 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
 
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Type') return t;
-  if (t.tag === 'Desc') return t;
   if (t.tag === 'Global') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;

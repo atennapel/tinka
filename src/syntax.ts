@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/util';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Pi | Fix | Data | Type | Desc | Ann | Hole | Meta;
+export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Pi | Fix | Data | Type | Ann | Hole | Meta;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -52,7 +52,6 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Fix') return `(fix (${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Data') return `(data ${t.name}. ${t.cons.map(showTerm).join(' | ')})`;
   if (t.tag === 'Type') return '*';
-  if (t.tag === 'Desc') return '**';
   if (t.tag === 'Ann') return `(${showTerm(t.term)} : ${showTerm(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   return t;
@@ -114,7 +113,6 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   }
   if (t.tag === 'Meta') return S.Meta(t.index);
   if (t.tag === 'Type') return S.Type;
-  if (t.tag === 'Desc') return S.Desc;
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Ann') return S.Ann(toSurface(t.term, ns), toSurface(t.type, ns));

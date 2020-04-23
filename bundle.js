@@ -446,7 +446,6 @@ exports.VPi = (plicity, name, type, body) => ({ tag: 'VPi', plicity, name, type,
 exports.VFix = (name, type, body) => ({ tag: 'VFix', name, type, body });
 exports.VData = (name, cons) => ({ tag: 'VData', name, cons });
 exports.VType = { tag: 'VType' };
-exports.VDesc = { tag: 'VDesc' };
 exports.VRoll = (type, term) => ({ tag: 'VRoll', type, term });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
@@ -500,8 +499,6 @@ exports.vunroll = (v) => {
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
         return exports.VType;
-    if (t.tag === 'Desc')
-        return exports.VDesc;
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || util_1.impossible(`evaluate: var ${t.index} has no value`);
         // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -560,8 +557,6 @@ exports.quote = (v_, k, full) => {
     const v = exports.forceGlue(v_);
     if (v.tag === 'VType')
         return syntax_1.Type;
-    if (v.tag === 'VDesc')
-        return syntax_1.Desc;
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k, full), v.args);
     if (v.tag === 'VGlued') {
@@ -734,7 +729,7 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const SYM1 = ['\\', ':', '/', '.', '*', '=', '@'];
-const SYM2 = ['->', '**'];
+const SYM2 = ['->'];
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
@@ -869,8 +864,6 @@ const expr = (t) => {
         return [exprs(t.list, '('), t.bracket === '{'];
     if (t.tag === 'Name') {
         const x = t.name;
-        if (x === '**')
-            return [surface_1.Desc, false];
         if (x === '*')
             return [surface_1.Type, false];
         if (x.includes('@'))
@@ -1560,7 +1553,6 @@ exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, b
 exports.Fix = (name, type, body) => ({ tag: 'Fix', name, type, body });
 exports.Data = (name, cons) => ({ tag: 'Data', name, cons });
 exports.Type = { tag: 'Type' };
-exports.Desc = { tag: 'Desc' };
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
@@ -1587,8 +1579,6 @@ exports.showTermS = (t) => {
         return `(data ${t.name}. ${t.cons.map(exports.showTermS).join(' | ')})`;
     if (t.tag === 'Type')
         return '*';
-    if (t.tag === 'Desc')
-        return '**';
     if (t.tag === 'Ann')
         return `(${exports.showTermS(t.term)} : ${exports.showTermS(t.type)})`;
     if (t.tag === 'Hole')
@@ -1623,8 +1613,6 @@ exports.showTermP = (b, t) => b ? `(${exports.showTerm(t)})` : exports.showTerm(
 exports.showTerm = (t) => {
     if (t.tag === 'Type')
         return '*';
-    if (t.tag === 'Desc')
-        return '**';
     if (t.tag === 'Var')
         return t.name;
     if (t.tag === 'Meta')
@@ -1714,8 +1702,6 @@ exports.showTerm = (t) => {
         return `(data ${t.name}. ${t.cons.map(exports.showTerm).join(' | ')})`;
     if (t.tag === 'Type')
         return '*';
-    if (t.tag === 'Desc')
-        return '**';
     if (t.tag === 'Ann')
         return `(${exports.showTerm(t.term)} : ${exports.showTerm(t.type)})`;
     if (t.tag === 'Hole')
@@ -1810,8 +1796,6 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.Meta(t.index);
     if (t.tag === 'Type')
         return S.Type;
-    if (t.tag === 'Desc')
-        return S.Desc;
     if (t.tag === 'Global')
         return S.Var(t.name);
     if (t.tag === 'App')
@@ -1945,8 +1929,6 @@ const check = (local, tm, ty) => {
     const fty = domain_1.force(ty);
     if (tm.tag === 'Type' && fty.tag === 'VType')
         return syntax_1.Type;
-    if (tm.tag === 'Desc' && fty.tag === 'VType')
-        return syntax_1.Desc;
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         return x;
@@ -2020,8 +2002,6 @@ const synth = (local, tm) => {
     config_1.log(() => `synth ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Type')
         return [syntax_1.Type, domain_1.VType];
-    if (tm.tag === 'Desc')
-        return [syntax_1.Desc, domain_1.VType];
     if (tm.tag === 'Var') {
         const i = list_1.indexOf(local.namesSurface, tm.name);
         if (i < 0) {
@@ -2090,7 +2070,7 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Data') {
         const cons = tm.cons.map(t => check(exports.extend(local, tm.name, domain_1.VType, true, false, false, domain_1.VVar(local.index)), t, domain_1.VType));
-        return [syntax_1.Data(tm.name, cons), domain_1.VDesc];
+        return [syntax_1.Data(tm.name, cons), domain_1.VType];
     }
     if (tm.tag === 'Roll' && tm.type) {
         const type = check(exports.localInType(local), tm.type, domain_1.VType);
@@ -2221,8 +2201,6 @@ exports.unify = (k, a_, b_) => {
         return;
     if (a.tag === 'VType' && b.tag === 'VType')
         return;
-    if (a.tag === 'VDesc' && b.tag === 'VDesc')
-        return;
     if (a.tag === 'VRoll' && b.tag === 'VRoll') {
         exports.unify(k, a.type, b.type);
         return exports.unify(k, a.term, b.term);
@@ -2328,8 +2306,6 @@ const checkSpine = (k, spine) => list_1.map(spine, elim => {
 });
 const checkSolution = (k, m, is, t) => {
     if (t.tag === 'Type')
-        return t;
-    if (t.tag === 'Desc')
         return t;
     if (t.tag === 'Global')
         return t;
