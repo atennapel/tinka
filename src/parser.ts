@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Data } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Data, Con } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -243,6 +243,14 @@ const exprs = (ts: Token[], br: BracketO): Term => {
       return Data(x, []);
     const cons = rest.map(ts => exprs(ts, '('));
     return Data(x, cons);
+  }
+  if (isName(ts[0], 'con')) {
+    // TODO: handle implicit
+    const ty = expr(ts[1])[0];
+    if (ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not an index in con`);
+    const ix = +ts[2].num;
+    const args = ts.slice(3).map(t => expr(t)[0]);
+    return Con(ty, ix, args);
   }
   if (isName(ts[0], 'let')) {
     const x = ts[1];

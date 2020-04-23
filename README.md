@@ -4,7 +4,8 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add con
+- typecheck con
+- handle implicit con arguments
 - consistency check for data constructors
 - add data and elim to core and pure
 - add elim

@@ -32,6 +32,12 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, a.type, b.type);
     return unify(k, a.term, b.term);
   }
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+    unify(k, a.type, b.type);
+    const l = a.args.length;
+    for (let i = 0; i < l; i++) unify(k, a.args[i], b.args[i]);
+    return;
+  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
