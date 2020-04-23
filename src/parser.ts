@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Data } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -22,7 +22,7 @@ const TName = (name: string): Token => ({ tag: 'Name', name });
 const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
-const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '@'];
+const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '|'];
 const SYM2: string[] = ['->'];
 
 const START = 0;
@@ -56,7 +56,7 @@ const tokenize = (sc: string): Token[] => {
       else if (/\s/.test(c)) continue;
       else return serr(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
-      if (!(/[\@a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
+      if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
         r.push(TName(t));
         t = '', i--, state = START;
       } else t += c;
@@ -138,7 +138,6 @@ const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
-    if (x.includes('@')) return serr(`invalid name: ${x}`);
     if (x.startsWith('_')) return [Hole(x.slice(1) || null), false];
     if (/[a-z]/i.test(x[0])) return [Var(x), false];
     return serr(`invalid name: ${x}`);
@@ -234,6 +233,16 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     });
     const body = exprs(ts.slice(i + 1), '(');
     return rargs.reduceRight((x, [name, ty]) => Fix(name, ty, x), body);
+  }
+  if (isName(ts[0], 'data')) {
+    if (ts[1].tag !== 'Name') return serr(`Name expected after data`);
+    const x = ts[1].name;
+    if (ts[2].tag !== 'Name' || ts[2].name !== '.') return serr(`. expected after data`);
+    const rest = splitTokens(ts.slice(3), t => t.tag === 'Name' && t.name === '|');
+    if (rest.length === 0 || (rest.length === 1 && rest[0].length === 0))
+      return Data(x, []);
+    const cons = rest.map(ts => exprs(ts, '('));
+    return Data(x, cons);
   }
   if (isName(ts[0], 'let')) {
     const x = ts[1];

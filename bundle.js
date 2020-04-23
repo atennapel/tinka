@@ -728,7 +728,7 @@ const matchingBracket = (c) => {
 const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
-const SYM1 = ['\\', ':', '/', '.', '*', '=', '@'];
+const SYM1 = ['\\', ':', '/', '.', '*', '=', '|'];
 const SYM2 = ['->'];
 const START = 0;
 const NAME = 1;
@@ -772,7 +772,7 @@ const tokenize = (sc) => {
                 return util_1.serr(`invalid char ${c} in tokenize`);
         }
         else if (state === NAME) {
-            if (!(/[\@a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
+            if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
                 r.push(TName(t));
                 t = '', i--, state = START;
             }
@@ -866,8 +866,6 @@ const expr = (t) => {
         const x = t.name;
         if (x === '*')
             return [surface_1.Type, false];
-        if (x.includes('@'))
-            return util_1.serr(`invalid name: ${x}`);
         if (x.startsWith('_'))
             return [surface_1.Hole(x.slice(1) || null), false];
         if (/[a-z]/i.test(x[0]))
@@ -980,6 +978,18 @@ const exprs = (ts, br) => {
         });
         const body = exprs(ts.slice(i + 1), '(');
         return rargs.reduceRight((x, [name, ty]) => surface_1.Fix(name, ty, x), body);
+    }
+    if (isName(ts[0], 'data')) {
+        if (ts[1].tag !== 'Name')
+            return util_1.serr(`Name expected after data`);
+        const x = ts[1].name;
+        if (ts[2].tag !== 'Name' || ts[2].name !== '.')
+            return util_1.serr(`. expected after data`);
+        const rest = splitTokens(ts.slice(3), t => t.tag === 'Name' && t.name === '|');
+        if (rest.length === 0 || (rest.length === 1 && rest[0].length === 0))
+            return surface_1.Data(x, []);
+        const cons = rest.map(ts => exprs(ts, '('));
+        return surface_1.Data(x, cons);
     }
     if (isName(ts[0], 'let')) {
         const x = ts[1];
@@ -1633,7 +1643,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Fix')
         return `fix (${t.name} : ${exports.showTermP(t.type.tag === 'Ann', t.type)}). ${exports.showTermP(t.body.tag === 'Ann', t.body)}`;
     if (t.tag === 'Data')
-        return `data ${t.name}. ${t.cons.map(x => exports.showTermP(x.tag === 'Ann', x)).join(' | ')})`;
+        return `data ${t.name}. ${t.cons.map(x => exports.showTermP(x.tag === 'Ann', x)).join(' | ')}`;
     if (t.tag === 'Let')
         return `let ${t.plicity ? `{${t.name}}` : t.name}${t.type ? ` : ${exports.showTermP(t.type.tag === 'Let' || t.type.tag === 'Ann', t.type)}` : ''} = ${exports.showTermP(t.val.tag === 'Let', t.val)} in ${exports.showTermP(t.body.tag === 'Ann', t.body)}`;
     if (t.tag === 'Ann')

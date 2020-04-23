@@ -4,9 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add syntax for "data"
-- add data to core and pure
-- add con and elim
+- add con
+- consistency check for data constructors
+- add data and elim to core and pure
+- add elim
 - update parser to allow annotation in let
 - insert skolems in check
 - add named holes

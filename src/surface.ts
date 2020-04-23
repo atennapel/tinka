@@ -98,7 +98,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Fix')
     return `fix (${t.name} : ${showTermP(t.type.tag === 'Ann', t.type)}). ${showTermP(t.body.tag === 'Ann', t.body)}`;
   if (t.tag === 'Data')
-    return `data ${t.name}. ${t.cons.map(x => showTermP(x.tag === 'Ann', x)).join(' | ')})`;
+    return `data ${t.name}. ${t.cons.map(x => showTermP(x.tag === 'Ann', x)).join(' | ')}`;
   if (t.tag === 'Let')
     return `let ${t.plicity ? `{${t.name}}` : t.name}${t.type ? ` : ${showTermP(t.type.tag === 'Let' || t.type.tag === 'Ann', t.type)}` : ''} = ${showTermP(t.val.tag === 'Let', t.val)} in ${showTermP(t.body.tag === 'Ann', t.body)}`;
   if (t.tag === 'Ann')
