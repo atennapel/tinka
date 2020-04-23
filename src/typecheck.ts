@@ -1,5 +1,5 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Desc, Data } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VDesc } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
@@ -86,6 +86,7 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
   if (tm.tag === 'Type' && fty.tag === 'VType') return Type;
+  if (tm.tag === 'Desc' && fty.tag === 'VType') return Desc;
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     return x;
@@ -155,6 +156,7 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Type') return [Type, VType];
+  if (tm.tag === 'Desc') return [Desc, VType];
   if (tm.tag === 'Var') {
     const i = indexOf(local.namesSurface, tm.name);
     if (i < 0) {
@@ -215,6 +217,10 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vt = evaluate(type, local.vs);
     const body = check(extend(local, tm.name, vt, true, false, false, VVar(local.index)), tm.body, vt);
     return [Fix(tm.name, type, body), vt];
+  }
+  if (tm.tag === 'Data') {
+    const cons = tm.cons.map(t => check(extend(local, tm.name, VType, true, false, false, VVar(local.index)), t, VType));
+    return [Data(tm.name, cons), VDesc];
   }
   if (tm.tag === 'Roll' && tm.type) {
     const type = check(localInType(local), tm.type, VType);

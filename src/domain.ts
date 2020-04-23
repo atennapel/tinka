@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann, Unroll, Fix, Roll } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann, Unroll, Fix, Roll, Desc, Data } from './syntax';
 import { impossible } from './utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity } from './surface';
@@ -25,7 +25,7 @@ export type EUnroll = { tag: 'EUnroll' };
 export const EUnroll: EUnroll = { tag: 'EUnroll' };
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VFix | VType | VRoll;
+export type Val = VNe | VGlued | VAbs | VPi | VFix | VData | VType | VDesc | VRoll;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -36,9 +36,13 @@ export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs 
 export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: Clos };
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
 export type VFix = { tag: 'VFix', name: Name, type: Val, body: Clos };
-export const VFix = (name: Name, type: Val, body: Clos): VFix => ({ tag: 'VFix', name, type, body});
+export const VFix = (name: Name, type: Val, body: Clos): VFix => ({ tag: 'VFix', name, type, body });
+export type VData = { tag: 'VData', name: Name, cons: Clos[] };
+export const VData = (name: Name, cons: Clos[]): VData => ({ tag: 'VData', name, cons });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
+export type VDesc = { tag: 'VDesc' };
+export const VDesc: VDesc = { tag: 'VDesc' };
 export type VRoll = { tag: 'VRoll', type: Val, term: Val };
 export const VRoll = (type: Val, term: Val): VRoll => ({ tag: 'VRoll', type, term });
 
@@ -93,6 +97,7 @@ export const vunroll = (v: Val): Val => {
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Type') return VType;
+  if (t.tag === 'Desc') return VDesc;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -118,6 +123,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VRoll(evaluate(t.type, vs), evaluate(t.term, vs));
   if (t.tag === 'Fix')
     return VFix(t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+  if (t.tag === 'Data')
+    return VData(t.name, t.cons.map(x => v => evaluate(x, extendV(vs, v))));
   if (t.tag === 'Unroll')
     return vunroll(evaluate(t.term, vs));
   return impossible(`evaluate: ${t.tag}`);
@@ -142,6 +149,7 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: number): Term => {
 export const quote = (v_: Val, k: Ix, full: number): Term => {
   const v = forceGlue(v_);
   if (v.tag === 'VType') return Type;
+  if (v.tag === 'VDesc') return Desc;
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),
@@ -166,6 +174,8 @@ export const quote = (v_: Val, k: Ix, full: number): Term => {
     return Pi(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VFix')
     return Fix(v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+  if (v.tag === 'VData')
+    return Data(v.name, v.cons.map(c => quote(c(VVar(k)), k + 1, full)));
   if (v.tag === 'VRoll')
     return Roll(quote(v.type, k, full), quote(v.term, k, full));
   return v;
@@ -215,6 +225,8 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
     return Pi(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Fix')
     return Fix(tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
+  if (tm.tag === 'Data')
+    return Data(tm.name, tm.cons.map(t => zonk(t, extendV(vs, VVar(k)), k + 1, full)));
   if (tm.tag === 'Let')
     return Let(tm.plicity, tm.name, tm.type && zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Ann') return Ann(zonk(tm.term, vs, k, full), zonk(tm.type, vs, k, full));

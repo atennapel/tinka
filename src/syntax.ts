@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/util';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Pi | Fix | Type | Ann | Hole | Meta;
+export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Pi | Fix | Data | Type | Desc | Ann | Hole | Meta;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -25,8 +25,12 @@ export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Te
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Fix = { tag: 'Fix', name: Name, type: Term, body: Term };
 export const Fix = (name: Name, type: Term, body: Term): Fix => ({ tag: 'Fix', name, type, body });
+export type Data = { tag: 'Data', name: Name, cons: Term[] };
+export const Data = (name: Name, cons: Term[]): Data => ({ tag: 'Data', name, cons });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
+export type Desc = { tag: 'Desc' };
+export const Desc: Desc = { tag: 'Desc' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -46,7 +50,9 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Unroll') return `(unroll ${showTerm(t.term)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Fix') return `(fix (${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
+  if (t.tag === 'Data') return `(data ${t.name}. ${t.cons.map(showTerm).join(' | ')})`;
   if (t.tag === 'Type') return '*';
+  if (t.tag === 'Desc') return '**';
   if (t.tag === 'Ann') return `(${showTerm(t.term)} : ${showTerm(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   return t;
@@ -61,6 +67,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Unroll') return globalUsed(k, t.term);
   if (t.tag === 'Pi') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Fix') return globalUsed(k, t.type) || globalUsed(k, t.body);
+  if (t.tag === 'Data') return t.cons.some(x => globalUsed(k, x));
   if (t.tag === 'Ann') return globalUsed(k, t.term) || globalUsed(k, t.type);
   return false;
 };
@@ -73,6 +80,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Unroll') return indexUsed(k, t.term);
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Fix') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
+  if (t.tag === 'Data') return t.cons.some(x => indexUsed(k + 1, x));
   if (t.tag === 'Ann') return indexUsed(k, t.term) || indexUsed(k, t.type);
   return false;
 };
@@ -87,16 +95,18 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Unroll') return isUnsolved(t.term);
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Fix') return isUnsolved(t.type) || isUnsolved(t.body);
+  if (t.tag === 'Data') return t.cons.some(isUnsolved);
   if (t.tag === 'Ann') return isUnsolved(t.term) || isUnsolved(t.type);
   return false;
 };
 
-const decideName = (x: Name, t: Term, ns: List<Name>): Name => {
+const decideNameMany = (x: Name, t: Term[], ns: List<Name>): Name => {
   if (x === '_') return x;
-  const a = indecesOf(ns, x).some(i => indexUsed(i + 1, t));
-  const g = globalUsed(x, t);
-  return a || g ? decideName(nextName(x), t, ns) : x;
+  const a = indecesOf(ns, x).some(i => t.some(c => indexUsed(i + 1, c)));
+  const g = t.some(c => globalUsed(x, c));
+  return a || g ? decideNameMany(nextName(x), t, ns) : x;
 };
+const decideName = (x: Name, t: Term, ns: List<Name>): Name => decideNameMany(x, [t], ns);
 export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Var') {
     const l = index(ns, t.index);
@@ -104,6 +114,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   }
   if (t.tag === 'Meta') return S.Meta(t.index);
   if (t.tag === 'Type') return S.Type;
+  if (t.tag === 'Desc') return S.Desc;
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Ann') return S.Ann(toSurface(t.term, ns), toSurface(t.type, ns));
@@ -126,6 +137,10 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     const x = decideName(t.name, t.body, ns);
     return S.Fix(x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
   }
+  if (t.tag === 'Data') {
+    const x = decideNameMany(t.name, t.cons, ns);
+    return S.Data(x, t.cons.map(c => toSurface(c, Cons(x, ns))));
+  }
   return t;
 };
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));
@@ -141,6 +156,7 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Unroll') return Unroll(shift(d, c, t.term));
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Fix') return Fix(t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Data') return Data(t.name, t.cons.map(x => shift(d, c + 1, x)));
   if (t.tag === 'Ann') return Ann(shift(d, c, t.term), shift(d, c, t.type));
   return t;
 };

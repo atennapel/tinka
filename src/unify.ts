@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix, Data } from './syntax';
 import { Plicity } from './surface';
 
 const eqHead = (a: Head, b: Head): boolean => {
@@ -28,6 +28,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
+  if (a.tag === 'VDesc' && b.tag === 'VDesc') return;
   if (a.tag === 'VRoll' && b.tag === 'VRoll') {
     unify(k, a.type, b.type);
     return unify(k, a.term, b.term);
@@ -41,6 +42,12 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
+  }
+  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+    const v = VVar(k);
+    const l = a.cons.length;
+    for (let i = 0; i < l; i++) unify(k + 1, a.cons[i](v), b.cons[i](v));
+    return;
   }
   if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
@@ -122,6 +129,7 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
 
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Type') return t;
+  if (t.tag === 'Desc') return t;
   if (t.tag === 'Global') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
@@ -154,6 +162,8 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Fix(t.name, ty, body);
   }
+  if (t.tag === 'Data')
+    return Data(t.name, t.cons.map(x => checkSolution(k + 1, m, Cons(k, is), x)));
   if (t.tag === 'Roll' && t.type) {
     const ty = checkSolution(k, m, is, t.type);
     const tm = checkSolution(k, m, is, t.term);

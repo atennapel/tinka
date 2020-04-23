@@ -4,6 +4,8 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- add syntax for "data"
+- add data and desc to core and pure
 - update parser to allow annotation in let
 - insert skolems in check
 - add named holes

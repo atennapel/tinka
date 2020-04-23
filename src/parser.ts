@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Desc } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -23,7 +23,7 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
 const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '@'];
-const SYM2: string[] = ['->'];
+const SYM2: string[] = ['->', '**'];
 
 const START = 0;
 const NAME = 1;
@@ -137,6 +137,7 @@ const expr = (t: Token): [Term, boolean] => {
     return [exprs(t.list, '('), t.bracket === '{'];
   if (t.tag === 'Name') {
     const x = t.name;
+    if (x === '**') return [Desc, false];
     if (x === '*') return [Type, false];
     if (x.includes('@')) return serr(`invalid name: ${x}`);
     if (x.startsWith('_')) return [Hole(x.slice(1) || null), false];
