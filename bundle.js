@@ -523,8 +523,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VPi(t.plicity, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Roll' && t.type)
         return exports.VRoll(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
-    if (t.tag === 'Con')
-        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.args.map(x => exports.evaluate(x, vs)));
+    if (t.tag === 'Con' && t.type)
+        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.args.map(([x, p]) => [exports.evaluate(x, vs), p]));
     if (t.tag === 'Fix')
         return exports.VFix(t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Data')
@@ -583,7 +583,7 @@ exports.quote = (v_, k, full) => {
     if (v.tag === 'VRoll')
         return syntax_1.Roll(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
     if (v.tag === 'VCon')
-        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.args.map(x => exports.quote(x, k, full)));
+        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.args.map(([x, p]) => [exports.quote(x, k, full), p]));
     return v;
 };
 exports.quoteZ = (v, vs = list_1.Nil, k = 0, full = 0) => exports.zonk(exports.quote(v, k, full), vs, k, full);
@@ -643,7 +643,7 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = 0) => {
     if (tm.tag === 'Unroll')
         return syntax_1.Unroll(exports.zonk(tm.term, vs, k, full));
     if (tm.tag === 'Con')
-        return syntax_1.Con(exports.zonk(tm.type, vs, k, full), tm.index, tm.args.map(x => exports.zonk(x, vs, k, full)));
+        return syntax_1.Con(tm.type && exports.zonk(tm.type, vs, k, full), tm.index, tm.args.map(([x, p]) => [exports.zonk(x, vs, k, full), p]));
     if (tm.tag === 'Roll')
         return syntax_1.Roll(tm.type && exports.zonk(tm.type, vs, k, full), exports.zonk(tm.term, vs, k, full));
     return tm;
@@ -999,12 +999,17 @@ const exprs = (ts, br) => {
         return surface_1.Data(x, cons);
     }
     if (isName(ts[0], 'con')) {
-        // TODO: handle implicit
-        const ty = expr(ts[1])[0];
-        if (ts[2].tag !== 'Num' || isNaN(+ts[2].num))
-            return util_1.serr(`not an index in con`);
-        const ix = +ts[2].num;
-        const args = ts.slice(3).map(t => expr(t)[0]);
+        let ty = null;
+        let ix = -1;
+        if (ts[1].tag === 'Num' && !isNaN(+ts[1].num))
+            ix = +ts[1].num;
+        else {
+            const tt = expr(ts[1]);
+            if (!tt[1])
+                return util_1.serr(`type in con should be implicit`);
+            ty = expr(ts[1])[0];
+        }
+        const args = ts.slice(3).map(t => expr(t));
         return surface_1.Con(ty, ix, args);
     }
     if (isName(ts[0], 'let')) {
@@ -1599,7 +1604,7 @@ exports.showTermS = (t) => {
     if (t.tag === 'Unroll')
         return `(unroll ${exports.showTermS(t.term)})`;
     if (t.tag === 'Con')
-        return `(con ${exports.showTermS(t.type)} ${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(exports.showTermS).join(' ')})`;
+        return `(con ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTermS(t)}}` : exports.showTermS(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTermS(t.type)}). ${exports.showTermS(t.body)})`;
     if (t.tag === 'Fix')
@@ -1674,7 +1679,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Roll')
         return !t.type ? `roll ${exports.showTermP(t.term.tag === 'Ann', t.term)}` : `roll {${exports.showTerm(t.type)}} ${exports.showTermP(t.term.tag === 'Ann', t.term)}`;
     if (t.tag === 'Con')
-        return `con (${exports.showTerm(t.type)}) ${t.index}${t.args.length === 0 ? '' : ` ${t.args.map(x => exports.showTerm(x)).join(' ')}`}`;
+        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(true, t)).join(' ')})`;
     return t;
 };
 exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
@@ -1727,7 +1732,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Unroll')
         return `(unroll ${exports.showTerm(t.term)})`;
     if (t.tag === 'Con')
-        return `(con ${exports.showTerm(t.type)} ${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(exports.showTerm).join(' ')})`;
+        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
     if (t.tag === 'Fix')
@@ -1764,7 +1769,7 @@ exports.globalUsed = (k, t) => {
     if (t.tag === 'Ann')
         return exports.globalUsed(k, t.term) || exports.globalUsed(k, t.type);
     if (t.tag === 'Con')
-        return exports.globalUsed(k, t.type) || t.args.some(x => exports.globalUsed(k, x));
+        return (t.type && exports.globalUsed(k, t.type)) || t.args.some(([x, _]) => exports.globalUsed(k, x));
     return false;
 };
 exports.indexUsed = (k, t) => {
@@ -1789,7 +1794,7 @@ exports.indexUsed = (k, t) => {
     if (t.tag === 'Ann')
         return exports.indexUsed(k, t.term) || exports.indexUsed(k, t.type);
     if (t.tag === 'Con')
-        return exports.indexUsed(k, t.type) || t.args.some(x => exports.indexUsed(k, x));
+        return (t.type && exports.indexUsed(k, t.type)) || t.args.some(([x, _]) => exports.indexUsed(k, x));
     return false;
 };
 exports.isUnsolved = (t) => {
@@ -1816,7 +1821,7 @@ exports.isUnsolved = (t) => {
     if (t.tag === 'Ann')
         return exports.isUnsolved(t.term) || exports.isUnsolved(t.type);
     if (t.tag === 'Con')
-        return exports.isUnsolved(t.type) || t.args.some(exports.isUnsolved);
+        return (t.type && exports.isUnsolved(t.type)) || t.args.some(([x, _]) => exports.isUnsolved(x));
     return false;
 };
 const decideNameMany = (x, t, ns) => {
@@ -1847,7 +1852,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     if (t.tag === 'Unroll')
         return S.Unroll(exports.toSurface(t.term, ns));
     if (t.tag === 'Con')
-        return S.Con(exports.toSurface(t.type, ns), t.index, t.args.map(x => exports.toSurface(x, ns)));
+        return S.Con(t.type && exports.toSurface(t.type, ns), t.index, t.args.map(([x, p]) => [exports.toSurface(x, ns), p]));
     if (t.tag === 'Roll')
         return S.Roll(t.type && exports.toSurface(t.type, ns), exports.toSurface(t.term, ns));
     if (t.tag === 'Abs') {
@@ -1895,6 +1900,8 @@ exports.shift = (d, c, t) => {
         return exports.Data(t.name, t.cons.map(x => exports.shift(d, c + 1, x)));
     if (t.tag === 'Ann')
         return exports.Ann(exports.shift(d, c, t.term), exports.shift(d, c, t.type));
+    if (t.tag === 'Con')
+        return exports.Con(t.type && exports.shift(d, c, t.type), t.index, t.args.map(([x, p]) => [exports.shift(d, c, x), p]));
     return t;
 };
 
@@ -2250,8 +2257,11 @@ exports.unify = (k, a_, b_) => {
     if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
         exports.unify(k, a.type, b.type);
         const l = a.args.length;
-        for (let i = 0; i < l; i++)
-            exports.unify(k, a.args[i], b.args[i]);
+        for (let i = 0; i < l; i++) {
+            if (a.args[i][1] !== b.args[i][1])
+                return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
+            exports.unify(k, a.args[i][0], b.args[i][0]);
+        }
         return;
     }
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {

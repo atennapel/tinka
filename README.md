@@ -4,6 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- update typescript
 - typecheck con
 - handle implicit con arguments
 - consistency check for data constructors

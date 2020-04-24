@@ -245,11 +245,15 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     return Data(x, cons);
   }
   if (isName(ts[0], 'con')) {
-    // TODO: handle implicit
-    const ty = expr(ts[1])[0];
-    if (ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not an index in con`);
-    const ix = +ts[2].num;
-    const args = ts.slice(3).map(t => expr(t)[0]);
+    let ty = null;
+    let ix = -1;
+    if (ts[1].tag === 'Num' && !isNaN(+ts[1].num)) ix = +ts[1].num;
+    else {
+      const tt = expr(ts[1]);
+      if (!tt[1]) return serr(`type in con should be implicit`);
+      ty = expr(ts[1])[0];
+    }
+    const args = ts.slice(3).map(t => expr(t));
     return Con(ty, ix, args);
   }
   if (isName(ts[0], 'let')) {

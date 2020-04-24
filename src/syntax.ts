@@ -21,8 +21,8 @@ export type Roll = { tag: 'Roll', type: Term | null, term: Term };
 export const Roll = (type: Term | null, term: Term): Roll => ({ tag: 'Roll', type, term });
 export type Unroll = { tag: 'Unroll', term: Term };
 export const Unroll = (term: Term): Unroll => ({ tag: 'Unroll', term });
-export type Con = { tag: 'Con', type: Term, index: Ix, args: Term[] };
-export const Con = (type: Term, index: Ix, args: Term[]): Con => ({ tag: 'Con', type, index, args });
+export type Con = { tag: 'Con', type: Term | null, index: Ix, args: [Term, Plicity][] };
+export const Con = (type: Term | null, index: Ix, args: [Term, Plicity][]): Con => ({ tag: 'Con', type, index, args });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Fix = { tag: 'Fix', name: Name, type: Term, body: Term };
@@ -50,7 +50,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTerm(t.type)}` : ''} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Roll') return t.type ? `(roll {${showTerm(t.type)}} ${showTerm(t.term)})` : `(roll ${showTerm(t.term)})`;
   if (t.tag === 'Unroll') return `(unroll ${showTerm(t.term)})`;
-  if (t.tag === 'Con') return `(con ${showTerm(t.type)} ${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(showTerm).join(' ')})`;
+  if (t.tag === 'Con') return `(con ${t.type ? `{${showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTerm(t)}}` : showTerm(t)).join(' ')})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Fix') return `(fix (${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Data') return `(data ${t.name}. ${t.cons.map(showTerm).join(' | ')})`;
@@ -71,7 +71,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Fix') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Data') return t.cons.some(x => globalUsed(k, x));
   if (t.tag === 'Ann') return globalUsed(k, t.term) || globalUsed(k, t.type);
-  if (t.tag === 'Con') return globalUsed(k, t.type) || t.args.some(x => globalUsed(k, x));
+  if (t.tag === 'Con') return (t.type && globalUsed(k, t.type)) || t.args.some(([x, _]) => globalUsed(k, x));
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -85,7 +85,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Fix') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Data') return t.cons.some(x => indexUsed(k + 1, x));
   if (t.tag === 'Ann') return indexUsed(k, t.term) || indexUsed(k, t.type);
-  if (t.tag === 'Con') return indexUsed(k, t.type) || t.args.some(x => indexUsed(k, x));
+  if (t.tag === 'Con') return (t.type && indexUsed(k, t.type)) || t.args.some(([x, _]) => indexUsed(k, x));
   return false;
 };
 
@@ -101,7 +101,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Fix') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Data') return t.cons.some(isUnsolved);
   if (t.tag === 'Ann') return isUnsolved(t.term) || isUnsolved(t.type);
-  if (t.tag === 'Con') return isUnsolved(t.type) || t.args.some(isUnsolved);
+  if (t.tag === 'Con') return (t.type && isUnsolved(t.type)) || t.args.some(([x, _]) => isUnsolved(x));
   return false;
 };
 
@@ -124,7 +124,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Ann') return S.Ann(toSurface(t.term, ns), toSurface(t.type, ns));
   if (t.tag === 'Hole') return S.Hole(t.name);
   if (t.tag === 'Unroll') return S.Unroll(toSurface(t.term, ns));
-  if (t.tag === 'Con') return S.Con(toSurface(t.type, ns), t.index, t.args.map(x => toSurface(x, ns)));
+  if (t.tag === 'Con') return S.Con(t.type && toSurface(t.type, ns), t.index, t.args.map(([x, p]) => [toSurface(x, ns), p]));
   if (t.tag === 'Roll') return S.Roll(t.type && toSurface(t.type, ns), toSurface(t.term, ns));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);
@@ -163,5 +163,6 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Fix') return Fix(t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Data') return Data(t.name, t.cons.map(x => shift(d, c + 1, x)));
   if (t.tag === 'Ann') return Ann(shift(d, c, t.term), shift(d, c, t.type));
+  if (t.tag === 'Con') return Con(t.type && shift(d, c, t.type), t.index, t.args.map(([x, p]) => [shift(d, c, x), p]));
   return t;
 };

@@ -43,8 +43,8 @@ export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
 export type VRoll = { tag: 'VRoll', type: Val, term: Val };
 export const VRoll = (type: Val, term: Val): VRoll => ({ tag: 'VRoll', type, term });
-export type VCon = { tag: 'VCon', type: Val, index: Ix, args: Val[] };
-export const VCon = (type: Val, index: Ix, args: Val[]): VCon => ({ tag: 'VCon', type, index, args });
+export type VCon = { tag: 'VCon', type: Val, index: Ix, args: [Val, Plicity][] };
+export const VCon = (type: Val, index: Ix, args: [Val, Plicity][]): VCon => ({ tag: 'VCon', type, index, args });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -120,8 +120,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VPi(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Roll' && t.type)
     return VRoll(evaluate(t.type, vs), evaluate(t.term, vs));
-  if (t.tag === 'Con')
-    return VCon(evaluate(t.type, vs), t.index, t.args.map(x => evaluate(x, vs)));
+  if (t.tag === 'Con' && t.type)
+    return VCon(evaluate(t.type, vs), t.index, t.args.map(([x, p]) => [evaluate(x, vs), p]));
   if (t.tag === 'Fix')
     return VFix(t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Data')
@@ -179,7 +179,7 @@ export const quote = (v_: Val, k: Ix, full: number): Term => {
   if (v.tag === 'VRoll')
     return Roll(quote(v.type, k, full), quote(v.term, k, full));
   if (v.tag === 'VCon')
-    return Con(quote(v.type, k, full), v.index, v.args.map(x => quote(x, k, full)));
+    return Con(quote(v.type, k, full), v.index, v.args.map(([x, p]) => [quote(x, k, full), p]));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Term =>
@@ -243,7 +243,7 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
   if (tm.tag === 'Unroll')
     return Unroll(zonk(tm.term, vs, k, full));
   if (tm.tag === 'Con')
-    return Con(zonk(tm.type, vs, k, full), tm.index, tm.args.map(x => zonk(x, vs, k, full)));
+    return Con(tm.type && zonk(tm.type, vs, k, full), tm.index, tm.args.map(([x, p]) => [zonk(x, vs, k, full), p]));
   if (tm.tag === 'Roll')
     return Roll(tm.type && zonk(tm.type, vs, k, full), zonk(tm.term, vs, k, full));
   return tm;
