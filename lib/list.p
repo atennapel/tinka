@@ -15,7 +15,7 @@ def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. In {ListF t} \{x} n c.
 def caseList : {t r : *} -> List t -> r -> (t -> List t -> r) -> r
   = \{t} l n c. caseFix {ListF t} l n c
 def recList : {t r : *} -> List t -> r -> ((List t -> r) -> t -> List t -> r) -> r
-  = \{t} {r} l n c. fold {ListF t} {r} (\rec case. case {r} n (\hd tl. c rec hd tl)) l
+  = \{t} {r} l n c. fold {ListF t} {r} (\rec cs. cs {r} n (\hd tl. c rec hd tl)) l
 
 def foldList : {t r : *} -> List t -> r -> (t -> r -> r) -> r
   = \{t} l n c. recList {t} l n (\rec hd tl. c hd (rec tl))
