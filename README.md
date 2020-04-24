@@ -4,11 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- update typescript
-- typecheck con
-- handle implicit con arguments
-- consistency check for data constructors
 - add data and elim to core and pure
+- handle con without type
+- consistency check for data constructors
 - add elim
 - update parser to allow annotation in let
 - insert skolems in check

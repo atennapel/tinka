@@ -1,4 +1,4 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Data } from './syntax';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Data, Con } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -242,10 +242,35 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
   }
+  if (tm.tag === 'Con' && tm.type) {
+    const type = check(localInType(local), tm.type, VType);
+    const vtype = evaluate(type, local.vs);
+    const ft = force(vtype);
+    if (ft.tag !== 'VData') return terr(`not a datatype in con: ${S.showTerm(tm)}`);
+    if (!ft.cons[tm.index]) return terr(`not a valid constructor: ${S.showTerm(tm)}`);
+    const con = ft.cons[tm.index](vtype);
+    const [args, rt] = synthconargs(local, con, tm.args);
+    if (force(rt).tag !== 'VData') return terr(`constructor was not fully applied: ${S.showTerm(tm)}`);
+    return [Con(type, tm.index, args), rt];
+  }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 
-export const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val, List<Term>] => {
+const synthconargs = (local: Local, ty_: Val, args: [S.Term, Plicity][]): [[Term, Plicity][], Val] => {
+  log(() => `synthconargs ${showTermS(ty_, local.names, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${S.showTerm(t)}`).join(' ')}]${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  if (args.length === 0) return [[], ty_];
+  const ty = force(ty_);
+  const head = args[0];
+  if (ty.tag === 'VPi' && ty.plicity === head[1]) {
+    const arg = check(ty.plicity ? localInType(local) : local, head[0], ty.type);
+    const rt = ty.body(evaluate(arg, local.vs));
+    const rest = synthconargs(local, rt, args.slice(1));
+    return [[[arg, head[1]] as [Term, Plicity]].concat(rest[0]), rest[1]];
+  }
+  return terr(`invalid type or plicity mismatch in synthconargs`);
+};
+
+const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val, List<Term>] => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);
   // TODO: case where ty.tag === 'VFix', insert unroll

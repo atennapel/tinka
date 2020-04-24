@@ -252,6 +252,8 @@ const exprs = (ts: Token[], br: BracketO): Term => {
       const tt = expr(ts[1]);
       if (!tt[1]) return serr(`type in con should be implicit`);
       ty = expr(ts[1])[0];
+      if (ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not a valid index in con`);
+      ix = +ts[2].num;
     }
     const args = ts.slice(3).map(t => expr(t));
     return Con(ty, ix, args);

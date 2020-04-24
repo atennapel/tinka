@@ -1008,6 +1008,9 @@ const exprs = (ts, br) => {
             if (!tt[1])
                 return util_1.serr(`type in con should be implicit`);
             ty = expr(ts[1])[0];
+            if (ts[2].tag !== 'Num' || isNaN(+ts[2].num))
+                return util_1.serr(`not a valid index in con`);
+            ix = +ts[2].num;
         }
         const args = ts.slice(3).map(t => expr(t));
         return surface_1.Con(ty, ix, args);
@@ -2073,7 +2076,7 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'App') {
         const [left, ty] = synth(local, tm.left);
-        const [right, rty, ms] = exports.synthapp(local, ty, tm.plicity, tm.right, tm);
+        const [right, rty, ms] = synthapp(local, ty, tm.plicity, tm.right, tm);
         return [syntax_1.App(list_1.foldl((f, a) => syntax_1.App(f, true, a), left, ms), tm.plicity, right), rty];
     }
     if (tm.tag === 'Abs') {
@@ -2144,16 +2147,44 @@ const synth = (local, tm) => {
         const term = check(local, tm.term, vtype);
         return [syntax_1.Let(false, 'x', type, term, syntax_1.Var(0)), vtype];
     }
+    if (tm.tag === 'Con' && tm.type) {
+        const type = check(exports.localInType(local), tm.type, domain_1.VType);
+        const vtype = domain_1.evaluate(type, local.vs);
+        const ft = domain_1.force(vtype);
+        if (ft.tag !== 'VData')
+            return util_1.terr(`not a datatype in con: ${S.showTerm(tm)}`);
+        if (!ft.cons[tm.index])
+            return util_1.terr(`not a valid constructor: ${S.showTerm(tm)}`);
+        const con = ft.cons[tm.index](vtype);
+        const [args, rt] = synthconargs(local, con, tm.args);
+        if (domain_1.force(rt).tag !== 'VData')
+            return util_1.terr(`constructor was not fully applied: ${S.showTerm(tm)}`);
+        return [syntax_1.Con(type, tm.index, args), rt];
+    }
     return util_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
-exports.synthapp = (local, ty_, plicity, tm, tmall) => {
+const synthconargs = (local, ty_, args) => {
+    config_1.log(() => `synthconargs ${domain_1.showTermS(ty_, local.names, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${S.showTerm(t)}`).join(' ')}]${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
+    if (args.length === 0)
+        return [[], ty_];
+    const ty = domain_1.force(ty_);
+    const head = args[0];
+    if (ty.tag === 'VPi' && ty.plicity === head[1]) {
+        const arg = check(ty.plicity ? exports.localInType(local) : local, head[0], ty.type);
+        const rt = ty.body(domain_1.evaluate(arg, local.vs));
+        const rest = synthconargs(local, rt, args.slice(1));
+        return [[[arg, head[1]]].concat(rest[0]), rest[1]];
+    }
+    return util_1.terr(`invalid type or plicity mismatch in synthconargs`);
+};
+const synthapp = (local, ty_, plicity, tm, tmall) => {
     config_1.log(() => `synthapp ${domain_1.showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     const ty = domain_1.force(ty_);
     // TODO: case where ty.tag === 'VFix', insert unroll
     if (ty.tag === 'VPi' && ty.plicity && !plicity) {
         const m = newMeta(local.ts);
         const vm = domain_1.evaluate(m, local.vs);
-        const [rest, rt, l] = exports.synthapp(local, ty.body(vm), plicity, tm, tmall);
+        const [rest, rt, l] = synthapp(local, ty.body(vm), plicity, tm, tmall);
         return [rest, rt, list_1.Cons(m, l)];
     }
     if (ty.tag === 'VPi' && ty.plicity === plicity) {
@@ -2167,7 +2198,7 @@ exports.synthapp = (local, ty_, plicity, tm, tmall) => {
         const b = metas_1.freshMetaId();
         const pi = domain_1.VPi(plicity, '_', domain_1.VNe(domain_1.HMeta(a), ty.args), () => domain_1.VNe(domain_1.HMeta(b), ty.args));
         unify_1.unify(local.index, ty, pi);
-        return exports.synthapp(local, pi, plicity, tm, tmall);
+        return synthapp(local, pi, plicity, tm, tmall);
     }
     return util_1.terr(`invalid type or plicity mismatch in synthapp in ${S.showTerm(tmall)}: ${domain_1.showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}`);
 };
