@@ -25,6 +25,7 @@ COMMANDS
 [:checkCore or :checkcore] toggle rechecking of core terms
 [:quoteLevel n] how much to normalize
 [:alwaysUnfold x y z] always unfold names
+[:showNorm or :shownorm] toggle showing normalization
 [:def definitions] define names
 [:defs] show all defs
 [:del name] delete a name
@@ -66,6 +67,10 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.toLowerCase() === ':checkcore') {
       setConfig({ checkCore: !config.checkCore });
       return _cb(`checkCore: ${config.checkCore}`);
+    }
+    if (_s.toLowerCase() === ':shownorm') {
+      setConfig({ showNormalization: !config.showNormalization });
+      return _cb(`showNormalization: ${config.showNormalization}`);
     }
     if (_s.toLowerCase().startsWith(':quotelevel')) {
       const n = _s.slice(11);
@@ -232,7 +237,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
           }
         }
       }
-      return _cb(`${msg}\nnorm: ${showSurfaceZ(n)}${core && tmc_ ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}${pnor}${pdsp}` : ''}`);
+      return _cb(`${msg}${config.showNormalization ? `\nnorm: ${showSurfaceZ(n)}` : ''}${core && tmc_ ? `${config.showNormalization ? `\ncnor: ${C.showTerm(CD.normalize(tmc_, Nil, 0, true))}`: ''}${pnor}${pdsp}` : ''}`);
     } catch (err) {
       log(() => ''+err);
       msg += '\n'+err;

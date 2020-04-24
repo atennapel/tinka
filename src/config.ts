@@ -6,6 +6,7 @@ export interface Config {
   checkCore: boolean;
   quoteLevel: number;
   alwaysUnfold: Name[];
+  showNormalization: boolean;
 }
 export const config: Config = {
   debug: false,
@@ -13,6 +14,7 @@ export const config: Config = {
   checkCore: false,
   quoteLevel: 0,
   alwaysUnfold: [],
+  showNormalization: false,
 };
 export const setConfig = (c: Partial<Config>) => {
   for (let k in c) (config as any)[k] = (c as any)[k];
