@@ -5,7 +5,7 @@ import { Nil, List, lookup, Cons } from '../utils/list';
 import { impossible } from '../utils/util';
 import { Term as ITerm } from '../syntax';
 
-export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Con | Pi | Fix | Data | Type;
+export type Term = Var | Global | App | Abs | Let | Roll | Unroll | Con | Case | Pi | Fix | Data | Type;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -23,6 +23,8 @@ export type Unroll = { tag: 'Unroll', term: Term };
 export const Unroll = (term: Term): Unroll => ({ tag: 'Unroll', term });
 export type Con = { tag: 'Con', type: Term, index: Ix, total: number, args: [Term, Plicity][] };
 export const Con = (type: Term, index: Ix, total: number, args: [Term, Plicity][]): Con => ({ tag: 'Con', type, index, total, args });
+export type Case = { tag: 'Case', type: Term, prop: Term, scrut: Term, cases: Term[] };
+export const Case = (type: Term, prop: Term, scrut: Term, cases: Term[]): Case => ({ tag: 'Case', type, prop, scrut, cases });
 export type Pi = { tag: 'Pi', plicity: Plicity, type: Term, body: Term };
 export const Pi = (plicity: Plicity, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, type, body });
 export type Fix = { tag: 'Fix', type: Term, body: Term };
@@ -41,6 +43,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Roll') return `(roll ${showTerm(t.type)} ${showTerm(t.term)})`;
   if (t.tag === 'Unroll') return `(unroll ${showTerm(t.term)})`;
   if (t.tag === 'Con') return `(con {${showTerm(t.type)}} ${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTerm(t)}}` : showTerm(t)).join(' ')})`;
+  if (t.tag === 'Case') return `(case {${showTerm(t.type)}} {${showTerm(t.prop)}} ${showTerm(t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => showTerm(t)).join(' ')})`;
   if (t.tag === 'Pi') return `(/${t.plicity ? '-' : ''}${showTerm(t.type)}. ${showTerm(t.body)})`;
   if (t.tag === 'Fix') return `(fix ${showTerm(t.type)}. ${showTerm(t.body)})`;
   if (t.tag === 'Data') return `(data. ${t.cons.map(showTerm).join(' | ')})`;
@@ -63,6 +66,7 @@ export const fromSurface = (t: S.Term, ns: List<[Name, Ix]> = Nil, k: Ix = 0): T
   if (t.tag === 'Unroll') return Unroll(fromSurface(t.term, ns, k));
   if (t.tag === 'Data') return Data(t.cons.map(x => fromSurface(x, Cons([t.name, k], ns), k + 1)));
   if (t.tag === 'Con' && t.type) return Con(fromSurface(t.type, ns, k), t.index, t.total, t.args.map(([t, p]) => [fromSurface(t, ns, k), p]));
+  if (t.tag === 'Case') return Case(fromSurface(t.type, ns, k), fromSurface(t.prop, ns, k), fromSurface(t.scrut, ns, k), t.cases.map(t => fromSurface(t, ns, k)));
   return impossible(`fromSurface: ${t.tag}`);
 };
 
@@ -79,6 +83,7 @@ export const toCore = (t: ITerm): Term => {
   if (t.tag === 'Unroll') return Unroll(toCore(t.term));
   if (t.tag === 'Data') return Data(t.cons.map(x => toCore(x)));
   if (t.tag === 'Con' && t.type) return Con(toCore(t.type), t.index, t.total, t.args.map(([t, p]) => [toCore(t), p]));
+  if (t.tag === 'Case') return Case(toCore(t.type), toCore(t.prop), toCore(t.scrut), t.cases.map(t => toCore(t)));
   return impossible(`toCore: ${t.tag}`);
 };
 
@@ -93,5 +98,6 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Fix') return Fix(shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Data') return Data(t.cons.map(x => shift(d, c + 1, x)));
   if (t.tag === 'Con') return Con(shift(d, c, t.type), t.index, t.total, t.args.map(([t, p]) => [shift(d, c, t), p]));
+  if (t.tag === 'Case') return Case(shift(d, c, t.type), shift(d, c, t.prop), shift(d, c, t.scrut), t.cases.map(x => shift(d, c, x)));
   return t;
 };

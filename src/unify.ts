@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix, Data, Con } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix, Data, Con, Case } from './syntax';
 import { Plicity } from './surface';
 
 const eqHead = (a: Head, b: Head): boolean => {
@@ -20,6 +20,13 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'EUnroll' && b.tag === 'EUnroll') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
+  if (a.tag === 'ECase' && b.tag === 'ECase' && a.cases.length === b.cases.length) {
+    unify(k, a.type, b.type);
+    unify(k, a.prop, b.prop);
+    const l = a.cases.length;
+    for (let i = 0; i < l; i++) unify(k + 1, a.cases[i], b.cases[i]);
+    return;
+  }
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -125,6 +132,7 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnroll') return terr(`unroll in meta spine`);
+    if (elim.tag === 'ECase') return terr(`case in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
@@ -185,6 +193,13 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const args: [Term, Plicity][] = t.args.map(([t, p]) => [checkSolution(k, m, is, t), p]);
     return Con(ty, t.index, t.total, args);
+  }
+  if (t.tag === 'Case') {
+    const type = checkSolution(k, m, is, t.type);
+    const prop = checkSolution(k, m, is, t.type);
+    const scrut = checkSolution(k, m, is, t.type);
+    const cases: Term[] = t.cases.map(t => checkSolution(k, m, is, t));
+    return Case(type, prop, scrut, cases);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

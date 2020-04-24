@@ -2,7 +2,7 @@ import { Name, Ix } from './names';
 
 export type Plicity = boolean;
 
-export type Term = Var | App | Abs | Let | Roll | Unroll | Con | Pi | Fix | Data | Type | Ann | Hole | Meta;
+export type Term = Var | App | Abs | Let | Roll | Unroll | Con | Case | Pi | Fix | Data | Type | Ann | Hole | Meta;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -18,6 +18,8 @@ export type Unroll = { tag: 'Unroll', term: Term };
 export const Unroll = (term: Term): Unroll => ({ tag: 'Unroll', term });
 export type Con = { tag: 'Con', type: Term | null, index: Ix, total: number, args: [Term, Plicity][] };
 export const Con = (type: Term | null, index: Ix, total: number, args: [Term, Plicity][]): Con => ({ tag: 'Con', type, index, total, args });
+export type Case = { tag: 'Case', type: Term, prop: Term, scrut: Term, cases: Term[] };
+export const Case = (type: Term, prop: Term, scrut: Term, cases: Term[]): Case => ({ tag: 'Case', type, prop, scrut, cases });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Fix = { tag: 'Fix', name: Name, type: Term, body: Term };
@@ -43,6 +45,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Roll') return t.type ? `(roll {${showTermS(t.type)}} ${showTermS(t.term)})` : `(roll ${showTermS(t.term)})`;
   if (t.tag === 'Unroll') return `(unroll ${showTermS(t.term)})`;
   if (t.tag === 'Con') return `(con ${t.type ? `{${showTermS(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTermS(t)}}` : showTermS(t)).join(' ')})`;
+  if (t.tag === 'Case') return `(case {${showTermS(t.type)}} {${showTermS(t.prop)}} ${showTermS(t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => showTermS(t)).join(' ')})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
   if (t.tag === 'Fix') return `(fix (${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
   if (t.tag === 'Data') return `(data ${t.name}. ${t.cons.map(showTermS).join(' | ')})`;
@@ -112,7 +115,9 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Roll')
     return !t.type ? `roll ${showTermP(t.term.tag === 'Ann', t.term)}` : `roll {${showTerm(t.type)}} ${showTermP(t.term.tag === 'Ann', t.term)}`;
   if (t.tag === 'Con')
-    return `(con ${t.type ? `{${showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTerm(t)}}` : showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')})`;
+    return `con ${t.type ? `{${showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTerm(t)}}` : showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')}`;
+  if (t.tag === 'Case')
+    return `case {${showTerm(t.type)}} {${showTerm(t.prop)}} ${showTermP(t.scrut.tag != 'Hole' && t.scrut.tag !== 'Meta' && t.scrut.tag !== 'Var', t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')}`;
   return t;
 };
 

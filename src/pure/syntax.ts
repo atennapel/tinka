@@ -90,5 +90,7 @@ export const erase = (t: TTerm): Term => {
     for (let i = 0; i < t.total; i++) c = Abs(c);
     return c;
   }
+  if (t.tag === 'Case')
+    return t.cases.reduce((x, y) => App(x, erase(y)), erase(t.scrut));
   return t;
 };

@@ -29,6 +29,7 @@ exports.HVar = (index) => ({ tag: 'HVar', index });
 exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EUnroll = { tag: 'EUnroll' };
+exports.ECase = (type, prop, cases) => ({ tag: 'ECase', type, prop, cases });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, type, body) => ({ tag: 'VAbs', plicity, type, body });
@@ -68,6 +69,15 @@ exports.vunroll = (v) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EUnroll, v.args), lazy_1.mapLazy(v.val, v => exports.vunroll(v)));
     return util_1.impossible(`core vunroll: ${v.tag}`);
 };
+exports.vcase = (ty, prop, cases, v) => {
+    if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
+        return v.args.reduce((x, [y, p]) => exports.vapp(x, p, y), cases[v.index]);
+    if (v.tag === 'VNe')
+        return exports.VNe(v.head, list_1.Cons(exports.ECase(ty, prop, cases), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.ECase(ty, prop, cases), v.args), lazy_1.mapLazy(v.val, v => exports.vcase(ty, prop, cases, v)));
+    return util_1.impossible(`core vcase: ${v.tag}`);
+};
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
         return exports.VType;
@@ -97,6 +107,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VFix(exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Data')
         return exports.VData(t.cons.map(x => v => exports.evaluate(x, exports.extendV(vs, v))));
+    if (t.tag === 'Case')
+        return exports.vcase(exports.evaluate(t.type, vs), exports.evaluate(t.prop, vs), t.cases.map(t => exports.evaluate(t, vs)), exports.evaluate(t.scrut, vs));
     return t;
 };
 const quoteHead = (h, k, full) => {
@@ -116,6 +128,8 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     if (e.tag === 'EUnroll')
         return syntax_1.Unroll(t);
+    if (e.tag === 'ECase')
+        return syntax_1.Case(exports.quote(e.type, k, full), exports.quote(e.prop, k, full), t, e.cases.map(t => exports.quote(t, k, full)));
     return e;
 };
 exports.quote = (v, k, full) => {
@@ -161,6 +175,7 @@ exports.Let = (plicity, type, val, body) => ({ tag: 'Let', plicity, type, val, b
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
 exports.Con = (type, index, total, args) => ({ tag: 'Con', type, index, total, args });
+exports.Case = (type, prop, scrut, cases) => ({ tag: 'Case', type, prop, scrut, cases });
 exports.Pi = (plicity, type, body) => ({ tag: 'Pi', plicity, type, body });
 exports.Fix = (type, body) => ({ tag: 'Fix', type, body });
 exports.Data = (cons) => ({ tag: 'Data', cons });
@@ -182,6 +197,8 @@ exports.showTerm = (t) => {
         return `(unroll ${exports.showTerm(t.term)})`;
     if (t.tag === 'Con')
         return `(con {${exports.showTerm(t.type)}} ${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
+    if (t.tag === 'Case')
+        return `(case {${exports.showTerm(t.type)}} {${exports.showTerm(t.prop)}} ${exports.showTerm(t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => exports.showTerm(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/${t.plicity ? '-' : ''}${exports.showTerm(t.type)}. ${exports.showTerm(t.body)})`;
     if (t.tag === 'Fix')
@@ -217,6 +234,8 @@ exports.fromSurface = (t, ns = list_1.Nil, k = 0) => {
         return exports.Data(t.cons.map(x => exports.fromSurface(x, list_1.Cons([t.name, k], ns), k + 1)));
     if (t.tag === 'Con' && t.type)
         return exports.Con(exports.fromSurface(t.type, ns, k), t.index, t.total, t.args.map(([t, p]) => [exports.fromSurface(t, ns, k), p]));
+    if (t.tag === 'Case')
+        return exports.Case(exports.fromSurface(t.type, ns, k), exports.fromSurface(t.prop, ns, k), exports.fromSurface(t.scrut, ns, k), t.cases.map(t => exports.fromSurface(t, ns, k)));
     return util_1.impossible(`fromSurface: ${t.tag}`);
 };
 exports.toCore = (t) => {
@@ -244,6 +263,8 @@ exports.toCore = (t) => {
         return exports.Data(t.cons.map(x => exports.toCore(x)));
     if (t.tag === 'Con' && t.type)
         return exports.Con(exports.toCore(t.type), t.index, t.total, t.args.map(([t, p]) => [exports.toCore(t), p]));
+    if (t.tag === 'Case')
+        return exports.Case(exports.toCore(t.type), exports.toCore(t.prop), exports.toCore(t.scrut), t.cases.map(t => exports.toCore(t)));
     return util_1.impossible(`toCore: ${t.tag}`);
 };
 exports.shift = (d, c, t) => {
@@ -267,6 +288,8 @@ exports.shift = (d, c, t) => {
         return exports.Data(t.cons.map(x => exports.shift(d, c + 1, x)));
     if (t.tag === 'Con')
         return exports.Con(exports.shift(d, c, t.type), t.index, t.total, t.args.map(([t, p]) => [exports.shift(d, c, t), p]));
+    if (t.tag === 'Case')
+        return exports.Case(exports.shift(d, c, t.type), exports.shift(d, c, t.prop), exports.shift(d, c, t.scrut), t.cases.map(x => exports.shift(d, c, x)));
     return t;
 };
 
@@ -390,7 +413,31 @@ const synth = (local, tm) => {
             return util_1.terr(`constructor was not fully applied: ${syntax_1.showTerm(tm)}`);
         return rt;
     }
+    if (tm.tag === 'Case') {
+        check(localInType(local), tm.type, domain_1.VType);
+        const vtype = domain_1.evaluate(tm.type, local.vs);
+        const ft = domain_1.force(vtype);
+        if (ft.tag !== 'VData')
+            return util_1.terr(`not a datatype in case: ${syntax_1.showTerm(tm)}`);
+        if (ft.cons.length !== tm.cases.length)
+            return util_1.terr(`cases length mismatch: ${syntax_1.showTerm(tm)}`);
+        check(localInType(local), tm.prop, domain_1.VPi(false, vtype, _ => domain_1.VType));
+        const vprop = domain_1.evaluate(tm.prop, local.vs);
+        check(local, tm.scrut, vtype);
+        const vscrut = domain_1.evaluate(tm.scrut, local.vs);
+        const types = ft.cons.map((c, i) => makeBranch(local.index, local.index, tm.type, tm.prop, i, ft.cons.length, c(vtype)));
+        tm.cases.forEach((t, i) => check(local, t, domain_1.evaluate(types[i], local.vs)));
+        return domain_1.vapp(vprop, false, vscrut);
+    }
     return util_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
+};
+const makeBranch = (k, ok, type, prop, i, total, v_, args = [], argcount = 0) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VData')
+        return syntax_1.App(syntax_1.shift(argcount, 0, prop), false, syntax_1.Con(syntax_1.shift(argcount, 0, type), i, total, args.map(([x, p]) => [syntax_1.Var(k - x - 1), p])));
+    if (v.tag === 'VPi')
+        return syntax_1.Pi(v.plicity, domain_1.quote(v.type, k, false), makeBranch(k + 1, ok, type, prop, i, total, v.body(domain_1.VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));
+    return util_1.terr(`unexpected type in core makeBranch: ${v.tag}`);
 };
 const synthconargs = (local, ty_, args) => {
     config_1.log(() => `synthconargs ${domain_1.showTermQ(ty_, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${syntax_1.showTerm(t)}`).join(' ')}]${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
@@ -431,6 +478,14 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
+    if (a.tag === 'ECase' && b.tag === 'ECase' && a.cases.length === b.cases.length) {
+        exports.unify(k, a.type, b.type);
+        exports.unify(k, a.prop, b.prop);
+        const l = a.cases.length;
+        for (let i = 0; i < l; i++)
+            exports.unify(k + 1, a.cases[i], b.cases[i]);
+        return;
+    }
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a, b) => {
@@ -517,6 +572,7 @@ exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HMeta = (index) => ({ tag: 'HMeta', index });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EUnroll = { tag: 'EUnroll' };
+exports.ECase = (type, prop, cases) => ({ tag: 'ECase', type, prop, cases });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -539,7 +595,8 @@ exports.force = (v) => {
         if (val.tag === 'Unsolved')
             return v;
         return exports.force(list_1.foldr((elim, y) => elim.tag === 'EUnroll' ? exports.vunroll(y) :
-            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+            elim.tag === 'ECase' ? exports.vcase(elim.type, elim.prop, elim.cases, y) :
+                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -549,10 +606,12 @@ exports.forceGlue = (v) => {
         if (val.tag === 'Unsolved')
             return v;
         return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EUnroll' ? exports.vunroll(y) :
-            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+            elim.tag === 'ECase' ? exports.vcase(elim.type, elim.prop, elim.cases, y) :
+                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
+// do the eliminators have to force?
 exports.vapp = (a, plicity, b) => {
     if (a.tag === 'VAbs') {
         if (a.plicity !== plicity)
@@ -574,6 +633,15 @@ exports.vunroll = (v) => {
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EUnroll, v.args), lazy_1.mapLazy(v.val, v => exports.vunroll(v)));
     return util_1.impossible(`vunroll: ${v.tag}`);
+};
+exports.vcase = (ty, prop, cases, v) => {
+    if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
+        return v.args.reduce((x, [y, p]) => exports.vapp(x, p, y), cases[v.index]);
+    if (v.tag === 'VNe')
+        return exports.VNe(v.head, list_1.Cons(exports.ECase(ty, prop, cases), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.ECase(ty, prop, cases), v.args), lazy_1.mapLazy(v.val, v => exports.vcase(ty, prop, cases, v)));
+    return util_1.impossible(`vcase: ${v.tag}`);
 };
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Type')
@@ -609,6 +677,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VData(t.name, t.cons.map(x => v => exports.evaluate(x, exports.extendV(vs, v))));
     if (t.tag === 'Unroll')
         return exports.vunroll(exports.evaluate(t.term, vs));
+    if (t.tag === 'Case')
+        return exports.vcase(exports.evaluate(t.type, vs), exports.evaluate(t.prop, vs), t.cases.map(t => exports.evaluate(t, vs)), exports.evaluate(t.scrut, vs));
     return util_1.impossible(`evaluate: ${t.tag}`);
 };
 const quoteHead = (h, k, full) => {
@@ -632,6 +702,8 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     if (e.tag === 'EUnroll')
         return syntax_1.Unroll(t);
+    if (e.tag === 'ECase')
+        return syntax_1.Case(exports.quote(e.type, k, full), exports.quote(e.prop, k, full), t, e.cases.map(t => exports.quote(t, k, full)));
     return e;
 };
 exports.quote = (v_, k, full) => {
@@ -693,6 +765,7 @@ const zonkSpine = (tm, vs, k, full) => {
             [true, syntax_1.App(spine[1], tm.plicity, exports.zonk(tm.right, vs, k, full))] :
             [false, exports.vapp(spine[1], tm.plicity, exports.evaluate(tm.right, vs))];
     }
+    // TODO: zonk other elims
     return [true, exports.zonk(tm, vs, k, full)];
 };
 exports.zonk = (tm, vs = list_1.Nil, k = 0, full = 0) => {
@@ -724,6 +797,8 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = 0) => {
         return syntax_1.Con(tm.type && exports.zonk(tm.type, vs, k, full), tm.index, tm.total, tm.args.map(([x, p]) => [exports.zonk(x, vs, k, full), p]));
     if (tm.tag === 'Roll')
         return syntax_1.Roll(tm.type && exports.zonk(tm.type, vs, k, full), exports.zonk(tm.term, vs, k, full));
+    if (tm.tag === 'Case')
+        return syntax_1.Case(exports.zonk(tm.type, vs, k, full), exports.zonk(tm.prop, vs, k, full), exports.zonk(tm.scrut, vs, k, full), tm.cases.map(t => exports.zonk(t, vs, k, full)));
     return tm;
 };
 
@@ -1101,6 +1176,24 @@ const exprs = (ts, br) => {
         const args = ts.slice(next + 1).map(t => expr(t));
         return surface_1.Con(ty, ix, total, args);
     }
+    if (isName(ts[0], 'case')) {
+        const ty = expr(ts[1]);
+        if (!ty[1])
+            return util_1.serr(`type in case should be implicit`);
+        const prop = expr(ts[2]);
+        if (!prop[1])
+            return util_1.serr(`prop in case should be implicit`);
+        const scrut = expr(ts[3]);
+        if (scrut[1])
+            return util_1.serr(`scrutinee in case should not be implicit`);
+        const args = ts.slice(4).map(t => {
+            const c = expr(t);
+            if (c[1])
+                return util_1.serr(`branch in case should not be implicit`);
+            return c[0];
+        });
+        return surface_1.Case(ty[0], prop[0], scrut[0], args);
+    }
     if (isName(ts[0], 'let')) {
         const x = ts[1];
         let impl = false;
@@ -1403,6 +1496,8 @@ exports.erase = (t) => {
             c = exports.Abs(c);
         return c;
     }
+    if (t.tag === 'Case')
+        return t.cases.reduce((x, y) => exports.App(x, exports.erase(y)), exports.erase(t.scrut));
     return t;
 };
 
@@ -1681,6 +1776,7 @@ exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, 
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
 exports.Con = (type, index, total, args) => ({ tag: 'Con', type, index, total, args });
+exports.Case = (type, prop, scrut, cases) => ({ tag: 'Case', type, prop, scrut, cases });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Fix = (name, type, body) => ({ tag: 'Fix', name, type, body });
 exports.Data = (name, cons) => ({ tag: 'Data', name, cons });
@@ -1705,6 +1801,8 @@ exports.showTermS = (t) => {
         return `(unroll ${exports.showTermS(t.term)})`;
     if (t.tag === 'Con')
         return `(con ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTermS(t)}}` : exports.showTermS(t)).join(' ')})`;
+    if (t.tag === 'Case')
+        return `(case {${exports.showTermS(t.type)}} {${exports.showTermS(t.prop)}} ${exports.showTermS(t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => exports.showTermS(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTermS(t.type)}). ${exports.showTermS(t.body)})`;
     if (t.tag === 'Fix')
@@ -1779,7 +1877,9 @@ exports.showTerm = (t) => {
     if (t.tag === 'Roll')
         return !t.type ? `roll ${exports.showTermP(t.term.tag === 'Ann', t.term)}` : `roll {${exports.showTerm(t.type)}} ${exports.showTermP(t.term.tag === 'Ann', t.term)}`;
     if (t.tag === 'Con')
-        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')})`;
+        return `con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')}`;
+    if (t.tag === 'Case')
+        return `case {${exports.showTerm(t.type)}} {${exports.showTerm(t.prop)}} ${exports.showTermP(t.scrut.tag != 'Hole' && t.scrut.tag !== 'Meta' && t.scrut.tag !== 'Var', t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => exports.showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')}`;
     return t;
 };
 exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
@@ -1806,6 +1906,7 @@ exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, 
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
 exports.Con = (type, index, total, args) => ({ tag: 'Con', type, index, total, args });
+exports.Case = (type, prop, scrut, cases) => ({ tag: 'Case', type, prop, scrut, cases });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Fix = (name, type, body) => ({ tag: 'Fix', name, type, body });
 exports.Data = (name, cons) => ({ tag: 'Data', name, cons });
@@ -1833,6 +1934,8 @@ exports.showTerm = (t) => {
         return `(unroll ${exports.showTerm(t.term)})`;
     if (t.tag === 'Con')
         return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
+    if (t.tag === 'Case')
+        return `(case {${exports.showTerm(t.type)}} {${exports.showTerm(t.prop)}} ${exports.showTerm(t.scrut)}${t.cases.length > 0 ? ' ' : ''}${t.cases.map(t => exports.showTerm(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
     if (t.tag === 'Fix')
@@ -1870,6 +1973,8 @@ exports.globalUsed = (k, t) => {
         return exports.globalUsed(k, t.term) || exports.globalUsed(k, t.type);
     if (t.tag === 'Con')
         return (t.type && exports.globalUsed(k, t.type)) || t.args.some(([x, _]) => exports.globalUsed(k, x));
+    if (t.tag === 'Case')
+        return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.prop) || exports.globalUsed(k, t.scrut) || t.cases.some(x => exports.globalUsed(k, x));
     return false;
 };
 exports.indexUsed = (k, t) => {
@@ -1895,6 +2000,8 @@ exports.indexUsed = (k, t) => {
         return exports.indexUsed(k, t.term) || exports.indexUsed(k, t.type);
     if (t.tag === 'Con')
         return (t.type && exports.indexUsed(k, t.type)) || t.args.some(([x, _]) => exports.indexUsed(k, x));
+    if (t.tag === 'Case')
+        return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.prop) || exports.indexUsed(k, t.scrut) || t.cases.some(x => exports.indexUsed(k, x));
     return false;
 };
 exports.isUnsolved = (t) => {
@@ -1922,6 +2029,8 @@ exports.isUnsolved = (t) => {
         return exports.isUnsolved(t.term) || exports.isUnsolved(t.type);
     if (t.tag === 'Con')
         return (t.type && exports.isUnsolved(t.type)) || t.args.some(([x, _]) => exports.isUnsolved(x));
+    if (t.tag === 'Case')
+        return exports.isUnsolved(t.type) || exports.isUnsolved(t.prop) || exports.isUnsolved(t.scrut) || t.cases.some(x => exports.isUnsolved(x));
     return false;
 };
 const decideNameMany = (x, t, ns) => {
@@ -1953,6 +2062,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.Unroll(exports.toSurface(t.term, ns));
     if (t.tag === 'Con')
         return S.Con(t.type && exports.toSurface(t.type, ns), t.index, t.total, t.args.map(([x, p]) => [exports.toSurface(x, ns), p]));
+    if (t.tag === 'Case')
+        return S.Case(exports.toSurface(t.type, ns), exports.toSurface(t.prop, ns), exports.toSurface(t.scrut, ns), t.cases.map(x => exports.toSurface(x, ns)));
     if (t.tag === 'Roll')
         return S.Roll(t.type && exports.toSurface(t.type, ns), exports.toSurface(t.term, ns));
     if (t.tag === 'Abs') {
@@ -2002,6 +2113,8 @@ exports.shift = (d, c, t) => {
         return exports.Ann(exports.shift(d, c, t.term), exports.shift(d, c, t.type));
     if (t.tag === 'Con')
         return exports.Con(t.type && exports.shift(d, c, t.type), t.index, t.total, t.args.map(([x, p]) => [exports.shift(d, c, x), p]));
+    if (t.tag === 'Case')
+        return exports.Case(exports.shift(d, c, t.type), exports.shift(d, c, t.prop), exports.shift(d, c, t.scrut), t.cases.map(x => exports.shift(d, c, x)));
     return t;
 };
 
@@ -2260,8 +2373,35 @@ const synth = (local, tm) => {
             return util_1.terr(`constructor was not fully applied: ${S.showTerm(tm)}`);
         return [syntax_1.Con(type, tm.index, tm.total, args), rt];
     }
+    if (tm.tag === 'Case') {
+        const type = check(exports.localInType(local), tm.type, domain_1.VType);
+        const vtype = domain_1.evaluate(type, local.vs);
+        const ft = domain_1.force(vtype);
+        if (ft.tag !== 'VData')
+            return util_1.terr(`not a datatype in case: ${S.showTerm(tm)}`);
+        if (ft.cons.length !== tm.cases.length)
+            return util_1.terr(`cases length mismatch: ${S.showTerm(tm)}`);
+        const prop = check(exports.localInType(local), tm.prop, domain_1.VPi(false, '_', vtype, _ => domain_1.VType));
+        const vprop = domain_1.evaluate(prop, local.vs);
+        const scrut = check(local, tm.scrut, vtype);
+        const vscrut = domain_1.evaluate(scrut, local.vs);
+        const types = ft.cons.map((c, i) => makeBranch(local.index, local.index, type, prop, i, ft.cons.length, c(vtype)));
+        config_1.log(() => types.map(x => syntax_1.showTerm(x)).join(' ; '));
+        config_1.log(() => types.map(x => syntax_1.showSurface(x, local.names)).join(' ; '));
+        const cases = tm.cases.map((t, i) => check(local, t, domain_1.evaluate(types[i], local.vs)));
+        return [syntax_1.Case(type, prop, scrut, cases), domain_1.vapp(vprop, false, vscrut)];
+    }
     return util_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
+const makeBranch = (k, ok, type, prop, i, total, v_, args = [], argcount = 0) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VData')
+        return syntax_1.App(syntax_1.shift(argcount, 0, prop), false, syntax_1.Con(syntax_1.shift(argcount, 0, type), i, total, args.map(([x, p]) => [syntax_1.Var(k - x - 1), p])));
+    if (v.tag === 'VPi')
+        return syntax_1.Pi(v.plicity, makeName(v.name, argcount), domain_1.quote(v.type, k, 0), makeBranch(k + 1, ok, type, prop, i, total, v.body(domain_1.VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));
+    return util_1.terr(`unexpected type in makeBranch: ${v.tag}`);
+};
+const makeName = (x, i) => x === '_' ? `a${i}` : x;
 const synthconargs = (local, ty_, args) => {
     config_1.log(() => `synthconargs ${domain_1.showTermS(ty_, local.names, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${S.showTerm(t)}`).join(' ')}]${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (args.length === 0)
@@ -2370,6 +2510,14 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
+    if (a.tag === 'ECase' && b.tag === 'ECase' && a.cases.length === b.cases.length) {
+        exports.unify(k, a.type, b.type);
+        exports.unify(k, a.prop, b.prop);
+        const l = a.cases.length;
+        for (let i = 0; i < l; i++)
+            exports.unify(k + 1, a.cases[i], b.cases[i]);
+        return;
+    }
     return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a_, b_) => {
@@ -2483,6 +2631,8 @@ const solve = (k, m, spine, val) => {
 const checkSpine = (k, spine) => list_1.map(spine, elim => {
     if (elim.tag === 'EUnroll')
         return util_1.terr(`unroll in meta spine`);
+    if (elim.tag === 'ECase')
+        return util_1.terr(`case in meta spine`);
     if (elim.tag === 'EApp') {
         const v = domain_1.forceGlue(elim.arg);
         if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && list_1.length(v.args) === 0)
@@ -2544,6 +2694,13 @@ const checkSolution = (k, m, is, t) => {
         const ty = checkSolution(k, m, is, t.type);
         const args = t.args.map(([t, p]) => [checkSolution(k, m, is, t), p]);
         return syntax_1.Con(ty, t.index, t.total, args);
+    }
+    if (t.tag === 'Case') {
+        const type = checkSolution(k, m, is, t.type);
+        const prop = checkSolution(k, m, is, t.type);
+        const scrut = checkSolution(k, m, is, t.type);
+        const cases = t.cases.map(t => checkSolution(k, m, is, t));
+        return syntax_1.Case(type, prop, scrut, cases);
     }
     return util_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };

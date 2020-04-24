@@ -16,6 +16,13 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'EUnroll' && b.tag === 'EUnroll') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
+  if (a.tag === 'ECase' && b.tag === 'ECase' && a.cases.length === b.cases.length) {
+    unify(k, a.type, b.type);
+    unify(k, a.prop, b.prop);
+    const l = a.cases.length;
+    for (let i = 0; i < l; i++) unify(k + 1, a.cases[i], b.cases[i]);
+    return;
+  }
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a: Val, b: Val): void => {

@@ -1,5 +1,5 @@
-import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Data, Con } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
+import { Term, Pi, Type, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Fix, Roll, Unroll, Data, Con, Case, shift, showSurface } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, vapp } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/util';
@@ -254,8 +254,35 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     if (force(rt).tag !== 'VData') return terr(`constructor was not fully applied: ${S.showTerm(tm)}`);
     return [Con(type, tm.index, tm.total, args), rt];
   }
+  if (tm.tag === 'Case') {
+    const type = check(localInType(local), tm.type, VType);
+    const vtype = evaluate(type, local.vs);
+    const ft = force(vtype);
+    if (ft.tag !== 'VData') return terr(`not a datatype in case: ${S.showTerm(tm)}`);
+    if (ft.cons.length !== tm.cases.length) return terr(`cases length mismatch: ${S.showTerm(tm)}`);
+    const prop = check(localInType(local), tm.prop, VPi(false, '_', vtype, _ => VType));
+    const vprop = evaluate(prop, local.vs);
+    const scrut = check(local, tm.scrut, vtype);
+    const vscrut = evaluate(scrut, local.vs);
+    const types = ft.cons.map((c, i) => makeBranch(local.index, local.index, type, prop, i, ft.cons.length, c(vtype)));
+    log(() => types.map(x => showTerm(x)).join(' ; '));
+    log(() => types.map(x => showSurface(x, local.names)).join(' ; '));
+    const cases = tm.cases.map((t, i) => check(local, t, evaluate(types[i], local.vs)));
+    return [Case(type, prop, scrut, cases), vapp(vprop, false, vscrut)];
+  }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
+
+const makeBranch = (k: Ix, ok: Ix, type: Term, prop: Term, i: Ix, total: number, v_: Val, args: [Ix, Plicity][] = [], argcount: number = 0): Term => {
+  const v = force(v_);
+  if (v.tag === 'VData')
+    return App(shift(argcount, 0, prop), false, Con(shift(argcount, 0, type), i, total, args.map(([x, p]) => [Var(k - x - 1), p])));
+  if (v.tag === 'VPi')
+    return Pi(v.plicity, makeName(v.name, argcount), quote(v.type, k, 0),
+      makeBranch(k + 1, ok, type, prop, i, total, v.body(VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));
+  return terr(`unexpected type in makeBranch: ${v.tag}`);
+};
+const makeName = (x: Name, i: Ix): Name => x === '_' ? `a${i}` : x;
 
 const synthconargs = (local: Local, ty_: Val, args: [S.Term, Plicity][]): [[Term, Plicity][], Val] => {
   log(() => `synthconargs ${showTermS(ty_, local.names, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${S.showTerm(t)}`).join(' ')}]${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);

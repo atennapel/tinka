@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Data, Con } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Data, Con, Case } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -264,6 +264,20 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const total = +c.num;
     const args = ts.slice(next + 1).map(t => expr(t));
     return Con(ty, ix, total, args);
+  }
+  if (isName(ts[0], 'case')) {
+    const ty = expr(ts[1]);
+    if (!ty[1]) return serr(`type in case should be implicit`);
+    const prop = expr(ts[2]);
+    if (!prop[1]) return serr(`prop in case should be implicit`);
+    const scrut = expr(ts[3]);
+    if (scrut[1]) return serr(`scrutinee in case should not be implicit`);
+    const args = ts.slice(4).map(t => {
+      const c = expr(t);
+      if (c[1]) return serr(`branch in case should not be implicit`);
+      return c[0];
+    });
+    return Case(ty[0], prop[0], scrut[0], args);
   }
   if (isName(ts[0], 'let')) {
     const x = ts[1];
