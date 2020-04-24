@@ -115,6 +115,7 @@ const synth = (local: Local, tm: Term): Val => {
     const vtype = evaluate(tm.type, local.vs);
     const ft = force(vtype);
     if (ft.tag !== 'VData') return terr(`not a datatype in con: ${showTerm(tm)}`);
+    if (ft.cons.length !== tm.total) return terr(`cons amount mismatch: ${showTerm(tm)}`);
     if (!ft.cons[tm.index]) return terr(`not a valid constructor: ${showTerm(tm)}`);
     const con = ft.cons[tm.index](vtype);
     const rt = synthconargs(local, con, tm.args);

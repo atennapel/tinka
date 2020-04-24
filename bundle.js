@@ -37,7 +37,7 @@ exports.VFix = (type, body) => ({ tag: 'VFix', type, body });
 exports.VData = (cons) => ({ tag: 'VData', cons });
 exports.VType = { tag: 'VType' };
 exports.VRoll = (type, term) => ({ tag: 'VRoll', type, term });
-exports.VCon = (type, index, args) => ({ tag: 'VCon', type, index, args });
+exports.VCon = (type, index, total, args) => ({ tag: 'VCon', type, index, total, args });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
@@ -88,7 +88,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Roll')
         return exports.VRoll(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
     if (t.tag === 'Con')
-        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.args.map(([x, p]) => [exports.evaluate(x, vs), p]));
+        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.total, t.args.map(([x, p]) => [exports.evaluate(x, vs), p]));
     if (t.tag === 'Unroll')
         return exports.vunroll(exports.evaluate(t.term, vs));
     if (t.tag === 'Pi')
@@ -142,7 +142,7 @@ exports.quote = (v, k, full) => {
     if (v.tag === 'VData')
         return syntax_1.Data(v.cons.map(c => exports.quote(c(exports.VVar(k)), k + 1, full)));
     if (v.tag === 'VCon')
-        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.args.map(([x, p]) => [exports.quote(x, k, full), p]));
+        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.total, v.args.map(([x, p]) => [exports.quote(x, k, full), p]));
     return v;
 };
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
@@ -160,7 +160,7 @@ exports.Abs = (plicity, type, body) => ({ tag: 'Abs', plicity, type, body });
 exports.Let = (plicity, type, val, body) => ({ tag: 'Let', plicity, type, val, body });
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
-exports.Con = (type, index, args) => ({ tag: 'Con', type, index, args });
+exports.Con = (type, index, total, args) => ({ tag: 'Con', type, index, total, args });
 exports.Pi = (plicity, type, body) => ({ tag: 'Pi', plicity, type, body });
 exports.Fix = (type, body) => ({ tag: 'Fix', type, body });
 exports.Data = (cons) => ({ tag: 'Data', cons });
@@ -181,7 +181,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Unroll')
         return `(unroll ${exports.showTerm(t.term)})`;
     if (t.tag === 'Con')
-        return `(con {${exports.showTerm(t.type)}} ${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
+        return `(con {${exports.showTerm(t.type)}} ${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/${t.plicity ? '-' : ''}${exports.showTerm(t.type)}. ${exports.showTerm(t.body)})`;
     if (t.tag === 'Fix')
@@ -216,7 +216,7 @@ exports.fromSurface = (t, ns = list_1.Nil, k = 0) => {
     if (t.tag === 'Data')
         return exports.Data(t.cons.map(x => exports.fromSurface(x, list_1.Cons([t.name, k], ns), k + 1)));
     if (t.tag === 'Con' && t.type)
-        return exports.Con(exports.fromSurface(t.type, ns, k), t.index, t.args.map(([t, p]) => [exports.fromSurface(t, ns, k), p]));
+        return exports.Con(exports.fromSurface(t.type, ns, k), t.index, t.total, t.args.map(([t, p]) => [exports.fromSurface(t, ns, k), p]));
     return util_1.impossible(`fromSurface: ${t.tag}`);
 };
 exports.toCore = (t) => {
@@ -243,7 +243,7 @@ exports.toCore = (t) => {
     if (t.tag === 'Data')
         return exports.Data(t.cons.map(x => exports.toCore(x)));
     if (t.tag === 'Con' && t.type)
-        return exports.Con(exports.toCore(t.type), t.index, t.args.map(([t, p]) => [exports.toCore(t), p]));
+        return exports.Con(exports.toCore(t.type), t.index, t.total, t.args.map(([t, p]) => [exports.toCore(t), p]));
     return util_1.impossible(`toCore: ${t.tag}`);
 };
 exports.shift = (d, c, t) => {
@@ -266,7 +266,7 @@ exports.shift = (d, c, t) => {
     if (t.tag === 'Data')
         return exports.Data(t.cons.map(x => exports.shift(d, c + 1, x)));
     if (t.tag === 'Con')
-        return exports.Con(exports.shift(d, c, t.type), t.index, t.args.map(([t, p]) => [exports.shift(d, c, t), p]));
+        return exports.Con(exports.shift(d, c, t.type), t.index, t.total, t.args.map(([t, p]) => [exports.shift(d, c, t), p]));
     return t;
 };
 
@@ -380,6 +380,8 @@ const synth = (local, tm) => {
         const ft = domain_1.force(vtype);
         if (ft.tag !== 'VData')
             return util_1.terr(`not a datatype in con: ${syntax_1.showTerm(tm)}`);
+        if (ft.cons.length !== tm.total)
+            return util_1.terr(`cons amount mismatch: ${syntax_1.showTerm(tm)}`);
         if (!ft.cons[tm.index])
             return util_1.terr(`not a valid constructor: ${syntax_1.showTerm(tm)}`);
         const con = ft.cons[tm.index](vtype);
@@ -441,7 +443,7 @@ exports.unify = (k, a, b) => {
         exports.unify(k, a.type, b.type);
         return exports.unify(k, a.term, b.term);
     }
-    if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+    if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.total === b.total && a.args.length === b.args.length) {
         exports.unify(k, a.type, b.type);
         const l = a.args.length;
         for (let i = 0; i < l; i++) {
@@ -523,7 +525,7 @@ exports.VFix = (name, type, body) => ({ tag: 'VFix', name, type, body });
 exports.VData = (name, cons) => ({ tag: 'VData', name, cons });
 exports.VType = { tag: 'VType' };
 exports.VRoll = (type, term) => ({ tag: 'VRoll', type, term });
-exports.VCon = (type, index, args) => ({ tag: 'VCon', type, index, args });
+exports.VCon = (type, index, total, args) => ({ tag: 'VCon', type, index, total, args });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
@@ -600,7 +602,7 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Roll' && t.type)
         return exports.VRoll(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
     if (t.tag === 'Con' && t.type)
-        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.args.map(([x, p]) => [exports.evaluate(x, vs), p]));
+        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.total, t.args.map(([x, p]) => [exports.evaluate(x, vs), p]));
     if (t.tag === 'Fix')
         return exports.VFix(t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Data')
@@ -659,7 +661,7 @@ exports.quote = (v_, k, full) => {
     if (v.tag === 'VRoll')
         return syntax_1.Roll(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
     if (v.tag === 'VCon')
-        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.args.map(([x, p]) => [exports.quote(x, k, full), p]));
+        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.total, v.args.map(([x, p]) => [exports.quote(x, k, full), p]));
     return v;
 };
 exports.quoteZ = (v, vs = list_1.Nil, k = 0, full = 0) => exports.zonk(exports.quote(v, k, full), vs, k, full);
@@ -719,7 +721,7 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = 0) => {
     if (tm.tag === 'Unroll')
         return syntax_1.Unroll(exports.zonk(tm.term, vs, k, full));
     if (tm.tag === 'Con')
-        return syntax_1.Con(tm.type && exports.zonk(tm.type, vs, k, full), tm.index, tm.args.map(([x, p]) => [exports.zonk(x, vs, k, full), p]));
+        return syntax_1.Con(tm.type && exports.zonk(tm.type, vs, k, full), tm.index, tm.total, tm.args.map(([x, p]) => [exports.zonk(x, vs, k, full), p]));
     if (tm.tag === 'Roll')
         return syntax_1.Roll(tm.type && exports.zonk(tm.type, vs, k, full), exports.zonk(tm.term, vs, k, full));
     return tm;
@@ -1077,19 +1079,27 @@ const exprs = (ts, br) => {
     if (isName(ts[0], 'con')) {
         let ty = null;
         let ix = -1;
-        if (ts[1].tag === 'Num' && !isNaN(+ts[1].num))
+        let next = 0;
+        if (ts[1] && ts[1].tag === 'Num' && !isNaN(+ts[1].num)) {
             ix = +ts[1].num;
+            next = 2;
+        }
         else {
             const tt = expr(ts[1]);
             if (!tt[1])
                 return util_1.serr(`type in con should be implicit`);
             ty = expr(ts[1])[0];
-            if (ts[2].tag !== 'Num' || isNaN(+ts[2].num))
+            if (!ts[2] || ts[2].tag !== 'Num' || isNaN(+ts[2].num))
                 return util_1.serr(`not a valid index in con`);
             ix = +ts[2].num;
+            next = 3;
         }
-        const args = ts.slice(3).map(t => expr(t));
-        return surface_1.Con(ty, ix, args);
+        const c = ts[next];
+        if (!c || c.tag !== 'Num' || isNaN(+c.num))
+            return util_1.serr(`not a valid total in con`);
+        const total = +c.num;
+        const args = ts.slice(next + 1).map(t => expr(t));
+        return surface_1.Con(ty, ix, total, args);
     }
     if (isName(ts[0], 'let')) {
         const x = ts[1];
@@ -1376,8 +1386,6 @@ exports.erase = (t) => {
         return exports.erase(t.term);
     if (t.tag === 'Unroll')
         return exports.erase(t.term);
-    if (t.tag === 'Con')
-        return exports.idTerm; // TODO
     if (t.tag === 'Pi')
         return exports.idTerm;
     if (t.tag === 'Fix')
@@ -1386,6 +1394,15 @@ exports.erase = (t) => {
         return exports.idTerm;
     if (t.tag === 'Data')
         return exports.idTerm;
+    if (t.tag === 'Con') {
+        // scott-encoding
+        // cons {T} i n args... = \a1..a_n. a_i args...
+        const args = t.args.filter(([_, p]) => !p).map(([x, _]) => exports.shift(t.total, 0, exports.erase(x)));
+        let c = args.reduce((a, b) => exports.App(a, b), exports.Var(t.total - t.index - 1));
+        for (let i = 0; i < t.total; i++)
+            c = exports.Abs(c);
+        return c;
+    }
     return t;
 };
 
@@ -1663,7 +1680,7 @@ exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type,
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
-exports.Con = (type, index, args) => ({ tag: 'Con', type, index, args });
+exports.Con = (type, index, total, args) => ({ tag: 'Con', type, index, total, args });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Fix = (name, type, body) => ({ tag: 'Fix', name, type, body });
 exports.Data = (name, cons) => ({ tag: 'Data', name, cons });
@@ -1687,7 +1704,7 @@ exports.showTermS = (t) => {
     if (t.tag === 'Unroll')
         return `(unroll ${exports.showTermS(t.term)})`;
     if (t.tag === 'Con')
-        return `(con ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTermS(t)}}` : exports.showTermS(t)).join(' ')})`;
+        return `(con ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTermS(t)}}` : exports.showTermS(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTermS(t.type)}). ${exports.showTermS(t.body)})`;
     if (t.tag === 'Fix')
@@ -1762,7 +1779,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Roll')
         return !t.type ? `roll ${exports.showTermP(t.term.tag === 'Ann', t.term)}` : `roll {${exports.showTerm(t.type)}} ${exports.showTermP(t.term.tag === 'Ann', t.term)}`;
     if (t.tag === 'Con')
-        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')})`;
+        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')})`;
     return t;
 };
 exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
@@ -1788,7 +1805,7 @@ exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type,
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
-exports.Con = (type, index, args) => ({ tag: 'Con', type, index, args });
+exports.Con = (type, index, total, args) => ({ tag: 'Con', type, index, total, args });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Fix = (name, type, body) => ({ tag: 'Fix', name, type, body });
 exports.Data = (name, cons) => ({ tag: 'Data', name, cons });
@@ -1815,7 +1832,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Unroll')
         return `(unroll ${exports.showTerm(t.term)})`;
     if (t.tag === 'Con')
-        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
+        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index} ${t.total}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
     if (t.tag === 'Fix')
@@ -1935,7 +1952,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     if (t.tag === 'Unroll')
         return S.Unroll(exports.toSurface(t.term, ns));
     if (t.tag === 'Con')
-        return S.Con(t.type && exports.toSurface(t.type, ns), t.index, t.args.map(([x, p]) => [exports.toSurface(x, ns), p]));
+        return S.Con(t.type && exports.toSurface(t.type, ns), t.index, t.total, t.args.map(([x, p]) => [exports.toSurface(x, ns), p]));
     if (t.tag === 'Roll')
         return S.Roll(t.type && exports.toSurface(t.type, ns), exports.toSurface(t.term, ns));
     if (t.tag === 'Abs') {
@@ -1984,7 +2001,7 @@ exports.shift = (d, c, t) => {
     if (t.tag === 'Ann')
         return exports.Ann(exports.shift(d, c, t.term), exports.shift(d, c, t.type));
     if (t.tag === 'Con')
-        return exports.Con(t.type && exports.shift(d, c, t.type), t.index, t.args.map(([x, p]) => [exports.shift(d, c, x), p]));
+        return exports.Con(t.type && exports.shift(d, c, t.type), t.index, t.total, t.args.map(([x, p]) => [exports.shift(d, c, x), p]));
     return t;
 };
 
@@ -2233,13 +2250,15 @@ const synth = (local, tm) => {
         const ft = domain_1.force(vtype);
         if (ft.tag !== 'VData')
             return util_1.terr(`not a datatype in con: ${S.showTerm(tm)}`);
+        if (ft.cons.length !== tm.total)
+            return util_1.terr(`cons amount mismatch: ${S.showTerm(tm)}`);
         if (!ft.cons[tm.index])
             return util_1.terr(`not a valid constructor: ${S.showTerm(tm)}`);
         const con = ft.cons[tm.index](vtype);
         const [args, rt] = synthconargs(local, con, tm.args);
         if (domain_1.force(rt).tag !== 'VData')
             return util_1.terr(`constructor was not fully applied: ${S.showTerm(tm)}`);
-        return [syntax_1.Con(type, tm.index, args), rt];
+        return [syntax_1.Con(type, tm.index, tm.total, args), rt];
     }
     return util_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
@@ -2365,7 +2384,7 @@ exports.unify = (k, a_, b_) => {
         exports.unify(k, a.type, b.type);
         return exports.unify(k, a.term, b.term);
     }
-    if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+    if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.total === b.total && a.args.length === b.args.length) {
         exports.unify(k, a.type, b.type);
         const l = a.args.length;
         for (let i = 0; i < l; i++) {
@@ -2524,7 +2543,7 @@ const checkSolution = (k, m, is, t) => {
     if (t.tag === 'Con' && t.type) {
         const ty = checkSolution(k, m, is, t.type);
         const args = t.args.map(([t, p]) => [checkSolution(k, m, is, t), p]);
-        return syntax_1.Con(ty, t.index, args);
+        return syntax_1.Con(ty, t.index, t.total, args);
     }
     return util_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };

@@ -26,7 +26,7 @@ export const unify = (k: Ix, a: Val, b: Val): void => {
     unify(k, a.type, b.type);
     return unify(k, a.term, b.term);
   }
-  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.total === b.total && a.args.length === b.args.length) {
     unify(k, a.type, b.type);
     const l = a.args.length;
     for (let i = 0; i < l; i++) {

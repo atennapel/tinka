@@ -4,9 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- constructor translation in pure
-- consistency check for data constructors
 - add elim
+- consistency check for data constructors
+- remove total from con, elaborate to pure in core typechecking
 - handle con without type
 - update parser to allow annotation in let
 - insert skolems in check

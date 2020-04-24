@@ -247,16 +247,23 @@ const exprs = (ts: Token[], br: BracketO): Term => {
   if (isName(ts[0], 'con')) {
     let ty = null;
     let ix = -1;
-    if (ts[1].tag === 'Num' && !isNaN(+ts[1].num)) ix = +ts[1].num;
-    else {
+    let next = 0;
+    if (ts[1] && ts[1].tag === 'Num' && !isNaN(+ts[1].num)) {
+      ix = +ts[1].num;
+      next = 2;
+    } else {
       const tt = expr(ts[1]);
       if (!tt[1]) return serr(`type in con should be implicit`);
       ty = expr(ts[1])[0];
-      if (ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not a valid index in con`);
+      if (!ts[2] || ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not a valid index in con`);
       ix = +ts[2].num;
+      next = 3;
     }
-    const args = ts.slice(3).map(t => expr(t));
-    return Con(ty, ix, args);
+    const c = ts[next];
+    if (!c || c.tag !== 'Num' || isNaN(+c.num)) return serr(`not a valid total in con`);
+    const total = +c.num;
+    const args = ts.slice(next + 1).map(t => expr(t));
+    return Con(ty, ix, total, args);
   }
   if (isName(ts[0], 'let')) {
     const x = ts[1];

@@ -78,10 +78,17 @@ export const erase = (t: TTerm): Term => {
   if (t.tag === 'Let') return t.plicity ? shift(-1, 0, erase(t.body)) : App(Abs(erase(t.body)), erase(t.val));
   if (t.tag === 'Roll') return erase(t.term);
   if (t.tag === 'Unroll') return erase(t.term);
-  if (t.tag === 'Con') return idTerm; // TODO
   if (t.tag === 'Pi') return idTerm;
   if (t.tag === 'Fix') return idTerm;
   if (t.tag === 'Type') return idTerm;
   if (t.tag === 'Data') return idTerm;
+  if (t.tag === 'Con') {
+    // scott-encoding
+    // cons {T} i n args... = \a1..a_n. a_i args...
+    const args = t.args.filter(([_, p]) => !p).map(([x, _]) => shift(t.total, 0, erase(x)));
+    let c = args.reduce((a, b) => App(a, b), Var(t.total - t.index - 1));
+    for (let i = 0; i < t.total; i++) c = Abs(c);
+    return c;
+  }
   return t;
 };

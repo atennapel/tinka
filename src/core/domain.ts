@@ -39,8 +39,8 @@ export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
 export type VRoll = { tag: 'VRoll', type: Val, term: Val };
 export const VRoll = (type: Val, term: Val): VRoll => ({ tag: 'VRoll', type, term });
-export type VCon = { tag: 'VCon', type: Val, index: Ix, args: [Val, Plicity][] };
-export const VCon = (type: Val, index: Ix, args: [Val, Plicity][]): VCon => ({ tag: 'VCon', type, index, args });
+export type VCon = { tag: 'VCon', type: Val, index: Ix, total: number, args: [Val, Plicity][] };
+export const VCon = (type: Val, index: Ix, total: number, args: [Val, Plicity][]): VCon => ({ tag: 'VCon', type, index, total, args });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -91,7 +91,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Roll')
     return VRoll(evaluate(t.type, vs), evaluate(t.term, vs));
   if (t.tag === 'Con')
-    return VCon(evaluate(t.type, vs), t.index, t.args.map(([x, p]) => [evaluate(x, vs), p]));
+    return VCon(evaluate(t.type, vs), t.index, t.total, t.args.map(([x, p]) => [evaluate(x, vs), p]));
   if (t.tag === 'Unroll')
     return vunroll(evaluate(t.term, vs));
   if (t.tag === 'Pi')
@@ -146,7 +146,7 @@ export const quote = (v: Val, k: Ix, full: boolean): Term => {
   if (v.tag === 'VData')
     return Data(v.cons.map(c => quote(c(VVar(k)), k + 1, full)));
   if (v.tag === 'VCon')
-    return Con(quote(v.type, k, full), v.index, v.args.map(([x, p]) => [quote(x, k, full), p]));
+    return Con(quote(v.type, k, full), v.index, v.total, v.args.map(([x, p]) => [quote(x, k, full), p]));
   return v;
 };
 

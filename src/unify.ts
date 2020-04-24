@@ -32,7 +32,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, a.type, b.type);
     return unify(k, a.term, b.term);
   }
-  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.total === b.total && a.args.length === b.args.length) {
     unify(k, a.type, b.type);
     const l = a.args.length;
     for (let i = 0; i < l; i++) {
@@ -184,7 +184,7 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Con' && t.type) {
     const ty = checkSolution(k, m, is, t.type);
     const args: [Term, Plicity][] = t.args.map(([t, p]) => [checkSolution(k, m, is, t), p]);
-    return Con(ty, t.index, args);
+    return Con(ty, t.index, t.total, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

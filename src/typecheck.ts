@@ -247,11 +247,12 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const ft = force(vtype);
     if (ft.tag !== 'VData') return terr(`not a datatype in con: ${S.showTerm(tm)}`);
+    if (ft.cons.length !== tm.total) return terr(`cons amount mismatch: ${S.showTerm(tm)}`);
     if (!ft.cons[tm.index]) return terr(`not a valid constructor: ${S.showTerm(tm)}`);
     const con = ft.cons[tm.index](vtype);
     const [args, rt] = synthconargs(local, con, tm.args);
     if (force(rt).tag !== 'VData') return terr(`constructor was not fully applied: ${S.showTerm(tm)}`);
-    return [Con(type, tm.index, args), rt];
+    return [Con(type, tm.index, tm.total, args), rt];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
