@@ -26,6 +26,16 @@ export const unify = (k: Ix, a: Val, b: Val): void => {
     unify(k, a.type, b.type);
     return unify(k, a.term, b.term);
   }
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+    unify(k, a.type, b.type);
+    const l = a.args.length;
+    for (let i = 0; i < l; i++) {
+      if (a.args[i][1] !== b.args[i][1])
+        return terr(`unify failed (${k}): ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
+      unify(k, a.args[i][0], b.args[i][0]);
+    }
+    return;
+  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -35,6 +45,12 @@ export const unify = (k: Ix, a: Val, b: Val): void => {
     unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
+  }
+  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+    const v = VVar(k);
+    const l = a.cons.length;
+    for (let i = 0; i < l; i++) unify(k + 1, a.cons[i](v), b.cons[i](v));
+    return;
   }
   if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);

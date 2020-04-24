@@ -92,6 +92,10 @@ const synth = (local: Local, tm: Term): Val => {
     check(extend(local, evaluate(tm.type, local.vs), false, VVar(local.index)), tm.body, vt);
     return vt;
   }
+  if (tm.tag === 'Data') {
+    tm.cons.forEach(t => check(extend(local, VType, false, VVar(local.index)), t, VType));
+    return VType;
+  }
   if (tm.tag === 'Roll') {
     check(localInType(local), tm.type, VType);
     const vt = force(evaluate(tm.type, local.vs));
@@ -106,7 +110,31 @@ const synth = (local: Local, tm: Term): Val => {
     if (vt.tag === 'VFix') return vt.body(vt);
     return terr(`fix type expected in ${showTerm(tm)}: ${showTermQ(vt, local.index)}`);
   }
+  if (tm.tag === 'Con') {
+    check(localInType(local), tm.type, VType);
+    const vtype = evaluate(tm.type, local.vs);
+    const ft = force(vtype);
+    if (ft.tag !== 'VData') return terr(`not a datatype in con: ${showTerm(tm)}`);
+    if (!ft.cons[tm.index]) return terr(`not a valid constructor: ${showTerm(tm)}`);
+    const con = ft.cons[tm.index](vtype);
+    const rt = synthconargs(local, con, tm.args);
+    if (force(rt).tag !== 'VData') return terr(`constructor was not fully applied: ${showTerm(tm)}`);
+    return rt;
+  }
   return terr(`cannot synth ${showTerm(tm)}`);
+};
+
+const synthconargs = (local: Local, ty_: Val, args: [Term, Plicity][]): Val => {
+  log(() => `synthconargs ${showTermQ(ty_, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${showTerm(t)}`).join(' ')}]${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  if (args.length === 0) return ty_;
+  const ty = force(ty_);
+  const head = args[0];
+  if (ty.tag === 'VPi' && ty.plicity === head[1]) {
+    check(ty.plicity ? localInType(local) : local, head[0], ty.type);
+    const rt = ty.body(evaluate(head[0], local.vs));
+    return synthconargs(local, rt, args.slice(1));
+  }
+  return terr(`invalid type or plicity mismatch in synthconargs`);
 };
 
 export const typecheck = (tm: Term, local: Local = localEmpty): Val =>

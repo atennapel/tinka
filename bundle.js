@@ -34,8 +34,10 @@ exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, type, body) => ({ tag: 'VAbs', plicity, type, body });
 exports.VPi = (plicity, type, body) => ({ tag: 'VPi', plicity, type, body });
 exports.VFix = (type, body) => ({ tag: 'VFix', type, body });
+exports.VData = (cons) => ({ tag: 'VData', cons });
 exports.VType = { tag: 'VType' };
 exports.VRoll = (type, term) => ({ tag: 'VRoll', type, term });
+exports.VCon = (type, index, args) => ({ tag: 'VCon', type, index, args });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
@@ -85,12 +87,16 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.evaluate(t.body, exports.extendV(vs, exports.evaluate(t.val, vs)));
     if (t.tag === 'Roll')
         return exports.VRoll(exports.evaluate(t.type, vs), exports.evaluate(t.term, vs));
+    if (t.tag === 'Con')
+        return exports.VCon(exports.evaluate(t.type, vs), t.index, t.args.map(([x, p]) => [exports.evaluate(x, vs), p]));
     if (t.tag === 'Unroll')
         return exports.vunroll(exports.evaluate(t.term, vs));
     if (t.tag === 'Pi')
         return exports.VPi(t.plicity, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Fix')
         return exports.VFix(exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
+    if (t.tag === 'Data')
+        return exports.VData(t.cons.map(x => v => exports.evaluate(x, exports.extendV(vs, v))));
     return t;
 };
 const quoteHead = (h, k, full) => {
@@ -133,6 +139,10 @@ exports.quote = (v, k, full) => {
         return syntax_1.Fix(exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VRoll')
         return syntax_1.Roll(exports.quote(v.type, k, full), exports.quote(v.term, k, full));
+    if (v.tag === 'VData')
+        return syntax_1.Data(v.cons.map(c => exports.quote(c(exports.VVar(k)), k + 1, full)));
+    if (v.tag === 'VCon')
+        return syntax_1.Con(exports.quote(v.type, k, full), v.index, v.args.map(([x, p]) => [exports.quote(x, k, full), p]));
     return v;
 };
 exports.normalize = (t, vs, k, full) => exports.quote(exports.evaluate(t, vs), k, full);
@@ -150,8 +160,10 @@ exports.Abs = (plicity, type, body) => ({ tag: 'Abs', plicity, type, body });
 exports.Let = (plicity, type, val, body) => ({ tag: 'Let', plicity, type, val, body });
 exports.Roll = (type, term) => ({ tag: 'Roll', type, term });
 exports.Unroll = (term) => ({ tag: 'Unroll', term });
+exports.Con = (type, index, args) => ({ tag: 'Con', type, index, args });
 exports.Pi = (plicity, type, body) => ({ tag: 'Pi', plicity, type, body });
 exports.Fix = (type, body) => ({ tag: 'Fix', type, body });
+exports.Data = (cons) => ({ tag: 'Data', cons });
 exports.Type = { tag: 'Type' };
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
@@ -168,10 +180,14 @@ exports.showTerm = (t) => {
         return `(roll ${exports.showTerm(t.type)} ${exports.showTerm(t.term)})`;
     if (t.tag === 'Unroll')
         return `(unroll ${exports.showTerm(t.term)})`;
+    if (t.tag === 'Con')
+        return `(con {${exports.showTerm(t.type)}} ${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(' ')})`;
     if (t.tag === 'Pi')
         return `(/${t.plicity ? '-' : ''}${exports.showTerm(t.type)}. ${exports.showTerm(t.body)})`;
     if (t.tag === 'Fix')
         return `(fix ${exports.showTerm(t.type)}. ${exports.showTerm(t.body)})`;
+    if (t.tag === 'Data')
+        return `(data. ${t.cons.map(exports.showTerm).join(' | ')})`;
     if (t.tag === 'Type')
         return '*';
     return t;
@@ -197,6 +213,10 @@ exports.fromSurface = (t, ns = list_1.Nil, k = 0) => {
         return exports.Roll(exports.fromSurface(t.type, ns, k), exports.fromSurface(t.term, ns, k));
     if (t.tag === 'Unroll')
         return exports.Unroll(exports.fromSurface(t.term, ns, k));
+    if (t.tag === 'Data')
+        return exports.Data(t.cons.map(x => exports.fromSurface(x, list_1.Cons([t.name, k], ns), k + 1)));
+    if (t.tag === 'Con' && t.type)
+        return exports.Con(exports.fromSurface(t.type, ns, k), t.index, t.args.map(([t, p]) => [exports.fromSurface(t, ns, k), p]));
     return util_1.impossible(`fromSurface: ${t.tag}`);
 };
 exports.toCore = (t) => {
@@ -220,6 +240,10 @@ exports.toCore = (t) => {
         return exports.Roll(exports.toCore(t.type), exports.toCore(t.term));
     if (t.tag === 'Unroll')
         return exports.Unroll(exports.toCore(t.term));
+    if (t.tag === 'Data')
+        return exports.Data(t.cons.map(x => exports.toCore(x)));
+    if (t.tag === 'Con' && t.type)
+        return exports.Con(exports.toCore(t.type), t.index, t.args.map(([t, p]) => [exports.toCore(t), p]));
     return util_1.impossible(`toCore: ${t.tag}`);
 };
 exports.shift = (d, c, t) => {
@@ -239,6 +263,10 @@ exports.shift = (d, c, t) => {
         return exports.Pi(t.plicity, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
     if (t.tag === 'Fix')
         return exports.Fix(exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Data')
+        return exports.Data(t.cons.map(x => exports.shift(d, c + 1, x)));
+    if (t.tag === 'Con')
+        return exports.Con(exports.shift(d, c, t.type), t.index, t.args.map(([t, p]) => [exports.shift(d, c, t), p]));
     return t;
 };
 
@@ -327,6 +355,10 @@ const synth = (local, tm) => {
         check(extend(local, domain_1.evaluate(tm.type, local.vs), false, domain_1.VVar(local.index)), tm.body, vt);
         return vt;
     }
+    if (tm.tag === 'Data') {
+        tm.cons.forEach(t => check(extend(local, domain_1.VType, false, domain_1.VVar(local.index)), t, domain_1.VType));
+        return domain_1.VType;
+    }
     if (tm.tag === 'Roll') {
         check(localInType(local), tm.type, domain_1.VType);
         const vt = domain_1.force(domain_1.evaluate(tm.type, local.vs));
@@ -342,7 +374,34 @@ const synth = (local, tm) => {
             return vt.body(vt);
         return util_1.terr(`fix type expected in ${syntax_1.showTerm(tm)}: ${domain_1.showTermQ(vt, local.index)}`);
     }
+    if (tm.tag === 'Con') {
+        check(localInType(local), tm.type, domain_1.VType);
+        const vtype = domain_1.evaluate(tm.type, local.vs);
+        const ft = domain_1.force(vtype);
+        if (ft.tag !== 'VData')
+            return util_1.terr(`not a datatype in con: ${syntax_1.showTerm(tm)}`);
+        if (!ft.cons[tm.index])
+            return util_1.terr(`not a valid constructor: ${syntax_1.showTerm(tm)}`);
+        const con = ft.cons[tm.index](vtype);
+        const rt = synthconargs(local, con, tm.args);
+        if (domain_1.force(rt).tag !== 'VData')
+            return util_1.terr(`constructor was not fully applied: ${syntax_1.showTerm(tm)}`);
+        return rt;
+    }
     return util_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
+};
+const synthconargs = (local, ty_, args) => {
+    config_1.log(() => `synthconargs ${domain_1.showTermQ(ty_, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${syntax_1.showTerm(t)}`).join(' ')}]${config_1.config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+    if (args.length === 0)
+        return ty_;
+    const ty = domain_1.force(ty_);
+    const head = args[0];
+    if (ty.tag === 'VPi' && ty.plicity === head[1]) {
+        check(ty.plicity ? localInType(local) : local, head[0], ty.type);
+        const rt = ty.body(domain_1.evaluate(head[0], local.vs));
+        return synthconargs(local, rt, args.slice(1));
+    }
+    return util_1.terr(`invalid type or plicity mismatch in synthconargs`);
 };
 exports.typecheck = (tm, local = localEmpty) => synth(local, tm);
 
@@ -382,6 +441,16 @@ exports.unify = (k, a, b) => {
         exports.unify(k, a.type, b.type);
         return exports.unify(k, a.term, b.term);
     }
+    if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.args.length === b.args.length) {
+        exports.unify(k, a.type, b.type);
+        const l = a.args.length;
+        for (let i = 0; i < l; i++) {
+            if (a.args[i][1] !== b.args[i][1])
+                return util_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
+            exports.unify(k, a.args[i][0], b.args[i][0]);
+        }
+        return;
+    }
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
         const v = domain_1.VVar(k);
@@ -391,6 +460,13 @@ exports.unify = (k, a, b) => {
         exports.unify(k, a.type, b.type);
         const v = domain_1.VVar(k);
         return exports.unify(k + 1, a.body(v), b.body(v));
+    }
+    if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+        const v = domain_1.VVar(k);
+        const l = a.cons.length;
+        for (let i = 0; i < l; i++)
+            exports.unify(k + 1, a.cons[i](v), b.cons[i](v));
+        return;
     }
     if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
@@ -1300,11 +1376,15 @@ exports.erase = (t) => {
         return exports.erase(t.term);
     if (t.tag === 'Unroll')
         return exports.erase(t.term);
+    if (t.tag === 'Con')
+        return exports.idTerm; // TODO
     if (t.tag === 'Pi')
         return exports.idTerm;
     if (t.tag === 'Fix')
         return exports.idTerm;
     if (t.tag === 'Type')
+        return exports.idTerm;
+    if (t.tag === 'Data')
         return exports.idTerm;
     return t;
 };
@@ -1682,7 +1762,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Roll')
         return !t.type ? `roll ${exports.showTermP(t.term.tag === 'Ann', t.term)}` : `roll {${exports.showTerm(t.type)}} ${exports.showTermP(t.term.tag === 'Ann', t.term)}`;
     if (t.tag === 'Con')
-        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(true, t)).join(' ')})`;
+        return `(con ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${exports.showTerm(t)}}` : exports.showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')})`;
     return t;
 };
 exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
@@ -2440,6 +2520,11 @@ const checkSolution = (k, m, is, t) => {
     if (t.tag === 'Unroll') {
         const tm = checkSolution(k, m, is, t.term);
         return syntax_1.Unroll(tm);
+    }
+    if (t.tag === 'Con' && t.type) {
+        const ty = checkSolution(k, m, is, t.type);
+        const args = t.args.map(([t, p]) => [checkSolution(k, m, is, t), p]);
+        return syntax_1.Con(ty, t.index, args);
     }
     return util_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };

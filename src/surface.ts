@@ -112,7 +112,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Roll')
     return !t.type ? `roll ${showTermP(t.term.tag === 'Ann', t.term)}` : `roll {${showTerm(t.type)}} ${showTermP(t.term.tag === 'Ann', t.term)}`;
   if (t.tag === 'Con')
-    return `(con ${t.type ? `{${showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTerm(t)}}` : showTermP(true, t)).join(' ')})`;
+    return `(con ${t.type ? `{${showTerm(t.type)}} ` : ''}${t.index}${t.args.length > 0 ? ' ' : ''}${t.args.map(([t, p]) => p ? `{${showTerm(t)}}` : showTermP(t.tag != 'Hole' && t.tag !== 'Meta' && t.tag !== 'Var', t)).join(' ')})`;
   return t;
 };
 

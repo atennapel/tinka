@@ -4,10 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add data and elim to core and pure
-- handle con without type
+- constructor translation in pure
 - consistency check for data constructors
 - add elim
+- handle con without type
 - update parser to allow annotation in let
 - insert skolems in check
 - add named holes

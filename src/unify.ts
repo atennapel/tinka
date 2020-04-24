@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix, Data } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Unroll, Roll, Fix, Data, Con } from './syntax';
 import { Plicity } from './surface';
 
 const eqHead = (a: Head, b: Head): boolean => {
@@ -180,6 +180,11 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Unroll') {
     const tm = checkSolution(k, m, is, t.term);
     return Unroll(tm);
+  }
+  if (t.tag === 'Con' && t.type) {
+    const ty = checkSolution(k, m, is, t.type);
+    const args: [Term, Plicity][] = t.args.map(([t, p]) => [checkSolution(k, m, is, t), p]);
+    return Con(ty, t.index, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };
