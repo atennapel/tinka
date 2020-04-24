@@ -1,6 +1,6 @@
 import { Ix, Name } from '../names';
 import { List, Cons, Nil, listToString, index, foldr } from '../utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, Unroll, Fix, Roll, Con, Data, Case } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, Con, Data, Case } from './syntax';
 import { impossible } from '../utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from '../utils/lazy';
 import { Plicity } from '../surface';
@@ -13,17 +13,15 @@ export const HVar = (index: Ix): HVar => ({ tag: 'HVar', index });
 export type HGlobal = { tag: 'HGlobal', name: Name };
 export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 
-export type Elim = EApp | EUnroll | ECase;
+export type Elim = EApp | ECase;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
-export type EUnroll = { tag: 'EUnroll' };
-export const EUnroll: EUnroll = { tag: 'EUnroll' };
 export type ECase = { tag: 'ECase', type: Val, prop: Val, cases: Val[] };
 export const ECase = (type: Val, prop: Val, cases: Val[]): ECase => ({ tag: 'ECase', type, prop, cases });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VFix | VData | VType | VRoll | VCon;
+export type Val = VNe | VGlued | VAbs | VPi | VData | VType | VCon;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -33,14 +31,10 @@ export type VAbs = { tag: 'VAbs', plicity: Plicity, type: Val, body: Clos };
 export const VAbs = (plicity: Plicity, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, type, body});
 export type VPi = { tag: 'VPi', plicity: Plicity, type: Val, body: Clos };
 export const VPi = (plicity: Plicity, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, type, body});
-export type VFix = { tag: 'VFix', type: Val, body: Clos };
-export const VFix = (type: Val, body: Clos): VFix => ({ tag: 'VFix', type, body});
 export type VData = { tag: 'VData', cons: Clos[] };
 export const VData = (cons: Clos[]): VData => ({ tag: 'VData', cons });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
-export type VRoll = { tag: 'VRoll', type: Val, term: Val };
-export const VRoll = (type: Val, term: Val): VRoll => ({ tag: 'VRoll', type, term });
 export type VCon = { tag: 'VCon', type: Val, index: Ix, total: number, args: [Val, Plicity][] };
 export const VCon = (type: Val, index: Ix, total: number, args: [Val, Plicity][]): VCon => ({ tag: 'VCon', type, index, total, args });
 
@@ -65,13 +59,6 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`core vapp: ${a.tag}`);
-};
-export const vunroll = (v: Val): Val => {
-  if (v.tag === 'VRoll') return v.term;
-  if (v.tag === 'VNe') return VNe(v.head, Cons(EUnroll, v.args));
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EUnroll, v.args), mapLazy(v.val, v => vunroll(v)));
-  return impossible(`core vunroll: ${v.tag}`);
 };
 export const vcase = (ty: Val, prop: Val, cases: Val[], v: Val): Val => {
   if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
@@ -98,16 +85,10 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VAbs(t.plicity, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Let')
     return evaluate(t.body, extendV(vs, evaluate(t.val, vs)));
-  if (t.tag === 'Roll')
-    return VRoll(evaluate(t.type, vs), evaluate(t.term, vs));
   if (t.tag === 'Con')
     return VCon(evaluate(t.type, vs), t.index, t.total, t.args.map(([x, p]) => [evaluate(x, vs), p]));
-  if (t.tag === 'Unroll')
-    return vunroll(evaluate(t.term, vs));
   if (t.tag === 'Pi')
     return VPi(t.plicity, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
-  if (t.tag === 'Fix')
-    return VFix(evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Data')
     return VData(t.cons.map(x => v => evaluate(x, extendV(vs, v))));
   if (t.tag === 'Case')
@@ -126,7 +107,6 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 };
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
-  if (e.tag === 'EUnroll') return Unroll(t);
   if (e.tag === 'ECase')
     return Case(quote(e.type, k, full), quote(e.prop, k, full), t, e.cases.map(t => quote(t, k, full)));
   return e;
@@ -153,10 +133,6 @@ export const quote = (v: Val, k: Ix, full: boolean): Term => {
     return Abs(v.plicity, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPi')
     return Pi(v.plicity, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
-  if (v.tag === 'VFix')
-    return Fix(quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
-  if (v.tag === 'VRoll')
-    return Roll(quote(v.type, k, full), quote(v.term, k, full));
   if (v.tag === 'VData')
     return Data(v.cons.map(c => quote(c(VVar(k)), k + 1, full)));
   if (v.tag === 'VCon')

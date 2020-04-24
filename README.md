@@ -4,11 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- remove fix, roll, unroll
 - add a way to do recursion
 - consistency check for data constructors
 - remove total from con, elaborate to pure in core typechecking
-- remove con without type
 - update parser to allow annotation in let
 - zonk all elims
 - insert skolems in check

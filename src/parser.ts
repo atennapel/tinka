@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Unroll, Roll, Fix, Data, Con, Case } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Data, Con, Case } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -190,50 +190,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
   }
-  if (isName(ts[0], 'unroll')) {
-    if (ts.length < 2) return serr(`something went wrong when parsing unroll`);
-    if (ts.length === 2) {
-      const [term, tb] = expr(ts[1]);
-      if (tb) return serr(`something went wrong when parsing unroll`);
-      return Unroll(term);
-    }
-    const indPart = ts.slice(0, 2);
-    const rest = ts.slice(2);
-    return exprs([TList(indPart, '(')].concat(rest), '(');
-  }
-  if (isName(ts[0], 'roll')) {
-    if (ts[1].tag === 'List' && ts[1].bracket === '{') {
-      const [ty, b] = expr(ts[1]);
-      if (!b) return serr(`something went wrong when parsing roll`);
-      const body = exprs(ts.slice(2), '(');
-      return Roll(ty, body);
-    } else {
-      const body = exprs(ts.slice(1), '(');
-      return Roll(null, body);
-    }
-  }
-  if (isName(ts[0], 'fix')) {
-    const args: [Name, boolean, Term | null][] = [];
-    let found = false;
-    let i = 1;
-    for (; i < ts.length; i++) {
-      const c = ts[i];
-      if (isName(c, '.')) {
-        found = true;
-        break;
-      }
-      lambdaParams(c).forEach(x => args.push(x));
-    }
-    if (!found) return serr(`. not found after fix`);
-    const rargs: [Name, Term][] = [];
-    args.forEach(([x, i, t]) => {
-      if (i) return serr(`fix arg cannot be implicit`);
-      if (!t) return serr(`fix arg must have a type annotation`);
-      return rargs.push([x, t]);
-    });
-    const body = exprs(ts.slice(i + 1), '(');
-    return rargs.reduceRight((x, [name, ty]) => Fix(name, ty, x), body);
-  }
   if (isName(ts[0], 'data')) {
     if (ts[1].tag !== 'Name') return serr(`Name expected after data`);
     const x = ts[1].name;
@@ -245,24 +201,15 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     return Data(x, cons);
   }
   if (isName(ts[0], 'con')) {
-    let ty = null;
-    let ix = -1;
-    let next = 0;
-    if (ts[1] && ts[1].tag === 'Num' && !isNaN(+ts[1].num)) {
-      ix = +ts[1].num;
-      next = 2;
-    } else {
-      const tt = expr(ts[1]);
-      if (!tt[1]) return serr(`type in con should be implicit`);
-      ty = expr(ts[1])[0];
-      if (!ts[2] || ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not a valid index in con`);
-      ix = +ts[2].num;
-      next = 3;
-    }
-    const c = ts[next];
+    const tt = expr(ts[1]);
+    if (!tt[1]) return serr(`type in con should be implicit`);
+    const ty = expr(ts[1])[0];
+    if (!ts[2] || ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not a valid index in con`);
+    const ix = +ts[2].num;
+    const c = ts[3];
     if (!c || c.tag !== 'Num' || isNaN(+c.num)) return serr(`not a valid total in con`);
     const total = +c.num;
-    const args = ts.slice(next + 1).map(t => expr(t));
+    const args = ts.slice(4).map(t => expr(t));
     return Con(ty, ix, total, args);
   }
   if (isName(ts[0], 'case')) {

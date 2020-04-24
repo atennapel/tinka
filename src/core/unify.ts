@@ -13,7 +13,6 @@ const eqHead = (a: Head, b: Head): boolean => {
 };
 const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
-  if (a.tag === 'EUnroll' && b.tag === 'EUnroll') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
   if (a.tag === 'ECase' && b.tag === 'ECase' && a.cases.length === b.cases.length) {
@@ -29,10 +28,6 @@ export const unify = (k: Ix, a: Val, b: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
-  if (a.tag === 'VRoll' && b.tag === 'VRoll') {
-    unify(k, a.type, b.type);
-    return unify(k, a.term, b.term);
-  }
   if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index && a.total === b.total && a.args.length === b.args.length) {
     unify(k, a.type, b.type);
     const l = a.args.length;
@@ -44,11 +39,6 @@ export const unify = (k: Ix, a: Val, b: Val): void => {
     return;
   }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
-    unify(k, a.type, b.type);
-    const v = VVar(k);
-    return unify(k + 1, a.body(v), b.body(v));
-  }
-  if (a.tag === 'VFix' && b.tag === 'VFix') {
     unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
