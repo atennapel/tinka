@@ -1,23 +1,29 @@
 import lib/prim.p
-import lib/fix.p
 
-def NatF = \(r : *). {t : *} -> t -> (r -> t) -> t
-def Nat = Fix NatF
-def Z : Nat = In {NatF} \z s. z
-def S : Nat -> Nat = \n. In {NatF} \z s. s n
+def Nat = data N. N | N -> N
+def Z : Nat = con {Nat} 0 2
+def S : Nat -> Nat = \n. con {Nat} 1 2 n
 
-def caseNat : {t : *} -> Nat -> t -> (Nat -> t) -> t
-  = \n z s. caseFix {NatF} n z s
-def recNat : {t : *} -> Nat -> t -> ((Nat -> t) -> Nat -> t) -> t
-  = \{t} n z s. fold {NatF} {t} (\rec m. m {t} z (\k. s rec k)) n
+def indNat
+  : {P : Nat -> *} -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n
+  = \{P} z s n. case {Nat} {P} n (\_. z) (\rec m. s m (rec m))
 
-def foldNat : {t : *} -> Nat -> t -> (t -> t) -> t
-  = \n z s. recNat n z (\rec m. s (rec m))
+def caseNat
+  : {t : *} -> t -> (Nat -> t) -> Nat -> t
+  = \{t} z s n. case {Nat} {\_. t} n (\_. z) (\_. s)
+
+def recNat
+  : {t : *} -> t -> (Nat -> t -> t) -> Nat -> t
+  = \{t} z s n. indNat {\_. t} z s n
+
+def foldNat
+  : {t : *} -> Nat -> t -> (t -> t) -> t
+  = \{t} n z s. recNat {t} z (\_. s) n
 
 def toPrimNat : Nat -> PrimNat = \n. foldNat n PrimNatZ PrimNatS
 def toPrimChar : Nat -> PrimChar = toPrimNat
 
-def pred : Nat -> Nat = \n. caseNat n Z (\n. n)
+def pred : Nat -> Nat = \n. caseNat Z (\m. m) n
 
 def add : Nat -> Nat -> Nat = \n m. foldNat n m S
 def mul : Nat -> Nat -> Nat = \n m. foldNat n Z (add m)

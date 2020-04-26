@@ -1,5 +1,9 @@
-def Void = {t : *} -> t
+def Void = data V.
 
 def indVoid
-  : {P : Void -> *} -> (x : Void) -> P x
-  = \{P} v. v {P v}
+  : {P : Void -> *} -> (v : Void) -> P v
+  = \{P} v. case {Void} {P} v
+
+def caseVoid
+  : {t : *} -> Void -> t
+  = \{t} v. indVoid {\_. t} v
