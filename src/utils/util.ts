@@ -22,3 +22,9 @@ export const loadFile = (fn: string): Promise<string> => {
     return fetch(fn).then(r => r.text());
   }
 };
+
+export const range = (n: number): number[] => {
+  const a = Array(n);
+  for (let i = 0; i < n; i++) a[i] = i;
+  return a;
+};

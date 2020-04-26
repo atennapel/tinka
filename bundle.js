@@ -60,7 +60,7 @@ exports.vapp = (a, plicity, b) => {
 };
 exports.vcase = (ty, prop, cases, v) => {
     if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
-        return v.args.reduce((x, [y, p]) => exports.vapp(x, p, y), cases[v.index]);
+        return v.args.reduce((x, [y, p]) => exports.vapp(x, p, y), exports.vapp(cases[v.index], false, exports.VAbs(false, ty, x => exports.vcase(ty, prop, cases, x))));
     if (v.tag === 'VNe')
         return exports.VNe(v.head, list_1.Cons(exports.ECase(ty, prop, cases), v.args));
     if (v.tag === 'VGlued')
@@ -354,16 +354,17 @@ const synth = (local, tm) => {
         const vprop = domain_1.evaluate(tm.prop, local.vs);
         check(local, tm.scrut, vtype);
         const vscrut = domain_1.evaluate(tm.scrut, local.vs);
-        const types = ft.cons.map((c, i) => makeBranch(local.index, local.index, tm.type, tm.prop, i, ft.cons.length, c(vtype)));
+        const types = ft.cons.map((c, i) => makeBranchTop(local.index, local.index, tm.type, tm.prop, i, ft.cons.length, c(vtype)));
         tm.cases.forEach((t, i) => check(local, t, domain_1.evaluate(types[i], local.vs)));
         return domain_1.vapp(vprop, false, vscrut);
     }
     return util_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };
+const makeBranchTop = (k, ok, type, prop, i, total, v_) => syntax_1.Pi(false, syntax_1.Pi(false, type, syntax_1.App(syntax_1.shift(1, 0, prop), false, syntax_1.Var(0))), makeBranch(k + 1, ok, type, prop, i, total, v_, [], 0));
 const makeBranch = (k, ok, type, prop, i, total, v_, args = [], argcount = 0) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VData')
-        return syntax_1.App(syntax_1.shift(argcount, 0, prop), false, syntax_1.Con(syntax_1.shift(argcount, 0, type), i, total, args.map(([x, p]) => [syntax_1.Var(k - x - 1), p])));
+        return syntax_1.App(syntax_1.shift(argcount + 1, 0, prop), false, syntax_1.Con(syntax_1.shift(argcount + 1, 0, type), i, total, args.map(([x, p]) => [syntax_1.Var(k - x - 1), p])));
     if (v.tag === 'VPi')
         return syntax_1.Pi(v.plicity, domain_1.quote(v.type, k, false), makeBranch(k + 1, ok, type, prop, i, total, v.body(domain_1.VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));
     return util_1.terr(`unexpected type in core makeBranch: ${v.tag}`);
@@ -539,7 +540,7 @@ exports.vapp = (a, plicity, b) => {
 };
 exports.vcase = (ty, prop, cases, v) => {
     if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
-        return v.args.reduce((x, [y, p]) => exports.vapp(x, p, y), cases[v.index]);
+        return v.args.reduce((x, [y, p]) => exports.vapp(x, p, y), exports.vapp(cases[v.index], false, exports.VAbs(false, 'x', ty, x => exports.vcase(ty, prop, cases, x))));
     if (v.tag === 'VNe')
         return exports.VNe(v.head, list_1.Cons(exports.ECase(ty, prop, cases), v.args));
     if (v.tag === 'VGlued')
@@ -1285,6 +1286,12 @@ exports.shift = (d, c, t) => {
     return t;
 };
 exports.erase = (t) => {
+    if (t.tag === 'Pi')
+        return exports.idTerm;
+    if (t.tag === 'Type')
+        return exports.idTerm;
+    if (t.tag === 'Data')
+        return exports.idTerm;
     if (t.tag === 'Global') {
         const res = globalenv_1.globalGet(t.name);
         if (!res)
@@ -1299,23 +1306,19 @@ exports.erase = (t) => {
         return t.plicity ? exports.shift(-1, 0, exports.erase(t.body)) : exports.Abs(exports.erase(t.body));
     if (t.tag === 'Let')
         return t.plicity ? exports.shift(-1, 0, exports.erase(t.body)) : exports.App(exports.Abs(exports.erase(t.body)), exports.erase(t.val));
-    if (t.tag === 'Pi')
-        return exports.idTerm;
-    if (t.tag === 'Type')
-        return exports.idTerm;
-    if (t.tag === 'Data')
-        return exports.idTerm;
     if (t.tag === 'Con') {
         // scott-encoding
-        // cons {T} i n args... = \a1..a_n. a_i args...
+        // cons {T} i n args... = \a1..a_n. a_i (\x. x a1..a_n) args...
         const args = t.args.filter(([_, p]) => !p).map(([x, _]) => exports.shift(t.total, 0, exports.erase(x)));
-        let c = args.reduce((a, b) => exports.App(a, b), exports.Var(t.total - t.index - 1));
+        let c = args.reduce((a, b) => exports.App(a, b), exports.App(exports.Var(t.total - t.index - 1), exports.Abs(util_1.range(t.total).reduce((x, y) => exports.App(x, exports.Var(t.total - y)), exports.Var(0)))));
         for (let i = 0; i < t.total; i++)
             c = exports.Abs(c);
         return c;
     }
-    if (t.tag === 'Case')
+    if (t.tag === 'Case') {
+        // case n x y ... = n x y ...
         return t.cases.reduce((x, y) => exports.App(x, exports.erase(y)), exports.erase(t.scrut));
+    }
     return t;
 };
 
@@ -2125,7 +2128,7 @@ const synth = (local, tm) => {
         const vprop = domain_1.evaluate(prop, local.vs);
         const scrut = check(local, tm.scrut, vtype);
         const vscrut = domain_1.evaluate(scrut, local.vs);
-        const types = ft.cons.map((c, i) => makeBranch(local.index, local.index, type, prop, i, ft.cons.length, c(vtype)));
+        const types = ft.cons.map((c, i) => makeBranchTop(local.index, local.index, type, prop, i, ft.cons.length, c(vtype)));
         config_1.log(() => types.map(x => syntax_1.showTerm(x)).join(' ; '));
         config_1.log(() => types.map(x => syntax_1.showSurface(x, local.names)).join(' ; '));
         const cases = tm.cases.map((t, i) => check(local, t, domain_1.evaluate(types[i], local.vs)));
@@ -2133,10 +2136,11 @@ const synth = (local, tm) => {
     }
     return util_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
-const makeBranch = (k, ok, type, prop, i, total, v_, args = [], argcount = 0) => {
+const makeBranchTop = (k, ok, type, prop, i, total, v_) => syntax_1.Pi(false, '_', syntax_1.Pi(false, 'x', type, syntax_1.App(syntax_1.shift(1, 0, prop), false, syntax_1.Var(0))), makeBranch(k + 1, ok, type, prop, i, total, v_, [], 0));
+const makeBranch = (k, ok, type, prop, i, total, v_, args, argcount) => {
     const v = domain_1.force(v_);
     if (v.tag === 'VData')
-        return syntax_1.App(syntax_1.shift(argcount, 0, prop), false, syntax_1.Con(syntax_1.shift(argcount, 0, type), i, total, args.map(([x, p]) => [syntax_1.Var(k - x - 1), p])));
+        return syntax_1.App(syntax_1.shift(argcount + 1, 0, prop), false, syntax_1.Con(syntax_1.shift(argcount + 1, 0, type), i, total, args.map(([x, p]) => [syntax_1.Var(k - x - 1), p])));
     if (v.tag === 'VPi')
         return syntax_1.Pi(v.plicity, makeName(v.name, argcount), domain_1.quote(v.type, k, 0), makeBranch(k + 1, ok, type, prop, i, total, v.body(domain_1.VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));
     return util_1.terr(`unexpected type in makeBranch: ${v.tag}`);
@@ -2586,6 +2590,12 @@ exports.loadFile = (fn) => {
     else {
         return fetch(fn).then(r => r.text());
     }
+};
+exports.range = (n) => {
+    const a = Array(n);
+    for (let i = 0; i < n; i++)
+        a[i] = i;
+    return a;
 };
 
 },{"fs":22}],21:[function(require,module,exports){

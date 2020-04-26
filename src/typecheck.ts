@@ -238,7 +238,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vprop = evaluate(prop, local.vs);
     const scrut = check(local, tm.scrut, vtype);
     const vscrut = evaluate(scrut, local.vs);
-    const types = ft.cons.map((c, i) => makeBranch(local.index, local.index, type, prop, i, ft.cons.length, c(vtype)));
+    const types = ft.cons.map((c, i) => makeBranchTop(local.index, local.index, type, prop, i, ft.cons.length, c(vtype)));
     log(() => types.map(x => showTerm(x)).join(' ; '));
     log(() => types.map(x => showSurface(x, local.names)).join(' ; '));
     const cases = tm.cases.map((t, i) => check(local, t, evaluate(types[i], local.vs)));
@@ -247,10 +247,13 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 
-const makeBranch = (k: Ix, ok: Ix, type: Term, prop: Term, i: Ix, total: number, v_: Val, args: [Ix, Plicity][] = [], argcount: number = 0): Term => {
+const makeBranchTop = (k: Ix, ok: Ix, type: Term, prop: Term, i: Ix, total: number, v_: Val): Term =>
+  Pi(false, '_', Pi(false, 'x', type, App(shift(1, 0, prop), false, Var(0))),
+    makeBranch(k + 1, ok, type, prop, i, total, v_, [], 0));
+const makeBranch = (k: Ix, ok: Ix, type: Term, prop: Term, i: Ix, total: number, v_: Val, args: [Ix, Plicity][], argcount: number): Term => {
   const v = force(v_);
   if (v.tag === 'VData')
-    return App(shift(argcount, 0, prop), false, Con(shift(argcount, 0, type), i, total, args.map(([x, p]) => [Var(k - x - 1), p])));
+    return App(shift(argcount + 1, 0, prop), false, Con(shift(argcount + 1, 0, type), i, total, args.map(([x, p]) => [Var(k - x - 1), p])));
   if (v.tag === 'VPi')
     return Pi(v.plicity, makeName(v.name, argcount), quote(v.type, k, 0),
       makeBranch(k + 1, ok, type, prop, i, total, v.body(VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));

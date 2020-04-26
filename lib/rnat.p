@@ -4,8 +4,8 @@ def S : Nat -> Nat = \n. con {Nat} 1 2 n
 
 def caseNat
   : {t : *} -> Nat -> t -> (Nat -> t) -> t
-  = \{t} n z s. case {Nat} {\_. t} n z s
+  = \{t} n z s. case {Nat} {\_. t} n (\_. z) (\_. s)
 
 def dcaseNat
   : {P : Nat -> *} -> (n : Nat) -> P Z -> ((m : Nat) -> P (S m)) -> P n
-  = \{P} n z s. case {Nat} {P} n z s
+  = \{P} n z s. case {Nat} {P} n (\_. z) (\_. s)

@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add a way to do recursion
 - consistency check for data constructors
 - remove total from con, elaborate to pure in core typechecking
 - update parser to allow annotation in let

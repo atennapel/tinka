@@ -85,7 +85,7 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
 };
 export const vcase = (ty: Val, prop: Val, cases: Val[], v: Val): Val => {
   if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
-    return v.args.reduce((x, [y, p]) => vapp(x, p, y), cases[v.index]);
+    return v.args.reduce((x, [y, p]) => vapp(x, p, y), vapp(cases[v.index], false, VAbs(false, 'x', ty, x => vcase(ty, prop, cases, x))));
   if (v.tag === 'VNe') return VNe(v.head, Cons(ECase(ty, prop, cases), v.args));
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(ECase(ty, prop, cases), v.args), mapLazy(v.val, v => vcase(ty, prop, cases, v)));
