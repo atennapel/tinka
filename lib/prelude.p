@@ -1,6 +1,8 @@
 import lib/prim.p
 import lib/combinators.p
 
+import lib/eq.p
+
 import lib/void.p
 import lib/unit.p
 import lib/bool.p

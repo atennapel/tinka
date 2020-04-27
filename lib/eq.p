@@ -1,4 +1,11 @@
+import lib/void.p
+
 def Eq = \(t : *) (a b : t). {f : t -> *} -> f a -> f b
+
+def EqT = Eq *
+
+def Neq = \(t : *) (a b : t). Eq t a b -> Void
+def NeqT = Neq *
 
 def castF
   : {t : *} -> {a b : t} -> {f : t -> *} -> (e : Eq t a b) -> f a -> f b

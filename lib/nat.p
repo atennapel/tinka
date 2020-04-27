@@ -1,4 +1,5 @@
 import lib/prim.p
+import lib/eq.p
 
 def Nat = data N. N | N -> N
 def Z : Nat = con {Nat} 0 2
