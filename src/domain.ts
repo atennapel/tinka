@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann, Con, Data, Case } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann } from './syntax';
 import { impossible } from './utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity } from './surface';
@@ -17,15 +17,13 @@ export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 
-export type Elim = EApp | ECase;
+export type Elim = EApp;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
-export type ECase = { tag: 'ECase', type: Val, prop: Val, cases: Val[] };
-export const ECase = (type: Val, prop: Val, cases: Val[]): ECase => ({ tag: 'ECase', type, prop, cases });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VData | VType | VCon;
+export type Val = VNe | VGlued | VAbs | VPi | VType;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -35,12 +33,8 @@ export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, type: Val, body:
 export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, type, body});
 export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: Clos };
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
-export type VData = { tag: 'VData', name: Name, cons: Clos[] };
-export const VData = (name: Name, cons: Clos[]): VData => ({ tag: 'VData', name, cons });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
-export type VCon = { tag: 'VCon', type: Val, index: Ix, total: number, args: [Val, Plicity][] };
-export const VCon = (type: Val, index: Ix, total: number, args: [Val, Plicity][]): VCon => ({ tag: 'VCon', type, index, total, args });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -56,7 +50,6 @@ export const force = (v: Val): Val => {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
     return force(foldr((elim, y) =>
-      elim.tag === 'ECase' ? vcase(elim.type, elim.prop, elim.cases, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -66,7 +59,6 @@ export const forceGlue = (v: Val): Val => {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
     return forceGlue(foldr((elim, y) =>
-      elim.tag === 'ECase' ? vcase(elim.type, elim.prop, elim.cases, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -82,14 +74,6 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`vapp: ${a.tag}`);
-};
-export const vcase = (ty: Val, prop: Val, cases: Val[], v: Val): Val => {
-  if (v.tag === 'VCon' && v.index >= 0 && v.index < cases.length && v.total === cases.length)
-    return v.args.reduce((x, [y, p]) => vapp(x, p, y), vapp(cases[v.index], false, VAbs(false, 'x', ty, x => vcase(ty, prop, cases, x))));
-  if (v.tag === 'VNe') return VNe(v.head, Cons(ECase(ty, prop, cases), v.args));
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(ECase(ty, prop, cases), v.args), mapLazy(v.val, v => vcase(ty, prop, cases, v)));
-  return impossible(`vcase: ${v.tag}`);
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
@@ -115,12 +99,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return evaluate(t.body, extendV(vs, evaluate(t.val, vs)));
   if (t.tag === 'Pi')
     return VPi(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
-  if (t.tag === 'Con')
-    return VCon(evaluate(t.type, vs), t.index, t.total, t.args.map(([x, p]) => [evaluate(x, vs), p]));
-  if (t.tag === 'Data')
-    return VData(t.name, t.cons.map(x => v => evaluate(x, extendV(vs, v))));
-  if (t.tag === 'Case')
-    return vcase(evaluate(t.type, vs), evaluate(t.prop, vs), t.cases.map(t => evaluate(t, vs)), evaluate(t.scrut, vs));
   return impossible(`evaluate: ${t.tag}`);
 };
 
@@ -137,9 +115,7 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 };
 const quoteElim = (t: Term, e: Elim, k: Ix, full: number): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
-  if (e.tag === 'ECase')
-    return Case(quote(e.type, k, full), quote(e.prop, k, full), t, e.cases.map(t => quote(t, k, full)));
-  return e;
+  return e.tag;
 };
 export const quote = (v_: Val, k: Ix, full: number): Term => {
   const v = forceGlue(v_);
@@ -166,10 +142,6 @@ export const quote = (v_: Val, k: Ix, full: number): Term => {
     return Abs(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPi')
     return Pi(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
-  if (v.tag === 'VData')
-    return Data(v.name, v.cons.map(c => quote(c(VVar(k)), k + 1, full)));
-  if (v.tag === 'VCon')
-    return Con(quote(v.type, k, full), v.index, v.total, v.args.map(([x, p]) => [quote(x, k, full), p]));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Term =>
@@ -216,8 +188,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
   }
   if (tm.tag === 'Pi')
     return Pi(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
-  if (tm.tag === 'Data')
-    return Data(tm.name, tm.cons.map(t => zonk(t, extendV(vs, VVar(k)), k + 1, full)));
   if (tm.tag === 'Let')
     return Let(tm.plicity, tm.name, tm.type && zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Ann') return Ann(zonk(tm.term, vs, k, full), zonk(tm.type, vs, k, full));
@@ -229,9 +199,5 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
       App(spine[1], tm.plicity, zonk(tm.right, vs, k, full)) :
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
-  if (tm.tag === 'Con')
-    return Con(zonk(tm.type, vs, k, full), tm.index, tm.total, tm.args.map(([x, p]) => [zonk(x, vs, k, full), p]));
-  if (tm.tag === 'Case')
-    return Case(zonk(tm.type, vs, k, full), zonk(tm.prop, vs, k, full), zonk(tm.scrut, vs, k, full), tm.cases.map(t => zonk(t, vs, k, full)));
   return tm;
 };

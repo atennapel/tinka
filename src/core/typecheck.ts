@@ -1,5 +1,5 @@
-import { Term, showTerm, Pi, App, Con, Var, shift } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, vapp, VPi } from './domain';
+import { Term, showTerm, Pi } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV } from './domain';
 import { Nil, index, List, Cons, listToString } from '../utils/list';
 import { Ix } from '../names';
 import { terr } from '../utils/util';
@@ -86,63 +86,7 @@ const synth = (local: Local, tm: Term): Val => {
     check(extend(local, evaluate(tm.type, local.vs), false, VVar(local.index)), tm.body, VType);
     return VType;
   }
-  if (tm.tag === 'Data') {
-    tm.cons.forEach(t => check(extend(local, VType, false, VVar(local.index)), t, VType));
-    return VType;
-  }
-  if (tm.tag === 'Con') {
-    check(localInType(local), tm.type, VType);
-    const vtype = evaluate(tm.type, local.vs);
-    const ft = force(vtype);
-    if (ft.tag !== 'VData') return terr(`not a datatype in con: ${showTerm(tm)}`);
-    if (ft.cons.length !== tm.total) return terr(`cons amount mismatch: ${showTerm(tm)}`);
-    if (!ft.cons[tm.index]) return terr(`not a valid constructor: ${showTerm(tm)}`);
-    const con = ft.cons[tm.index](vtype);
-    const rt = synthconargs(local, con, tm.args);
-    if (force(rt).tag !== 'VData') return terr(`constructor was not fully applied: ${showTerm(tm)}`);
-    return rt;
-  }
-  if (tm.tag === 'Case') {
-    check(localInType(local), tm.type, VType);
-    const vtype = evaluate(tm.type, local.vs);
-    const ft = force(vtype);
-    if (ft.tag !== 'VData') return terr(`not a datatype in case: ${showTerm(tm)}`);
-    if (ft.cons.length !== tm.cases.length) return terr(`cases length mismatch: ${showTerm(tm)}`);
-    check(localInType(local), tm.prop, VPi(false, vtype, _ => VType));
-    const vprop = evaluate(tm.prop, local.vs);
-    check(local, tm.scrut, vtype);
-    const vscrut = evaluate(tm.scrut, local.vs);
-    const types = ft.cons.map((c, i) => makeBranchTop(local.index, local.index, tm.type, tm.prop, i, ft.cons.length, c(vtype)));
-    tm.cases.forEach((t, i) => check(local, t, evaluate(types[i], local.vs)));
-    return vapp(vprop, false, vscrut);
-  }
   return terr(`cannot synth ${showTerm(tm)}`);
-};
-
-const makeBranchTop = (k: Ix, ok: Ix, type: Term, prop: Term, i: Ix, total: number, v_: Val): Term =>
-  Pi(false, Pi(false, type, App(shift(1, 0, prop), false, Var(0))),
-    makeBranch(k + 1, ok, type, prop, i, total, v_, [], 0));
-const makeBranch = (k: Ix, ok: Ix, type: Term, prop: Term, i: Ix, total: number, v_: Val, args: [Ix, Plicity][] = [], argcount: number = 0): Term => {
-  const v = force(v_);
-  if (v.tag === 'VData')
-    return App(shift(argcount + 1, 0, prop), false, Con(shift(argcount + 1, 0, type), i, total, args.map(([x, p]) => [Var(k - x - 1), p])));
-  if (v.tag === 'VPi')
-    return Pi(v.plicity, quote(v.type, k, false),
-      makeBranch(k + 1, ok, type, prop, i, total, v.body(VVar(k)), args.concat([[k, v.plicity]]), argcount + 1));
-  return terr(`unexpected type in core makeBranch: ${v.tag}`);
-};
-
-const synthconargs = (local: Local, ty_: Val, args: [Term, Plicity][]): Val => {
-  log(() => `synthconargs ${showTermQ(ty_, local.index)} @ [${args.map(([t, p]) => `${p ? '-' : ''}${showTerm(t)}`).join(' ')}]${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (args.length === 0) return ty_;
-  const ty = force(ty_);
-  const head = args[0];
-  if (ty.tag === 'VPi' && ty.plicity === head[1]) {
-    check(ty.plicity ? localInType(local) : local, head[0], ty.type);
-    const rt = ty.body(evaluate(head[0], local.vs));
-    return synthconargs(local, rt, args.slice(1));
-  }
-  return terr(`invalid type or plicity mismatch in synthconargs`);
 };
 
 export const typecheck = (tm: Term, local: Local = localEmpty): Val =>

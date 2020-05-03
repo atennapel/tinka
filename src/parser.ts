@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/util';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Data, Con, Case } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -189,42 +189,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
-  }
-  if (isName(ts[0], 'data')) {
-    if (ts[1].tag !== 'Name') return serr(`Name expected after data`);
-    const x = ts[1].name;
-    if (ts[2].tag !== 'Name' || ts[2].name !== '.') return serr(`. expected after data`);
-    const rest = splitTokens(ts.slice(3), t => t.tag === 'Name' && t.name === '|');
-    if (rest.length === 0 || (rest.length === 1 && rest[0].length === 0))
-      return Data(x, []);
-    const cons = rest.map(ts => exprs(ts, '('));
-    return Data(x, cons);
-  }
-  if (isName(ts[0], 'con')) {
-    const tt = expr(ts[1]);
-    if (!tt[1]) return serr(`type in con should be implicit`);
-    const ty = expr(ts[1])[0];
-    if (!ts[2] || ts[2].tag !== 'Num' || isNaN(+ts[2].num)) return serr(`not a valid index in con`);
-    const ix = +ts[2].num;
-    const c = ts[3];
-    if (!c || c.tag !== 'Num' || isNaN(+c.num)) return serr(`not a valid total in con`);
-    const total = +c.num;
-    const args = ts.slice(4).map(t => expr(t));
-    return Con(ty, ix, total, args);
-  }
-  if (isName(ts[0], 'case')) {
-    const ty = expr(ts[1]);
-    if (!ty[1]) return serr(`type in case should be implicit`);
-    const prop = expr(ts[2]);
-    if (!prop[1]) return serr(`prop in case should be implicit`);
-    const scrut = expr(ts[3]);
-    if (scrut[1]) return serr(`scrutinee in case should not be implicit`);
-    const args = ts.slice(4).map(t => {
-      const c = expr(t);
-      if (c[1]) return serr(`branch in case should not be implicit`);
-      return c[0];
-    });
-    return Case(ty[0], prop[0], scrut[0], args);
   }
   if (isName(ts[0], 'let')) {
     const x = ts[1];

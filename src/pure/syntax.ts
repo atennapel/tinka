@@ -1,6 +1,6 @@
 import { Ix } from '../names';
 import { Term as TTerm } from '../core/syntax';
-import { impossible, range } from '../utils/util';
+import { impossible } from '../utils/util';
 import { globalGet } from '../globalenv';
 
 export type Term = Var | App | Abs | Num | Inc | Pair;
@@ -69,7 +69,6 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
 export const erase = (t: TTerm): Term => {
   if (t.tag === 'Pi') return idTerm;
   if (t.tag === 'Type') return idTerm;
-  if (t.tag === 'Data') return idTerm;
   if (t.tag === 'Global') {
     const res = globalGet(t.name);
     if (!res) return impossible(`erase: global not in map: ${t.name}`);
@@ -79,18 +78,5 @@ export const erase = (t: TTerm): Term => {
   if (t.tag === 'App') return t.plicity ? erase(t.left) : App(erase(t.left), erase(t.right));
   if (t.tag === 'Abs') return t.plicity ? shift(-1, 0, erase(t.body)) : Abs(erase(t.body));
   if (t.tag === 'Let') return t.plicity ? shift(-1, 0, erase(t.body)) : App(Abs(erase(t.body)), erase(t.val));
-  if (t.tag === 'Con') {
-    // scott-encoding
-    // cons {T} i n args... = \a1..a_n. a_i (\x. x a1..a_n) args...
-    const args = t.args.filter(([_, p]) => !p).map(([x, _]) => shift(t.total, 0, erase(x)));
-    let c = args.reduce((a, b) => App(a, b), App(Var(t.total - t.index - 1),
-      Abs(range(t.total).reduce((x, y) => App(x, Var(t.total - y)), Var(0) as Term))));
-    for (let i = 0; i < t.total; i++) c = Abs(c);
-    return c;
-  }
-  if (t.tag === 'Case') {
-    // case n x y ... = n x y ...
-    return t.cases.reduce((x, y) => App(x, erase(y)), erase(t.scrut));
-  }
   return t;
 };
