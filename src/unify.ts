@@ -30,7 +30,8 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
-    return unify(k + 1, a.body(v), b.body(v));
+    const w = VVar(k + 1);
+    return unify(k + 2, a.body(v, w), b.body(v, w));
   }
   if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
@@ -135,8 +136,8 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   }
   if (t.tag === 'Pi') {
     const ty = checkSolution(k, m, is, t.type);
-    const body = checkSolution(k + 1, m, Cons(k, is), t.body);
-    return Pi(t.plicity, t.name, ty, body);
+    const body = checkSolution(k + 2, m, Cons(k + 1, Cons(k, is)), t.body);
+    return Pi(t.plicity, t.rec, t.name, ty, body);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

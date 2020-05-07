@@ -17,8 +17,8 @@ export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term | null,
 export const Abs = (plicity: Plicity, name: Name, type: Term | null, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
-export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
-export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
+export type Pi = { tag: 'Pi', plicity: Plicity, rec: Name, name: Name, type: Term, body: Term };
+export const Pi = (plicity: Plicity, rec: Name, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, rec, name, type, body });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
@@ -36,7 +36,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Abs')
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTerm(t.body)})`;
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTerm(t.type)}` : ''} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
-  if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
+  if (t.tag === 'Pi') return `(/(${t.rec} @ ${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Type') return '*';
   if (t.tag === 'Ann') return `(${showTerm(t.term)} : ${showTerm(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
@@ -57,7 +57,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'App') return indexUsed(k, t.left) || indexUsed(k, t.right);
   if (t.tag === 'Abs') return (t.type && indexUsed(k, t.type)) || indexUsed(k + 1, t.body);
   if (t.tag === 'Let') return (t.type && indexUsed(k, t.type)) || indexUsed(k, t.val) || indexUsed(k + 1, t.body);
-  if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
+  if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 2, t.body);
   if (t.tag === 'Ann') return indexUsed(k, t.term) || indexUsed(k, t.type);
  return false;
 };
@@ -100,8 +100,9 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     return S.Let(t.plicity, x, t.type && toSurface(t.type, ns), toSurface(t.val, ns), toSurface(t.body, Cons(x, ns)));
   }
   if (t.tag === 'Pi') {
-    const x = decideName(t.name, t.body, ns);
-    return S.Pi(t.plicity, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
+    const x = decideName(t.rec, t.body, ns);
+    const y = decideName(t.name, t.body, ns);
+    return S.Pi(t.plicity, x, y, toSurface(t.type, ns), toSurface(t.body, Cons(y, Cons(x, ns))));
   }
   return t;
 };
@@ -114,7 +115,7 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Abs') return Abs(t.plicity, t.name, t.type && shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'App') return App(shift(d, c, t.left), t.plicity, shift(d, c, t.right));
   if (t.tag === 'Let') return Let(t.plicity, t.name, t.type && shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
-  if (t.tag === 'Pi') return Pi(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Pi') return Pi(t.plicity, t.rec, t.name, shift(d, c, t.type), shift(d, c + 2, t.body));
   if (t.tag === 'Ann') return Ann(shift(d, c, t.term), shift(d, c, t.type));
   return t;
 };

@@ -22,7 +22,7 @@ const TName = (name: string): Token => ({ tag: 'Name', name });
 const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
-const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '|'];
+const SYM1: string[] = ['\\', ':', '/', '.', '*', '='];
 const SYM2: string[] = ['->'];
 
 const START = 0;
@@ -56,7 +56,7 @@ const tokenize = (sc: string): Token[] => {
       else if (/\s/.test(c)) continue;
       else return serr(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
-      if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
+      if (!(/[a-z0-9\-\_\/\@]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
         r.push(TName(t));
         t = '', i--, state = START;
       } else t += c;
@@ -116,18 +116,24 @@ const lambdaParams = (t: Token): [Name, boolean, Term | null][] => {
   }
   return serr(`invalid lambda param`);
 };
-const piParams = (t: Token): [Name, boolean, Term][] => {
-  if (t.tag === 'Name') return [['_', false, expr(t)[0]]];
+const piParams = (t: Token): [Name, Name, boolean, Term][] => {
+  if (t.tag === 'Name') return [['_', '_', false, expr(t)[0]]];
   if (t.tag === 'List') {
     const impl = t.bracket === '{';
     const a = t.list;
-    if (a.length === 0) return [['_', impl, tunit]];
+    if (a.length === 0) return [['_', '_', impl, tunit]];
     const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
-    if (i === -1) return [['_', impl, expr(t)[0]]];
+    if (i === -1) return [['_', '_', impl, expr(t)[0]]];
     const ns = a.slice(0, i);
     const rest = a.slice(i + 1);
     const ty = exprs(rest, '(');
-    return isNames(ns).map(x => [x, impl, ty]);
+    return isNames(ns).map(x => {
+      if (x.includes('@')) {
+        const [a, b] = x.split('@');
+        return [a, b, impl, ty];
+      }
+      return ['_', x, impl, ty]
+    });
   }
   return serr(`invalid pi param`);
 };
@@ -226,11 +232,11 @@ const exprs = (ts: Token[], br: BracketO): Term => {
   if (j >= 0) {
     const s = splitTokens(ts, x => isName(x, '->'));
     if (s.length < 2) return serr(`parsing failed with ->`);
-    const args: [Name, boolean, Term][] = s.slice(0, -1)
-      .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')] as [Name, boolean, Term]])
+    const args: [Name, Name, boolean, Term][] = s.slice(0, -1)
+      .map(p => p.length === 1 ? piParams(p[0]) : [['_', '_', false, exprs(p, '(')] as [Name, Name, boolean, Term]])
       .reduce((x, y) => x.concat(y), []);
     const body = exprs(s[s.length - 1], '(');
-    return args.reduceRight((x, [name, impl, ty]) => Pi(impl, name, ty, x), body);
+    return args.reduceRight((x, [rec, name, impl, ty]) => Pi(impl, rec, name, ty, x), body);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];
