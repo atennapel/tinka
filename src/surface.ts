@@ -8,8 +8,8 @@ export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
 export type App = { tag: 'App', left: Term, plicity: Plicity, right: Term };
 export const App = (left: Term, plicity: Plicity, right: Term): App => ({ tag: 'App', left, plicity, right });
-export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term | null, body: Term };
-export const Abs = (plicity: Plicity, name: Name, type: Term | null, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
+export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, body: Term };
+export const Abs = (plicity: Plicity, name: Name, body: Term): Abs => ({ tag: 'Abs', plicity, name, body });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, rec: Name, name: Name, type: Term, body: Term };
@@ -28,7 +28,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
-    return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
+    return `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTermS(t.type)}` : ''} = ${showTermS(t.val)} in ${showTermS(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.rec} @ ${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
   if (t.tag === 'Type') return '*';
@@ -45,10 +45,10 @@ export const flattenApp = (t: Term): [Term, [Plicity, Term][]] => {
   }
   return [t, r.reverse()];
 };
-export const flattenAbs = (t: Term): [[Name, Plicity, Term | null][], Term] => {
-  const r: [Name, Plicity, Term | null][] = [];
+export const flattenAbs = (t: Term): [[Name, Plicity][], Term] => {
+  const r: [Name, Plicity][] = [];
   while (t.tag === 'Abs') {
-    r.push([t.name, t.plicity, t.type]);
+    r.push([t.name, t.plicity]);
     t = t.body;
   }
   return [r, t];
@@ -77,7 +77,7 @@ export const showTerm = (t: Term): string => {
   }
   if (t.tag === 'Abs') {
     const [as, b] = flattenAbs(t);
-    return `\\${as.map(([x, im, t]) => im ? `{${x}${t ? ` : ${showTermP(t.tag === 'Ann', t)}` : ''}}` : !t ? x : `(${x} : ${showTermP(t.tag === 'Ann', t)})`).join(' ')}. ${showTermP(b.tag === 'Ann', b)}`;
+    return `\\${as.map(([x, im]) => im ? `{${x}}` : x).join(' ')}. ${showTermP(b.tag === 'Ann', b)}`;
   }
   if (t.tag === 'Pi') {
     const [as, b] = flattenPi(t);

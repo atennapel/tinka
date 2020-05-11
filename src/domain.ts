@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Ann } from './syntax';
+import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let } from './syntax';
 import { impossible } from './utils/util';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity } from './surface';
@@ -30,8 +30,8 @@ export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
 export type VGlued = { tag: 'VGlued', head: Head, args: List<Elim>, val: Lazy<Val> };
 export const VGlued = (head: Head, args: List<Elim>, val: Lazy<Val>): VGlued => ({ tag: 'VGlued', head, args, val });
-export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, type: Val, body: Clos };
-export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, type, body });
+export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, body: Clos };
+export const VAbs = (plicity: Plicity, name: Name, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, body });
 export type VPi = { tag: 'VPi', plicity: Plicity, rec: Name, name: Name, type: Val, body: Clos2 };
 export const VPi = (plicity: Plicity, rec: Name, name: Name, type: Val, body: Clos2): VPi => ({ tag: 'VPi', plicity, rec, name, type, body });
 export type VType = { tag: 'VType' };
@@ -94,13 +94,13 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   }
   if (t.tag === 'App')
     return vapp(evaluate(t.left, vs), t.plicity, evaluate(t.right, vs));
-  if (t.tag === 'Abs' && t.type)
-    return VAbs(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+  if (t.tag === 'Abs')
+    return VAbs(t.plicity, t.name, v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Let')
     return evaluate(t.body, extendV(vs, evaluate(t.val, vs)));
   if (t.tag === 'Pi')
     return VPi(t.plicity, t.rec, t.name, evaluate(t.type, vs), (v, w) => evaluate(t.body, extendV(extendV(vs, v), w)));
-  return impossible(`evaluate: ${t.tag}`);
+  return t;
 };
 
 const quoteHead = (h: Head, k: Ix, full: number): Term => {
@@ -140,7 +140,7 @@ export const quote = (v_: Val, k: Ix, full: number): Term => {
     );
   }
   if (v.tag === 'VAbs')
-    return Abs(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+    return Abs(v.plicity, v.name, quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPi')
     return Pi(v.plicity, v.rec, v.name, quote(v.type, k, full), quote(v.body(VVar(k), VVar(k + 1)), k + 2, full));
   return v;
@@ -191,9 +191,8 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: number = 0): Ter
     return Pi(tm.plicity, tm.rec, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(extendV(vs, VVar(k)), VVar(k + 1)), k + 2, full));
   if (tm.tag === 'Let')
     return Let(tm.plicity, tm.name, tm.type && zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
-  if (tm.tag === 'Ann') return Ann(zonk(tm.term, vs, k, full), zonk(tm.type, vs, k, full));
   if (tm.tag === 'Abs')
-    return Abs(tm.plicity, tm.name, tm.type && zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
+    return Abs(tm.plicity, tm.name, zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'App') {
     const spine = zonkSpine(tm.left, vs, k, full);
     return spine[0] ?

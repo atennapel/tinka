@@ -194,7 +194,7 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     }
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(');
-    return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
+    return args.reduceRight((x, [name, impl, _]) => Abs(impl, name, x), body);
   }
   if (isName(ts[0], 'let')) {
     const x = ts[1];

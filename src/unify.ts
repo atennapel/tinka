@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App } from './syntax';
 import { Plicity } from './surface';
 
 const eqHead = (a: Head, b: Head): boolean => {
@@ -34,7 +34,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return unify(k + 2, a.body(v, w), b.body(v, w));
   }
   if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
-    unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
   }
@@ -84,8 +83,8 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
     // TODO: I think it might actually matter
     log(() => `spine ${listToString(spinex, ([p, s]) => `${p ? '-' : ''}${s}`)}`);
     const solution = foldl((body, [pl, y]) => {
-      if (typeof y === 'string') return Abs(pl, '_', Type, body);
-      return Abs(pl, '_', Type, body);
+      if (typeof y === 'string') return Abs(pl, '_', body);
+      return Abs(pl, '_', body);
     }, body, spinex);
     log(() => `solution ?${m} := ${showTerm(solution)} | ${showTerm(solution)}`);
     const vsolution = evaluate(solution, Nil);
@@ -129,10 +128,9 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const r = checkSolution(k, m, is, t.right);
     return App(l, t.plicity, r);
   }
-  if (t.tag === 'Abs' && t.type) {
-    const ty = checkSolution(k, m, is, t.type);
+  if (t.tag === 'Abs') {
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
-    return Abs(t.plicity, t.name, ty, body);
+    return Abs(t.plicity, t.name, body);
   }
   if (t.tag === 'Pi') {
     const ty = checkSolution(k, m, is, t.type);

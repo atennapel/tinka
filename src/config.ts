@@ -3,7 +3,6 @@ import { Name } from './names';
 export interface Config {
   debug: boolean;
   showEnvs: boolean;
-  checkCore: boolean;
   quoteLevel: number;
   alwaysUnfold: Name[];
   showNormalization: boolean;
@@ -11,7 +10,6 @@ export interface Config {
 export const config: Config = {
   debug: false,
   showEnvs: false,
-  checkCore: false,
   quoteLevel: 0,
   alwaysUnfold: [],
   showNormalization: false,

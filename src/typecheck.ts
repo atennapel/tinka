@@ -8,12 +8,7 @@ import { Plicity } from './surface';
 import * as S from './surface';
 import { log, config } from './config';
 import { globalGet, globalSet } from './globalenv';
-import { toCore, showTerm as showTermC } from './core/syntax';
-import { typecheck as typecheckC } from './core/typecheck';
-import * as CD from './core/domain';
 import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
-import * as PD from './pure/domain';
-import * as P from './pure/syntax';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -90,16 +85,16 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     const x = newMeta(local.ts);
     return x;
   }
-  if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
+  if (tm.tag === 'Abs' && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
     const x = tm.name === '_' ? fty.name : tm.name;
     const body = check(extend(local, x, fty.type, true, fty.plicity, false, v), tm.body, fty.body(ty, v));
-    return Abs(tm.plicity, x, quote(fty.type, local.index, 0), body);
+    return Abs(tm.plicity, x, body);
   }
-  if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
+  if (tm.tag === 'Abs' && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
     const v = VVar(local.index);
     const term = check(extend(local, fty.name, fty.type, true, true, true, v), tm, fty.body(ty, v));
-    return Abs(fty.plicity, fty.name, quote(fty.type, local.index, 0), term);
+    return Abs(fty.plicity, fty.name, term);
   }
   if (tm.tag === 'Let') {
     let vty;
@@ -174,17 +169,9 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     return [App(foldl((f, a) => App(f, true, a), left, ms), tm.plicity, right), rty];
   }
   if (tm.tag === 'Abs') {
-    if (tm.type) {
-      const type = check(localInType(local), tm.type, VType);
-      const vtype = evaluate(type, local.vs);
-      const [body, rt] = synth(extend(local, tm.name, vtype, true, tm.plicity, false, VVar(local.index)), tm.body);
-      const pi = evaluate(Pi(tm.plicity, '_', tm.name, type, quote(rt, local.index + 2, 0)), local.vs);
-      return [Abs(tm.plicity, tm.name, type, body), pi];
-    } else {
-      const pi = freshPi(local.ts, local.vs, tm.name, tm.plicity);
-      const term = check(local, tm, pi);
-      return [term, pi];
-    }
+    const pi = freshPi(local.ts, local.vs, tm.name, tm.plicity);
+    const term = check(local, tm, pi);
+    return [term, pi];
   }
   if (tm.tag === 'Let') {
     let vty;
@@ -268,16 +255,7 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
       const [tm_, ty] = typecheck(d.value);
       const tm = zonk(tm_);
       log(() => `set ${d.name} = ${showTerm(tm)}`);
-      const zty = quote(ty, 0, 0);
-      const ctm = toCore(tm);
-      if (config.checkCore) {
-        log(() => `typecheck in core: ${showTermC(ctm)}`);
-        const cty = typecheckC(ctm);
-        log(() => `core type: ${showTermC(CD.quote(cty, 0, false))}`);
-        globalSet(d.name, tm, evaluate(tm, Nil), ty, ctm, CD.evaluate(ctm, Nil), cty, PD.normalize(P.erase(ctm)));
-      } else {
-        globalSet(d.name, tm, evaluate(tm, Nil), ty, ctm, CD.evaluate(ctm, Nil), CD.evaluate(toCore(zty), Nil), PD.normalize(P.erase(ctm)));
-      }
+      globalSet(d.name, tm, evaluate(tm, Nil), ty);
       xs.push(d.name);
     }
   }
