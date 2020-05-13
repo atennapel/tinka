@@ -12,8 +12,8 @@ export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, body: Term };
 export const Abs = (plicity: Plicity, name: Name, body: Term): Abs => ({ tag: 'Abs', plicity, name, body });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
-export type Pi = { tag: 'Pi', plicity: Plicity, rec: Name, name: Name, type: Term, body: Term };
-export const Pi = (plicity: Plicity, rec: Name, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, rec, name, type, body });
+export type Pi = { tag: 'Pi', plicity: Plicity, self: Name, rec: Name, name: Name, type: Term, body: Term };
+export const Pi = (plicity: Plicity, self: Name, rec: Name, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, self, rec, name, type, body });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
@@ -30,7 +30,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Abs')
     return `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTermS(t.type)}` : ''} = ${showTermS(t.val)} in ${showTermS(t.body)})`;
-  if (t.tag === 'Pi') return `(/(${t.rec} @ ${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
+  if (t.tag === 'Pi') return `(/(${t.self} @ ${t.rec} @ ${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
   if (t.tag === 'Type') return '*';
   if (t.tag === 'Ann') return `(${showTermS(t.term)} : ${showTermS(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
@@ -53,10 +53,10 @@ export const flattenAbs = (t: Term): [[Name, Plicity][], Term] => {
   }
   return [r, t];
 };
-export const flattenPi = (t: Term): [[Name, Name, Plicity, Term][], Term] => {
-  const r: [Name, Name, Plicity, Term][] = [];
+export const flattenPi = (t: Term): [[Name, Name, Name, Plicity, Term][], Term] => {
+  const r: [Name, Name, Name, Plicity, Term][] = [];
   while (t.tag === 'Pi') {
-    r.push([t.rec, t.name, t.plicity, t.type]);
+    r.push([t.self, t.rec, t.name, t.plicity, t.type]);
     t = t.body;
   }
   return [r, t];
@@ -81,7 +81,7 @@ export const showTerm = (t: Term): string => {
   }
   if (t.tag === 'Pi') {
     const [as, b] = flattenPi(t);
-    return `${as.map(([r, x, im, t]) => x === '_' && r === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : `${showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi', t)}`) : `${im ? '{' : '('}${r === '_' ? '' : `${r} @ `}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
+    return `${as.map(([s, r, x, im, t]) => s === '_' && x === '_' && r === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : `${showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi', t)}`) : `${im ? '{' : '('}${s === '_' && r === '_' ? '' : `${s} @ ${r} @ `}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
   }
   if (t.tag === 'Let')
     return `let ${t.plicity ? `{${t.name}}` : t.name}${t.type ? ` : ${showTermP(t.type.tag === 'Let' || t.type.tag === 'Ann', t.type)}` : ''} = ${showTermP(t.val.tag === 'Let', t.val)} in ${showTermP(t.body.tag === 'Ann', t.body)}`;

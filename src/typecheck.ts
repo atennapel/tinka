@@ -66,12 +66,12 @@ const newMeta = (ts: EnvT): Term => {
   return foldr((x, y) => App(y, false, x), freshMeta() as Term, spine);
 };
 
-const inst = (ts: EnvT, vs: EnvV, ty_: Val): [Val, List<Term>] => {
+const inst = (ts: EnvT, vs: EnvV, ty_: Val, v: Val): [Val, List<Term>] => {
   const ty = forceGlue(ty_);
   if (ty.tag === 'VPi' && ty.plicity) {
     const m = newMeta(ts);
     const vm = evaluate(m, vs);
-    const [res, args] = inst(ts, vs, ty.body(ty_, vm));
+    const [res, args] = inst(ts, vs, ty.body(v, ty_, vm), v);
     return [res, Cons(m, args)];
   }
   return [ty, Nil];
@@ -88,12 +88,14 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   if (tm.tag === 'Abs' && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
     const x = tm.name === '_' ? fty.name : tm.name;
-    const body = check(extend(local, x, fty.type(ty), true, fty.plicity, false, v), tm.body, fty.body(ty, v));
+    const abs = fromSurface(tm, local.names);
+    const body = check(extend(local, x, fty.type(ty), true, fty.plicity, false, v), tm.body, fty.body(evaluate(abs, local.vs), ty, v));
     return Abs(tm.plicity, x, body);
   }
   if (tm.tag === 'Abs' && fty.tag === 'VPi' && !tm.plicity && fty.plicity) {
     const v = VVar(local.index);
-    const term = check(extend(local, fty.name, fty.type(ty), true, true, true, v), tm, fty.body(ty, v));
+    const abs = fromSurface(tm, local.names);
+    const term = check(extend(local, fty.name, fty.type(ty), true, true, true, v), tm, fty.body(evaluate(abs, local.vs), ty, v));
     return Abs(fty.plicity, fty.name, term);
   }
   if (tm.tag === 'Let') {
@@ -123,7 +125,8 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     try {
       metaPop();
       metaPush();
-      const [ty2inst, ms] = inst(local.ts, local.vs, ty2); 
+      const v = evaluate(term, local.vs);
+      const [ty2inst, ms] = inst(local.ts, local.vs, ty2, v); 
       log(() => `unify-inst ${showTermS(ty2inst, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
       unify(local.index, ty2inst, ty);
       metaDiscard();
@@ -140,7 +143,7 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
   const a = newMeta(ts);
   const va = evaluate(a, vs);
   const b = newMeta(extendT(ts, va, true, impl, false));
-  return VPi(impl, '_', x, _ => va, (v, w) => evaluate(b, extendV(extendV(vs, w), v)));
+  return VPi(impl, '_', '_', x, _ => va, (s, v, w) => evaluate(b, extendV(extendV(extendV(vs, w), v), s)));
 };
 
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
@@ -165,7 +168,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   }
   if (tm.tag === 'App') {
     const [left, ty] = synth(local, tm.left);
-    const [right, rty, ms] = synthapp(local, ty, tm.plicity, tm.right, tm);
+    const [right, rty, ms] = synthapp(local, ty, tm.plicity, tm.right, tm, left);
     return [App(foldl((f, a) => App(f, true, a), left, ms), tm.plicity, right), rty];
   }
   if (tm.tag === 'Abs') {
@@ -192,9 +195,10 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const pi = evaluate(fromSurface(tm, local.namesSurface), local.vs);
     const env = extend(local, tm.rec, VType, false, false, false, pi);
     const type = check(localInType(env), tm.type, VType);
-    const env2 = extend(env, tm.name, evaluate(type, env.vs), true, false, false, VVar(env.index));
-    const body = check(env2, tm.body, VType);
-    return [Pi(tm.plicity, tm.rec, tm.name, type, body), VType];
+    const env2 = extend(env, tm.self, pi, true, false, false, VVar(env.index));
+    const env3 = extend(env2, tm.name, evaluate(type, env2.vs), true, false, false, VVar(env2.index));
+    const body = check(env3, tm.body, VType);
+    return [Pi(tm.plicity, tm.self, tm.rec, tm.name, type, body), VType];
   }
   if (tm.tag === 'Ann') {
     const type = check(localInType(local), tm.type, VType);
@@ -205,27 +209,27 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 
-const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val, List<Term>] => {
+const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term, fn: Term): [Term, Val, List<Term>] => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.plicity && !plicity) {
     const m = newMeta(local.ts);
     const vm = evaluate(m, local.vs);
-    const [rest, rt, l] = synthapp(local, ty.body(ty_, vm), plicity, tm, tmall);
+    const [rest, rt, l] = synthapp(local, ty.body(evaluate(fn, local.vs), ty_, vm), plicity, tm, tmall, fn);
     return [rest, rt, Cons(m, l)];
   }
   if (ty.tag === 'VPi' && ty.plicity === plicity) {
     const right = check(plicity ? localInType(local) : local, tm, ty.type(ty_));
-    const rt = ty.body(ty_, evaluate(right, local.vs));
+    const rt = ty.body(evaluate(fn, local.vs), ty_, evaluate(right, local.vs));
     return [right, rt, Nil];
   }
   // TODO fix the following
   if (ty.tag === 'VNe' && ty.head.tag === 'HMeta') {
     const a = freshMetaId();
     const b = freshMetaId();
-    const pi = VPi(plicity, '_', '_', _ => VNe(HMeta(a), ty.args), () => VNe(HMeta(b), ty.args));
+    const pi = VPi(plicity, '_', '_', '_', _ => VNe(HMeta(a), ty.args), () => VNe(HMeta(b), ty.args));
     unify(local.index, ty, pi);
-    return synthapp(local, pi, plicity, tm, tmall);
+    return synthapp(local, pi, plicity, tm, tmall, fn);
   }
   return terr(`invalid type or plicity mismatch in synthapp in ${S.showTerm(tmall)}: ${showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}`);
 };

@@ -116,23 +116,27 @@ const lambdaParams = (t: Token): [Name, boolean, Term | null][] => {
   }
   return serr(`invalid lambda param`);
 };
-const piParams = (t: Token): [Name, Name, boolean, Term][] => {
-  if (t.tag === 'Name') return [['_', '_', false, expr(t)[0]]];
+const piParams = (t: Token): [Name, Name, Name, boolean, Term][] => {
+  if (t.tag === 'Name') return [['_', '_', '_', false, expr(t)[0]]];
   if (t.tag === 'List') {
     const impl = t.bracket === '{';
     const a = t.list;
-    if (a.length === 0) return [['_', '_', impl, tunit]];
+    if (a.length === 0) return [['_', '_', '_', impl, tunit]];
     const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
-    if (i === -1) return [['_', '_', impl, expr(t)[0]]];
+    if (i === -1) return [['_', '_', '_', impl, expr(t)[0]]];
     const ns = a.slice(0, i);
     const rest = a.slice(i + 1);
     const ty = exprs(rest, '(');
     return isNames(ns).map(x => {
       if (x.includes('@')) {
-        const [a, b] = x.split('@');
-        return [a, b, impl, ty];
+        const spl = x.split('@');
+        if (spl.length === 2)
+          return ['_', spl[0], spl[1], impl, ty];
+        else if (spl.length === 3)
+          return [spl[0], spl[1], spl[2], impl, ty];
+        else return serr(`error with pi params and @`);
       }
-      return ['_', x, impl, ty]
+      return ['_', '_', x, impl, ty]
     });
   }
   return serr(`invalid pi param`);
@@ -232,11 +236,11 @@ const exprs = (ts: Token[], br: BracketO): Term => {
   if (j >= 0) {
     const s = splitTokens(ts, x => isName(x, '->'));
     if (s.length < 2) return serr(`parsing failed with ->`);
-    const args: [Name, Name, boolean, Term][] = s.slice(0, -1)
-      .map(p => p.length === 1 ? piParams(p[0]) : [['_', '_', false, exprs(p, '(')] as [Name, Name, boolean, Term]])
+    const args: [Name, Name, Name, boolean, Term][] = s.slice(0, -1)
+      .map(p => p.length === 1 ? piParams(p[0]) : [['_', '_', '_', false, exprs(p, '(')] as [Name, Name, Name, boolean, Term]])
       .reduce((x, y) => x.concat(y), []);
     const body = exprs(s[s.length - 1], '(');
-    return args.reduceRight((x, [rec, name, impl, ty]) => Pi(impl, rec, name, ty, x), body);
+    return args.reduceRight((x, [self, rec, name, impl, ty]) => Pi(impl, self, rec, name, ty, x), body);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];
