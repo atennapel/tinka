@@ -5,7 +5,7 @@ exports.log = exports.setConfig = exports.config = void 0;
 exports.config = {
     debug: false,
     showEnvs: false,
-    showNormalization: false,
+    showNormalization: true,
     verify: false,
 };
 exports.setConfig = (c) => {
@@ -853,8 +853,8 @@ exports.runREPL = (_s, _cb) => {
         }
         try {
             const n = domain_1.normalize(tm_, list_1.Nil, 0, true);
-            config_1.log(() => syntax_1.showSurfaceZ(n));
-            return _cb(`${msg}${config_1.config.showNormalization ? `\nnorm: ${syntax_1.showSurfaceZ(n)}` : ''}`);
+            config_1.log(() => syntax_1.showSurfaceZErased(n));
+            return _cb(`${msg}${config_1.config.showNormalization ? `\nnorm: ${syntax_1.showSurfaceZErased(n)}` : ''}`);
         }
         catch (err) {
             config_1.log(() => '' + err);
@@ -871,7 +871,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":9,"./syntax":10,"./typecheck":11,"./utils/list":14,"./utils/utils":15,"./verify":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.showTerm = exports.showTermP = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Meta = exports.Hole = exports.Ann = exports.Type = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Meta = exports.Hole = exports.Ann = exports.Type = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Var = void 0;
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
@@ -955,6 +955,27 @@ exports.showTerm = (t) => {
         return `_${t.name || ''}`;
     return t;
 };
+exports.erase = (t) => {
+    if (t.tag === 'Hole')
+        return t;
+    if (t.tag === 'Meta')
+        return t;
+    if (t.tag === 'Var')
+        return t;
+    if (t.tag === 'Type')
+        return t;
+    if (t.tag === 'Ann')
+        return exports.erase(t.term);
+    if (t.tag === 'Abs')
+        return t.plicity ? exports.erase(t.body) : exports.Abs(false, t.name, null, exports.erase(t.body));
+    if (t.tag === 'App')
+        return t.plicity ? exports.erase(t.left) : exports.App(exports.erase(t.left), false, exports.erase(t.right));
+    if (t.tag === 'Pi')
+        return exports.Pi(t.plicity, t.name, exports.erase(t.type), exports.erase(t.body));
+    if (t.tag === 'Let')
+        return t.plicity ? exports.erase(t.body) : exports.Let(false, t.name, null, exports.erase(t.val), exports.erase(t.body));
+    return t;
+};
 exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
 exports.showDef = (d) => {
     if (d.tag === 'DDef')
@@ -966,7 +987,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shift = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Meta = exports.Type = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
+exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Meta = exports.Type = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1075,6 +1096,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
 };
 exports.showSurface = (t, ns = list_1.Nil) => S.showTerm(exports.toSurface(t, ns));
 exports.showSurfaceZ = (t, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = false) => S.showTerm(exports.toSurface(domain_1.zonk(t, vs, k, full), ns));
+exports.showSurfaceZErased = (t, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = false) => S.showTerm(S.erase(exports.toSurface(domain_1.zonk(t, vs, k, full), ns)));
 exports.shift = (d, c, t) => {
     if (t.tag === 'Var')
         return t.index < c ? t : exports.Var(t.index + d);

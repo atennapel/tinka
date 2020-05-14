@@ -7,7 +7,7 @@ export interface Config {
 export const config: Config = {
   debug: false,
   showEnvs: false,
-  showNormalization: false,
+  showNormalization: true,
   verify: false,
 };
 export const setConfig = (c: Partial<Config>) => {

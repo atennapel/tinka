@@ -95,6 +95,8 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));
 export const showSurfaceZ = (t: Term, ns: List<Name> = Nil, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): string =>
   S.showTerm(toSurface(zonk(t, vs, k, full), ns));
+export const showSurfaceZErased = (t: Term, ns: List<Name> = Nil, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): string =>
+  S.showTerm(S.erase(toSurface(zonk(t, vs, k, full), ns)));
 
 export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);

@@ -91,6 +91,19 @@ export const showTerm = (t: Term): string => {
   return t;
 };
 
+export const erase = (t: Term): Term => {
+  if (t.tag === 'Hole') return t;
+  if (t.tag === 'Meta') return t;
+  if (t.tag === 'Var') return t;
+  if (t.tag === 'Type') return t;
+  if (t.tag === 'Ann') return erase(t.term);
+  if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
+  if (t.tag === 'App') return t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
+  if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
+  if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));
+  return t;
+};
+
 export type Def = DDef;
 
 export type DDef = { tag: 'DDef', name: Name, value: Term };

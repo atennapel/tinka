@@ -4,7 +4,7 @@ import { parse, ImportMap, parseDefs } from './parser';
 import { globalMap, globalDelete, globalGet } from './globalenv';
 import { loadFile } from './utils/utils';
 import { showTermSZ, normalize } from './domain';
-import { showSurfaceZ, showTerm as showTermI, Term } from './syntax';
+import { showSurfaceZ, showTerm as showTermI, Term, showSurfaceZErased } from './syntax';
 import { Nil } from './utils/list';
 import { typecheckDefs, typecheck } from './typecheck';
 import { verify } from './verify';
@@ -135,8 +135,8 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     try {
       const n = normalize(tm_, Nil, 0, true);
-      log(() => showSurfaceZ(n));
-      return _cb(`${msg}${config.showNormalization ? `\nnorm: ${showSurfaceZ(n)}` : ''}`);
+      log(() => showSurfaceZErased(n));
+      return _cb(`${msg}${config.showNormalization ? `\nnorm: ${showSurfaceZErased(n)}` : ''}`);
     } catch (err) {
       log(() => ''+err);
       msg += '\n'+err;
