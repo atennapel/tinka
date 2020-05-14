@@ -1,6 +1,6 @@
 import { Val } from './domain';
 import { Meta } from './syntax';
-import { impossible } from './utils/util';
+import { impossible } from './utils/utils';
 import { Ix } from './names';
 
 export type Solution = Unsolved | Solved;
