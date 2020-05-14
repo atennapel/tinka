@@ -1,3 +1,7 @@
 import lib/combinators.p
+import lib/functor.p
+import lib/void.p
 import lib/unit.p
+import lib/pair.p
 import lib/nat.p
+import lib/fix.p
