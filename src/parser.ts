@@ -168,6 +168,55 @@ const exprs = (ts: Token[], br: BracketO): Term => {
   if (br === '{') return serr(`{} cannot be used here`);
   if (ts.length === 0) return unit;
   if (ts.length === 1) return expr(ts[0])[0];
+  if (isName(ts[0], 'let')) {
+    const x = ts[1];
+    let impl = false;
+    let name = 'ERROR';
+    if (x.tag === 'Name') {
+      name = x.name;
+    } else if (x.tag === 'List' && x.bracket === '{') {
+      const a = x.list;
+      if (a.length !== 1) return serr(`invalid name for let`);
+      const h = a[0];
+      if (h.tag !== 'Name') return serr(`invalid name for let`);
+      name = h.name;
+      impl = true;
+    } else return serr(`invalid name for let`);
+    let ty: Term | null = null;
+    let j = 2;
+    if (isName(ts[j], ':')) {
+      const tyts: Token[] = [];
+      j++;
+      for (; j < ts.length; j++) {
+        const v = ts[j];
+        if (v.tag === 'Name' && v.name === '=')
+          break;
+        else tyts.push(v);
+      }
+      ty = exprs(tyts, '(');
+    }
+    if (!isName(ts[j], '=')) return serr(`no = after name in let`);
+    const vals: Token[] = [];
+    let found = false;
+    let i = j + 1;
+    for (; i < ts.length; i++) {
+      const c = ts[i];
+      if (c.tag === 'Name' && c.name === 'in') {
+        found = true;
+        break;
+      }
+      vals.push(c);
+    }
+    if (!found) return serr(`no in after let`);
+    if (vals.length === 0) return serr(`empty val in let`);
+    const val = exprs(vals, '(');
+    const body = exprs(ts.slice(i + 1), '(');
+    if (ty)
+      return Let(impl, name, ty, val, body);
+    if (val.tag === 'Ann')
+      return Let(impl, name, val.type, val.term, body);
+    return Let(impl, name, null, val, body);
+  }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {
     const a = ts.slice(0, i);
@@ -189,38 +238,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
-  }
-  if (isName(ts[0], 'let')) {
-    const x = ts[1];
-    let impl = false;
-    let name = 'ERROR';
-    if (x.tag === 'Name') {
-      name = x.name;
-    } else if (x.tag === 'List' && x.bracket === '{') {
-      const a = x.list;
-      if (a.length !== 1) return serr(`invalid name for let`);
-      const h = a[0];
-      if (h.tag !== 'Name') return serr(`invalid name for let`);
-      name = h.name;
-      impl = true;
-    } else return serr(`invalid name for let`);
-    if (!isName(ts[2], '=')) return serr(`no = after name in let`);
-    const vals: Token[] = [];
-    let found = false;
-    let i = 3;
-    for (; i < ts.length; i++) {
-      const c = ts[i];
-      if (c.tag === 'Name' && c.name === 'in') {
-        found = true;
-        break;
-      }
-      vals.push(c);
-    }
-    if (!found) return serr(`no in after let`);
-    if (vals.length === 0) return serr(`empty val in let`);
-    const val = exprs(vals, '(');
-    const body = exprs(ts.slice(i + 1), '(');
-    return Let(impl, name, null, val, body);
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

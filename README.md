@@ -4,7 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- update parser to allow annotation in let
+- add datatype system
 - zonk all elims
 - insert skolems in check
 - add named holes
