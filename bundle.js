@@ -50,7 +50,7 @@ exports.conv = (k, a_, b_) => {
     config_1.log(() => `conv(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
-    if (a.tag === 'VType' && b.tag === 'VType')
+    if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.conv(k, a.type, b.type);
@@ -92,7 +92,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":13,"./utils/list":14,"./utils/utils":15}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VDesc = exports.VType = exports.VSort = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -107,7 +107,9 @@ exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
 exports.VPi = (plicity, name, type, body) => ({ tag: 'VPi', plicity, name, type, body });
-exports.VType = { tag: 'VType' };
+exports.VSort = (sort) => ({ tag: 'VSort', sort });
+exports.VType = exports.VSort('*');
+exports.VDesc = exports.VSort('**');
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
@@ -147,8 +149,8 @@ exports.vapp = (a, plicity, b) => {
     return utils_1.impossible(`vapp: ${a.tag}`);
 };
 exports.evaluate = (t, vs = list_1.Nil) => {
-    if (t.tag === 'Type')
-        return exports.VType;
+    if (t.tag === 'Sort')
+        return exports.VSort(t.sort);
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -195,8 +197,8 @@ const quoteElim = (t, e, k, full) => {
 };
 exports.quote = (v_, k, full) => {
     const v = exports.forceGlue(v_);
-    if (v.tag === 'VType')
-        return syntax_1.Type;
+    if (v.tag === 'VSort')
+        return syntax_1.Sort(v.sort);
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
     if (v.tag === 'VGlued') {
@@ -356,7 +358,7 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const SYM1 = ['\\', ':', '/', '.', '*', '=', '|'];
-const SYM2 = ['->'];
+const SYM2 = ['->', '**'];
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
@@ -491,6 +493,8 @@ const expr = (t) => {
         return [exprs(t.list, '('), t.bracket === '{'];
     if (t.tag === 'Name') {
         const x = t.name;
+        if (x === '**')
+            return [surface_1.Desc, false];
         if (x === '*')
             return [surface_1.Type, false];
         if (x.startsWith('_'))
@@ -871,16 +875,18 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":9,"./syntax":10,"./typecheck":11,"./utils/list":14,"./utils/utils":15,"./verify":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Meta = exports.Hole = exports.Ann = exports.Type = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Desc = exports.Type = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Var = void 0;
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
-exports.Type = { tag: 'Type' };
+exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
+exports.Type = exports.Sort('*');
+exports.Desc = exports.Sort('**');
 exports.showTermS = (t) => {
     if (t.tag === 'Var')
         return t.name;
@@ -894,8 +900,8 @@ exports.showTermS = (t) => {
         return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${exports.showTermS(t.type)}` : ''} = ${exports.showTermS(t.val)} in ${exports.showTermS(t.body)})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTermS(t.type)}). ${exports.showTermS(t.body)})`;
-    if (t.tag === 'Type')
-        return '*';
+    if (t.tag === 'Sort')
+        return t.sort;
     if (t.tag === 'Ann')
         return `(${exports.showTermS(t.term)} : ${exports.showTermS(t.type)})`;
     if (t.tag === 'Hole')
@@ -928,8 +934,8 @@ exports.flattenPi = (t) => {
 };
 exports.showTermP = (b, t) => b ? `(${exports.showTerm(t)})` : exports.showTerm(t);
 exports.showTerm = (t) => {
-    if (t.tag === 'Type')
-        return '*';
+    if (t.tag === 'Sort')
+        return t.sort;
     if (t.tag === 'Var')
         return t.name;
     if (t.tag === 'Meta')
@@ -962,7 +968,7 @@ exports.erase = (t) => {
         return t;
     if (t.tag === 'Var')
         return t;
-    if (t.tag === 'Type')
+    if (t.tag === 'Sort')
         return t;
     if (t.tag === 'Ann')
         return exports.erase(t.term);
@@ -987,7 +993,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Meta = exports.Type = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
+exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Desc = exports.Type = exports.Meta = exports.Sort = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -999,8 +1005,10 @@ exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
-exports.Type = { tag: 'Type' };
+exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Meta = (index) => ({ tag: 'Meta', index });
+exports.Type = exports.Sort('*');
+exports.Desc = exports.Sort('**');
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
         return `${t.index}`;
@@ -1016,8 +1024,8 @@ exports.showTerm = (t) => {
         return `(let ${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)} = ${exports.showTerm(t.val)} in ${exports.showTerm(t.body)})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
-    if (t.tag === 'Type')
-        return '*';
+    if (t.tag === 'Sort')
+        return t.sort;
     return t;
 };
 exports.globalUsed = (k, t) => {
@@ -1074,8 +1082,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     }
     if (t.tag === 'Meta')
         return S.Meta(t.index);
-    if (t.tag === 'Type')
-        return S.Type;
+    if (t.tag === 'Sort')
+        return S.Sort(t.sort);
     if (t.tag === 'Global')
         return S.Var(t.name);
     if (t.tag === 'App')
@@ -1179,8 +1187,8 @@ const inst = (ts, vs, ty_) => {
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     const fty = domain_1.force(ty);
-    if (tm.tag === 'Type' && fty.tag === 'VType')
-        return syntax_1.Type;
+    if (tm.tag === 'Sort' && fty.tag === 'VSort' && fty.sort === '*')
+        return syntax_1.Sort(tm.sort);
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         return x;
@@ -1248,8 +1256,8 @@ const freshPi = (ts, vs, x, impl) => {
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
-    if (tm.tag === 'Type')
-        return [syntax_1.Type, domain_1.VType];
+    if (tm.tag === 'Sort')
+        return [syntax_1.Sort(tm.sort), domain_1.VType];
     if (tm.tag === 'Var') {
         const i = list_1.indexOf(local.namesSurface, tm.name);
         if (i < 0) {
@@ -1400,7 +1408,7 @@ exports.unify = (k, a_, b_) => {
     config_1.log(() => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
-    if (a.tag === 'VType' && b.tag === 'VType')
+    if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
@@ -1490,7 +1498,7 @@ const checkSpine = (k, spine) => list_1.map(spine, elim => {
     return elim.tag;
 });
 const checkSolution = (k, m, is, t) => {
-    if (t.tag === 'Type')
+    if (t.tag === 'Sort')
         return t;
     if (t.tag === 'Global')
         return t;
@@ -1769,7 +1777,7 @@ const check = (local, tm, ty) => {
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
-    if (tm.tag === 'Type')
+    if (tm.tag === 'Sort')
         return domain_1.VType;
     if (tm.tag === 'Global') {
         const entry = globalenv_1.globalGet(tm.name);

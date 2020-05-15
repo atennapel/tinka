@@ -1,9 +1,9 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Type, Var, App, Abs, Pi, Global, showSurface, Meta, Let } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
-import { Plicity } from './surface';
+import { Plicity, Sorts } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
@@ -22,7 +22,7 @@ export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VSort;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -32,8 +32,11 @@ export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, type: Val, body:
 export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, type, body});
 export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: Clos };
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
-export type VType = { tag: 'VType' };
-export const VType: VType = { tag: 'VType' };
+export type VSort = { tag: 'VSort', sort: Sorts };
+export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
+
+export const VType: VSort = VSort('*');
+export const VDesc: VSort = VSort('**');
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -76,7 +79,7 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
-  if (t.tag === 'Type') return VType;
+  if (t.tag === 'Sort') return VSort(t.sort);
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -118,7 +121,7 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   const v = forceGlue(v_);
-  if (v.tag === 'VType') return Type;
+  if (v.tag === 'VSort') return Sort(v.sort);
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),

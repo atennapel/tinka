@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Pi | Type | Meta;
+export type Term = Var | Global | App | Abs | Let | Pi | Sort | Meta;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -19,10 +19,13 @@ export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term, val: T
 export const Let = (plicity: Plicity, name: Name, type: Term, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
-export type Type = { tag: 'Type' };
-export const Type: Type = { tag: 'Type' };
+export type Sort = { tag: 'Sort', sort: S.Sorts };
+export const Sort = (sort: S.Sorts): Sort => ({ tag: 'Sort', sort });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
+
+export const Type: Sort = Sort('*');
+export const Desc: Sort = Sort('**');
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
@@ -32,7 +35,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Abs') return `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
-  if (t.tag === 'Type') return '*';
+  if (t.tag === 'Sort') return t.sort;
   return t;
 };
 
@@ -75,7 +78,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     return l ? S.Var(l) : impossible(`var index out of range in toSurface: ${t.index}`);
   }
   if (t.tag === 'Meta') return S.Meta(t.index);
-  if (t.tag === 'Type') return S.Type;
+  if (t.tag === 'Sort') return S.Sort(t.sort);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Abs') {
