@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Pi | Sort | Meta;
+export type Term = Var | Global | App | Abs | Let | Pi | Sort | Meta | Ex | Pack | UnsafeUnpack | Unpack;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -23,9 +23,16 @@ export type Sort = { tag: 'Sort', sort: S.Sorts };
 export const Sort = (sort: S.Sorts): Sort => ({ tag: 'Sort', sort });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
+export type Ex = { tag: 'Ex', type: Term, fun: Term };
+export const Ex = (type: Term, fun: Term): Ex => ({ tag: 'Ex', type, fun });
+export type Pack = { tag: 'Pack', type: Term, fun: Term, hidden: Term, val: Term }
+export const Pack = (type: Term, fun: Term, hidden: Term, val: Term): Pack => ({ tag: 'Pack', type, fun, hidden, val });
+export type UnsafeUnpack = { tag: 'UnsafeUnpack', type: Term, fun: Term, hidden: Term, val: Term }
+export const UnsafeUnpack = (type: Term, fun: Term, hidden: Term, val: Term): UnsafeUnpack => ({ tag: 'UnsafeUnpack', type, fun, hidden, val });
+export type Unpack = { tag: 'Unpack', type: Term, fun: Term, hidden: Term, val: Term, elim: Term }
+export const Unpack = (type: Term, fun: Term, hidden: Term, val: Term, elim: Term): Unpack => ({ tag: 'Unpack', type, fun, hidden, val, elim });
 
 export const Type: Sort = Sort('*');
-export const Desc: Sort = Sort('**');
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
@@ -36,6 +43,10 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Sort') return t.sort;
+  if (t.tag === 'Ex') return `(Ex ${showTerm(t.type)} ${showTerm(t.fun)})`;
+  if (t.tag === 'Pack') return `(pack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTerm(t.val)})`;
+  if (t.tag === 'UnsafeUnpack') return `(unsafeUnpack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTerm(t.val)})`;
+  if (t.tag === 'Unpack') return `(unpack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTerm(t.val)} ${showTerm(t.elim)})`;
   return t;
 };
 
@@ -45,6 +56,10 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Abs') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Let') return globalUsed(k, t.type) || globalUsed(k, t.val) || globalUsed(k, t.body);
   if (t.tag === 'Pi') return globalUsed(k, t.type) || globalUsed(k, t.body);
+  if (t.tag === 'Ex') return globalUsed(k, t.type) || globalUsed(k, t.fun);
+  if (t.tag === 'Pack') return globalUsed(k, t.type) || globalUsed(k, t.fun) || globalUsed(k, t.hidden) || globalUsed(k, t.val);
+  if (t.tag === 'UnsafeUnpack') return globalUsed(k, t.type) || globalUsed(k, t.fun) || globalUsed(k, t.hidden) || globalUsed(k, t.val);
+  if (t.tag === 'Unpack') return globalUsed(k, t.type) || globalUsed(k, t.fun) || globalUsed(k, t.hidden) || globalUsed(k, t.val) || globalUsed(k, t.elim);
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -53,6 +68,10 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Abs') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Let') return indexUsed(k, t.type) || indexUsed(k, t.val) || indexUsed(k + 1, t.body);
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
+  if (t.tag === 'Ex') return indexUsed(k, t.type) || indexUsed(k, t.fun);
+  if (t.tag === 'Pack') return indexUsed(k, t.type) || indexUsed(k, t.fun) || indexUsed(k, t.hidden) || indexUsed(k, t.val);
+  if (t.tag === 'UnsafeUnpack') return indexUsed(k, t.type) || indexUsed(k, t.fun) || indexUsed(k, t.hidden) || indexUsed(k, t.val);
+  if (t.tag === 'Unpack') return indexUsed(k, t.type) || indexUsed(k, t.fun) || indexUsed(k, t.hidden) || indexUsed(k, t.val) || indexUsed(k, t.elim);
   return false;
 };
 
@@ -62,6 +81,10 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Abs') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Let') return isUnsolved(t.type) || isUnsolved(t.val) || isUnsolved(t.body);
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
+  if (t.tag === 'Ex') return isUnsolved(t.type) || isUnsolved(t.fun);
+  if (t.tag === 'Pack') return isUnsolved(t.type) || isUnsolved(t.fun) || isUnsolved(t.hidden) || isUnsolved(t.val);
+  if (t.tag === 'UnsafeUnpack') return isUnsolved(t.type) || isUnsolved(t.fun) || isUnsolved(t.hidden) || isUnsolved(t.val);
+  if (t.tag === 'Unpack') return isUnsolved(t.type) || isUnsolved(t.fun) || isUnsolved(t.hidden) || isUnsolved(t.val) || isUnsolved(t.elim);
   return false;
 };
 
@@ -81,6 +104,10 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Sort') return S.Sort(t.sort);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
+  if (t.tag === 'Ex') return S.Ex(toSurface(t.type, ns), toSurface(t.fun, ns));
+  if (t.tag === 'Pack') return S.Pack(toSurface(t.type, ns), toSurface(t.fun, ns), toSurface(t.hidden, ns), toSurface(t.val, ns));
+  if (t.tag === 'UnsafeUnpack') return S.UnsafeUnpack(toSurface(t.type, ns), toSurface(t.fun, ns), toSurface(t.hidden, ns), toSurface(t.val, ns));
+  if (t.tag === 'Unpack') return S.Unpack(toSurface(t.type, ns), toSurface(t.fun, ns), toSurface(t.hidden, ns), toSurface(t.val, ns), toSurface(t.elim, ns));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);
     return S.Abs(t.plicity, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
@@ -107,5 +134,9 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'App') return App(shift(d, c, t.left), t.plicity, shift(d, c, t.right));
   if (t.tag === 'Let') return Let(t.plicity, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Ex') return Ex(shift(d, c, t.type), shift(d, c, t.fun));
+  if (t.tag === 'Pack') return Pack(shift(d, c, t.type), shift(d, c, t.fun), shift(d, c, t.hidden), shift(d, c, t.val));
+  if (t.tag === 'UnsafeUnpack') return UnsafeUnpack(shift(d, c, t.type), shift(d, c, t.fun), shift(d, c, t.hidden), shift(d, c, t.val));
+  if (t.tag === 'Unpack') return Unpack(shift(d, c, t.type), shift(d, c, t.fun), shift(d, c, t.hidden), shift(d, c, t.val), shift(d, c, t.elim));
   return t;
 };

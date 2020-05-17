@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, Ex, Pack, UnsafeUnpack, Unpack } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, Sorts } from './surface';
@@ -16,13 +16,17 @@ export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 
-export type Elim = EApp;
+export type Elim = EApp | EUnsafeUnpack | EUnpack;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
+export type EUnsafeUnpack = { tag: 'EUnsafeUnpack', type: Val, fun: Val, hidden: Val };
+export const EUnsafeUnpack = (type: Val, fun: Val, hidden: Val): EUnsafeUnpack => ({ tag: 'EUnsafeUnpack', type, fun, hidden });
+export type EUnpack = { tag: 'EUnpack', type: Val, fun: Val, hidden: Val, elim: Val };
+export const EUnpack = (type: Val, fun: Val, hidden: Val, elim: Val): EUnpack => ({ tag: 'EUnpack', type, fun, hidden, elim });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSort;
+export type Val = VNe | VGlued | VAbs | VPi | VSort | VEx | VPack;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -34,9 +38,12 @@ export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: C
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
 export type VSort = { tag: 'VSort', sort: Sorts };
 export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
+export type VEx = { tag: 'VEx', type: Val, fun: Val };
+export const VEx = (type: Val, fun: Val): VEx => ({ tag: 'VEx', type, fun });
+export type VPack = { tag: 'VPack', type: Val, fun: Val, hidden: Val, val: Val };
+export const VPack = (type: Val, fun: Val, hidden: Val, val: Val): VPack => ({ tag: 'VPack', type, fun, hidden, val });
 
 export const VType: VSort = VSort('*');
-export const VDesc: VSort = VSort('**');
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -52,6 +59,8 @@ export const force = (v: Val): Val => {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
     return force(foldr((elim, y) =>
+      elim.tag === 'EUnsafeUnpack' ? vunsafeunpack(elim.type, elim.fun, elim.hidden, y) :
+      elim.tag === 'EUnpack' ? vunpack(elim.type, elim.fun, elim.hidden, elim.elim, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -61,6 +70,8 @@ export const forceGlue = (v: Val): Val => {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
     return forceGlue(foldr((elim, y) =>
+      elim.tag === 'EUnsafeUnpack' ? vunsafeunpack(elim.type, elim.fun, elim.hidden, y) :
+      elim.tag === 'EUnpack' ? vunpack(elim.type, elim.fun, elim.hidden, elim.elim, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -76,6 +87,20 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`vapp: ${a.tag}`);
+};
+export const vunsafeunpack = (type: Val, fun: Val, hidden: Val, v: Val): Val => {
+  if (v.tag === 'VPack') return v.val;
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EUnsafeUnpack(type, fun, hidden), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EUnsafeUnpack(type, fun, hidden), v.args), mapLazy(v.val, v => vunsafeunpack(type, fun, hidden, v)));
+  return impossible(`vunpack: ${v.tag}`);
+};
+export const vunpack = (type: Val, fun: Val, hidden: Val, elim: Val, v: Val): Val => {
+  if (v.tag === 'VPack') return vapp(vapp(elim, true, v.hidden), false, v.val);
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EUnpack(type, fun, hidden, elim), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EUnpack(type, fun, hidden, elim), v.args), mapLazy(v.val, v => vunpack(type, fun, hidden, elim, v)));
+  return impossible(`vunpack: ${v.tag}`);
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
@@ -101,6 +126,14 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return evaluate(t.body, extendV(vs, evaluate(t.val, vs)));
   if (t.tag === 'Pi')
     return VPi(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+  if (t.tag === 'Ex')
+    return VEx(evaluate(t.type, vs), evaluate(t.fun, vs));
+  if (t.tag === 'Pack')
+    return VPack(evaluate(t.type, vs), evaluate(t.fun, vs), evaluate(t.hidden, vs), evaluate(t.val, vs));
+  if (t.tag === 'UnsafeUnpack')
+    return vunsafeunpack(evaluate(t.type, vs), evaluate(t.fun, vs), evaluate(t.hidden, vs), evaluate(t.val, vs));
+  if (t.tag === 'Unpack')
+    return vunpack(evaluate(t.type, vs), evaluate(t.fun, vs), evaluate(t.hidden, vs), evaluate(t.elim, vs), evaluate(t.val, vs));
   return t;
 };
 
@@ -117,7 +150,9 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 };
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
-  return e.tag;
+  if (e.tag === 'EUnsafeUnpack') return UnsafeUnpack(quote(e.type, k, full), quote(e.fun, k, full), quote(e.hidden, k, full), t);
+  if (e.tag === 'EUnpack') return Unpack(quote(e.type, k, full), quote(e.fun, k, full), quote(e.hidden, k, full), t, quote(e.elim, k, full));
+  return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   const v = forceGlue(v_);
@@ -142,6 +177,10 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Abs(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPi')
     return Pi(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+  if (v.tag === 'VEx')
+    return Ex(quote(v.type, k, full), quote(v.fun, k, full));
+  if (v.tag === 'VPack')
+    return Pack(quote(v.type, k, full), quote(v.fun, k, full), quote(v.hidden, k, full), quote(v.val, k, full));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -198,5 +237,9 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
       App(spine[1], tm.plicity, zonk(tm.right, vs, k, full)) :
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
+  if (tm.tag === 'Ex') return Ex(zonk(tm.type, vs, k, full), zonk(tm.fun, vs, k, full));
+  if (tm.tag === 'Pack') return Pack(zonk(tm.type, vs, k, full), zonk(tm.fun, vs, k, full), zonk(tm.hidden, vs, k, full), zonk(tm.val, vs, k, full));
+  if (tm.tag === 'UnsafeUnpack') return UnsafeUnpack(zonk(tm.type, vs, k, full), zonk(tm.fun, vs, k, full), zonk(tm.hidden, vs, k, full), zonk(tm.val, vs, k, full));
+  if (tm.tag === 'Unpack') return Unpack(zonk(tm.type, vs, k, full), zonk(tm.fun, vs, k, full), zonk(tm.hidden, vs, k, full), zonk(tm.val, vs, k, full), zonk(tm.elim, vs, k, full));
   return tm;
 };
