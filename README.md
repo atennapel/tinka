@@ -4,7 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add datatype system
+- create a CEK machine
 - zonk all elims
 - insert skolems in check
 - add named holes
