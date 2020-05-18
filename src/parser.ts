@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Ex, Pack, UnsafeUnpack, Unpack, UnsafeCast } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -238,44 +238,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
-  }
-  if (isName(ts[0], 'Ex')) {
-    const [type, b] = expr(ts[1]);
-    if (b) return serr(`type in Ex cannot be implicit`);
-    const fun = exprs(ts.slice(2), '(');
-    return Ex(type, fun);
-  }
-  if (isName(ts[0], 'pack')) {
-    const [type, b1] = expr(ts[1]);
-    if (!b1) return serr(`type in pack should be implicit`);
-    const [fun, b2] = expr(ts[2]);
-    if (!b2) return serr(`fun in pack should be implicit`);
-    const [hidden, b3] = expr(ts[3]);
-    if (!b3) return serr(`hidden in pack should be implicit`);
-    const val = exprs(ts.slice(4), '(');
-    return Pack(type, fun, hidden, val);
-  }
-  if (isName(ts[0], 'unsafeUnpack')) {
-    const [type, b1] = expr(ts[1]);
-    if (!b1) return serr(`type in unsafeUnpack should be implicit`);
-    const [fun, b2] = expr(ts[2]);
-    if (!b2) return serr(`fun in unsafeUnpack should be implicit`);
-    const [hidden, b3] = expr(ts[3]);
-    if (!b3) return serr(`hidden in unsafeUnpack should be implicit`);
-    const val = exprs(ts.slice(4), '(');
-    return UnsafeUnpack(type, fun, hidden, val);
-  }
-  if (isName(ts[0], 'unpack')) {
-    const [type, b1] = expr(ts[1]);
-    if (!b1) return serr(`type in unpack should be implicit`);
-    const [fun, b2] = expr(ts[2]);
-    if (!b2) return serr(`fun in unpack should be implicit`);
-    const [hidden, b3] = expr(ts[3]);
-    if (!b3) return serr(`hidden in unpack should be implicit`);
-    const [val, b4] = expr(ts[4]);
-    if (b4) return serr(`val in unpack should not be implicit`);
-    const elim = exprs(ts.slice(5), '(');
-    return Unpack(type, fun, hidden, val, elim);
   }
   if (isName(ts[0], 'unsafeCast')) {
     if (ts[1].tag === 'List' && ts[1].bracket === '{') {

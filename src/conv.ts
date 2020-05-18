@@ -16,17 +16,6 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return conv(k, a.arg, b.arg);
-  if (a.tag === 'EUnsafeUnpack' && b.tag === 'EUnsafeUnpack') {
-    conv(k, a.type, b.type);
-    conv(k, a.fun, b.fun);
-    return conv(k, a.hidden, b.hidden);
-  }
-  if (a.tag === 'EUnpack' && b.tag === 'EUnpack') {
-    conv(k, a.type, b.type);
-    conv(k, a.fun, b.fun);
-    conv(k, a.hidden, b.hidden);
-    return conv(k, a.elim, b.elim);
-  }
   if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
     return conv(k, a.type, b.type);
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
@@ -37,16 +26,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
-  if (a.tag === 'VEx' && b.tag === 'VEx') {
-    conv(k, a.type, b.type);
-    return conv(k, a.fun, b.fun);
-  }
-  if (a.tag === 'VPack' && b.tag === 'VPack') {
-    conv(k, a.type, b.type);
-    conv(k, a.fun, b.fun);
-    conv(k, a.hidden, b.hidden);
-    return conv(k, a.val, b.val);
-  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);

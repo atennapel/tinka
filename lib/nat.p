@@ -1,3 +1,5 @@
+import lib/ex.p
+
 -- church-encoded natural numbers
 def Nat = {t : *} -> t -> (t -> t) -> t
 def Z : Nat = \z s. z

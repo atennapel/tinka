@@ -1,3 +1,5 @@
+import lib/ex.p
+
 def Sigma = \(a : *) (b : a -> *). {t : *} -> ((x : a) -> b x -> t) -> t
 def MkSigma
   : {a : *} -> {b : a -> *} -> (x : a) -> b x -> Sigma a b

@@ -42,17 +42,6 @@ const convElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.conv(k, a.arg, b.arg);
-    if (a.tag === 'EUnsafeUnpack' && b.tag === 'EUnsafeUnpack') {
-        exports.conv(k, a.type, b.type);
-        exports.conv(k, a.fun, b.fun);
-        return exports.conv(k, a.hidden, b.hidden);
-    }
-    if (a.tag === 'EUnpack' && b.tag === 'EUnpack') {
-        exports.conv(k, a.type, b.type);
-        exports.conv(k, a.fun, b.fun);
-        exports.conv(k, a.hidden, b.hidden);
-        return exports.conv(k, a.elim, b.elim);
-    }
     if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
         return exports.conv(k, a.type, b.type);
     return utils_1.terr(`conv failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
@@ -65,16 +54,6 @@ exports.conv = (k, a_, b_) => {
         return;
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
-    if (a.tag === 'VEx' && b.tag === 'VEx') {
-        exports.conv(k, a.type, b.type);
-        return exports.conv(k, a.fun, b.fun);
-    }
-    if (a.tag === 'VPack' && b.tag === 'VPack') {
-        exports.conv(k, a.type, b.type);
-        exports.conv(k, a.fun, b.fun);
-        exports.conv(k, a.hidden, b.hidden);
-        return exports.conv(k, a.val, b.val);
-    }
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.conv(k, a.type, b.type);
         const v = domain_1.VVar(k);
@@ -115,7 +94,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":13,"./utils/list":14,"./utils/utils":15}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vunsafecast = exports.vunpack = exports.vunsafeunpack = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VPack = exports.VEx = exports.VSort = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EUnsafeCast = exports.EUnpack = exports.EUnsafeUnpack = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VSort = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EUnsafeCast = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -126,16 +105,12 @@ exports.HVar = (index) => ({ tag: 'HVar', index });
 exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HMeta = (index) => ({ tag: 'HMeta', index });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
-exports.EUnsafeUnpack = (type, fun, hidden) => ({ tag: 'EUnsafeUnpack', type, fun, hidden });
-exports.EUnpack = (type, fun, hidden, elim) => ({ tag: 'EUnpack', type, fun, hidden, elim });
 exports.EUnsafeCast = (type) => ({ tag: 'EUnsafeCast', type });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
 exports.VPi = (plicity, name, type, body) => ({ tag: 'VPi', plicity, name, type, body });
 exports.VSort = (sort) => ({ tag: 'VSort', sort });
-exports.VEx = (type, fun) => ({ tag: 'VEx', type, fun });
-exports.VPack = (type, fun, hidden, val) => ({ tag: 'VPack', type, fun, hidden, val });
 exports.VType = exports.VSort('*');
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
@@ -149,10 +124,8 @@ exports.force = (v) => {
         const val = metas_1.metaGet(v.head.index);
         if (val.tag === 'Unsolved')
             return v;
-        return exports.force(list_1.foldr((elim, y) => elim.tag === 'EUnsafeUnpack' ? exports.vunsafeunpack(elim.type, elim.fun, elim.hidden, y) :
-            elim.tag === 'EUnpack' ? exports.vunpack(elim.type, elim.fun, elim.hidden, elim.elim, y) :
-                elim.tag === 'EUnsafeCast' ? exports.vunsafecast(elim.type, y) :
-                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+        return exports.force(list_1.foldr((elim, y) => elim.tag === 'EUnsafeCast' ? exports.vunsafecast(elim.type, y) :
+            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -161,10 +134,8 @@ exports.forceGlue = (v) => {
         const val = metas_1.metaGet(v.head.index);
         if (val.tag === 'Unsolved')
             return v;
-        return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EUnsafeUnpack' ? exports.vunsafeunpack(elim.type, elim.fun, elim.hidden, y) :
-            elim.tag === 'EUnpack' ? exports.vunpack(elim.type, elim.fun, elim.hidden, elim.elim, y) :
-                elim.tag === 'EUnsafeCast' ? exports.vunsafecast(elim.type, y) :
-                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+        return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EUnsafeCast' ? exports.vunsafecast(elim.type, y) :
+            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -180,24 +151,6 @@ exports.vapp = (a, plicity, b) => {
     if (a.tag === 'VGlued')
         return exports.VGlued(a.head, list_1.Cons(exports.EApp(plicity, b), a.args), lazy_1.mapLazy(a.val, v => exports.vapp(v, plicity, b)));
     return utils_1.impossible(`vapp: ${a.tag}`);
-};
-exports.vunsafeunpack = (type, fun, hidden, v) => {
-    if (v.tag === 'VPack')
-        return v.val;
-    if (v.tag === 'VNe')
-        return exports.VNe(v.head, list_1.Cons(exports.EUnsafeUnpack(type, fun, hidden), v.args));
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EUnsafeUnpack(type, fun, hidden), v.args), lazy_1.mapLazy(v.val, v => exports.vunsafeunpack(type, fun, hidden, v)));
-    return utils_1.impossible(`vunpack: ${v.tag}`);
-};
-exports.vunpack = (type, fun, hidden, elim, v) => {
-    if (v.tag === 'VPack')
-        return exports.vapp(exports.vapp(elim, true, v.hidden), false, v.val);
-    if (v.tag === 'VNe')
-        return exports.VNe(v.head, list_1.Cons(exports.EUnpack(type, fun, hidden, elim), v.args));
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EUnpack(type, fun, hidden, elim), v.args), lazy_1.mapLazy(v.val, v => exports.vunpack(type, fun, hidden, elim, v)));
-    return utils_1.impossible(`vunpack: ${v.tag}`);
 };
 exports.vunsafecast = (type, v) => {
     if (v.tag === 'VNe')
@@ -230,14 +183,6 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.evaluate(t.body, exports.extendV(vs, exports.evaluate(t.val, vs)));
     if (t.tag === 'Pi')
         return exports.VPi(t.plicity, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
-    if (t.tag === 'Ex')
-        return exports.VEx(exports.evaluate(t.type, vs), exports.evaluate(t.fun, vs));
-    if (t.tag === 'Pack')
-        return exports.VPack(exports.evaluate(t.type, vs), exports.evaluate(t.fun, vs), exports.evaluate(t.hidden, vs), exports.evaluate(t.val, vs));
-    if (t.tag === 'UnsafeUnpack')
-        return exports.vunsafeunpack(exports.evaluate(t.type, vs), exports.evaluate(t.fun, vs), exports.evaluate(t.hidden, vs), exports.evaluate(t.val, vs));
-    if (t.tag === 'Unpack')
-        return exports.vunpack(exports.evaluate(t.type, vs), exports.evaluate(t.fun, vs), exports.evaluate(t.hidden, vs), exports.evaluate(t.elim, vs), exports.evaluate(t.val, vs));
     if (t.tag === 'UnsafeCast')
         return exports.vunsafecast(exports.evaluate(t.type, vs), exports.evaluate(t.val, vs));
     return t;
@@ -261,10 +206,6 @@ const quoteHeadGlued = (h, k) => {
 const quoteElim = (t, e, k, full) => {
     if (e.tag === 'EApp')
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
-    if (e.tag === 'EUnsafeUnpack')
-        return syntax_1.UnsafeUnpack(exports.quote(e.type, k, full), exports.quote(e.fun, k, full), exports.quote(e.hidden, k, full), t);
-    if (e.tag === 'EUnpack')
-        return syntax_1.Unpack(exports.quote(e.type, k, full), exports.quote(e.fun, k, full), exports.quote(e.hidden, k, full), t, exports.quote(e.elim, k, full));
     if (e.tag === 'EUnsafeCast')
         return syntax_1.UnsafeCast(exports.quote(e.type, k, full), t);
     return e;
@@ -287,10 +228,6 @@ exports.quote = (v_, k, full) => {
         return syntax_1.Abs(v.plicity, v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VPi')
         return syntax_1.Pi(v.plicity, v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
-    if (v.tag === 'VEx')
-        return syntax_1.Ex(exports.quote(v.type, k, full), exports.quote(v.fun, k, full));
-    if (v.tag === 'VPack')
-        return syntax_1.Pack(exports.quote(v.type, k, full), exports.quote(v.fun, k, full), exports.quote(v.hidden, k, full), exports.quote(v.val, k, full));
     return v;
 };
 exports.quoteZ = (v, vs = list_1.Nil, k = 0, full = false) => exports.zonk(exports.quote(v, k, full), vs, k, full);
@@ -342,14 +279,6 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
             syntax_1.App(spine[1], tm.plicity, exports.zonk(tm.right, vs, k, full)) :
             exports.quote(exports.vapp(spine[1], tm.plicity, exports.evaluate(tm.right, vs)), k, full);
     }
-    if (tm.tag === 'Ex')
-        return syntax_1.Ex(exports.zonk(tm.type, vs, k, full), exports.zonk(tm.fun, vs, k, full));
-    if (tm.tag === 'Pack')
-        return syntax_1.Pack(exports.zonk(tm.type, vs, k, full), exports.zonk(tm.fun, vs, k, full), exports.zonk(tm.hidden, vs, k, full), exports.zonk(tm.val, vs, k, full));
-    if (tm.tag === 'UnsafeUnpack')
-        return syntax_1.UnsafeUnpack(exports.zonk(tm.type, vs, k, full), exports.zonk(tm.fun, vs, k, full), exports.zonk(tm.hidden, vs, k, full), exports.zonk(tm.val, vs, k, full));
-    if (tm.tag === 'Unpack')
-        return syntax_1.Unpack(exports.zonk(tm.type, vs, k, full), exports.zonk(tm.fun, vs, k, full), exports.zonk(tm.hidden, vs, k, full), exports.zonk(tm.val, vs, k, full), exports.zonk(tm.elim, vs, k, full));
     if (tm.tag === 'UnsafeCast')
         return syntax_1.UnsafeCast(exports.zonk(tm.type, vs, k, full), exports.zonk(tm.val, vs, k, full));
     return tm;
@@ -703,55 +632,6 @@ const exprs = (ts, br) => {
         const body = exprs(ts.slice(i + 1), '(');
         return args.reduceRight((x, [name, impl, ty]) => surface_1.Abs(impl, name, ty, x), body);
     }
-    if (isName(ts[0], 'Ex')) {
-        const [type, b] = expr(ts[1]);
-        if (b)
-            return utils_1.serr(`type in Ex cannot be implicit`);
-        const fun = exprs(ts.slice(2), '(');
-        return surface_1.Ex(type, fun);
-    }
-    if (isName(ts[0], 'pack')) {
-        const [type, b1] = expr(ts[1]);
-        if (!b1)
-            return utils_1.serr(`type in pack should be implicit`);
-        const [fun, b2] = expr(ts[2]);
-        if (!b2)
-            return utils_1.serr(`fun in pack should be implicit`);
-        const [hidden, b3] = expr(ts[3]);
-        if (!b3)
-            return utils_1.serr(`hidden in pack should be implicit`);
-        const val = exprs(ts.slice(4), '(');
-        return surface_1.Pack(type, fun, hidden, val);
-    }
-    if (isName(ts[0], 'unsafeUnpack')) {
-        const [type, b1] = expr(ts[1]);
-        if (!b1)
-            return utils_1.serr(`type in unsafeUnpack should be implicit`);
-        const [fun, b2] = expr(ts[2]);
-        if (!b2)
-            return utils_1.serr(`fun in unsafeUnpack should be implicit`);
-        const [hidden, b3] = expr(ts[3]);
-        if (!b3)
-            return utils_1.serr(`hidden in unsafeUnpack should be implicit`);
-        const val = exprs(ts.slice(4), '(');
-        return surface_1.UnsafeUnpack(type, fun, hidden, val);
-    }
-    if (isName(ts[0], 'unpack')) {
-        const [type, b1] = expr(ts[1]);
-        if (!b1)
-            return utils_1.serr(`type in unpack should be implicit`);
-        const [fun, b2] = expr(ts[2]);
-        if (!b2)
-            return utils_1.serr(`fun in unpack should be implicit`);
-        const [hidden, b3] = expr(ts[3]);
-        if (!b3)
-            return utils_1.serr(`hidden in unpack should be implicit`);
-        const [val, b4] = expr(ts[4]);
-        if (b4)
-            return utils_1.serr(`val in unpack should not be implicit`);
-        const elim = exprs(ts.slice(5), '(');
-        return surface_1.Unpack(type, fun, hidden, val, elim);
-    }
     if (isName(ts[0], 'unsafeCast')) {
         if (ts[1].tag === 'List' && ts[1].bracket === '{') {
             const [ty, b] = expr(ts[1]);
@@ -1023,7 +903,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":9,"./syntax":10,"./typecheck":11,"./utils/list":14,"./utils/utils":15,"./verify":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.UnsafeCast = exports.Unpack = exports.UnsafeUnpack = exports.Pack = exports.Ex = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.UnsafeCast = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Var = void 0;
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
@@ -1033,10 +913,6 @@ exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
-exports.Ex = (type, fun) => ({ tag: 'Ex', type, fun });
-exports.Pack = (type, fun, hidden, val) => ({ tag: 'Pack', type, fun, hidden, val });
-exports.UnsafeUnpack = (type, fun, hidden, val) => ({ tag: 'UnsafeUnpack', type, fun, hidden, val });
-exports.Unpack = (type, fun, hidden, val, elim) => ({ tag: 'Unpack', type, fun, hidden, val, elim });
 exports.UnsafeCast = (type, val) => ({ tag: 'UnsafeCast', type, val });
 exports.Type = exports.Sort('*');
 exports.showTermS = (t) => {
@@ -1058,14 +934,6 @@ exports.showTermS = (t) => {
         return `(${exports.showTermS(t.term)} : ${exports.showTermS(t.type)})`;
     if (t.tag === 'Hole')
         return `_${t.name || ''}`;
-    if (t.tag === 'Ex')
-        return `(Ex ${exports.showTermS(t.type)} ${exports.showTermS(t.fun)})`;
-    if (t.tag === 'Pack')
-        return `(pack {${exports.showTermS(t.type)}} {${exports.showTermS(t.fun)}} {${exports.showTermS(t.hidden)}} ${exports.showTermS(t.val)})`;
-    if (t.tag === 'UnsafeUnpack')
-        return `(unsafeUnpack {${exports.showTermS(t.type)}} {${exports.showTermS(t.fun)}} {${exports.showTermS(t.hidden)}} ${exports.showTermS(t.val)})`;
-    if (t.tag === 'Unpack')
-        return `(unpack {${exports.showTermS(t.type)}} {${exports.showTermS(t.fun)}} {${exports.showTermS(t.hidden)}} ${exports.showTermS(t.val)} ${exports.showTermS(t.elim)})`;
     if (t.tag === 'UnsafeCast')
         return `(unsafeCast ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${exports.showTermS(t.val)})`;
     return t;
@@ -1121,14 +989,6 @@ exports.showTerm = (t) => {
         return `${exports.showTermP(t.term.tag === 'Ann', t.term)} : ${exports.showTermP(t.term.tag === 'Ann', t.type)}`;
     if (t.tag === 'Hole')
         return `_${t.name || ''}`;
-    if (t.tag === 'Ex')
-        return `Ex ${exports.showTermP(t.type.tag !== 'Var' && t.type.tag !== 'Meta' && t.type.tag !== 'Sort', t.type)} ${exports.showTermP(t.fun.tag !== 'Var' && t.fun.tag !== 'Meta' && t.fun.tag !== 'Sort', t.fun)}`;
-    if (t.tag === 'Pack')
-        return `pack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
-    if (t.tag === 'UnsafeUnpack')
-        return `unsafeUnpack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
-    if (t.tag === 'Unpack')
-        return `unpack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)} ${exports.showTermP(t.elim.tag !== 'Var' && t.elim.tag !== 'Meta' && t.elim.tag !== 'Sort' && t.elim.tag !== 'Abs', t.elim)}`;
     if (t.tag === 'UnsafeCast')
         return `unsafeCast ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
     return t;
@@ -1152,14 +1012,6 @@ exports.erase = (t) => {
         return exports.Pi(t.plicity, t.name, exports.erase(t.type), exports.erase(t.body));
     if (t.tag === 'Let')
         return t.plicity ? exports.erase(t.body) : exports.Let(false, t.name, null, exports.erase(t.val), exports.erase(t.body));
-    if (t.tag === 'Ex')
-        return exports.Ex(exports.erase(t.type), exports.erase(t.fun));
-    if (t.tag === 'Pack')
-        return exports.erase(t.val);
-    if (t.tag === 'UnsafeUnpack')
-        return exports.erase(t.val);
-    if (t.tag === 'Unpack')
-        return exports.App(exports.erase(t.elim), false, exports.erase(t.val));
     if (t.tag === 'UnsafeCast')
         return exports.erase(t.val);
     return t;
@@ -1175,7 +1027,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.UnsafeCast = exports.Unpack = exports.UnsafeUnpack = exports.Pack = exports.Ex = exports.Meta = exports.Sort = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
+exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.UnsafeCast = exports.Meta = exports.Sort = exports.Pi = exports.Let = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1189,10 +1041,6 @@ exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, 
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Meta = (index) => ({ tag: 'Meta', index });
-exports.Ex = (type, fun) => ({ tag: 'Ex', type, fun });
-exports.Pack = (type, fun, hidden, val) => ({ tag: 'Pack', type, fun, hidden, val });
-exports.UnsafeUnpack = (type, fun, hidden, val) => ({ tag: 'UnsafeUnpack', type, fun, hidden, val });
-exports.Unpack = (type, fun, hidden, val, elim) => ({ tag: 'Unpack', type, fun, hidden, val, elim });
 exports.UnsafeCast = (type, val) => ({ tag: 'UnsafeCast', type, val });
 exports.Type = exports.Sort('*');
 exports.showTerm = (t) => {
@@ -1212,14 +1060,6 @@ exports.showTerm = (t) => {
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
     if (t.tag === 'Sort')
         return t.sort;
-    if (t.tag === 'Ex')
-        return `(Ex ${exports.showTerm(t.type)} ${exports.showTerm(t.fun)})`;
-    if (t.tag === 'Pack')
-        return `(pack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTerm(t.val)})`;
-    if (t.tag === 'UnsafeUnpack')
-        return `(unsafeUnpack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTerm(t.val)})`;
-    if (t.tag === 'Unpack')
-        return `(unpack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTerm(t.val)} ${exports.showTerm(t.elim)})`;
     if (t.tag === 'UnsafeCast')
         return `(unsafeCast ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${exports.showTerm(t.val)})`;
     return t;
@@ -1235,14 +1075,6 @@ exports.globalUsed = (k, t) => {
         return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.val) || exports.globalUsed(k, t.body);
     if (t.tag === 'Pi')
         return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.body);
-    if (t.tag === 'Ex')
-        return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.fun);
-    if (t.tag === 'Pack')
-        return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.fun) || exports.globalUsed(k, t.hidden) || exports.globalUsed(k, t.val);
-    if (t.tag === 'UnsafeUnpack')
-        return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.fun) || exports.globalUsed(k, t.hidden) || exports.globalUsed(k, t.val);
-    if (t.tag === 'Unpack')
-        return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.fun) || exports.globalUsed(k, t.hidden) || exports.globalUsed(k, t.val) || exports.globalUsed(k, t.elim);
     if (t.tag === 'UnsafeCast')
         return exports.globalUsed(k, t.type) || exports.globalUsed(k, t.val);
     return false;
@@ -1258,14 +1090,6 @@ exports.indexUsed = (k, t) => {
         return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.val) || exports.indexUsed(k + 1, t.body);
     if (t.tag === 'Pi')
         return exports.indexUsed(k, t.type) || exports.indexUsed(k + 1, t.body);
-    if (t.tag === 'Ex')
-        return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.fun);
-    if (t.tag === 'Pack')
-        return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.fun) || exports.indexUsed(k, t.hidden) || exports.indexUsed(k, t.val);
-    if (t.tag === 'UnsafeUnpack')
-        return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.fun) || exports.indexUsed(k, t.hidden) || exports.indexUsed(k, t.val);
-    if (t.tag === 'Unpack')
-        return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.fun) || exports.indexUsed(k, t.hidden) || exports.indexUsed(k, t.val) || exports.indexUsed(k, t.elim);
     if (t.tag === 'UnsafeCast')
         return exports.indexUsed(k, t.type) || exports.indexUsed(k, t.val);
     return false;
@@ -1281,14 +1105,6 @@ exports.isUnsolved = (t) => {
         return exports.isUnsolved(t.type) || exports.isUnsolved(t.val) || exports.isUnsolved(t.body);
     if (t.tag === 'Pi')
         return exports.isUnsolved(t.type) || exports.isUnsolved(t.body);
-    if (t.tag === 'Ex')
-        return exports.isUnsolved(t.type) || exports.isUnsolved(t.fun);
-    if (t.tag === 'Pack')
-        return exports.isUnsolved(t.type) || exports.isUnsolved(t.fun) || exports.isUnsolved(t.hidden) || exports.isUnsolved(t.val);
-    if (t.tag === 'UnsafeUnpack')
-        return exports.isUnsolved(t.type) || exports.isUnsolved(t.fun) || exports.isUnsolved(t.hidden) || exports.isUnsolved(t.val);
-    if (t.tag === 'Unpack')
-        return exports.isUnsolved(t.type) || exports.isUnsolved(t.fun) || exports.isUnsolved(t.hidden) || exports.isUnsolved(t.val) || exports.isUnsolved(t.elim);
     if (t.tag === 'UnsafeCast')
         return exports.isUnsolved(t.type) || exports.isUnsolved(t.val);
     return false;
@@ -1314,16 +1130,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.Var(t.name);
     if (t.tag === 'App')
         return S.App(exports.toSurface(t.left, ns), t.plicity, exports.toSurface(t.right, ns));
-    if (t.tag === 'Ex')
-        return S.Ex(exports.toSurface(t.type, ns), exports.toSurface(t.fun, ns));
     if (t.tag === 'UnsafeCast')
         return S.UnsafeCast(exports.toSurface(t.type, ns), exports.toSurface(t.val, ns));
-    if (t.tag === 'Pack')
-        return S.Pack(exports.toSurface(t.type, ns), exports.toSurface(t.fun, ns), exports.toSurface(t.hidden, ns), exports.toSurface(t.val, ns));
-    if (t.tag === 'UnsafeUnpack')
-        return S.UnsafeUnpack(exports.toSurface(t.type, ns), exports.toSurface(t.fun, ns), exports.toSurface(t.hidden, ns), exports.toSurface(t.val, ns));
-    if (t.tag === 'Unpack')
-        return S.Unpack(exports.toSurface(t.type, ns), exports.toSurface(t.fun, ns), exports.toSurface(t.hidden, ns), exports.toSurface(t.val, ns), exports.toSurface(t.elim, ns));
     if (t.tag === 'Abs') {
         const x = decideName(t.name, t.body, ns);
         return S.Abs(t.plicity, x, exports.toSurface(t.type, ns), exports.toSurface(t.body, list_1.Cons(x, ns)));
@@ -1352,16 +1160,8 @@ exports.shift = (d, c, t) => {
         return exports.Let(t.plicity, t.name, exports.shift(d, c, t.type), exports.shift(d, c, t.val), exports.shift(d, c + 1, t.body));
     if (t.tag === 'Pi')
         return exports.Pi(t.plicity, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
-    if (t.tag === 'Ex')
-        return exports.Ex(exports.shift(d, c, t.type), exports.shift(d, c, t.fun));
     if (t.tag === 'UnsafeCast')
         return exports.UnsafeCast(exports.shift(d, c, t.type), exports.shift(d, c, t.val));
-    if (t.tag === 'Pack')
-        return exports.Pack(exports.shift(d, c, t.type), exports.shift(d, c, t.fun), exports.shift(d, c, t.hidden), exports.shift(d, c, t.val));
-    if (t.tag === 'UnsafeUnpack')
-        return exports.UnsafeUnpack(exports.shift(d, c, t.type), exports.shift(d, c, t.fun), exports.shift(d, c, t.hidden), exports.shift(d, c, t.val));
-    if (t.tag === 'Unpack')
-        return exports.Unpack(exports.shift(d, c, t.type), exports.shift(d, c, t.fun), exports.shift(d, c, t.hidden), exports.shift(d, c, t.val), exports.shift(d, c, t.elim));
     return t;
 };
 
@@ -1575,43 +1375,6 @@ const synth = (local, tm) => {
         const term = check(local, tm.term, vtype);
         return [syntax_1.Let(false, 'x', type, term, syntax_1.Var(0)), vtype];
     }
-    if (tm.tag === 'Ex') {
-        const type = check(local, tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(type, local.vs);
-        const fun = check(local, tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        return [syntax_1.Ex(type, fun), domain_1.VType];
-    }
-    if (tm.tag === 'Pack') {
-        const type = check(exports.localInType(local), tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(type, local.vs);
-        const fun = check(exports.localInType(local), tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        const vfun = domain_1.evaluate(fun, local.vs);
-        const hidden = check(exports.localInType(local), tm.hidden, vt);
-        const vhidden = domain_1.evaluate(hidden, local.vs);
-        const val = check(local, tm.val, domain_1.vapp(vfun, false, vhidden));
-        return [syntax_1.Pack(type, fun, hidden, val), domain_1.VEx(vt, vfun)];
-    }
-    if (tm.tag === 'UnsafeUnpack') {
-        const type = check(exports.localInType(local), tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(type, local.vs);
-        const fun = check(exports.localInType(local), tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        const vfun = domain_1.evaluate(fun, local.vs);
-        const hidden = check(exports.localInType(local), tm.hidden, vt);
-        const vhidden = domain_1.evaluate(hidden, local.vs);
-        const val = check(local, tm.val, domain_1.VEx(vt, vfun));
-        return [syntax_1.UnsafeUnpack(type, fun, hidden, val), domain_1.vapp(vfun, false, vhidden)];
-    }
-    if (tm.tag === 'Unpack') {
-        const type = check(exports.localInType(local), tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(type, local.vs);
-        const fun = check(exports.localInType(local), tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        const vfun = domain_1.evaluate(fun, local.vs);
-        const hidden = check(exports.localInType(local), tm.hidden, domain_1.VType);
-        const vhidden = domain_1.evaluate(hidden, local.vs);
-        const val = check(local, tm.val, domain_1.VEx(vt, vfun));
-        const elim = check(local, tm.elim, domain_1.VPi(true, 'x', vt, x => domain_1.VPi(false, '_', domain_1.vapp(vfun, false, x), _ => vhidden)));
-        return [syntax_1.Unpack(type, fun, hidden, val, elim), vhidden];
-    }
     if (tm.tag === 'UnsafeCast') {
         if (tm.type) {
             const type = check(exports.localInType(local), tm.type, domain_1.VType);
@@ -1702,17 +1465,6 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
-    if (a.tag === 'EUnsafeUnpack' && b.tag === 'EUnsafeUnpack') {
-        exports.unify(k, a.type, b.type);
-        exports.unify(k, a.fun, b.fun);
-        return exports.unify(k, a.hidden, b.hidden);
-    }
-    if (a.tag === 'EUnpack' && b.tag === 'EUnpack') {
-        exports.unify(k, a.type, b.type);
-        exports.unify(k, a.fun, b.fun);
-        exports.unify(k, a.hidden, b.hidden);
-        return exports.unify(k, a.elim, b.elim);
-    }
     if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
         return exports.unify(k, a.type, b.type);
     return utils_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
@@ -1725,16 +1477,6 @@ exports.unify = (k, a_, b_) => {
         return;
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
-    if (a.tag === 'VEx' && b.tag === 'VEx') {
-        exports.unify(k, a.type, b.type);
-        return exports.unify(k, a.fun, b.fun);
-    }
-    if (a.tag === 'VPack' && b.tag === 'VPack') {
-        exports.unify(k, a.type, b.type);
-        exports.unify(k, a.fun, b.fun);
-        exports.unify(k, a.hidden, b.hidden);
-        return exports.unify(k, a.val, b.val);
-    }
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
         const v = domain_1.VVar(k);
@@ -1814,10 +1556,6 @@ const solve = (k, m, spine, val) => {
 const checkSpine = (k, spine) => list_1.map(spine, elim => {
     if (elim.tag === 'EUnsafeCast')
         return utils_1.terr(`unsafeCast in meta spine`);
-    if (elim.tag === 'EUnsafeUnpack')
-        return utils_1.terr(`unsafeUnpack in meta spine`);
-    if (elim.tag === 'EUnpack')
-        return utils_1.terr(`unpack in meta spine`);
     if (elim.tag === 'EApp') {
         const v = domain_1.forceGlue(elim.arg);
         if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && list_1.length(v.args) === 0)
@@ -1858,33 +1596,6 @@ const checkSolution = (k, m, is, t) => {
         const ty = checkSolution(k, m, is, t.type);
         const body = checkSolution(k + 1, m, list_1.Cons(k, is), t.body);
         return syntax_1.Pi(t.plicity, t.name, ty, body);
-    }
-    if (t.tag === 'Ex') {
-        const type = checkSolution(k, m, is, t.type);
-        const fun = checkSolution(k, m, is, t.fun);
-        return syntax_1.Ex(type, fun);
-    }
-    if (t.tag === 'Pack') {
-        const type = checkSolution(k, m, is, t.type);
-        const fun = checkSolution(k, m, is, t.fun);
-        const hidden = checkSolution(k, m, is, t.hidden);
-        const val = checkSolution(k, m, is, t.val);
-        return syntax_1.Pack(type, fun, hidden, val);
-    }
-    if (t.tag === 'UnsafeUnpack') {
-        const type = checkSolution(k, m, is, t.type);
-        const fun = checkSolution(k, m, is, t.fun);
-        const hidden = checkSolution(k, m, is, t.hidden);
-        const val = checkSolution(k, m, is, t.val);
-        return syntax_1.UnsafeUnpack(type, fun, hidden, val);
-    }
-    if (t.tag === 'Unpack') {
-        const type = checkSolution(k, m, is, t.type);
-        const fun = checkSolution(k, m, is, t.fun);
-        const hidden = checkSolution(k, m, is, t.hidden);
-        const val = checkSolution(k, m, is, t.val);
-        const elim = checkSolution(k, m, is, t.elim);
-        return syntax_1.Unpack(type, fun, hidden, val, elim);
     }
     if (t.tag === 'UnsafeCast') {
         const type = checkSolution(k, m, is, t.type);
@@ -2178,43 +1889,6 @@ const synth = (local, tm) => {
         check(exports.localInType(local), tm.type, domain_1.VType);
         check(exports.extend(local, tm.name, domain_1.evaluate(tm.type, local.vs), true, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
         return domain_1.VType;
-    }
-    if (tm.tag === 'Ex') {
-        check(local, tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(tm.type, local.vs);
-        check(local, tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        return domain_1.VType;
-    }
-    if (tm.tag === 'Pack') {
-        check(exports.localInType(local), tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(tm.type, local.vs);
-        check(exports.localInType(local), tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        const vfun = domain_1.evaluate(tm.fun, local.vs);
-        check(exports.localInType(local), tm.hidden, vt);
-        const vhidden = domain_1.evaluate(tm.hidden, local.vs);
-        check(local, tm.val, domain_1.vapp(vfun, false, vhidden));
-        return domain_1.VEx(vt, vfun);
-    }
-    if (tm.tag === 'UnsafeUnpack') {
-        check(exports.localInType(local), tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(tm.type, local.vs);
-        check(exports.localInType(local), tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        const vfun = domain_1.evaluate(tm.fun, local.vs);
-        check(exports.localInType(local), tm.hidden, vt);
-        const vhidden = domain_1.evaluate(tm.hidden, local.vs);
-        check(local, tm.val, domain_1.VEx(vt, vfun));
-        return domain_1.vapp(vfun, false, vhidden);
-    }
-    if (tm.tag === 'Unpack') {
-        check(exports.localInType(local), tm.type, domain_1.VType);
-        const vt = domain_1.evaluate(tm.type, local.vs);
-        check(exports.localInType(local), tm.fun, domain_1.VPi(false, '_', vt, _ => domain_1.VType));
-        const vfun = domain_1.evaluate(tm.fun, local.vs);
-        check(exports.localInType(local), tm.hidden, domain_1.VType);
-        const vhidden = domain_1.evaluate(tm.hidden, local.vs);
-        check(local, tm.val, domain_1.VEx(vt, vfun));
-        check(local, tm.elim, domain_1.VPi(true, 'x', vt, x => domain_1.VPi(false, '_', domain_1.vapp(vfun, false, x), _ => vhidden)));
-        return vhidden;
     }
     if (tm.tag === 'UnsafeCast') {
         check(exports.localInType(local), tm.type, domain_1.VType);

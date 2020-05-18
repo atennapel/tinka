@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Ex, Pack, UnsafeUnpack, Unpack, UnsafeCast } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -13,17 +13,6 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
-  if (a.tag === 'EUnsafeUnpack' && b.tag === 'EUnsafeUnpack') {
-    unify(k, a.type, b.type);
-    unify(k, a.fun, b.fun);
-    return unify(k, a.hidden, b.hidden);
-  }
-  if (a.tag === 'EUnpack' && b.tag === 'EUnpack') {
-    unify(k, a.type, b.type);
-    unify(k, a.fun, b.fun);
-    unify(k, a.hidden, b.hidden);
-    return unify(k, a.elim, b.elim);
-  }
   if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
     return unify(k, a.type, b.type);
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
@@ -34,16 +23,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
-  if (a.tag === 'VEx' && b.tag === 'VEx') {
-    unify(k, a.type, b.type);
-    return unify(k, a.fun, b.fun);
-  }
-  if (a.tag === 'VPack' && b.tag === 'VPack') {
-    unify(k, a.type, b.type);
-    unify(k, a.fun, b.fun);
-    unify(k, a.hidden, b.hidden);
-    return unify(k, a.val, b.val);
-  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -118,8 +97,6 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
-    if (elim.tag === 'EUnsafeUnpack') return terr(`unsafeUnpack in meta spine`);
-    if (elim.tag === 'EUnpack') return terr(`unpack in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
@@ -159,33 +136,6 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Pi(t.plicity, t.name, ty, body);
-  }
-  if (t.tag === 'Ex') {
-    const type = checkSolution(k, m, is, t.type);
-    const fun = checkSolution(k, m, is, t.fun);
-    return Ex(type, fun);
-  }
-  if (t.tag === 'Pack') {
-    const type = checkSolution(k, m, is, t.type);
-    const fun = checkSolution(k, m, is, t.fun);
-    const hidden = checkSolution(k, m, is, t.hidden);
-    const val = checkSolution(k, m, is, t.val);
-    return Pack(type, fun, hidden, val);
-  }
-  if (t.tag === 'UnsafeUnpack') {
-    const type = checkSolution(k, m, is, t.type);
-    const fun = checkSolution(k, m, is, t.fun);
-    const hidden = checkSolution(k, m, is, t.hidden);
-    const val = checkSolution(k, m, is, t.val);
-    return UnsafeUnpack(type, fun, hidden, val);
-  }
-  if (t.tag === 'Unpack') {
-    const type = checkSolution(k, m, is, t.type);
-    const fun = checkSolution(k, m, is, t.fun);
-    const hidden = checkSolution(k, m, is, t.hidden);
-    const val = checkSolution(k, m, is, t.val);
-    const elim = checkSolution(k, m, is, t.elim);
-    return Unpack(type, fun, hidden, val, elim);
   }
   if (t.tag === 'UnsafeCast') {
     const type = checkSolution(k, m, is, t.type);

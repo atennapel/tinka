@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, Ex, Pack, UnsafeUnpack, Unpack, UnsafeCast } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, vapp, VEx } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -212,43 +212,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
-  }
-  if (tm.tag === 'Ex') {
-    const type = check(local, tm.type, VType);
-    const vt = evaluate(type, local.vs);
-    const fun = check(local, tm.fun, VPi(false, '_', vt, _ => VType));
-    return [Ex(type, fun), VType];
-  }
-  if (tm.tag === 'Pack') {
-    const type = check(localInType(local), tm.type, VType);
-    const vt = evaluate(type, local.vs);
-    const fun = check(localInType(local), tm.fun, VPi(false, '_', vt, _ => VType));
-    const vfun = evaluate(fun, local.vs);
-    const hidden = check(localInType(local), tm.hidden, vt);
-    const vhidden = evaluate(hidden, local.vs);
-    const val = check(local, tm.val, vapp(vfun, false, vhidden));
-    return [Pack(type, fun, hidden, val), VEx(vt, vfun)];
-  }
-  if (tm.tag === 'UnsafeUnpack') {
-    const type = check(localInType(local), tm.type, VType);
-    const vt = evaluate(type, local.vs);
-    const fun = check(localInType(local), tm.fun, VPi(false, '_', vt, _ => VType));
-    const vfun = evaluate(fun, local.vs);
-    const hidden = check(localInType(local), tm.hidden, vt);
-    const vhidden = evaluate(hidden, local.vs);
-    const val = check(local, tm.val, VEx(vt, vfun));
-    return [UnsafeUnpack(type, fun, hidden, val), vapp(vfun, false, vhidden)];
-  }
-  if (tm.tag === 'Unpack') {
-    const type = check(localInType(local), tm.type, VType);
-    const vt = evaluate(type, local.vs);
-    const fun = check(localInType(local), tm.fun, VPi(false, '_', vt, _ => VType));
-    const vfun = evaluate(fun, local.vs);
-    const hidden = check(localInType(local), tm.hidden, VType);
-    const vhidden = evaluate(hidden, local.vs);
-    const val = check(local, tm.val, VEx(vt, vfun));
-    const elim = check(local, tm.elim, VPi(true, 'x', vt, x => VPi(false, '_', vapp(vfun, false, x), _ => vhidden)));
-    return [Unpack(type, fun, hidden, val, elim), vhidden];
   }
   if (tm.tag === 'UnsafeCast') {
     if (tm.type) {

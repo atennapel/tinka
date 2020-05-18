@@ -1,3 +1,5 @@
+import lib/ex.p
+
 -- church-encoded unit type
 def UnitType = {t : *} -> t -> t
 def Unit : UnitType = \x. x

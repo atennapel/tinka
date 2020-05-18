@@ -1,7 +1,9 @@
+import lib/ex.p
 import lib/combinators.p
 import lib/functor.p
 import lib/void.p
 import lib/unit.p
+import lib/sum.p
 import lib/pair.p
 import lib/sigma.p
 import lib/nat.p
