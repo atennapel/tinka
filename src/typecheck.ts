@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, Ex, Pack, UnsafeUnpack, Unpack } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, Ex, Pack, UnsafeUnpack, Unpack, UnsafeCast } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, vapp, VEx } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -85,6 +85,11 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     return x;
+  }
+  if (tm.tag === 'UnsafeCast') {
+    const type = quote(ty, local.index, false);
+    const [val] = synth(local, tm.val);
+    return UnsafeCast(type, val);
   }
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
@@ -244,6 +249,19 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const val = check(local, tm.val, VEx(vt, vfun));
     const elim = check(local, tm.elim, VPi(true, 'x', vt, x => VPi(false, '_', vapp(vfun, false, x), _ => vhidden)));
     return [Unpack(type, fun, hidden, val, elim), vhidden];
+  }
+  if (tm.tag === 'UnsafeCast') {
+    if (tm.type) {
+      const type = check(localInType(local), tm.type, VType);
+      const vt = evaluate(type, local.vs);
+      const [val] = synth(local, tm.val);
+      return [UnsafeCast(type, val), vt];
+    } else {
+      const type = newMeta(local.ts);
+      const vt = evaluate(type, local.vs);
+      const [val] = synth(local, tm.val);
+      return [UnsafeCast(type, val), vt];
+    }
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

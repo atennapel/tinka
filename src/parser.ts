@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Ex, Pack, UnsafeUnpack, Unpack } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Ex, Pack, UnsafeUnpack, Unpack, UnsafeCast } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -276,6 +276,17 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (b4) return serr(`val in unpack should not be implicit`);
     const elim = exprs(ts.slice(5), '(');
     return Unpack(type, fun, hidden, val, elim);
+  }
+  if (isName(ts[0], 'unsafeCast')) {
+    if (ts[1].tag === 'List' && ts[1].bracket === '{') {
+      const [ty, b] = expr(ts[1]);
+      if (!b) return serr(`something went wrong when parsing UnsafeCast`);
+      const body = exprs(ts.slice(2), '(');
+      return UnsafeCast(ty, body);
+    } else {
+      const body = exprs(ts.slice(1), '(');
+      return UnsafeCast(null, body);
+    }
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

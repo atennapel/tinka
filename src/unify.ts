@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Ex, Pack, UnsafeUnpack, Unpack } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Ex, Pack, UnsafeUnpack, Unpack, UnsafeCast } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -24,6 +24,8 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     unify(k, a.hidden, b.hidden);
     return unify(k, a.elim, b.elim);
   }
+  if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
+    return unify(k, a.type, b.type);
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -115,6 +117,7 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
+    if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
     if (elim.tag === 'EUnsafeUnpack') return terr(`unsafeUnpack in meta spine`);
     if (elim.tag === 'EUnpack') return terr(`unpack in meta spine`);
     if (elim.tag === 'EApp') {
@@ -183,6 +186,11 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const val = checkSolution(k, m, is, t.val);
     const elim = checkSolution(k, m, is, t.elim);
     return Unpack(type, fun, hidden, val, elim);
+  }
+  if (t.tag === 'UnsafeCast') {
+    const type = checkSolution(k, m, is, t.type);
+    const val = checkSolution(k, m, is, t.val);
+    return UnsafeCast(type, val);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

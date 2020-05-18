@@ -139,6 +139,12 @@ const synth = (local: Local, tm: Term): Val => {
     check(local, tm.elim, VPi(true, 'x', vt, x => VPi(false, '_', vapp(vfun, false, x), _ => vhidden)));
     return vhidden;
   }
+  if (tm.tag === 'UnsafeCast') {
+    check(localInType(local), tm.type, VType);
+    const vt = evaluate(tm.type, local.vs);
+    synth(local, tm.val);
+    return vt;
+  }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 

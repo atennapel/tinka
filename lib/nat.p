@@ -17,5 +17,3 @@ def nat2INat
 def indNat
   : {P : Nat -> *} -> P Z -> ({m : Nat} -> P m -> P (S m)) -> (n : Nat) -> P n
   = \{P} z s n. (unsafeUnpack {Nat} {INat} {n} (nat2INat n)) {P} z s
-
-

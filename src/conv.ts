@@ -27,6 +27,8 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     conv(k, a.hidden, b.hidden);
     return conv(k, a.elim, b.elim);
   }
+  if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
+    return conv(k, a.type, b.type);
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const conv = (k: Ix, a_: Val, b_: Val): void => {
