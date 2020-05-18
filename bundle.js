@@ -1067,7 +1067,7 @@ exports.showTermS = (t) => {
     if (t.tag === 'Unpack')
         return `(unpack {${exports.showTermS(t.type)}} {${exports.showTermS(t.fun)}} {${exports.showTermS(t.hidden)}} ${exports.showTermS(t.val)} ${exports.showTermS(t.elim)})`;
     if (t.tag === 'UnsafeCast')
-        return `(unsafeUnpack ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${exports.showTermS(t.val)})`;
+        return `(unsafeCast ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${exports.showTermS(t.val)})`;
     return t;
 };
 exports.flattenApp = (t) => {
@@ -1130,7 +1130,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Unpack')
         return `unpack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)} ${exports.showTermP(t.elim.tag !== 'Var' && t.elim.tag !== 'Meta' && t.elim.tag !== 'Sort' && t.elim.tag !== 'Abs', t.elim)}`;
     if (t.tag === 'UnsafeCast')
-        return `unsafeUnpack ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
+        return `unsafeCast ${t.type ? `{${exports.showTermS(t.type)}} ` : ''}${exports.showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
     return t;
 };
 exports.erase = (t) => {
@@ -1221,7 +1221,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Unpack')
         return `(unpack {${exports.showTerm(t.type)}} {${exports.showTerm(t.fun)}} {${exports.showTerm(t.hidden)}} ${exports.showTerm(t.val)} ${exports.showTerm(t.elim)})`;
     if (t.tag === 'UnsafeCast')
-        return `(unsafeUnpack ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${exports.showTerm(t.val)})`;
+        return `(unsafeCast ${t.type ? `{${exports.showTerm(t.type)}} ` : ''}${exports.showTerm(t.val)})`;
     return t;
 };
 exports.globalUsed = (k, t) => {

@@ -51,7 +51,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Pack') return `(pack {${showTermS(t.type)}} {${showTermS(t.fun)}} {${showTermS(t.hidden)}} ${showTermS(t.val)})`;
   if (t.tag === 'UnsafeUnpack') return `(unsafeUnpack {${showTermS(t.type)}} {${showTermS(t.fun)}} {${showTermS(t.hidden)}} ${showTermS(t.val)})`;
   if (t.tag === 'Unpack') return `(unpack {${showTermS(t.type)}} {${showTermS(t.fun)}} {${showTermS(t.hidden)}} ${showTermS(t.val)} ${showTermS(t.elim)})`;
-  if (t.tag === 'UnsafeCast') return `(unsafeUnpack ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermS(t.val)})`;
+  if (t.tag === 'UnsafeCast') return `(unsafeCast ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermS(t.val)})`;
   return t;
 };
 
@@ -110,7 +110,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Pack') return `pack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
   if (t.tag === 'UnsafeUnpack') return `unsafeUnpack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
   if (t.tag === 'Unpack') return `unpack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)} ${showTermP(t.elim.tag !== 'Var' && t.elim.tag !== 'Meta' && t.elim.tag !== 'Sort' && t.elim.tag !== 'Abs', t.elim)}`;
-  if (t.tag === 'UnsafeCast') return `unsafeUnpack ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
+  if (t.tag === 'UnsafeCast') return `unsafeCast ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
   return t;
 };
 

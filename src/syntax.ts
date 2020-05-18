@@ -49,7 +49,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Pack') return `(pack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTerm(t.val)})`;
   if (t.tag === 'UnsafeUnpack') return `(unsafeUnpack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTerm(t.val)})`;
   if (t.tag === 'Unpack') return `(unpack {${showTerm(t.type)}} {${showTerm(t.fun)}} {${showTerm(t.hidden)}} ${showTerm(t.val)} ${showTerm(t.elim)})`;
-  if (t.tag === 'UnsafeCast') return `(unsafeUnpack ${t.type ? `{${showTerm(t.type)}} ` : ''}${showTerm(t.val)})`;
+  if (t.tag === 'UnsafeCast') return `(unsafeCast ${t.type ? `{${showTerm(t.type)}} ` : ''}${showTerm(t.val)})`;
   return t;
 };
 
