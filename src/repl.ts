@@ -52,7 +52,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       setConfig({ showNormalization: !config.showNormalization });
       return _cb(`showNormalization: ${config.showNormalization}`);
     }
-    if (_s.toLowerCase() === ':alwaysVerify') {
+    if (_s.toLowerCase() === ':alwaysverify') {
       setConfig({ verify: !config.verify });
       return _cb(`verify: ${config.verify}`);
     }

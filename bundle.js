@@ -794,7 +794,7 @@ exports.runREPL = (_s, _cb) => {
             config_1.setConfig({ showNormalization: !config_1.config.showNormalization });
             return _cb(`showNormalization: ${config_1.config.showNormalization}`);
         }
-        if (_s.toLowerCase() === ':alwaysVerify') {
+        if (_s.toLowerCase() === ':alwaysverify') {
             config_1.setConfig({ verify: !config_1.config.verify });
             return _cb(`verify: ${config_1.config.verify}`);
         }
