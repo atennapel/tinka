@@ -14,7 +14,7 @@ def IS : {n : Nat} -> INat n -> INat (S n) = \{n} nn {P} z s. s {n} (nn {P} z s)
 
 def nat2INat
   : (n : Nat) -> Ex Nat INat
-  = \n. n {Ex Nat INat} (pack {Nat} {INat} {Z} IZ) (\mm. unpack {Nat} {INat} {Ex Nat INat} mm \{k} kk. pack {Nat} {INat} {S k} (IS {k} kk))
+  = \n. n {Ex Nat INat} (Pack {Nat} {INat} {Z} IZ) (\mm. unpack {Nat} {INat} {Ex Nat INat} mm \{k} kk. Pack {Nat} {INat} {S k} (IS {k} kk))
 
 def indNat
   : {P : Nat -> *} -> P Z -> ({m : Nat} -> P m -> P (S m)) -> (n : Nat) -> P n

@@ -10,7 +10,7 @@ def IUnit : IUnitType Unit = \x. x
 
 def unit2IUnit
   : (u : UnitType) -> Ex UnitType IUnitType
-  = \u. u {Ex UnitType IUnitType} (pack {UnitType} {IUnitType} {Unit} IUnit)
+  = \u. u {Ex UnitType IUnitType} (Pack {UnitType} {IUnitType} {Unit} IUnit)
 
 def indUnit
   : {P : UnitType -> *} -> P Unit -> (u : UnitType) -> P u

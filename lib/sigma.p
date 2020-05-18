@@ -12,7 +12,7 @@ def IMkSigma
 
 def sigma2ISigma
   : {a : *} -> {b : a -> *} -> (s : Sigma a b) -> Ex (Sigma a b) (ISigma a b)
-  = \{a} {b} s. s {Ex (Sigma a b) (ISigma a b)} (\x y. pack {Sigma a b} {ISigma a b} {MkSigma {a} {b} x y} (IMkSigma {a} {b} x y))
+  = \{a} {b} s. s {Ex (Sigma a b) (ISigma a b)} (\x y. Pack {Sigma a b} {ISigma a b} {MkSigma {a} {b} x y} (IMkSigma {a} {b} x y))
 
 def indSigma
   : {a : *} -> {b : a -> *} -> {P : Sigma a b -> *} -> ((x : a) -> (y : b x) -> P (MkSigma {a} {b} x y)) -> (s : Sigma a b) -> P s
