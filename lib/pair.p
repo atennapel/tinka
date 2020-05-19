@@ -15,7 +15,7 @@ def IMkPair
   = \x y f. f x y
 
 def pair2IPair
-  : {a b : *} -> (p : Pair a b) -> Ex (Pair a b) (IPair a b)
+  : {a b : *} -> Pair a b -> Ex (Pair a b) (IPair a b)
   = \{a} {b} p. p {Ex (Pair a b) (IPair a b)} (\x y. Pack {Pair a b} {IPair a b} {MkPair {a} {b} x y} (IMkPair {a} {b} x y))
 
 def indPair

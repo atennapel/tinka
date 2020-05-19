@@ -13,3 +13,5 @@ import lib/pair.p
 import lib/sigma.p
 import lib/nat.p
 import lib/fix.p
+
+import lib/vec.p

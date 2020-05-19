@@ -19,7 +19,7 @@ def IPack
   = \x f. f x
 
 def ex2IEx
-  : {t : *} -> {f : t -> *} -> (e : Ex t f) -> Ex (Ex t f) (IEx t f)
+  : {t : *} -> {f : t -> *} -> Ex t f -> Ex (Ex t f) (IEx t f)
   = \{a} {b} e. e {Ex (Ex a b) (IEx a b)} (\{x} y. Pack {Ex a b} {IEx a b} {Pack {a} {b} {x} y} (IPack {a} {b} {x} y))
 
 def indEx

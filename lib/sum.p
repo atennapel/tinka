@@ -10,7 +10,7 @@ def IInL : {a b : *} -> (x : a) -> ISum a b (InL {a} {b} x) = \x f g. f x
 def IInR : {a b : *} -> (x : b) -> ISum a b (InR {a} {b} x) = \x f g. g x
 
 def sum2ISum
-  : {a b : *} -> (s : Sum a b) -> Ex (Sum a b) (ISum a b)
+  : {a b : *} -> Sum a b -> Ex (Sum a b) (ISum a b)
   = \{a} {b} s. s {Ex (Sum a b) (ISum a b)}
       (\x. Pack {Sum a b} {ISum a b} {InL {a} {b} x} (IInL {a} {b} x))
       (\x. Pack {Sum a b} {ISum a b} {InR {a} {b} x} (IInR {a} {b} x))

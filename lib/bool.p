@@ -22,7 +22,7 @@ def ITrue : IBool True = \t f. t
 def IFalse : IBool False = \t f. f
 
 def bool2IBool
-  : (b : Bool) -> Ex Bool IBool
+  : Bool -> Ex Bool IBool
   = \b. b {Ex Bool IBool} (Pack {Bool} {IBool} {True} ITrue) (Pack {Bool} {IBool} {False} IFalse)
 
 def indBool

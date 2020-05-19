@@ -11,7 +11,7 @@ def IMkSigma
   = \x y f. f x y
 
 def sigma2ISigma
-  : {a : *} -> {b : a -> *} -> (s : Sigma a b) -> Ex (Sigma a b) (ISigma a b)
+  : {a : *} -> {b : a -> *} -> Sigma a b -> Ex (Sigma a b) (ISigma a b)
   = \{a} {b} s. s {Ex (Sigma a b) (ISigma a b)} (\x y. Pack {Sigma a b} {ISigma a b} {MkSigma {a} {b} x y} (IMkSigma {a} {b} x y))
 
 def indSigma
