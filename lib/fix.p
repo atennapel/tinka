@@ -13,3 +13,7 @@ def In
 def out
   : {f : * -> *} -> Fix f -> f (Fix f)
   = \{f} x. x {f (Fix f)} (\_ y. unsafeCast y)
+
+def gindFix
+  : {f : * -> *} -> {P : Fix f -> *} -> (((x : Fix f) -> P x) -> (y : f (Fix f)) -> P (In {f} y)) -> (x : Fix f) -> P x
+  = \{f} {P} alg x. x {P x} (unsafeCast alg)
