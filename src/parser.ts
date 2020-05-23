@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -138,6 +138,7 @@ const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
+    if (x === 'Desc') return [Desc, false];
     if (x.startsWith('_')) return [Hole(x.slice(1) || null), false];
     if (x.startsWith('#')) {
       const n = +x.slice(1);

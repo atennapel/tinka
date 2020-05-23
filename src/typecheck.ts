@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -82,6 +82,8 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
   if (tm.tag === 'Sort' && fty.tag === 'VSort' && fty.sort === '*') return Sort(tm.sort);
+  if (tm.tag === 'Desc' && fty.tag === 'VSort' && fty.sort === '*') return Desc;
+  if (tm.tag === 'Enum' && fty.tag === 'VSort' && fty.sort === '*') return Desc;
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     return x;
@@ -160,6 +162,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Sort') return [Sort(tm.sort), VType];
   if (tm.tag === 'Enum') return [Enum(tm.num), VType];
+  if (tm.tag === 'Desc') return [Desc, VType];
   if (tm.tag === 'Elem') {
     const total = tm.total === null ? tm.num + 1 : tm.total;
     if (!(tm.num < total)) return terr(`invalid elem: ${S.showTerm(tm)}`);

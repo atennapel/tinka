@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Fst | Snd | EnumInd | Elem | Let | Enum | Pi | Sigma | Sort | Meta | UnsafeCast;
+export type Term = Var | Global | App | Abs | Pair | Fst | Snd | EnumInd | Elem | Let | Enum | Pi | Sigma | Sort | Meta | UnsafeCast | Desc;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -40,12 +40,16 @@ export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type UnsafeCast = { tag: 'UnsafeCast', type: Term, val: Term }
 export const UnsafeCast = (type: Term, val: Term): UnsafeCast => ({ tag: 'UnsafeCast', type, val });
 
+export type Desc = { tag: 'Desc' };
+export const Desc: Desc = { tag: 'Desc' };
+
 export const Type: Sort = Sort('*');
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
-  if (t.tag === 'Meta') return `?${t.index}`;
+  if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Global') return t.name;
+  if (t.tag === 'Desc') return `Desc`;
   if (t.tag === 'Enum') return `#${t.num}`;
   if (t.tag === 'Elem') return `@${t.num}/${t.total}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
@@ -123,6 +127,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'Enum') return S.Enum(t.num);
   if (t.tag === 'Elem') return S.Elem(t.num, t.total);
+  if (t.tag === 'Desc') return S.Desc;
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
   if (t.tag === 'UnsafeCast') return S.UnsafeCast(toSurface(t.type, ns), toSurface(t.val, ns));

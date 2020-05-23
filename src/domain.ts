@@ -3,7 +3,7 @@ import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
 import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
-import { Plicity, Sorts } from './surface';
+import { Plicity, Sorts, Desc } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
@@ -30,7 +30,7 @@ export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
 export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem | VDesc;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -50,6 +50,9 @@ export type VEnum = { tag: 'VEnum', num: number };
 export const VEnum = (num: number): VEnum => ({ tag: 'VEnum', num });
 export type VElem = { tag: 'VElem', num: number, total: number };
 export const VElem = (num: number, total: number): VElem => ({ tag: 'VElem', num, total });
+
+export type VDesc = { tag: 'VDesc' };
+export const VDesc: VDesc = { tag: 'VDesc' };
 
 export const VType: VSort = VSort('*');
 
@@ -163,6 +166,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Elem') return VElem(t.num, t.total);
   if (t.tag === 'EnumInd')
     return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
+  if (t.tag === 'Desc') return VDesc;
   return t;
 };
 
@@ -214,6 +218,7 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
   if (v.tag === 'VEnum') return Enum(v.num);
   if (v.tag === 'VElem') return Elem(v.num, v.total);
+  if (v.tag === 'VDesc') return Desc;
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>

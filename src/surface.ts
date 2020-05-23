@@ -3,7 +3,7 @@ import { Name, Ix } from './names';
 export type Plicity = boolean;
 
 export type Sorts = '*' | '**';
-export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Sort | Ann | Hole | Meta | UnsafeCast;
+export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Sort | Ann | Hole | Meta | UnsafeCast | Desc;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -40,12 +40,16 @@ export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type UnsafeCast = { tag: 'UnsafeCast', type: Term | null, val: Term }
 export const UnsafeCast = (type: Term | null, val: Term): UnsafeCast => ({ tag: 'UnsafeCast', type, val });
 
+export type Desc = { tag: 'Desc' };
+export const Desc: Desc = { tag: 'Desc' };
+
 export const Type: Sort = Sort('*');
 
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
-  if (t.tag === 'Meta') return `?${t.index}`;
+  if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Enum') return `#${t.num}`;
+  if (t.tag === 'Desc') return `Desc`;
   if (t.tag === 'Elem') return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
@@ -111,8 +115,9 @@ export const showTermP = (b: boolean, t: Term): string =>
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Var') return t.name;
-  if (t.tag === 'Meta') return `?${t.index}`;
+  if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Enum') return `#${t.num}`;
+  if (t.tag === 'Desc') return 'Desc';
   if (t.tag === 'Elem') return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
@@ -156,6 +161,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Sort') return t;
   if (t.tag === 'Enum') return t;
   if (t.tag === 'Elem') return t;
+  if (t.tag === 'Desc') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
   if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));

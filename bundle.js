@@ -62,6 +62,8 @@ exports.conv = (k, a_, b_) => {
     config_1.log(() => `conv(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
+    if (a.tag === 'VDesc' && b.tag === 'VDesc')
+        return;
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num)
@@ -126,11 +128,12 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":13,"./utils/list":14,"./utils/utils":15}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.venumind = exports.vsnd = exports.vfst = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VElem = exports.VEnum = exports.VPair = exports.VSort = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EEnumInd = exports.ESnd = exports.EFst = exports.EUnsafeCast = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.venumind = exports.vsnd = exports.vfst = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VDesc = exports.VElem = exports.VEnum = exports.VPair = exports.VSort = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EEnumInd = exports.ESnd = exports.EFst = exports.EUnsafeCast = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
 const lazy_1 = require("./utils/lazy");
+const surface_1 = require("./surface");
 const globalenv_1 = require("./globalenv");
 const metas_1 = require("./metas");
 exports.HVar = (index) => ({ tag: 'HVar', index });
@@ -150,6 +153,7 @@ exports.VSort = (sort) => ({ tag: 'VSort', sort });
 exports.VPair = (fst, snd, type) => ({ tag: 'VPair', fst, snd, type });
 exports.VEnum = (num) => ({ tag: 'VEnum', num });
 exports.VElem = (num, total) => ({ tag: 'VElem', num, total });
+exports.VDesc = { tag: 'VDesc' };
 exports.VType = exports.VSort('*');
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
@@ -271,6 +275,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VElem(t.num, t.total);
     if (t.tag === 'EnumInd')
         return exports.venumind(t.num, exports.evaluate(t.prop, vs), t.args.map(x => exports.evaluate(x, vs)), exports.evaluate(t.term, vs));
+    if (t.tag === 'Desc')
+        return exports.VDesc;
     return t;
 };
 const quoteHead = (h, k) => {
@@ -328,6 +334,8 @@ exports.quote = (v_, k, full) => {
         return syntax_1.Enum(v.num);
     if (v.tag === 'VElem')
         return syntax_1.Elem(v.num, v.total);
+    if (v.tag === 'VDesc')
+        return surface_1.Desc;
     return v;
 };
 exports.quoteZ = (v, vs = list_1.Nil, k = 0, full = false) => exports.zonk(exports.quote(v, k, full), vs, k, full);
@@ -402,7 +410,7 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
     return tm;
 };
 
-},{"./globalenv":4,"./metas":5,"./syntax":10,"./utils/lazy":13,"./utils/list":14,"./utils/utils":15}],4:[function(require,module,exports){
+},{"./globalenv":4,"./metas":5,"./surface":9,"./syntax":10,"./utils/lazy":13,"./utils/list":14,"./utils/utils":15}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.globalDelete = exports.globalSet = exports.globalGet = exports.globalMap = exports.globalReset = void 0;
@@ -630,6 +638,8 @@ const expr = (t) => {
         const x = t.name;
         if (x === '*')
             return [surface_1.Type, false];
+        if (x === 'Desc')
+            return [surface_1.Desc, false];
         if (x.startsWith('_'))
             return [surface_1.Hole(x.slice(1) || null), false];
         if (x.startsWith('#')) {
@@ -1116,7 +1126,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":9,"./syntax":10,"./typecheck":11,"./utils/list":14,"./utils/utils":15,"./verify":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.UnsafeCast = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.EnumInd = exports.Elem = exports.Enum = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.Desc = exports.UnsafeCast = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.EnumInd = exports.Elem = exports.Enum = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
@@ -1134,14 +1144,17 @@ exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.UnsafeCast = (type, val) => ({ tag: 'UnsafeCast', type, val });
+exports.Desc = { tag: 'Desc' };
 exports.Type = exports.Sort('*');
 exports.showTermS = (t) => {
     if (t.tag === 'Var')
         return t.name;
     if (t.tag === 'Meta')
-        return `?${t.index}`;
+        return `??${t.index}`;
     if (t.tag === 'Enum')
         return `#${t.num}`;
+    if (t.tag === 'Desc')
+        return `Desc`;
     if (t.tag === 'Elem')
         return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
     if (t.tag === 'App')
@@ -1220,9 +1233,11 @@ exports.showTerm = (t) => {
     if (t.tag === 'Var')
         return t.name;
     if (t.tag === 'Meta')
-        return `?${t.index}`;
+        return `??${t.index}`;
     if (t.tag === 'Enum')
         return `#${t.num}`;
+    if (t.tag === 'Desc')
+        return 'Desc';
     if (t.tag === 'Elem')
         return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
     if (t.tag === 'App') {
@@ -1275,6 +1290,8 @@ exports.erase = (t) => {
         return t;
     if (t.tag === 'Elem')
         return t;
+    if (t.tag === 'Desc')
+        return t;
     if (t.tag === 'Ann')
         return exports.erase(t.term);
     if (t.tag === 'Abs')
@@ -1310,7 +1327,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.UnsafeCast = exports.Meta = exports.Sort = exports.EnumInd = exports.Elem = exports.Enum = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
+exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.Desc = exports.UnsafeCast = exports.Meta = exports.Sort = exports.EnumInd = exports.Elem = exports.Enum = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1332,14 +1349,17 @@ exports.EnumInd = (num, prop, term, args) => ({ tag: 'EnumInd', num, prop, term,
 exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.UnsafeCast = (type, val) => ({ tag: 'UnsafeCast', type, val });
+exports.Desc = { tag: 'Desc' };
 exports.Type = exports.Sort('*');
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
         return `${t.index}`;
     if (t.tag === 'Meta')
-        return `?${t.index}`;
+        return `??${t.index}`;
     if (t.tag === 'Global')
         return t.name;
+    if (t.tag === 'Desc')
+        return `Desc`;
     if (t.tag === 'Enum')
         return `#${t.num}`;
     if (t.tag === 'Elem')
@@ -1466,6 +1486,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.Enum(t.num);
     if (t.tag === 'Elem')
         return S.Elem(t.num, t.total);
+    if (t.tag === 'Desc')
+        return S.Desc;
     if (t.tag === 'App')
         return S.App(exports.toSurface(t.left, ns), t.plicity, exports.toSurface(t.right, ns));
     if (t.tag === 'Pair')
@@ -1570,6 +1592,10 @@ const check = (local, tm, ty) => {
     const fty = domain_1.force(ty);
     if (tm.tag === 'Sort' && fty.tag === 'VSort' && fty.sort === '*')
         return syntax_1.Sort(tm.sort);
+    if (tm.tag === 'Desc' && fty.tag === 'VSort' && fty.sort === '*')
+        return syntax_1.Desc;
+    if (tm.tag === 'Enum' && fty.tag === 'VSort' && fty.sort === '*')
+        return syntax_1.Desc;
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         return x;
@@ -1653,6 +1679,8 @@ const synth = (local, tm) => {
         return [syntax_1.Sort(tm.sort), domain_1.VType];
     if (tm.tag === 'Enum')
         return [syntax_1.Enum(tm.num), domain_1.VType];
+    if (tm.tag === 'Desc')
+        return [syntax_1.Desc, domain_1.VType];
     if (tm.tag === 'Elem') {
         const total = tm.total === null ? tm.num + 1 : tm.total;
         if (!(tm.num < total))
@@ -1870,6 +1898,8 @@ exports.unify = (k, a_, b_) => {
     config_1.log(() => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
+    if (a.tag === 'VDesc' && b.tag === 'VDesc')
+        return;
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num)
@@ -1993,6 +2023,8 @@ const checkSolution = (k, m, is, t) => {
     if (t.tag === 'Sort')
         return t;
     if (t.tag === 'Global')
+        return t;
+    if (t.tag === 'Desc')
         return t;
     if (t.tag === 'Var') {
         const i = k - t.index - 1;
@@ -2300,6 +2332,8 @@ const check = (local, tm, ty) => {
 const synth = (local, tm) => {
     config_1.log(() => `synth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Sort')
+        return domain_1.VType;
+    if (tm.tag === 'Desc')
         return domain_1.VType;
     if (tm.tag === 'Enum')
         return domain_1.VType;
