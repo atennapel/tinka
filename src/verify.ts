@@ -102,6 +102,11 @@ const synth = (local: Local, tm: Term): Val => {
     check(extend(local, tm.name, evaluate(tm.type, local.vs), true, false, VVar(local.index)), tm.body, VType);
     return VType;
   }
+  if (tm.tag === 'Sigma') {
+    check(localInType(local), tm.type, VType);
+    check(extend(local, tm.name, evaluate(tm.type, local.vs), true, false, VVar(local.index)), tm.body, VType);
+    return VType;
+  }
   if (tm.tag === 'UnsafeCast') {
     check(localInType(local), tm.type, VType);
     const vt = evaluate(tm.type, local.vs);

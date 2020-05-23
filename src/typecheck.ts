@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -206,6 +206,11 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const type = check(localInType(local), tm.type, VType);
     const body = check(extend(local, tm.name, evaluate(type, local.vs), true, false, false, VVar(local.index)), tm.body, VType);
     return [Pi(tm.plicity, tm.name, type, body), VType];
+  }
+  if (tm.tag === 'Sigma') {
+    const type = check(localInType(local), tm.type, VType);
+    const body = check(extend(local, tm.name, evaluate(type, local.vs), true, false, false, VVar(local.index)), tm.body, VType);
+    return [Sigma(tm.name, type, body), VType];
   }
   if (tm.tag === 'Ann') {
     const type = check(localInType(local), tm.type, VType);

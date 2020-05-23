@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -23,7 +23,7 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
 const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '|'];
-const SYM2: string[] = ['->'];
+const SYM2: string[] = ['->', '**'];
 
 const START = 0;
 const NAME = 1;
@@ -259,6 +259,19 @@ const exprs = (ts: Token[], br: BracketO): Term => {
       .reduce((x, y) => x.concat(y), []);
     const body = exprs(s[s.length - 1], '(');
     return args.reduceRight((x, [name, impl, ty]) => Pi(impl, name, ty, x), body);
+  }
+  const js = ts.findIndex(x => isName(x, '**'));
+  if (js >= 0) {
+    const s = splitTokens(ts, x => isName(x, '**'));
+    if (s.length < 2) return serr(`parsing failed with **`);
+    const args: [Name, boolean, Term][] = s.slice(0, -1)
+      .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')] as [Name, boolean, Term]])
+      .reduce((x, y) => x.concat(y), []);
+    const body = exprs(s[s.length - 1], '(');
+    return args.reduceRight((x, [name, impl, ty]) => {
+      if (impl) return serr(`sigma param cannot be implicit`);
+      return Sigma(name, ty, x);
+    }, body);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

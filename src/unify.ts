@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -24,6 +24,11 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
+    unify(k, a.type, b.type);
+    const v = VVar(k);
+    return unify(k + 1, a.body(v), b.body(v));
+  }
+  if (a.tag === 'VSigma' && b.tag === 'VSigma') {
     unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
@@ -136,6 +141,11 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Pi(t.plicity, t.name, ty, body);
+  }
+  if (t.tag === 'Sigma') {
+    const ty = checkSolution(k, m, is, t.type);
+    const body = checkSolution(k + 1, m, Cons(k, is), t.body);
+    return Sigma(t.name, ty, body);
   }
   if (t.tag === 'UnsafeCast') {
     const type = checkSolution(k, m, is, t.type);
