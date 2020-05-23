@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -42,7 +42,7 @@ const tokenize = (sc: string): Token[] => {
       if (SYM2.indexOf(c + next) >= 0) r.push(TName(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(TName(c));
       else if (c + next === '--') i++, state = COMMENT;
-      else if (/[\#\_a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\@\#\_a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}') {
@@ -143,6 +143,21 @@ const expr = (t: Token): [Term, boolean] => {
       const n = +x.slice(1);
       if (isNaN(n) || n < 0 || Math.floor(n) !== n) return serr(`invalid enum ${x}`);
       return [Enum(n), false];
+    }
+    if (x.startsWith('@')) {
+      const s = x.slice(1);
+      const spl = s.split('/');
+      if (spl.length === 1) {
+        const n = +spl[0];
+        if (isNaN(n) || n < 0 || Math.floor(n) !== n) return serr(`invalid elem ${x}`);
+        return [Elem(n, null), false];
+      } else if (spl.length === 2) {
+        const n = +spl[0];
+        if (isNaN(n) || n < 0 || Math.floor(n) !== n) return serr(`invalid elem ${x}`);
+        const m = +spl[1];
+        if (isNaN(m) || m < 0 || Math.floor(m) !== m) return serr(`invalid elem ${x}`);
+        return [Elem(n, m), false];
+      } else return serr(`invalid elem ${x}`);
     }
     if (/[a-z]/i.test(x[0])) return [Var(x), false];
     return serr(`invalid name: ${x}`);

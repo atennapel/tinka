@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -96,6 +96,8 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     const snd = check(local, tm.snd, fty.body(evaluate(fst, local.vs)));
     return Pair(fst, snd, quote(ty, local.index, false));
   }
+  if (tm.tag === 'Elem' && tm.total === null && fty.tag === 'VEnum' && tm.num < fty.num)
+    return Elem(tm.num, fty.num);
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
     const x = tm.name === '_' ? fty.name : tm.name;
@@ -156,8 +158,13 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
 
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Sort') return [tm, VType];
-  if (tm.tag === 'Enum') return [tm, VType];
+  if (tm.tag === 'Sort') return [Sort(tm.sort), VType];
+  if (tm.tag === 'Enum') return [Enum(tm.num), VType];
+  if (tm.tag === 'Elem') {
+    const total = tm.total === null ? tm.num + 1 : tm.total;
+    if (!(tm.num < total)) return terr(`invalid elem: ${S.showTerm(tm)}`);
+    return [Elem(tm.num, total), VEnum(total)];
+  }
   if (tm.tag === 'Var') {
     const i = indexOf(local.namesSurface, tm.name);
     if (i < 0) {

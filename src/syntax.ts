@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Fst | Snd | Let | Enum | Pi | Sigma | Sort | Meta | UnsafeCast;
+export type Term = Var | Global | App | Abs | Pair | Fst | Snd | Elem | Let | Enum | Pi | Sigma | Sort | Meta | UnsafeCast;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -29,6 +29,8 @@ export type Sigma = { tag: 'Sigma', name: Name, type: Term, body: Term };
 export const Sigma = (name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', name, type, body });
 export type Enum = { tag: 'Enum', num: number };
 export const Enum = (num: number): Enum => ({ tag: 'Enum', num });
+export type Elem = { tag: 'Elem', num: number, total: number };
+export const Elem = (num: number, total: number): Elem => ({ tag: 'Elem', num, total });
 export type Sort = { tag: 'Sort', sort: S.Sorts };
 export const Sort = (sort: S.Sorts): Sort => ({ tag: 'Sort', sort });
 export type Meta = { tag: 'Meta', index: Ix };
@@ -43,6 +45,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'Enum') return `#${t.num}`;
+  if (t.tag === 'Elem') return `@${t.num}/${t.total}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs') return `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Pair') return `(${showTerm(t.fst)}, ${showTerm(t.snd)} : ${showTerm(t.type)})`;
@@ -113,6 +116,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Sort') return S.Sort(t.sort);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'Enum') return S.Enum(t.num);
+  if (t.tag === 'Elem') return S.Elem(t.num, t.total);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
   if (t.tag === 'UnsafeCast') return S.UnsafeCast(toSurface(t.type, ns), toSurface(t.val, ns));

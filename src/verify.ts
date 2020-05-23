@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -68,6 +68,7 @@ const synth = (local: Local, tm: Term): Val => {
   log(() => `synth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Sort') return VType;
   if (tm.tag === 'Enum') return VType;
+  if (tm.tag === 'Elem' && tm.num < tm.total) return VEnum(tm.total);
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);
     if (!entry) return terr(`global ${tm.name} not found`);
