@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -22,7 +22,7 @@ const TName = (name: string): Token => ({ tag: 'Name', name });
 const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
-const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '|'];
+const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '|', ','];
 const SYM2: string[] = ['->', '**'];
 
 const START = 0;
@@ -272,6 +272,13 @@ const exprs = (ts: Token[], br: BracketO): Term => {
       if (impl) return serr(`sigma param cannot be implicit`);
       return Sigma(name, ty, x);
     }, body);
+  }
+  const jp = ts.findIndex(x => isName(x, ','));
+  if (jp >= 0) {
+    const s = splitTokens(ts, x => isName(x, ','));
+    if (s.length < 2) return serr(`parsing failed with ,`);
+    const args = s.map(x => exprs(x, '('));
+    return args.reduce((x, y) => Pair(x, y));
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

@@ -107,6 +107,15 @@ const synth = (local: Local, tm: Term): Val => {
     check(extend(local, tm.name, evaluate(tm.type, local.vs), true, false, VVar(local.index)), tm.body, VType);
     return VType;
   }
+  if (tm.tag === 'Pair') {
+    check(localInType(local), tm.type, VType);
+    const vt = evaluate(tm.type, local.vs);
+    const vtf = force(vt);
+    if (vtf.tag !== 'VSigma') return terr(`Pair with non-sigma type: ${showTerm(tm)}`);
+    check(local, tm.fst, vtf.type);
+    check(local, tm.snd, vtf.body(evaluate(tm.fst, local.vs)));
+    return vt;
+  }
   if (tm.tag === 'UnsafeCast') {
     check(localInType(local), tm.type, VType);
     const vt = evaluate(tm.type, local.vs);

@@ -3,7 +3,7 @@ import { Name, Ix } from './names';
 export type Plicity = boolean;
 
 export type Sorts = '*' | '**';
-export type Term = Var | App | Abs | Let | Pi | Sigma | Sort | Ann | Hole | Meta | UnsafeCast;
+export type Term = Var | App | Abs | Pair | Let | Pi | Sigma | Sort | Ann | Hole | Meta | UnsafeCast;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -11,6 +11,8 @@ export type App = { tag: 'App', left: Term, plicity: Plicity, right: Term };
 export const App = (left: Term, plicity: Plicity, right: Term): App => ({ tag: 'App', left, plicity, right });
 export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term | null, body: Term };
 export const Abs = (plicity: Plicity, name: Name, type: Term | null, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
+export type Pair = { tag: 'Pair', fst: Term, snd: Term };
+export const Pair = (fst: Term, snd: Term): Pair => ({ tag: 'Pair', fst, snd });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
@@ -43,6 +45,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Ann') return `(${showTermS(t.term)} : ${showTermS(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'UnsafeCast') return `(unsafeCast ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermS(t.val)})`;
+  if (t.tag === 'Pair') return `(${showTermS(t.fst)}, ${showTermS(t.snd)})`;
   return t;
 };
 
@@ -78,6 +81,15 @@ export const flattenSigma = (t: Term): [[Name, Term][], Term] => {
   }
   return [r, t];
 };
+export const flattenPair = (t: Term): Term[] => {
+  const r: Term[] = [];
+  while (t.tag === 'Pair') {
+    r.push(t.fst);
+    t = t.snd;
+  }
+  r.push(t);
+  return r;
+};
 
 export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
@@ -104,6 +116,10 @@ export const showTerm = (t: Term): string => {
     const [as, b] = flattenSigma(t);
     return `${as.map(([x, t]) => x === '_' ? showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma', t) : `(${x} : ${showTermP(t.tag === 'Ann', t)})`).join(' ** ')} ** ${showTermP(b.tag === 'Ann', b)}`
   }
+  if (t.tag === 'Pair') {
+    const ps = flattenPair(t);
+    return `(${ps.map(t => showTerm(t)).join(', ')})`;
+  }
   if (t.tag === 'Let')
     return `let ${t.plicity ? `{${t.name}}` : t.name}${t.type ? ` : ${showTermP(t.type.tag === 'Let' || t.type.tag === 'Ann', t.type)}` : ''} = ${showTermP(t.val.tag === 'Let', t.val)} in ${showTermP(t.body.tag === 'Ann', t.body)}`;
   if (t.tag === 'Ann')
@@ -120,6 +136,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Sort') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
+  if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));
   if (t.tag === 'App') return t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Sigma') return Sigma(t.name, erase(t.type), erase(t.body));

@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, Sorts } from './surface';
@@ -24,7 +24,7 @@ export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val };
 export const EUnsafeCast = (type: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -38,6 +38,8 @@ export type VSigma = { tag: 'VSigma', name: Name, type: Val, body: Clos };
 export const VSigma = (name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', name, type, body});
 export type VSort = { tag: 'VSort', sort: Sorts };
 export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
+export type VPair = { tag: 'VPair', fst: Val, snd: Val, type: Val };
+export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
 
 export const VType: VSort = VSort('*');
 
@@ -116,6 +118,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VSigma(t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'UnsafeCast')
     return vunsafecast(evaluate(t.type, vs), evaluate(t.val, vs));
+  if (t.tag === 'Pair')
+    return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   return t;
 };
 
@@ -160,6 +164,8 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Pi(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VSigma')
     return Sigma(v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+  if (v.tag === 'VPair')
+    return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full))
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -212,6 +218,8 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
     return Let(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Abs')
     return Abs(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
+  if (tm.tag === 'Pair')
+    return Pair(zonk(tm.fst, vs, k, full), zonk(tm.snd, vs, k, full), zonk(tm.type, vs, k, full));
   if (tm.tag === 'App') {
     const spine = zonkSpine(tm.left, vs, k, full);
     return spine[0] ?

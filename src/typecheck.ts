@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -90,6 +90,11 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     const type = quote(ty, local.index, false);
     const [val] = synth(local, tm.val);
     return UnsafeCast(type, val);
+  }
+  if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
+    const fst = check(local, tm.fst, fty.type);
+    const snd = check(local, tm.snd, fty.body(evaluate(fst, local.vs)));
+    return Pair(fst, snd, quote(ty, local.index, false));
   }
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
@@ -211,6 +216,13 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const type = check(localInType(local), tm.type, VType);
     const body = check(extend(local, tm.name, evaluate(type, local.vs), true, false, false, VVar(local.index)), tm.body, VType);
     return [Sigma(tm.name, type, body), VType];
+  }
+  if (tm.tag === 'Pair') {
+    const [fst, fstty] = synth(local, tm.fst);
+    const [snd, sndty] = synth(local, tm.snd);
+    const ty = VSigma('_', fstty, _ => sndty);
+    const qty = quote(ty, local.index, false);
+    return [Pair(fst, snd, qty), ty];
   }
   if (tm.tag === 'Ann') {
     const type = check(localInType(local), tm.type, VType);

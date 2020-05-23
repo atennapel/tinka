@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add pairs
 - add fst and snd
 - create a CEK machine
 - zonk all elims

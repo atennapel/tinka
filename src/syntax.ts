@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Let | Pi | Sigma | Sort | Meta | UnsafeCast;
+export type Term = Var | Global | App | Abs | Pair | Let | Pi | Sigma | Sort | Meta | UnsafeCast;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -15,6 +15,8 @@ export type App = { tag: 'App', left: Term, plicity: Plicity, right: Term };
 export const App = (left: Term, plicity: Plicity, right: Term): App => ({ tag: 'App', left, plicity, right });
 export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term, body: Term };
 export const Abs = (plicity: Plicity, name: Name, type: Term, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
+export type Pair = { tag: 'Pair', fst: Term, snd: Term, type: Term };
+export const Pair = (fst: Term, snd: Term, type: Term): Pair => ({ tag: 'Pair', fst, snd, type });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
@@ -36,6 +38,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs') return `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
+  if (t.tag === 'Pair') return `(${showTerm(t.fst)}, ${showTerm(t.snd)} : ${showTerm(t.type)})`;
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Sigma') return `((${t.name} : ${showTerm(t.type)}) ** ${showTerm(t.body)})`;
@@ -47,6 +50,7 @@ export const showTerm = (t: Term): string => {
 export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Global') return t.name === k;
   if (t.tag === 'App') return globalUsed(k, t.left) || globalUsed(k, t.right);
+  if (t.tag === 'Pair') return globalUsed(k, t.fst) || globalUsed(k, t.snd) || globalUsed(k, t.type);
   if (t.tag === 'Abs') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Let') return globalUsed(k, t.type) || globalUsed(k, t.val) || globalUsed(k, t.body);
   if (t.tag === 'Pi') return globalUsed(k, t.type) || globalUsed(k, t.body);
@@ -57,6 +61,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
 export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Var') return t.index === k;
   if (t.tag === 'App') return indexUsed(k, t.left) || indexUsed(k, t.right);
+  if (t.tag === 'Pair') return indexUsed(k, t.fst) || indexUsed(k, t.snd) || indexUsed(k, t.type);
   if (t.tag === 'Abs') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Let') return indexUsed(k, t.type) || indexUsed(k, t.val) || indexUsed(k + 1, t.body);
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
@@ -68,6 +73,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
 export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Meta') return true;
   if (t.tag === 'App') return isUnsolved(t.left) || isUnsolved(t.right);
+  if (t.tag === 'Pair') return isUnsolved(t.fst) || isUnsolved(t.snd) || isUnsolved(t.type);
   if (t.tag === 'Abs') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Let') return isUnsolved(t.type) || isUnsolved(t.val) || isUnsolved(t.body);
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
@@ -92,6 +98,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Sort') return S.Sort(t.sort);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
+  if (t.tag === 'Pair') return S.Ann(S.Pair(toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
   if (t.tag === 'UnsafeCast') return S.UnsafeCast(toSurface(t.type, ns), toSurface(t.val, ns));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);
@@ -121,6 +128,7 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);
   if (t.tag === 'Abs') return Abs(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'App') return App(shift(d, c, t.left), t.plicity, shift(d, c, t.right));
+  if (t.tag === 'Pair') return Pair(shift(d, c, t.fst), shift(d, c, t.snd), shift(d, c, t.type));
   if (t.tag === 'Let') return Let(t.plicity, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
