@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -262,6 +262,15 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       const [val] = synth(local, tm.val);
       return [UnsafeCast(type, val), vt];
     }
+  }
+  if (tm.tag === 'EnumInd') {
+    if (tm.args.length !== tm.num)
+      return terr(`invalid enum induction, cases do not match: ${S.showTerm(tm)}`);
+    const prop = check(localInType(local), tm.prop, VPi(false, '_', VEnum(tm.num), _ => VType));
+    const P = evaluate(prop, local.vs);
+    const term = check(local, tm.term, VEnum(tm.num));
+    const args = tm.args.map((x, i) => check(local, x, vapp(P, false, VElem(i, tm.num))));
+    return [EnumInd(tm.num, prop, term, args), vapp(P, false, evaluate(term, local.vs))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, Sorts } from './surface';
@@ -16,7 +16,7 @@ export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 
-export type Elim = EApp | EUnsafeCast | EFst | ESnd;
+export type Elim = EApp | EUnsafeCast | EFst | ESnd | EEnumInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -26,6 +26,8 @@ export type EFst = { tag: 'EFst' };
 export const EFst: EFst = { tag: 'EFst' };
 export type ESnd = { tag: 'ESnd' };
 export const ESnd: ESnd = { tag: 'ESnd' };
+export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
+export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem;
@@ -68,6 +70,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, y) :
       elim.tag === 'EFst' ? vfst(y) :
       elim.tag === 'ESnd' ? vsnd(y) :
+      elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -80,6 +83,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, y) :
       elim.tag === 'EFst' ? vfst(y) :
       elim.tag === 'ESnd' ? vsnd(y) :
+      elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -116,6 +120,13 @@ export const vsnd = (v: Val): Val => {
     return VGlued(v.head, Cons(ESnd, v.args), mapLazy(v.val, v => vsnd(v)));
   return impossible(`vsnd: ${v.tag}`);
 };
+export const venumind = (n: number, prop: Val, args: Val[], v: Val): Val => {
+  if (v.tag === 'VElem') return args[v.num];
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EEnumInd(n, prop, args), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EEnumInd(n, prop, args), v.args), mapLazy(v.val, v => venumind(n, prop, args, v)));
+  return impossible(`venumind: ${v.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Sort') return VSort(t.sort);
@@ -150,6 +161,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Snd') return vsnd(evaluate(t.term, vs));
   if (t.tag === 'Enum') return VEnum(t.num);
   if (t.tag === 'Elem') return VElem(t.num, t.total);
+  if (t.tag === 'EnumInd')
+    return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
   return t;
 };
 
@@ -169,6 +182,7 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EUnsafeCast') return UnsafeCast(quote(e.type, k, full), t);
   if (e.tag === 'EFst') return Fst(t);
   if (e.tag === 'ESnd') return Snd(t);
+  if (e.tag === 'EEnumInd') return EnumInd(e.num, quote(e.prop, k, full), t, e.args.map(x => quote(x, k, full)));
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -223,6 +237,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EUnsafeCast') return `unsafeCast {${showTermS(e.type, ns, k, full)}}`;
   if (e.tag === 'EFst') return `fst`;
   if (e.tag === 'ESnd') return `snd`;
+  if (e.tag === 'EEnumInd') return `?${e.num} {${showTermS(e.prop, ns, k, full)}} ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   return e;
 };
 
@@ -266,5 +281,7 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'UnsafeCast') return UnsafeCast(zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full));
   if (tm.tag === 'Fst') return Fst(zonk(tm.term, vs, k, full));
   if (tm.tag === 'Snd') return Snd(zonk(tm.term, vs, k, full));
+  if (tm.tag === 'EnumInd')
+    return EnumInd(tm.num, zonk(tm.prop, vs, k, full), zonk(tm.term, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

@@ -1,5 +1,5 @@
-def Void = #0
+def Void = {t : *} -> t
 
 def indVoid
   : {P : Void -> *} -> (x : Void) -> P x
-  = \{P} x. ?0 {P} x
+  = \{P} x. x {P x}

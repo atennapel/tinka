@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -135,6 +135,16 @@ const synth = (local: Local, tm: Term): Val => {
     const fty = force(ty);
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in snd: ${showTerm(tm)}`);
     return fty.body(vfst(evaluate(tm.term, local.vs)));
+  }
+  if (tm.tag === 'EnumInd') {
+    if (tm.args.length !== tm.num)
+      return terr(`invalid enum induction, cases do not match: ${showTerm(tm)}`);
+    check(localInType(local), tm.prop, VPi(false, '_', VEnum(tm.num), _ => VType));
+    const P = evaluate(tm.prop, local.vs);
+    check(local, tm.term, VEnum(tm.num));
+    for (let i = 0; i < tm.args.length; i++)
+      check(local, tm.args[i], vapp(P, false, VElem(i, tm.num)));
+    return vapp(P, false, evaluate(tm.term, local.vs));
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

@@ -5,9 +5,9 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd } from './syntax';
 import { Plicity } from './surface';
-import { eqHead, conv } from './conv';
+import { eqHead } from './conv';
 
 const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
@@ -17,6 +17,12 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     return unify(k, a.type, b.type);
   if (a.tag === 'EFst' && b.tag === 'EFst') return;
   if (a.tag === 'ESnd' && b.tag === 'ESnd') return;
+  if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
+    unify(k, a.prop, b.prop);
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -56,12 +62,12 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return unify(k + 1, vapp(a, b.plicity, v), b.body(v));
   }
   if (a.tag === 'VPair') {
-    conv(k, a.fst, vfst(b));
-    return conv(k, a.snd, vsnd(b));
+    unify(k, a.fst, vfst(b));
+    return unify(k, a.snd, vsnd(b));
   }
   if (b.tag === 'VPair') {
-    conv(k, vfst(a), b.fst);
-    return conv(k, vsnd(a), b.snd);
+    unify(k, vfst(a), b.fst);
+    return unify(k, vsnd(a), b.snd);
   }
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -121,6 +127,7 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
     if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
     if (elim.tag === 'EFst') return terr(`fst in meta spine`);
     if (elim.tag === 'ESnd') return terr(`snd in meta spine`);
+    if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
@@ -184,6 +191,12 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const type = checkSolution(k, m, is, t.type);
     const val = checkSolution(k, m, is, t.val);
     return UnsafeCast(type, val);
+  }
+  if (t.tag === 'EnumInd') {
+    const prop = checkSolution(k, m, is, t.prop);
+    const term = checkSolution(k, m, is, t.term);
+    const args = t.args.map(x => checkSolution(k, m, is, x));
+    return EnumInd(t.num, prop, term, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

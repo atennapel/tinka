@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -42,7 +42,7 @@ const tokenize = (sc: string): Token[] => {
       if (SYM2.indexOf(c + next) >= 0) r.push(TName(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(TName(c));
       else if (c + next === '--') i++, state = COMMENT;
-      else if (/[\@\#\_a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\?\@\#\_a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}') {
@@ -79,7 +79,7 @@ const tokenize = (sc: string): Token[] => {
 const tunit = Var('UnitType');
 const unit = Var('Unit');
 
-const isName = (t: Token, x: Name): t is { tag: 'Name', name: string } =>
+const isName = (t: Token, x: Name): boolean =>
   t.tag === 'Name' && t.name === x;
 const isNames = (t: Token[]): Name[] =>
   t.map(x => {
@@ -291,6 +291,21 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const indPart = ts.slice(0, 2);
     const rest = ts.slice(2);
     return exprs([TList(indPart, '(')].concat(rest), '(');
+  }
+  if (ts[0].tag === 'Name' && ts[0].name[0] === '?') {
+    const x = ts[0].name;
+    const n = +x.slice(1);
+    if (isNaN(n) || n < 0 || Math.floor(n) !== n) return serr(`invalid elem ind ${x}`);
+    const [prop, b] = expr(ts[1]);
+    if (!b) return serr(`in ${x} prop needs to be implicit`);
+    const [term, b2] = expr(ts[2]);
+    if (b2) return serr(`in ${x} term cannot be implicit`);
+    const cases = ts.slice(3).map(t => {
+      const [tt, b] = expr(t);
+      if (b) return serr(`in ${x} case cannot be implicit`);
+      return tt;
+    });
+    return EnumInd(n, prop, term, cases);
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

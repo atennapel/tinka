@@ -20,6 +20,12 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     return conv(k, a.type, b.type);
   if (a.tag === 'EFst' && b.tag === 'EFst') return;
   if (a.tag === 'ESnd' && b.tag === 'ESnd') return;
+  if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
+    conv(k, a.prop, b.prop);
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const conv = (k: Ix, a_: Val, b_: Val): void => {

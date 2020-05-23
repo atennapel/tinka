@@ -7,7 +7,7 @@ todo:
 - better syntax for fst/snd
 - named projection from sigma
 - indexed projection from sigma
-- enumeration/finite type
+- data descriptions
 - create a CEK machine
 - zonk all elims
 - insert skolems in check
