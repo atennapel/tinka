@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, Sorts } from './surface';
@@ -16,12 +16,16 @@ export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 
-export type Elim = EApp | EUnsafeCast;
+export type Elim = EApp | EUnsafeCast | EFst | ESnd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
 export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val };
 export const EUnsafeCast = (type: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type });
+export type EFst = { tag: 'EFst' };
+export const EFst: EFst = { tag: 'EFst' };
+export type ESnd = { tag: 'ESnd' };
+export const ESnd: ESnd = { tag: 'ESnd' };
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair;
@@ -58,6 +62,8 @@ export const force = (v: Val): Val => {
     if (val.tag === 'Unsolved') return v;
     return force(foldr((elim, y) =>
       elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, y) :
+      elim.tag === 'EFst' ? vfst(y) :
+      elim.tag === 'ESnd' ? vsnd(y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -68,6 +74,8 @@ export const forceGlue = (v: Val): Val => {
     if (val.tag === 'Unsolved') return v;
     return forceGlue(foldr((elim, y) =>
       elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, y) :
+      elim.tag === 'EFst' ? vfst(y) :
+      elim.tag === 'ESnd' ? vsnd(y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -89,6 +97,20 @@ export const vunsafecast = (type: Val, v: Val): Val => {
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EUnsafeCast(type), v.args), mapLazy(v.val, v => vunsafecast(type, v)));
   return v;
+};
+export const vfst = (v: Val): Val => {
+  if (v.tag === 'VPair') return v.fst;
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EFst, v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EFst, v.args), mapLazy(v.val, v => vfst(v)));
+  return impossible(`vfst: ${v.tag}`);
+};
+export const vsnd = (v: Val): Val => {
+  if (v.tag === 'VPair') return v.snd;
+  if (v.tag === 'VNe') return VNe(v.head, Cons(ESnd, v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(ESnd, v.args), mapLazy(v.val, v => vsnd(v)));
+  return impossible(`vsnd: ${v.tag}`);
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
@@ -120,6 +142,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return vunsafecast(evaluate(t.type, vs), evaluate(t.val, vs));
   if (t.tag === 'Pair')
     return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
+  if (t.tag === 'Fst') return vfst(evaluate(t.term, vs));
+  if (t.tag === 'Snd') return vsnd(evaluate(t.term, vs));
   return t;
 };
 
@@ -137,6 +161,8 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   if (e.tag === 'EUnsafeCast') return UnsafeCast(quote(e.type, k, full), t);
+  if (e.tag === 'EFst') return Fst(t);
+  if (e.tag === 'ESnd') return Snd(t);
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -165,7 +191,7 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   if (v.tag === 'VSigma')
     return Sigma(v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
-    return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full))
+    return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -186,7 +212,10 @@ export const showElimQ = (e: Elim, k: number = 0, full: boolean = false): string
 };
 export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boolean = false): string => {
   if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
-  return e.tag;
+  if (e.tag === 'EUnsafeCast') return `unsafeCast {${showTermS(e.type, ns, k, full)}}`;
+  if (e.tag === 'EFst') return `fst`;
+  if (e.tag === 'ESnd') return `snd`;
+  return e;
 };
 
 type S = [false, Val] | [true, Term];
@@ -227,5 +256,7 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
   if (tm.tag === 'UnsafeCast') return UnsafeCast(zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full));
+  if (tm.tag === 'Fst') return Fst(zonk(tm.term, vs, k, full));
+  if (tm.tag === 'Snd') return Snd(zonk(tm.term, vs, k, full));
   return tm;
 };

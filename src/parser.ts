@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -249,6 +249,28 @@ const exprs = (ts: Token[], br: BracketO): Term => {
       const body = exprs(ts.slice(1), '(');
       return UnsafeCast(null, body);
     }
+  }
+  if (isName(ts[0], 'fst')) {
+    if (ts.length < 2) return serr(`something went wrong when parsing fst`);
+    if (ts.length === 2) {
+      const [term, tb] = expr(ts[1]);
+      if (tb) return serr(`something went wrong when parsing fst`);
+      return Fst(term);
+    }
+    const indPart = ts.slice(0, 2);
+    const rest = ts.slice(2);
+    return exprs([TList(indPart, '(')].concat(rest), '(');
+  }
+  if (isName(ts[0], 'snd')) {
+    if (ts.length < 2) return serr(`something went wrong when parsing snd`);
+    if (ts.length === 2) {
+      const [term, tb] = expr(ts[1]);
+      if (tb) return serr(`something went wrong when parsing snd`);
+      return Snd(term);
+    }
+    const indPart = ts.slice(0, 2);
+    const rest = ts.slice(2);
+    return exprs([TList(indPart, '(')].concat(rest), '(');
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

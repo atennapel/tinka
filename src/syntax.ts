@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Let | Pi | Sigma | Sort | Meta | UnsafeCast;
+export type Term = Var | Global | App | Abs | Pair | Fst | Snd | Let | Pi | Sigma | Sort | Meta | UnsafeCast;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -17,6 +17,10 @@ export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term, body: 
 export const Abs = (plicity: Plicity, name: Name, type: Term, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
 export type Pair = { tag: 'Pair', fst: Term, snd: Term, type: Term };
 export const Pair = (fst: Term, snd: Term, type: Term): Pair => ({ tag: 'Pair', fst, snd, type });
+export type Fst = { tag: 'Fst', term: Term };
+export const Fst = (term: Term): Fst => ({ tag: 'Fst', term });
+export type Snd = { tag: 'Snd', term: Term };
+export const Snd = (term: Term): Snd => ({ tag: 'Snd', term });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
@@ -44,12 +48,16 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Sigma') return `((${t.name} : ${showTerm(t.type)}) ** ${showTerm(t.body)})`;
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'UnsafeCast') return `(unsafeCast ${t.type ? `{${showTerm(t.type)}} ` : ''}${showTerm(t.val)})`;
+  if (t.tag === 'Fst') return `(fst ${showTerm(t.term)})`;
+  if (t.tag === 'Snd') return `(snd ${showTerm(t.term)})`;
   return t;
 };
 
 export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Global') return t.name === k;
   if (t.tag === 'App') return globalUsed(k, t.left) || globalUsed(k, t.right);
+  if (t.tag === 'Fst') return globalUsed(k, t.term);
+  if (t.tag === 'Snd') return globalUsed(k, t.term);
   if (t.tag === 'Pair') return globalUsed(k, t.fst) || globalUsed(k, t.snd) || globalUsed(k, t.type);
   if (t.tag === 'Abs') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Let') return globalUsed(k, t.type) || globalUsed(k, t.val) || globalUsed(k, t.body);
@@ -67,6 +75,8 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Sigma') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'UnsafeCast') return indexUsed(k, t.type) || indexUsed(k, t.val);
+  if (t.tag === 'Fst') return indexUsed(k, t.term);
+  if (t.tag === 'Snd') return indexUsed(k, t.term);
   return false;
 };
 
@@ -79,6 +89,8 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Sigma') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'UnsafeCast') return isUnsolved(t.type) || isUnsolved(t.val);
+  if (t.tag === 'Fst') return isUnsolved(t.term);
+  if (t.tag === 'Snd') return isUnsolved(t.term);
   return false;
 };
 
@@ -100,6 +112,8 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
   if (t.tag === 'UnsafeCast') return S.UnsafeCast(toSurface(t.type, ns), toSurface(t.val, ns));
+  if (t.tag === 'Fst') return S.Fst(toSurface(t.term, ns));
+  if (t.tag === 'Snd') return S.Snd(toSurface(t.term, ns));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);
     return S.Abs(t.plicity, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
@@ -133,5 +147,7 @@ export const shift = (d: Ix, c: Ix, t: Term): Term => {
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'UnsafeCast') return UnsafeCast(shift(d, c, t.type), shift(d, c, t.val));
+  if (t.tag === 'Fst') return Fst(shift(d, c, t.term));
+  if (t.tag === 'Snd') return Snd(shift(d, c, t.term));
   return t;
 };

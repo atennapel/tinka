@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -121,6 +121,18 @@ const synth = (local: Local, tm: Term): Val => {
     const vt = evaluate(tm.type, local.vs);
     synth(local, tm.val);
     return vt;
+  }
+  if (tm.tag === 'Fst') {
+    const ty = synth(local, tm.term);
+    const fty = force(ty);
+    if (fty.tag !== 'VSigma') return terr(`not a sigma type in fst: ${showTerm(tm)}`);
+    return fty.type;
+  }
+  if (tm.tag === 'Snd') {
+    const ty = synth(local, tm.term);
+    const fty = force(ty);
+    if (fty.tag !== 'VSigma') return terr(`not a sigma type in snd: ${showTerm(tm)}`);
+    return fty.body(vfst(evaluate(tm.term, local.vs)));
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
