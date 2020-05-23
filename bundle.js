@@ -58,6 +58,8 @@ exports.conv = (k, a_, b_) => {
         return;
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
+    if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num)
+        return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.conv(k, a.type, b.type);
         const v = domain_1.VVar(k);
@@ -116,7 +118,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":13,"./utils/list":14,"./utils/utils":15}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vsnd = exports.vfst = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VPair = exports.VSort = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.ESnd = exports.EFst = exports.EUnsafeCast = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vsnd = exports.vfst = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VEnum = exports.VPair = exports.VSort = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.ESnd = exports.EFst = exports.EUnsafeCast = exports.EApp = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -137,6 +139,7 @@ exports.VPi = (plicity, name, type, body) => ({ tag: 'VPi', plicity, name, type,
 exports.VSigma = (name, type, body) => ({ tag: 'VSigma', name, type, body });
 exports.VSort = (sort) => ({ tag: 'VSort', sort });
 exports.VPair = (fst, snd, type) => ({ tag: 'VPair', fst, snd, type });
+exports.VEnum = (num) => ({ tag: 'VEnum', num });
 exports.VType = exports.VSort('*');
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
@@ -241,6 +244,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.vfst(exports.evaluate(t.term, vs));
     if (t.tag === 'Snd')
         return exports.vsnd(exports.evaluate(t.term, vs));
+    if (t.tag === 'Enum')
+        return exports.VEnum(t.num);
     return t;
 };
 const quoteHead = (h, k) => {
@@ -292,6 +297,8 @@ exports.quote = (v_, k, full) => {
         return syntax_1.Sigma(v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VPair')
         return syntax_1.Pair(exports.quote(v.fst, k, full), exports.quote(v.snd, k, full), exports.quote(v.type, k, full));
+    if (v.tag === 'VEnum')
+        return syntax_1.Enum(v.num);
     return v;
 };
 exports.quoteZ = (v, vs = list_1.Nil, k = 0, full = false) => exports.zonk(exports.quote(v, k, full), vs, k, full);
@@ -474,7 +481,7 @@ const tokenize = (sc) => {
                 r.push(TName(c));
             else if (c + next === '--')
                 i++, state = COMMENT;
-            else if (/[\_a-z]/i.test(c))
+            else if (/[\#\_a-z]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUMBER;
@@ -592,6 +599,12 @@ const expr = (t) => {
             return [surface_1.Type, false];
         if (x.startsWith('_'))
             return [surface_1.Hole(x.slice(1) || null), false];
+        if (x.startsWith('#')) {
+            const n = +x.slice(1);
+            if (isNaN(n) || n < 0 || Math.floor(n) !== n)
+                return utils_1.serr(`invalid enum ${x}`);
+            return [surface_1.Enum(n), false];
+        }
         if (/[a-z]/i.test(x[0]))
             return [surface_1.Var(x), false];
         return utils_1.serr(`invalid name: ${x}`);
@@ -1030,7 +1043,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":9,"./syntax":10,"./typecheck":11,"./utils/list":14,"./utils/utils":15,"./verify":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.UnsafeCast = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.UnsafeCast = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.Enum = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
@@ -1040,6 +1053,7 @@ exports.Snd = (term) => ({ tag: 'Snd', term });
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Sigma = (name, type, body) => ({ tag: 'Sigma', name, type, body });
+exports.Enum = (num) => ({ tag: 'Enum', num });
 exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
@@ -1051,6 +1065,8 @@ exports.showTermS = (t) => {
         return t.name;
     if (t.tag === 'Meta')
         return `?${t.index}`;
+    if (t.tag === 'Enum')
+        return `#${t.num}`;
     if (t.tag === 'App')
         return `(${exports.showTermS(t.left)} ${t.plicity ? '-' : ''}${exports.showTermS(t.right)})`;
     if (t.tag === 'Abs')
@@ -1126,6 +1142,8 @@ exports.showTerm = (t) => {
         return t.name;
     if (t.tag === 'Meta')
         return `?${t.index}`;
+    if (t.tag === 'Enum')
+        return `#${t.num}`;
     if (t.tag === 'App') {
         const [f, as] = exports.flattenApp(t);
         return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Fst' || f.tag === 'Snd', f)} ${as.map(([im, t], i) => im ? `{${exports.showTerm(t)}}` :
@@ -1170,6 +1188,8 @@ exports.erase = (t) => {
         return t;
     if (t.tag === 'Sort')
         return t;
+    if (t.tag === 'Enum')
+        return t;
     if (t.tag === 'Ann')
         return exports.erase(t.term);
     if (t.tag === 'Abs')
@@ -1203,7 +1223,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.UnsafeCast = exports.Meta = exports.Sort = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
+exports.shift = exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.UnsafeCast = exports.Meta = exports.Sort = exports.Enum = exports.Sigma = exports.Pi = exports.Let = exports.Snd = exports.Fst = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1219,6 +1239,7 @@ exports.Snd = (term) => ({ tag: 'Snd', term });
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
 exports.Sigma = (name, type, body) => ({ tag: 'Sigma', name, type, body });
+exports.Enum = (num) => ({ tag: 'Enum', num });
 exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.UnsafeCast = (type, val) => ({ tag: 'UnsafeCast', type, val });
@@ -1230,6 +1251,8 @@ exports.showTerm = (t) => {
         return `?${t.index}`;
     if (t.tag === 'Global')
         return t.name;
+    if (t.tag === 'Enum')
+        return `#${t.num}`;
     if (t.tag === 'App')
         return `(${exports.showTerm(t.left)} ${t.plicity ? '-' : ''}${exports.showTerm(t.right)})`;
     if (t.tag === 'Abs')
@@ -1340,6 +1363,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.Sort(t.sort);
     if (t.tag === 'Global')
         return S.Var(t.name);
+    if (t.tag === 'Enum')
+        return S.Enum(t.num);
     if (t.tag === 'App')
         return S.App(exports.toSurface(t.left, ns), t.plicity, exports.toSurface(t.right, ns));
     if (t.tag === 'Pair')
@@ -1543,7 +1568,9 @@ const freshPi = (ts, vs, x, impl) => {
 const synth = (local, tm) => {
     config_1.log(() => `synth ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Sort')
-        return [syntax_1.Sort(tm.sort), domain_1.VType];
+        return [tm, domain_1.VType];
+    if (tm.tag === 'Enum')
+        return [tm, domain_1.VType];
     if (tm.tag === 'Var') {
         const i = list_1.indexOf(local.namesSurface, tm.name);
         if (i < 0) {
@@ -1741,6 +1768,8 @@ exports.unify = (k, a_, b_) => {
     if (a === b)
         return;
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
+        return;
+    if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
@@ -2158,6 +2187,8 @@ const check = (local, tm, ty) => {
 const synth = (local, tm) => {
     config_1.log(() => `synth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Sort')
+        return domain_1.VType;
+    if (tm.tag === 'Enum')
         return domain_1.VType;
     if (tm.tag === 'Global') {
         const entry = globalenv_1.globalGet(tm.name);

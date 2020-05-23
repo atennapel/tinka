@@ -156,7 +156,8 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
 
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Sort') return [Sort(tm.sort), VType];
+  if (tm.tag === 'Sort') return [tm, VType];
+  if (tm.tag === 'Enum') return [tm, VType];
   if (tm.tag === 'Var') {
     const i = indexOf(local.namesSurface, tm.name);
     if (i < 0) {

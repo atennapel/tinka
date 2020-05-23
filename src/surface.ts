@@ -3,7 +3,7 @@ import { Name, Ix } from './names';
 export type Plicity = boolean;
 
 export type Sorts = '*' | '**';
-export type Term = Var | App | Abs | Pair | Fst | Snd | Let | Pi | Sigma | Sort | Ann | Hole | Meta | UnsafeCast;
+export type Term = Var | App | Abs | Pair | Fst | Snd | Let | Pi | Sigma | Enum | Sort | Ann | Hole | Meta | UnsafeCast;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -23,6 +23,8 @@ export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Te
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Sigma = { tag: 'Sigma', name: Name, type: Term, body: Term };
 export const Sigma = (name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', name, type, body });
+export type Enum = { tag: 'Enum', num: number };
+export const Enum = (num: number): Enum => ({ tag: 'Enum', num });
 export type Sort = { tag: 'Sort', sort: Sorts };
 export const Sort = (sort: Sorts): Sort => ({ tag: 'Sort', sort });
 export type Ann = { tag: 'Ann', term: Term, type: Term };
@@ -39,6 +41,7 @@ export const Type: Sort = Sort('*');
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
+  if (t.tag === 'Enum') return `#${t.num}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
@@ -103,6 +106,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
+  if (t.tag === 'Enum') return `#${t.num}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
     return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Fst' || f.tag === 'Snd', f)} ${
@@ -142,6 +146,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Meta') return t;
   if (t.tag === 'Var') return t;
   if (t.tag === 'Sort') return t;
+  if (t.tag === 'Enum') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
   if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));
