@@ -3,7 +3,7 @@ import { Name, Ix } from './names';
 export type Plicity = boolean;
 
 export type Sorts = '*' | '**';
-export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Sort | Ann | Hole | Meta | UnsafeCast | Desc | DescCon;
+export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Sort | Ann | Hole | Meta | UnsafeCast | Desc | DescCon | DescInd;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -48,6 +48,8 @@ export type Desc = { tag: 'Desc' };
 export const Desc: Desc = { tag: 'Desc' };
 export type DescCon = { tag: 'DescCon', con: DescConTag, args: Term[] };
 export const DescCon = (con: DescConTag, args: Term[]): DescCon => ({ tag: 'DescCon', con, args });
+export type DescInd = { tag: 'DescInd', args: Term[] };
+export const DescInd = (args: Term[]): DescInd => ({ tag: 'DescInd', args });
 
 export const Type: Sort = Sort('*');
 
@@ -72,6 +74,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Snd') return `(snd ${showTermS(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTermS(t.prop)}} ${showTermS(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
   if (t.tag === 'DescCon') return `(condesc ${t.con}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
+  if (t.tag === 'DescInd') return `(inddesc ${t.args.map(showTermS).join(' ')})`;
   return t;
 };
 
@@ -158,7 +161,8 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Fst') return `fst ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Sort', t.term)}`;
   if (t.tag === 'Snd') return `snd ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Sort', t.term)}`;
   if (t.tag === 'EnumInd') return `?${t.num} {${showTerm(t.prop)}} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Sort', t.term)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Sort', x)).join(' ')}` : ''}`;
-  if (t.tag === 'DescCon') return `condesc ${t.con}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''}`;
+  if (t.tag === 'DescCon') return `condesc ${t.con}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Sort', x)).join(' ')}` : ''}`;
+  if (t.tag === 'DescInd') return `inddesc ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Sort', x)).join(' ')}`;
   return t;
 };
 
@@ -182,6 +186,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Snd') return Snd(erase(t.term));
   if (t.tag === 'EnumInd') return EnumInd(t.num, erase(t.prop), erase(t.term), t.args.map(erase));
   if (t.tag === 'DescCon') return DescCon(t.con, t.args.map(erase));
+  if (t.tag === 'DescInd') return DescInd(t.args.map(erase));
   return t;
 };
 

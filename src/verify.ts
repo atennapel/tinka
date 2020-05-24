@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem, VDesc } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem, VDesc, VDescCon } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -159,6 +159,16 @@ const synth = (local: Local, tm: Term): Val => {
       check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
       return VDesc;
     }
+  }
+  if (tm.tag === 'DescInd' && tm.args.length === 5) {
+    const [term, prop, end, rec, arg] = tm.args;
+    check(local, term, VDesc);
+    check(localInType(local), prop, VPi(false, '_', VDesc, _ => VType));
+    const P = evaluate(prop, local.vs);
+    check(local, end, vapp(P, false, VDescCon('End', [])));
+    check(local, rec, VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, VDescCon('Rec', [r])))));
+    check(local, arg, VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, VDescCon('Arg', [t, f]))))));
+    return vapp(P, false, evaluate(term, local.vs));
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

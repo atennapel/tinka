@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd, DescCon } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd, DescCon, DescInd } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -19,6 +19,11 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'ESnd' && b.tag === 'ESnd') return;
   if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
     unify(k, a.prop, b.prop);
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
+  if (a.tag === 'EDescInd' && b.tag === 'EDescInd' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       unify(k, a.args[i], b.args[i]);
     return;
@@ -134,6 +139,7 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
     if (elim.tag === 'EFst') return terr(`fst in meta spine`);
     if (elim.tag === 'ESnd') return terr(`snd in meta spine`);
     if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
+    if (elim.tag === 'EDescInd') return terr(`desc ind in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
@@ -208,6 +214,10 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'DescCon') {
     const args = t.args.map(x => checkSolution(k, m, is, x));
     return DescCon(t.con, args);
+  }
+  if (t.tag === 'DescInd') {
+    const args = t.args.map(x => checkSolution(k, m, is, x));
+    return DescInd(args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

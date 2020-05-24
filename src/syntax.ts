@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Fst | Snd | EnumInd | Elem | Let | Enum | Pi | Sigma | Sort | Meta | UnsafeCast | Desc | DescCon;
+export type Term = Var | Global | App | Abs | Pair | Fst | Snd | EnumInd | Elem | Let | Enum | Pi | Sigma | Sort | Meta | UnsafeCast | Desc | DescCon | DescInd;
 
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -44,6 +44,8 @@ export type Desc = { tag: 'Desc' };
 export const Desc: Desc = { tag: 'Desc' };
 export type DescCon = { tag: 'DescCon', con: DescConTag, args: Term[] };
 export const DescCon = (con: DescConTag, args: Term[]): DescCon => ({ tag: 'DescCon', con, args });
+export type DescInd = { tag: 'DescInd', args: Term[] };
+export const DescInd = (args: Term[]): DescInd => ({ tag: 'DescInd', args });
 
 export const Type: Sort = Sort('*');
 
@@ -66,6 +68,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Snd') return `(snd ${showTerm(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTerm(t.prop)}} ${showTerm(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTerm).join(' ')}` : ''})`;
   if (t.tag === 'DescCon') return `(condesc ${t.con}${t.args.length > 0 ? ` ${t.args.map(showTerm).join(' ')}` : ''})`;
+  if (t.tag === 'DescInd') return `(inddesc ${t.args.map(showTerm).join(' ')})`;
   return t;
 };
 
@@ -82,6 +85,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'UnsafeCast') return globalUsed(k, t.type) || globalUsed(k, t.val);
   if (t.tag === 'EnumInd') return globalUsed(k, t.prop) || globalUsed(k, t.term) || t.args.some(x => globalUsed(k, x));
   if (t.tag === 'DescCon') return t.args.some(x => globalUsed(k, x));
+  if (t.tag === 'DescInd') return t.args.some(x => globalUsed(k, x));
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -97,6 +101,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Snd') return indexUsed(k, t.term);
   if (t.tag === 'EnumInd') return indexUsed(k, t.prop) || indexUsed(k, t.term) || t.args.some(x => indexUsed(k, x));
   if (t.tag === 'DescCon') return t.args.some(x => indexUsed(k, x));
+  if (t.tag === 'DescInd') return t.args.some(x => indexUsed(k, x));
   return false;
 };
 
@@ -113,6 +118,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Snd') return isUnsolved(t.term);
   if (t.tag === 'EnumInd') return isUnsolved(t.prop) || isUnsolved(t.term) || t.args.some(x => isUnsolved(x));
   if (t.tag === 'DescCon') return t.args.some(x => isUnsolved(x));
+  if (t.tag === 'DescInd') return t.args.some(x => isUnsolved(x));
   return false;
 };
 
@@ -141,6 +147,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Snd') return S.Snd(toSurface(t.term, ns));
   if (t.tag === 'EnumInd') return S.EnumInd(t.num, toSurface(t.prop, ns), toSurface(t.term, ns), t.args.map(x => toSurface(x, ns)));
   if (t.tag === 'DescCon') return S.DescCon(t.con, t.args.map(x => toSurface(x, ns)));
+  if (t.tag === 'DescInd') return S.DescInd(t.args.map(x => toSurface(x, ns)));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);
     return S.Abs(t.plicity, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));

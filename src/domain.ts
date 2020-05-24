@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescCon } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescCon, DescInd } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, Sorts, Desc, DescConTag } from './surface';
@@ -16,7 +16,7 @@ export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 
-export type Elim = EApp | EUnsafeCast | EFst | ESnd | EEnumInd;
+export type Elim = EApp | EUnsafeCast | EFst | ESnd | EEnumInd | EDescInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -28,6 +28,8 @@ export type ESnd = { tag: 'ESnd' };
 export const ESnd: ESnd = { tag: 'ESnd' };
 export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
 export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
+export type EDescInd = { tag: 'EDescInd', args: Val[] };
+export const EDescInd = (args: Val[]): EDescInd => ({ tag: 'EDescInd', args });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem | VDesc | VDescCon;
@@ -76,6 +78,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EFst' ? vfst(y) :
       elim.tag === 'ESnd' ? vsnd(y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
+      elim.tag === 'EDescInd' ? vdescind([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -89,6 +92,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EFst' ? vfst(y) :
       elim.tag === 'ESnd' ? vsnd(y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
+      elim.tag === 'EDescInd' ? vdescind([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -132,6 +136,19 @@ export const venumind = (n: number, prop: Val, args: Val[], v: Val): Val => {
     return VGlued(v.head, Cons(EEnumInd(n, prop, args), v.args), mapLazy(v.val, v => venumind(n, prop, args, v)));
   return impossible(`venumind: ${v.tag}`);
 };
+export const vdescind = (args: Val[]): Val => {
+  const v = args[0];
+  const rest = args.slice(1);
+  if (v.tag === 'VDescCon') {
+    if (v.con === 'End') return args[2];
+    if (v.con === 'Rec') return vapp(vapp(args[3], false, v.args[0]), false, vdescind([v.args[0]].concat(rest)));
+    if (v.con === 'Arg') return vapp(vapp(vapp(args[4], true, v.args[0]), false, v.args[1]), false, VAbs(false, 'x', v.args[0], x => vdescind([vapp(v.args[1], false, x)].concat(rest))));
+  }
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EDescInd(rest), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EDescInd(rest), v.args), mapLazy(v.val, v => vdescind([v].concat(rest))));
+  return impossible(`vdescind: ${v.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Sort') return VSort(t.sort);
@@ -170,6 +187,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
   if (t.tag === 'Desc') return VDesc;
   if (t.tag === 'DescCon') return VDescCon(t.con, t.args.map(x => evaluate(x, vs)));
+  if (t.tag === 'DescInd') return vdescind(t.args.map(x => evaluate(x, vs)));
   return t;
 };
 
@@ -190,6 +208,7 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EFst') return Fst(t);
   if (e.tag === 'ESnd') return Snd(t);
   if (e.tag === 'EEnumInd') return EnumInd(e.num, quote(e.prop, k, full), t, e.args.map(x => quote(x, k, full)));
+  if (e.tag === 'EDescInd') return DescInd([t].concat(e.args.map(x => quote(x, k, full))));
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -247,6 +266,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EFst') return `fst`;
   if (e.tag === 'ESnd') return `snd`;
   if (e.tag === 'EEnumInd') return `?${e.num} {${showTermS(e.prop, ns, k, full)}} ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'EDescInd') return `inddesc ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`
   return e;
 };
 
@@ -293,5 +313,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'EnumInd')
     return EnumInd(tm.num, zonk(tm.prop, vs, k, full), zonk(tm.term, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'DescCon') return DescCon(tm.con, tm.args.map(x => zonk(x, vs, k, full)));
+  if (tm.tag === 'DescInd') return DescInd(tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

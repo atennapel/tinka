@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, DescCon } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem, VDesc } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, DescCon, DescInd } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem, VDesc, VDescCon } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -288,6 +288,16 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       const arg = check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
       return [DescCon(tm.con, [type, arg]), VDesc];
     }
+  }
+  if (tm.tag === 'DescInd' && tm.args.length === 5) {
+    const [term, prop, end, rec, arg] = tm.args;
+    const terme = check(local, term, VDesc);
+    const prope = check(localInType(local), prop, VPi(false, '_', VDesc, _ => VType));
+    const P = evaluate(prope, local.vs);
+    const ende = check(local, end, vapp(P, false, VDescCon('End', [])));
+    const rece = check(local, rec, VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, VDescCon('Rec', [r])))));
+    const arge = check(local, arg, VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, VDescCon('Arg', [t, f]))))));
+    return [DescInd([terme, prope, ende, rece, arge]), vapp(P, false, evaluate(terme, local.vs))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
