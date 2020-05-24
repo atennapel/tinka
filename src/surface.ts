@@ -40,8 +40,8 @@ export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type UnsafeCast = { tag: 'UnsafeCast', type: Term | null, val: Term }
 export const UnsafeCast = (type: Term | null, val: Term): UnsafeCast => ({ tag: 'UnsafeCast', type, val });
 
-export type DescConTag = 'End' | 'Arg' | 'Rec';
-export const descConTags = ['End', 'Arg', 'Rec'];
+export type DescConTag = 'End' | 'Arg' | 'Rec' | 'Fix' | 'In';
+export const descConTags = ['End', 'Arg', 'Rec', 'Fix', 'In'];
 export const isDescConTag = (x: string): x is DescConTag => descConTags.includes(x);
 
 export type Desc = { tag: 'Desc' };
@@ -185,8 +185,15 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Fst') return Fst(erase(t.term));
   if (t.tag === 'Snd') return Snd(erase(t.term));
   if (t.tag === 'EnumInd') return EnumInd(t.num, erase(t.prop), erase(t.term), t.args.map(erase));
-  if (t.tag === 'DescCon') return DescCon(t.con, t.args.map(erase));
   if (t.tag === 'DescInd') return DescInd(t.args.map(erase));
+  if (t.tag === 'DescCon') {
+    if (t.con === 'End' || t.con === 'Rec' || t.con === 'Fix')
+      return DescCon(t.con, t.args.map(erase));
+    if (t.con === 'Arg')
+      return DescCon(t.con, [erase(t.args[1])]);
+    if (t.con === 'In')
+      return DescCon(t.con, [erase(t.args[1])]);
+  }
   return t;
 };
 

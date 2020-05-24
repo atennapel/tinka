@@ -1213,7 +1213,7 @@ exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.UnsafeCast = (type, val) => ({ tag: 'UnsafeCast', type, val });
-exports.descConTags = ['End', 'Arg', 'Rec'];
+exports.descConTags = ['End', 'Arg', 'Rec', 'Fix', 'In'];
 exports.isDescConTag = (x) => exports.descConTags.includes(x);
 exports.Desc = { tag: 'Desc' };
 exports.DescCon = (con, args) => ({ tag: 'DescCon', con, args });
@@ -1395,10 +1395,16 @@ exports.erase = (t) => {
         return exports.Snd(exports.erase(t.term));
     if (t.tag === 'EnumInd')
         return exports.EnumInd(t.num, exports.erase(t.prop), exports.erase(t.term), t.args.map(exports.erase));
-    if (t.tag === 'DescCon')
-        return exports.DescCon(t.con, t.args.map(exports.erase));
     if (t.tag === 'DescInd')
         return exports.DescInd(t.args.map(exports.erase));
+    if (t.tag === 'DescCon') {
+        if (t.con === 'End' || t.con === 'Rec' || t.con === 'Fix')
+            return exports.DescCon(t.con, t.args.map(exports.erase));
+        if (t.con === 'Arg')
+            return exports.DescCon(t.con, [exports.erase(t.args[1])]);
+        if (t.con === 'In')
+            return exports.DescCon(t.con, [exports.erase(t.args[1])]);
+    }
     return t;
 };
 exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
@@ -1921,6 +1927,16 @@ const synth = (local, tm) => {
             const ty = domain_1.evaluate(type, local.vs);
             const arg = check(local, tm.args[1], domain_1.VPi(false, '_', ty, _ => domain_1.VDesc));
             return [syntax_1.DescCon(tm.con, [type, arg]), domain_1.VDesc];
+        }
+        if (tm.con === 'Fix' && tm.args.length === 1) {
+            const d = check(local, tm.args[0], domain_1.VDesc);
+            return [syntax_1.DescCon('Fix', [d]), domain_1.VType];
+        }
+        if (tm.con === 'In' && tm.args.length === 2) {
+            const desc = check(exports.localInType(local), tm.args[0], domain_1.VDesc);
+            const d = domain_1.evaluate(desc, local.vs);
+            const arg = check(local, tm.args[1], domain_1.evaluate(syntax_1.App(syntax_1.App(syntax_1.Global('interpDesc'), false, desc), false, syntax_1.DescCon('Fix', [desc])), local.vs));
+            return [syntax_1.DescCon('In', [desc, arg]), domain_1.VDescCon('Fix', [d])];
         }
     }
     if (tm.tag === 'DescInd' && tm.args.length === 5) {
@@ -2584,6 +2600,16 @@ const synth = (local, tm) => {
             const ty = domain_1.evaluate(tm.args[0], local.vs);
             check(local, tm.args[1], domain_1.VPi(false, '_', ty, _ => domain_1.VDesc));
             return domain_1.VDesc;
+        }
+        if (tm.con === 'Fix' && tm.args.length === 1) {
+            check(local, tm.args[0], domain_1.VDesc);
+            return domain_1.VType;
+        }
+        if (tm.con === 'In' && tm.args.length === 2) {
+            check(exports.localInType(local), tm.args[0], domain_1.VDesc);
+            const d = domain_1.evaluate(tm.args[0], local.vs);
+            check(local, tm.args[1], domain_1.evaluate(syntax_1.App(syntax_1.App(syntax_1.Global('interpDesc'), false, tm.args[0]), false, syntax_1.DescCon('Fix', [tm.args[0]])), local.vs));
+            return domain_1.VDescCon('Fix', [d]);
         }
     }
     if (tm.tag === 'DescInd' && tm.args.length === 5) {

@@ -288,6 +288,16 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       const arg = check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
       return [DescCon(tm.con, [type, arg]), VDesc];
     }
+    if (tm.con === 'Fix' && tm.args.length === 1) {
+      const d = check(local, tm.args[0], VDesc);
+      return [DescCon('Fix', [d]), VType];
+    }
+    if (tm.con === 'In' && tm.args.length === 2) {
+      const desc = check(localInType(local), tm.args[0], VDesc);
+      const d = evaluate(desc, local.vs);
+      const arg = check(local, tm.args[1], evaluate(App(App(Global('interpDesc'), false, desc), false, DescCon('Fix', [desc])), local.vs));
+      return [DescCon('In', [desc, arg]), VDescCon('Fix', [d])];
+    }
   }
   if (tm.tag === 'DescInd' && tm.args.length === 5) {
     const [term, prop, end, rec, arg] = tm.args;

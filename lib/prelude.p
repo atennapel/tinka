@@ -13,5 +13,6 @@ import lib/bool.p
 import lib/sum.p
 import lib/nat.p
 import lib/fix.p
+import lib/maybe.p
 
 import lib/vec.p

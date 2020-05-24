@@ -1,4 +1,4 @@
-import { Term, Pi, showTerm } from './syntax';
+import { Term, Pi, showTerm, Global, App, DescCon } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem, VDesc, VDescCon } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
@@ -158,6 +158,16 @@ const synth = (local: Local, tm: Term): Val => {
       const ty = evaluate(tm.args[0], local.vs);
       check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
       return VDesc;
+    }
+    if (tm.con === 'Fix' && tm.args.length === 1) {
+      check(local, tm.args[0], VDesc);
+      return VType;
+    }
+    if (tm.con === 'In' && tm.args.length === 2) {
+      check(localInType(local), tm.args[0], VDesc);
+      const d = evaluate(tm.args[0], local.vs);
+      check(local, tm.args[1], evaluate(App(App(Global('interpDesc'), false, tm.args[0]), false, DescCon('Fix', [tm.args[0]])), local.vs));
+      return VDescCon('Fix', [d]);
     }
   }
   if (tm.tag === 'DescInd' && tm.args.length === 5) {
