@@ -5,6 +5,7 @@ import lib/ex.p
 
 import lib/functor.p
 
+import lib/desc.p
 import lib/sigma.p
 import lib/void.p
 import lib/unit.p

@@ -37,6 +37,11 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
   if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num) return;
+  if (a.tag === 'VDescCon' && b.tag === 'VDescCon' && a.con === b.con && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);

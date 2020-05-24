@@ -1,9 +1,9 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescCon } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
-import { Plicity, Sorts, Desc } from './surface';
+import { Plicity, Sorts, Desc, DescConTag } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
@@ -30,7 +30,7 @@ export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
 export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem | VDesc;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem | VDesc | VDescCon;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -53,6 +53,8 @@ export const VElem = (num: number, total: number): VElem => ({ tag: 'VElem', num
 
 export type VDesc = { tag: 'VDesc' };
 export const VDesc: VDesc = { tag: 'VDesc' };
+export type VDescCon = { tag: 'VDescCon', con: DescConTag, args: Val[] };
+export const VDescCon = (con: DescConTag, args: Val[]): VDescCon => ({ tag: 'VDescCon', con, args });
 
 export const VType: VSort = VSort('*');
 
@@ -167,6 +169,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'EnumInd')
     return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
   if (t.tag === 'Desc') return VDesc;
+  if (t.tag === 'DescCon') return VDescCon(t.con, t.args.map(x => evaluate(x, vs)));
   return t;
 };
 
@@ -219,6 +222,7 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   if (v.tag === 'VEnum') return Enum(v.num);
   if (v.tag === 'VElem') return Elem(v.num, v.total);
   if (v.tag === 'VDesc') return Desc;
+  if (v.tag === 'VDescCon') return DescCon(v.con, v.args.map(x => quote(x, k, full)));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -288,5 +292,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Snd') return Snd(zonk(tm.term, vs, k, full));
   if (tm.tag === 'EnumInd')
     return EnumInd(tm.num, zonk(tm.prop, vs, k, full), zonk(tm.term, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
+  if (tm.tag === 'DescCon') return DescCon(tm.con, tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

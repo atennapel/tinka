@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem, VDesc } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -146,6 +146,19 @@ const synth = (local: Local, tm: Term): Val => {
     for (let i = 0; i < tm.args.length; i++)
       check(local, tm.args[i], vapp(P, false, VElem(i, tm.num)));
     return vapp(P, false, evaluate(tm.term, local.vs));
+  }
+  if (tm.tag === 'DescCon') {
+    if (tm.con === 'End' && tm.args.length === 0) return VDesc;
+    if (tm.con === 'Rec' && tm.args.length === 1) {
+      check(local, tm.args[0], VDesc);
+      return VDesc;
+    }
+    if (tm.con === 'Arg' && tm.args.length === 2) {
+      check(localInType(local), tm.args[0], VType);
+      const ty = evaluate(tm.args[0], local.vs);
+      check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
+      return VDesc;
+    }
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

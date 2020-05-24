@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, isDescConTag, DescCon } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -292,6 +292,18 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const indPart = ts.slice(0, 2);
     const rest = ts.slice(2);
     return exprs([TList(indPart, '(')].concat(rest), '(');
+  }
+  if (isName(ts[0], 'condesc')) {
+    const x = ts[1];
+    if (x.tag !== 'Name') return serr(`first arg to condesc should be a name`);
+    const con = x.name;
+    if (!isDescConTag(con)) return serr(`invalid con tag: ${con}`);
+    const args = ts.slice(2).map(t => {
+      const [tt, b] = expr(t);
+      if (b) return serr(`in ${con} case cannot be implicit`);
+      return tt;
+    });
+    return DescCon(con, args);
   }
   if (ts[0].tag === 'Name' && ts[0].name[0] === '?') {
     const x = ts[0].name;

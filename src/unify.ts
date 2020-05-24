@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd, DescCon } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -34,6 +34,11 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
   if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num) return;
+  if (a.tag === 'VDescCon' && b.tag === 'VDescCon' && a.con === b.con && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -199,6 +204,10 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const term = checkSolution(k, m, is, t.term);
     const args = t.args.map(x => checkSolution(k, m, is, x));
     return EnumInd(t.num, prop, term, args);
+  }
+  if (t.tag === 'DescCon') {
+    const args = t.args.map(x => checkSolution(k, m, is, x));
+    return DescCon(t.con, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

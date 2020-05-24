@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, DescCon } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem, VDesc } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -274,6 +274,20 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const term = check(local, tm.term, VEnum(tm.num));
     const args = tm.args.map((x, i) => check(local, x, vapp(P, false, VElem(i, tm.num))));
     return [EnumInd(tm.num, prop, term, args), vapp(P, false, evaluate(term, local.vs))];
+  }
+  if (tm.tag === 'DescCon') {
+    if (tm.con === 'End' && tm.args.length === 0)
+      return [DescCon(tm.con, []), VDesc];
+    if (tm.con === 'Rec' && tm.args.length === 1) {
+      const arg = check(local, tm.args[0], VDesc);
+      return [DescCon(tm.con, [arg]), VDesc];
+    }
+    if (tm.con === 'Arg' && tm.args.length === 2) {
+      const type = check(localInType(local), tm.args[0], VType);
+      const ty = evaluate(type, local.vs);
+      const arg = check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
+      return [DescCon(tm.con, [type, arg]), VDesc];
+    }
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
