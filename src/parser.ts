@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, isDescConTag, DescCon, DescInd } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescInd, isPrimName, Prim } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -42,7 +42,7 @@ const tokenize = (sc: string): Token[] => {
       if (SYM2.indexOf(c + next) >= 0) r.push(TName(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(TName(c));
       else if (c + next === '--') i++, state = COMMENT;
-      else if (/[\?\@\#\_a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\?\@\#\%\_a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}') {
@@ -138,7 +138,6 @@ const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
-    if (x === 'Desc') return [Desc, false];
     if (x.startsWith('_')) return [Hole(x.slice(1) || null), false];
     if (x.startsWith('#')) {
       const n = +x.slice(1);
@@ -159,6 +158,11 @@ const expr = (t: Token): [Term, boolean] => {
         if (isNaN(m) || m < 0 || Math.floor(m) !== m) return serr(`invalid elem ${x}`);
         return [Elem(n, m), false];
       } else return serr(`invalid elem ${x}`);
+    }
+    if (x[0] === '%') {
+      const rest = x.slice(1);
+      if (isPrimName(rest)) return [Prim(rest), false];
+      return serr(`invalid prim: ${x}`);
     }
     if (/[a-z]/i.test(x[0])) return [Var(x), false];
     return serr(`invalid name: ${x}`);
@@ -292,18 +296,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const indPart = ts.slice(0, 2);
     const rest = ts.slice(2);
     return exprs([TList(indPart, '(')].concat(rest), '(');
-  }
-  if (isName(ts[0], 'condesc')) {
-    const x = ts[1];
-    if (x.tag !== 'Name') return serr(`first arg to condesc should be a name`);
-    const con = x.name;
-    if (!isDescConTag(con)) return serr(`invalid con tag: ${con}`);
-    const args = ts.slice(2).map(t => {
-      const [tt, b] = expr(t);
-      if (b) return serr(`in ${con} case cannot be implicit`);
-      return tt;
-    });
-    return DescCon(con, args);
   }
   if (isName(ts[0], 'inddesc')) {
     const args = ts.slice(1).map(t => {

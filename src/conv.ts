@@ -10,6 +10,7 @@ export const eqHead = (a: Head, b: Head): boolean => {
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.index === b.index;
   if (a.tag === 'HGlobal') return b.tag === 'HGlobal' && a.name === b.name;
   if (a.tag === 'HMeta') return b.tag === 'HMeta' && a.index === b.index;
+  if (a.tag === 'HPrim') return b.tag === 'HPrim' && a.name === b.name;
   return a;
 };
 const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
@@ -38,15 +39,8 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   const b = forceGlue(b_);
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
-  if (a.tag === 'VDesc' && b.tag === 'VDesc') return;
-  if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
   if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num) return;
-  if (a.tag === 'VDescCon' && b.tag === 'VDescCon' && a.con === b.con && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      conv(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);

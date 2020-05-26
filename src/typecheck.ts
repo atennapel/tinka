@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, DescCon, DescInd } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem, VDesc, VDescCon } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, DescInd, Prim, Type } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem, VDesc, VPrim } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -10,6 +10,7 @@ import { log, config } from './config';
 import { globalGet, globalSet } from './globalenv';
 import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
 import { verify } from './verify';
+import { primType } from './prims';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -81,9 +82,9 @@ const inst = (ts: EnvT, vs: EnvV, ty_: Val): [Val, List<Term>] => {
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
-  if (tm.tag === 'Sort' && fty.tag === 'VSort' && fty.sort === '*') return Sort(tm.sort);
-  if (tm.tag === 'Desc' && fty.tag === 'VSort' && fty.sort === '*') return Desc;
-  if (tm.tag === 'Enum' && fty.tag === 'VSort' && fty.sort === '*') return Desc;
+  if (tm.tag === 'Prim' && tm.name === '*' && fty === VType) return Type;
+  if (tm.tag === 'Prim' && tm.name === 'Desc' && fty === VType) return Desc;
+  if (tm.tag === 'Enum' && fty === VType) return Desc;
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     return x;
@@ -160,9 +161,8 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
 
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Sort') return [Sort(tm.sort), VType];
   if (tm.tag === 'Enum') return [Enum(tm.num), VType];
-  if (tm.tag === 'Desc') return [Desc, VType];
+  if (tm.tag === 'Prim') return [Prim(tm.name), primType(tm.name)];
   if (tm.tag === 'Elem') {
     const total = tm.total === null ? tm.num + 1 : tm.total;
     if (!(tm.num < total)) return terr(`invalid elem: ${S.showTerm(tm)}`);
@@ -275,38 +275,14 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const args = tm.args.map((x, i) => check(local, x, vapp(P, false, VElem(i, tm.num))));
     return [EnumInd(tm.num, prop, term, args), vapp(P, false, evaluate(term, local.vs))];
   }
-  if (tm.tag === 'DescCon') {
-    if (tm.con === 'End' && tm.args.length === 0)
-      return [DescCon(tm.con, []), VDesc];
-    if (tm.con === 'Rec' && tm.args.length === 1) {
-      const arg = check(local, tm.args[0], VDesc);
-      return [DescCon(tm.con, [arg]), VDesc];
-    }
-    if (tm.con === 'Arg' && tm.args.length === 2) {
-      const type = check(localInType(local), tm.args[0], VType);
-      const ty = evaluate(type, local.vs);
-      const arg = check(local, tm.args[1], VPi(false, '_', ty, _ => VDesc));
-      return [DescCon(tm.con, [type, arg]), VDesc];
-    }
-    if (tm.con === 'Fix' && tm.args.length === 1) {
-      const d = check(local, tm.args[0], VDesc);
-      return [DescCon('Fix', [d]), VType];
-    }
-    if (tm.con === 'In' && tm.args.length === 2) {
-      const desc = check(localInType(local), tm.args[0], VDesc);
-      const d = evaluate(desc, local.vs);
-      const arg = check(local, tm.args[1], evaluate(App(App(Global('interpDesc'), false, desc), false, DescCon('Fix', [desc])), local.vs));
-      return [DescCon('In', [desc, arg]), VDescCon('Fix', [d])];
-    }
-  }
   if (tm.tag === 'DescInd' && tm.args.length === 5) {
     const [term, prop, end, rec, arg] = tm.args;
     const terme = check(local, term, VDesc);
     const prope = check(localInType(local), prop, VPi(false, '_', VDesc, _ => VType));
     const P = evaluate(prope, local.vs);
-    const ende = check(local, end, vapp(P, false, VDescCon('End', [])));
-    const rece = check(local, rec, VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, VDescCon('Rec', [r])))));
-    const arge = check(local, arg, VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, VDescCon('Arg', [t, f]))))));
+    const ende = check(local, end, vapp(P, false, VPrim('End')));
+    const rece = check(local, rec, VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, vapp(VPrim('Rec'), false, r)))));
+    const arge = check(local, arg, VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, vapp(vapp(VPrim('Arg'), true, t), false, f))))));
     return [DescInd([terme, prope, ende, rece, arge]), vapp(P, false, evaluate(terme, local.vs))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);

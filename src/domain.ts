@@ -1,13 +1,13 @@
 import { Ix, Name } from './names';
-import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sort, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescCon, DescInd } from './syntax';
+import { List, Cons, Nil, listToString, index, foldr, toArray } from './utils/list';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescInd, Prim } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
-import { Plicity, Sorts, Desc, DescConTag } from './surface';
+import { Plicity, PrimName } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
-export type Head = HVar | HGlobal | HMeta;
+export type Head = HVar | HGlobal | HMeta | HPrim;
 
 export type HVar = { tag: 'HVar', index: Ix };
 export const HVar = (index: Ix): HVar => ({ tag: 'HVar', index });
@@ -15,6 +15,8 @@ export type HGlobal = { tag: 'HGlobal', name: Name };
 export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
+export type HPrim = { tag: 'HPrim', name: PrimName };
+export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
 export type Elim = EApp | EUnsafeCast | EFst | ESnd | EEnumInd | EDescInd;
 
@@ -32,7 +34,7 @@ export type EDescInd = { tag: 'EDescInd', args: Val[] };
 export const EDescInd = (args: Val[]): EDescInd => ({ tag: 'EDescInd', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VSort | VPair | VEnum | VElem | VDesc | VDescCon;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VEnum | VElem;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -44,8 +46,6 @@ export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: C
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
 export type VSigma = { tag: 'VSigma', name: Name, type: Val, body: Clos };
 export const VSigma = (name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', name, type, body});
-export type VSort = { tag: 'VSort', sort: Sorts };
-export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
 export type VPair = { tag: 'VPair', fst: Val, snd: Val, type: Val };
 export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
 export type VEnum = { tag: 'VEnum', num: number };
@@ -53,16 +53,13 @@ export const VEnum = (num: number): VEnum => ({ tag: 'VEnum', num });
 export type VElem = { tag: 'VElem', num: number, total: number };
 export const VElem = (num: number, total: number): VElem => ({ tag: 'VElem', num, total });
 
-export type VDesc = { tag: 'VDesc' };
-export const VDesc: VDesc = { tag: 'VDesc' };
-export type VDescCon = { tag: 'VDescCon', con: DescConTag, args: Val[] };
-export const VDescCon = (con: DescConTag, args: Val[]): VDescCon => ({ tag: 'VDescCon', con, args });
-
-export const VType: VSort = VSort('*');
-
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
 export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
+export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
+
+export const VType = VPrim('*');
+export const VDesc = VPrim('Desc');
 
 export type EnvV = List<Val>;
 export const extendV = (vs: EnvV, val: Val): EnvV => Cons(val, vs);
@@ -139,19 +136,27 @@ export const venumind = (n: number, prop: Val, args: Val[], v: Val): Val => {
 export const vdescind = (args: Val[]): Val => {
   const v = args[0];
   const rest = args.slice(1);
-  if (v.tag === 'VDescCon') {
-    if (v.con === 'End') return args[2];
-    if (v.con === 'Rec') return vapp(vapp(args[3], false, v.args[0]), false, vdescind([v.args[0]].concat(rest)));
-    if (v.con === 'Arg') return vapp(vapp(vapp(args[4], true, v.args[0]), false, v.args[1]), false, VAbs(false, 'x', v.args[0], x => vdescind([vapp(v.args[1], false, x)].concat(rest))));
+  if (v.tag === 'VNe') {
+    if (v.head.tag === 'HPrim') {
+      if (v.head.name === 'End') return args[2];
+      if (v.head.name === 'Rec') {
+        const arg = ((v.args as Cons<Elim>).head as EApp).arg;
+        return vapp(vapp(args[3], false, arg), false, vdescind([arg].concat(rest)));
+      }
+      if (v.head.name === 'Arg') {
+        const as = toArray(v.args, e => (e as EApp).arg).reverse();
+        return vapp(vapp(vapp(args[4], true, as[0]), false, as[1]), false, VAbs(false, 'x', as[0], x => vdescind([vapp(as[1], false, x)].concat(rest))));
+      }
+    }
+    return VNe(v.head, Cons(EDescInd(rest), v.args));
   }
-  if (v.tag === 'VNe') return VNe(v.head, Cons(EDescInd(rest), v.args));
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EDescInd(rest), v.args), mapLazy(v.val, v => vdescind([v].concat(rest))));
   return impossible(`vdescind: ${v.tag}`);
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
-  if (t.tag === 'Sort') return VSort(t.sort);
+  if (t.tag === 'Prim') return VPrim(t.name);
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -185,8 +190,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Elem') return VElem(t.num, t.total);
   if (t.tag === 'EnumInd')
     return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
-  if (t.tag === 'Desc') return VDesc;
-  if (t.tag === 'DescCon') return VDescCon(t.con, t.args.map(x => evaluate(x, vs)));
   if (t.tag === 'DescInd') return vdescind(t.args.map(x => evaluate(x, vs)));
   return t;
 };
@@ -195,6 +198,7 @@ const quoteHead = (h: Head, k: Ix): Term => {
   if (h.tag === 'HVar') return Var(k - (h.index + 1));
   if (h.tag === 'HGlobal') return Global(h.name);
   if (h.tag === 'HMeta') return Meta(h.index);
+  if (h.tag === 'HPrim') return Prim(h.name);
   return h;
 };
 const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
@@ -213,7 +217,6 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   const v = forceGlue(v_);
-  if (v.tag === 'VSort') return Sort(v.sort);
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),
@@ -240,8 +243,6 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
   if (v.tag === 'VEnum') return Enum(v.num);
   if (v.tag === 'VElem') return Elem(v.num, v.total);
-  if (v.tag === 'VDesc') return Desc;
-  if (v.tag === 'VDescCon') return DescCon(v.con, v.args.map(x => quote(x, k, full)));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -312,7 +313,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Snd') return Snd(zonk(tm.term, vs, k, full));
   if (tm.tag === 'EnumInd')
     return EnumInd(tm.num, zonk(tm.prop, vs, k, full), zonk(tm.term, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
-  if (tm.tag === 'DescCon') return DescCon(tm.con, tm.args.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'DescInd') return DescInd(tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

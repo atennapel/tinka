@@ -2,8 +2,7 @@ import { Name, Ix } from './names';
 
 export type Plicity = boolean;
 
-export type Sorts = '*' | '**';
-export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Sort | Ann | Hole | Meta | UnsafeCast | Desc | DescCon | DescInd;
+export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Ann | Hole | Meta | UnsafeCast | DescInd | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -29,8 +28,6 @@ export type Elem = { tag: 'Elem', num: number, total: number | null };
 export const Elem = (num: number, total: number | null): Elem => ({ tag: 'Elem', num, total });
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
-export type Sort = { tag: 'Sort', sort: Sorts };
-export const Sort = (sort: Sorts): Sort => ({ tag: 'Sort', sort });
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -39,25 +36,23 @@ export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type UnsafeCast = { tag: 'UnsafeCast', type: Term | null, val: Term }
 export const UnsafeCast = (type: Term | null, val: Term): UnsafeCast => ({ tag: 'UnsafeCast', type, val });
-
-export type DescConTag = 'End' | 'Arg' | 'Rec' | 'Fix' | 'In';
-export const descConTags = ['End', 'Arg', 'Rec', 'Fix', 'In'];
-export const isDescConTag = (x: string): x is DescConTag => descConTags.includes(x);
-
-export type Desc = { tag: 'Desc' };
-export const Desc: Desc = { tag: 'Desc' };
-export type DescCon = { tag: 'DescCon', con: DescConTag, args: Term[] };
-export const DescCon = (con: DescConTag, args: Term[]): DescCon => ({ tag: 'DescCon', con, args });
 export type DescInd = { tag: 'DescInd', args: Term[] };
 export const DescInd = (args: Term[]): DescInd => ({ tag: 'DescInd', args });
 
-export const Type: Sort = Sort('*');
+export type PrimName = '*' | 'Desc' | 'End' | 'Arg' | 'Rec' | 'Fix' | 'In';
+export const primNames = ['*', 'Desc', 'End', 'Arg', 'Rec', 'Fix', 'In'];
+export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
+export type Prim = { tag: 'Prim', name: PrimName };
+export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
+
+export const Type: Prim = Prim('*');
+export const Desc: Prim = Prim('Desc');
 
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
+  if (t.tag === 'Prim') return t.name === '*' ? t.name : `%${t.name}`;
   if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Enum') return `#${t.num}`;
-  if (t.tag === 'Desc') return `Desc`;
   if (t.tag === 'Elem') return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
@@ -65,7 +60,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTermS(t.type)}` : ''} = ${showTermS(t.val)} in ${showTermS(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
   if (t.tag === 'Sigma') return `((${t.name} : ${showTermS(t.type)}) ** ${showTermS(t.body)})`;
-  if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Ann') return `(${showTermS(t.term)} : ${showTermS(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'UnsafeCast') return `(unsafeCast ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermS(t.val)})`;
@@ -73,7 +67,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Fst') return `(fst ${showTermS(t.term)})`;
   if (t.tag === 'Snd') return `(snd ${showTermS(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTermS(t.prop)}} ${showTermS(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
-  if (t.tag === 'DescCon') return `(condesc ${t.con}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
   if (t.tag === 'DescInd') return `(inddesc ${t.args.map(showTermS).join(' ')})`;
   return t;
 };
@@ -123,18 +116,17 @@ export const flattenPair = (t: Term): Term[] => {
 export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
 export const showTerm = (t: Term): string => {
-  if (t.tag === 'Sort') return t.sort;
+  if (t.tag === 'Prim') return t.name === '*' ? t.name : `%${t.name}`;
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Enum') return `#${t.num}`;
-  if (t.tag === 'Desc') return 'Desc';
   if (t.tag === 'Elem') return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
-    return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'DescCon' || f.tag === 'EnumInd' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Fst' || f.tag === 'Snd', f)} ${
+    return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'EnumInd' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Fst' || f.tag === 'Snd', f)} ${
       as.map(([im, t], i) =>
         im ? `{${showTerm(t)}}` :
-          `${showTermP(t.tag === 'App' || t.tag === 'Ann' || t.tag === 'DescCon' || t.tag === 'EnumInd' ||t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Fst' || t.tag === 'Snd', t)}`).join(' ')}`;
+          `${showTermP(t.tag === 'App' || t.tag === 'Ann' || t.tag === 'EnumInd' ||t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Fst' || t.tag === 'Snd', t)}`).join(' ')}`;
   }
   if (t.tag === 'Abs') {
     const [as, b] = flattenAbs(t);
@@ -142,11 +134,11 @@ export const showTerm = (t: Term): string => {
   }
   if (t.tag === 'Pi') {
     const [as, b] = flattenPi(t);
-    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Fst' || t.tag === 'Snd' || t.tag === 'DescCon', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
+    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Fst' || t.tag === 'Snd', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
   }
   if (t.tag === 'Sigma') {
     const [as, b] = flattenSigma(t);
-    return `${as.map(([x, t]) => x === '_' ? showTermP(t.tag === 'Ann' || t.tag === 'EnumInd' || t.tag === 'DescCon' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Fst' || t.tag === 'Snd', t) : `(${x} : ${showTermP(t.tag === 'Ann', t)})`).join(' ** ')} ** ${showTermP(b.tag === 'Ann', b)}`
+    return `${as.map(([x, t]) => x === '_' ? showTermP(t.tag === 'Ann' || t.tag === 'EnumInd' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Fst' || t.tag === 'Snd', t) : `(${x} : ${showTermP(t.tag === 'Ann', t)})`).join(' ** ')} ** ${showTermP(b.tag === 'Ann', b)}`
   }
   if (t.tag === 'Pair') {
     const ps = flattenPair(t);
@@ -157,12 +149,11 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Ann')
     return `${showTermP(t.term.tag === 'Ann', t.term)} : ${showTermP(t.term.tag === 'Ann', t.type)}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
-  if (t.tag === 'UnsafeCast') return `unsafeCast ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Sort', t.val)}`;
-  if (t.tag === 'Fst') return `fst ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Sort', t.term)}`;
-  if (t.tag === 'Snd') return `snd ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Sort', t.term)}`;
-  if (t.tag === 'EnumInd') return `?${t.num} {${showTerm(t.prop)}} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Sort', t.term)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Sort', x)).join(' ')}` : ''}`;
-  if (t.tag === 'DescCon') return `condesc ${t.con}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Sort', x)).join(' ')}` : ''}`;
-  if (t.tag === 'DescInd') return `inddesc ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Sort', x)).join(' ')}`;
+  if (t.tag === 'UnsafeCast') return `unsafeCast ${t.type ? `{${showTermS(t.type)}} ` : ''}${showTermP(t.val.tag !== 'Var' && t.val.tag !== 'Meta' && t.val.tag !== 'Prim', t.val)}`;
+  if (t.tag === 'Fst') return `fst ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
+  if (t.tag === 'Snd') return `snd ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
+  if (t.tag === 'EnumInd') return `?${t.num} {${showTerm(t.prop)}} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim', x)).join(' ')}` : ''}`;
+  if (t.tag === 'DescInd') return `inddesc ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim', x)).join(' ')}`;
   return t;
 };
 
@@ -170,10 +161,9 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Hole') return t;
   if (t.tag === 'Meta') return t;
   if (t.tag === 'Var') return t;
-  if (t.tag === 'Sort') return t;
   if (t.tag === 'Enum') return t;
   if (t.tag === 'Elem') return t;
-  if (t.tag === 'Desc') return t;
+  if (t.tag === 'Prim') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
   if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));
@@ -186,14 +176,6 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Snd') return Snd(erase(t.term));
   if (t.tag === 'EnumInd') return EnumInd(t.num, erase(t.prop), erase(t.term), t.args.map(erase));
   if (t.tag === 'DescInd') return DescInd(t.args.map(erase));
-  if (t.tag === 'DescCon') {
-    if (t.con === 'End' || t.con === 'Rec' || t.con === 'Fix')
-      return DescCon(t.con, t.args.map(erase));
-    if (t.con === 'Arg')
-      return DescCon(t.con, [erase(t.args[1])]);
-    if (t.con === 'In')
-      return DescCon(t.con, [erase(t.args[1])]);
-  }
   return t;
 };
 

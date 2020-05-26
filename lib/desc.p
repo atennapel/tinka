@@ -1,8 +1,9 @@
 import lib/unit.p
 
-def End : Desc = condesc End
-def Rec : Desc -> Desc = \d. condesc Rec d
-def Arg : {t : *} -> (t -> Desc) -> Desc = \{t} f. condesc Arg t f
+def Desc : * = %Desc
+def End : Desc = %End
+def Rec : Desc -> Desc = \d. %Rec d
+def Arg : {t : *} -> (t -> Desc) -> Desc = \{t} f. %Arg {t} f
 
 def indDesc
   : {P : Desc -> *}

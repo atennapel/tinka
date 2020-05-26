@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd, DescCon, DescInd } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd, DescInd } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -35,15 +35,8 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   const b = forceGlue(b_);
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
-  if (a.tag === 'VDesc' && b.tag === 'VDesc') return;
-  if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
   if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num) return;
-  if (a.tag === 'VDescCon' && b.tag === 'VDescCon' && a.con === b.con && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -146,15 +139,16 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
         return [elim.plicity, v.head.index];
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HGlobal' && length(v.args) === 0)
         return [elim.plicity, v.head.name];
+      if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HPrim' && length(v.args) === 0)
+        return [elim.plicity, v.head.name];
       return terr(`not a var in spine: ${showTermQ(v, k)}`);
     }
     return elim;
   });
 
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
-  if (t.tag === 'Sort') return t;
   if (t.tag === 'Global') return t;
-  if (t.tag === 'Desc') return t;
+  if (t.tag === 'Prim') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
     if (contains(is, i))
@@ -210,10 +204,6 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const term = checkSolution(k, m, is, t.term);
     const args = t.args.map(x => checkSolution(k, m, is, x));
     return EnumInd(t.num, prop, term, args);
-  }
-  if (t.tag === 'DescCon') {
-    const args = t.args.map(x => checkSolution(k, m, is, x));
-    return DescCon(t.con, args);
   }
   if (t.tag === 'DescInd') {
     const args = t.args.map(x => checkSolution(k, m, is, x));
