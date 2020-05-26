@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, DescInd, Prim, Type } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem, VDesc, VPrim } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, Prim, Type } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -274,16 +274,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const term = check(local, tm.term, VEnum(tm.num));
     const args = tm.args.map((x, i) => check(local, x, vapp(P, false, VElem(i, tm.num))));
     return [EnumInd(tm.num, prop, term, args), vapp(P, false, evaluate(term, local.vs))];
-  }
-  if (tm.tag === 'DescInd' && tm.args.length === 5) {
-    const [term, prop, end, rec, arg] = tm.args;
-    const terme = check(local, term, VDesc);
-    const prope = check(localInType(local), prop, VPi(false, '_', VDesc, _ => VType));
-    const P = evaluate(prope, local.vs);
-    const ende = check(local, end, vapp(P, false, VPrim('End')));
-    const rece = check(local, rec, VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, vapp(VPrim('Rec'), false, r)))));
-    const arge = check(local, arg, VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, vapp(vapp(VPrim('Arg'), true, t), false, f))))));
-    return [DescInd([terme, prope, ende, rece, arge]), vapp(P, false, evaluate(terme, local.vs))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

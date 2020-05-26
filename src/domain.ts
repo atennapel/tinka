@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr, toArray } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, DescInd, Prim } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Prim } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -156,7 +156,16 @@ export const vdescind = (args: Val[]): Val => {
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
-  if (t.tag === 'Prim') return VPrim(t.name);
+  if (t.tag === 'Prim') {
+    if (t.name === 'indDesc')
+      return VAbs(false, 'x', VDesc, x =>
+        VAbs(true, 'P', VPi(false, '_', VDesc, _ => VType), P =>
+        VAbs(false, 'e', vapp(P, false, VPrim('End')), e =>
+        VAbs(false, 'r', VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, vapp(VPrim('Rec'), false, r)))), r =>
+        VAbs(false, 'a', VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, vapp(vapp(VPrim('Arg'), true, t), false, f))))), a =>
+        vdescind([x, P, e, r, a]))))));
+    return VPrim(t.name);
+  }
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -190,7 +199,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Elem') return VElem(t.num, t.total);
   if (t.tag === 'EnumInd')
     return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
-  if (t.tag === 'DescInd') return vdescind(t.args.map(x => evaluate(x, vs)));
   return t;
 };
 
@@ -212,7 +220,10 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EFst') return Fst(t);
   if (e.tag === 'ESnd') return Snd(t);
   if (e.tag === 'EEnumInd') return EnumInd(e.num, quote(e.prop, k, full), t, e.args.map(x => quote(x, k, full)));
-  if (e.tag === 'EDescInd') return DescInd([t].concat(e.args.map(x => quote(x, k, full))));
+  if (e.tag === 'EDescInd') {
+    const [Pq, eq, rq, aq] = e.args.map(x => quote(x, k, full));
+    return App(App(App(App(App(Prim('indDesc'), false, t), true, Pq), false, eq), false, rq), false, aq);
+  }
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -313,6 +324,5 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Snd') return Snd(zonk(tm.term, vs, k, full));
   if (tm.tag === 'EnumInd')
     return EnumInd(tm.num, zonk(tm.prop, vs, k, full), zonk(tm.term, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
-  if (tm.tag === 'DescInd') return DescInd(tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

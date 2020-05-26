@@ -12,7 +12,7 @@ def indDesc
     -> ({t : *} -> (f : t -> Desc) -> ((x : t) -> P (f x)) -> P (Arg {t} f))
     -> (d : Desc)
     -> P d
-  = \{P} e r a d. inddesc d P e r a
+  = \{P} e r a d. %indDesc d {P} e r a
 
 def interpDesc : Desc -> * -> *
   = \d. indDesc {\_. * -> *}

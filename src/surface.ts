@@ -2,7 +2,7 @@ import { Name, Ix } from './names';
 
 export type Plicity = boolean;
 
-export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Ann | Hole | Meta | UnsafeCast | DescInd | Prim;
+export type Term = Var | App | Abs | Pair | Fst | Snd | Elem | EnumInd | Let | Pi | Sigma | Enum | Ann | Hole | Meta | UnsafeCast | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -36,11 +36,9 @@ export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type UnsafeCast = { tag: 'UnsafeCast', type: Term | null, val: Term }
 export const UnsafeCast = (type: Term | null, val: Term): UnsafeCast => ({ tag: 'UnsafeCast', type, val });
-export type DescInd = { tag: 'DescInd', args: Term[] };
-export const DescInd = (args: Term[]): DescInd => ({ tag: 'DescInd', args });
 
-export type PrimName = '*' | 'Desc' | 'End' | 'Arg' | 'Rec' | 'Fix' | 'In';
-export const primNames = ['*', 'Desc', 'End', 'Arg', 'Rec', 'Fix', 'In'];
+export type PrimName = '*' | 'Desc' | 'End' | 'Arg' | 'Rec' | 'indDesc' | 'Fix' | 'In';
+export const primNames = ['*', 'Desc', 'End', 'Arg', 'Rec', 'indDesc', 'Fix', 'In'];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
@@ -67,7 +65,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Fst') return `(fst ${showTermS(t.term)})`;
   if (t.tag === 'Snd') return `(snd ${showTermS(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTermS(t.prop)}} ${showTermS(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
-  if (t.tag === 'DescInd') return `(inddesc ${t.args.map(showTermS).join(' ')})`;
   return t;
 };
 
@@ -153,7 +150,6 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Fst') return `fst ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
   if (t.tag === 'Snd') return `snd ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
   if (t.tag === 'EnumInd') return `?${t.num} {${showTerm(t.prop)}} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim', x)).join(' ')}` : ''}`;
-  if (t.tag === 'DescInd') return `inddesc ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim', x)).join(' ')}`;
   return t;
 };
 
@@ -175,7 +171,6 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Fst') return Fst(erase(t.term));
   if (t.tag === 'Snd') return Snd(erase(t.term));
   if (t.tag === 'EnumInd') return EnumInd(t.num, erase(t.prop), erase(t.term), t.args.map(erase));
-  if (t.tag === 'DescInd') return DescInd(t.args.map(erase));
   return t;
 };
 
