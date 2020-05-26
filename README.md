@@ -7,7 +7,7 @@ todo:
 - simplify indDesc in the domain
 - simplify unsafeCast in the domain
 - simplify enums
-- combine fst and snd in to proj
+- simplify proj using Prim
 - better syntax for fst/snd
 - named projection from sigma
 - indexed projection from sigma

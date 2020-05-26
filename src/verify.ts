@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vfst, VEnum, VPi, vapp, VElem } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, VEnum, VPi, vapp, VElem, vproj } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -119,17 +119,11 @@ const synth = (local: Local, tm: Term): Val => {
     check(local, tm.snd, vtf.body(evaluate(tm.fst, local.vs)));
     return vt;
   }
-  if (tm.tag === 'Fst') {
+  if (tm.tag === 'Proj') {
     const ty = synth(local, tm.term);
     const fty = force(ty);
-    if (fty.tag !== 'VSigma') return terr(`not a sigma type in fst: ${showTerm(tm)}`);
-    return fty.type;
-  }
-  if (tm.tag === 'Snd') {
-    const ty = synth(local, tm.term);
-    const fty = force(ty);
-    if (fty.tag !== 'VSigma') return terr(`not a sigma type in snd: ${showTerm(tm)}`);
-    return fty.body(vfst(evaluate(tm.term, local.vs)));
+    if (fty.tag !== 'VSigma') return terr(`not a sigma type in ${tm.proj}: ${showTerm(tm)}`);
+    return tm.proj === 'fst' ? fty.type : fty.body(vproj('fst', evaluate(tm.term, local.vs)));
   }
   if (tm.tag === 'EnumInd') {
     if (tm.args.length !== tm.num)

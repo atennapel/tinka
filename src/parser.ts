@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, isPrimName, Prim } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, Enum, Elem, EnumInd, isPrimName, Prim, Proj } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -269,7 +269,7 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (ts.length === 2) {
       const [term, tb] = expr(ts[1]);
       if (tb) return serr(`something went wrong when parsing fst`);
-      return Fst(term);
+      return Proj('fst', term);
     }
     const indPart = ts.slice(0, 2);
     const rest = ts.slice(2);
@@ -280,7 +280,7 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (ts.length === 2) {
       const [term, tb] = expr(ts[1]);
       if (tb) return serr(`something went wrong when parsing snd`);
-      return Snd(term);
+      return Proj('snd', term);
     }
     const indPart = ts.slice(0, 2);
     const rest = ts.slice(2);

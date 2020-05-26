@@ -1,11 +1,11 @@
 import { terr, impossible, hasDuplicates } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vfst, vsnd } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj } from './domain';
 import { forceLazy } from './utils/lazy';
 import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray, map, foldl, Nil } from './utils/list';
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Fst, Snd, EnumInd } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, EnumInd, Proj } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -15,8 +15,7 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     return unify(k, a.arg, b.arg);
   if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
     return unify(k, a.type, b.type);
-  if (a.tag === 'EFst' && b.tag === 'EFst') return;
-  if (a.tag === 'ESnd' && b.tag === 'ESnd') return;
+  if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
   if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
     unify(k, a.prop, b.prop);
     for (let i = 0; i < a.args.length; i ++)
@@ -66,12 +65,12 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return unify(k + 1, vapp(a, b.plicity, v), b.body(v));
   }
   if (a.tag === 'VPair') {
-    unify(k, a.fst, vfst(b));
-    return unify(k, a.snd, vsnd(b));
+    unify(k, a.fst, vproj('fst', b));
+    return unify(k, a.snd, vproj('snd', b));
   }
   if (b.tag === 'VPair') {
-    unify(k, vfst(a), b.fst);
-    return unify(k, vsnd(a), b.snd);
+    unify(k, vproj('fst', a), b.fst);
+    return unify(k, vproj('snd', a), b.snd);
   }
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -129,8 +128,7 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
-    if (elim.tag === 'EFst') return terr(`fst in meta spine`);
-    if (elim.tag === 'ESnd') return terr(`snd in meta spine`);
+    if (elim.tag === 'EProj') return terr(`fst in meta spine`);
     if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
     if (elim.tag === 'EDescInd') return terr(`desc ind in meta spine`);
     if (elim.tag === 'EApp') {
@@ -171,13 +169,9 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     return Pair(l, r, ty);
   }
-  if (t.tag === 'Fst') {
+  if (t.tag === 'Proj') {
     const x = checkSolution(k, m, is, t.term);
-    return Fst(x);
-  }
-  if (t.tag === 'Snd') {
-    const x = checkSolution(k, m, is, t.term);
-    return Snd(x);
+    return Proj(t.proj, x);
   }
   if (t.tag === 'Abs') {
     const ty = checkSolution(k, m, is, t.type);

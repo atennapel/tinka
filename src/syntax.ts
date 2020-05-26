@@ -5,8 +5,10 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Fst | Snd | EnumInd | Elem | Let | Enum | Pi | Sigma | Meta | Prim;
+export type Term = Var | Global | App | Abs | Pair | Proj | EnumInd | Elem | Let | Enum | Pi | Sigma | Meta | Prim;
 
+export type Prim = { tag: 'Prim', name: S.PrimName };
+export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
 export type Global = { tag: 'Global', name: Name };
@@ -17,26 +19,23 @@ export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term, body: 
 export const Abs = (plicity: Plicity, name: Name, type: Term, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
 export type Pair = { tag: 'Pair', fst: Term, snd: Term, type: Term };
 export const Pair = (fst: Term, snd: Term, type: Term): Pair => ({ tag: 'Pair', fst, snd, type });
-export type Fst = { tag: 'Fst', term: Term };
-export const Fst = (term: Term): Fst => ({ tag: 'Fst', term });
-export type Snd = { tag: 'Snd', term: Term };
-export const Snd = (term: Term): Snd => ({ tag: 'Snd', term });
+export type Proj = { tag: 'Proj', proj: 'fst' | 'snd', term: Term };
+export const Proj = (proj: 'fst' | 'snd', term: Term): Proj => ({ tag: 'Proj', proj, term });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Sigma = { tag: 'Sigma', name: Name, type: Term, body: Term };
 export const Sigma = (name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', name, type, body });
+export type Meta = { tag: 'Meta', index: Ix };
+export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
+
 export type Enum = { tag: 'Enum', num: number };
 export const Enum = (num: number): Enum => ({ tag: 'Enum', num });
 export type Elem = { tag: 'Elem', num: number, total: number };
 export const Elem = (num: number, total: number): Elem => ({ tag: 'Elem', num, total });
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
-export type Meta = { tag: 'Meta', index: Ix };
-export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
-export type Prim = { tag: 'Prim', name: S.PrimName };
-export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
 
 export const Type: Prim = Prim('*');
 export const Desc: Prim = Prim('Desc');
@@ -54,8 +53,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Sigma') return `((${t.name} : ${showTerm(t.type)}) ** ${showTerm(t.body)})`;
-  if (t.tag === 'Fst') return `(fst ${showTerm(t.term)})`;
-  if (t.tag === 'Snd') return `(snd ${showTerm(t.term)})`;
+  if (t.tag === 'Proj') return `(${t.proj} ${showTerm(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTerm(t.prop)}} ${showTerm(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTerm).join(' ')}` : ''})`;
   return t;
 };
@@ -63,8 +61,7 @@ export const showTerm = (t: Term): string => {
 export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Global') return t.name === k;
   if (t.tag === 'App') return globalUsed(k, t.left) || globalUsed(k, t.right);
-  if (t.tag === 'Fst') return globalUsed(k, t.term);
-  if (t.tag === 'Snd') return globalUsed(k, t.term);
+  if (t.tag === 'Proj') return globalUsed(k, t.term);
   if (t.tag === 'Pair') return globalUsed(k, t.fst) || globalUsed(k, t.snd) || globalUsed(k, t.type);
   if (t.tag === 'Abs') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Let') return globalUsed(k, t.type) || globalUsed(k, t.val) || globalUsed(k, t.body);
@@ -81,8 +78,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Let') return indexUsed(k, t.type) || indexUsed(k, t.val) || indexUsed(k + 1, t.body);
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Sigma') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
-  if (t.tag === 'Fst') return indexUsed(k, t.term);
-  if (t.tag === 'Snd') return indexUsed(k, t.term);
+  if (t.tag === 'Proj') return indexUsed(k, t.term);
   if (t.tag === 'EnumInd') return indexUsed(k, t.prop) || indexUsed(k, t.term) || t.args.some(x => indexUsed(k, x));
   return false;
 };
@@ -95,8 +91,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Let') return isUnsolved(t.type) || isUnsolved(t.val) || isUnsolved(t.body);
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Sigma') return isUnsolved(t.type) || isUnsolved(t.body);
-  if (t.tag === 'Fst') return isUnsolved(t.term);
-  if (t.tag === 'Snd') return isUnsolved(t.term);
+  if (t.tag === 'Proj') return isUnsolved(t.term);
   if (t.tag === 'EnumInd') return isUnsolved(t.prop) || isUnsolved(t.term) || t.args.some(x => isUnsolved(x));
   return false;
 };
@@ -120,8 +115,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Elem') return S.Elem(t.num, t.total);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
-  if (t.tag === 'Fst') return S.Fst(toSurface(t.term, ns));
-  if (t.tag === 'Snd') return S.Snd(toSurface(t.term, ns));
+  if (t.tag === 'Proj') return S.Proj(t.proj, toSurface(t.term, ns));
   if (t.tag === 'EnumInd') return S.EnumInd(t.num, toSurface(t.prop, ns), toSurface(t.term, ns), t.args.map(x => toSurface(x, ns)));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);

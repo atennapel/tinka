@@ -1,5 +1,5 @@
 import { terr } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, Head, forceGlue, vsnd, vfst } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, Head, forceGlue, vproj } from './domain';
 import { forceLazy } from './utils/lazy';
 import { zipWithR_, length } from './utils/list';
 import { Ix } from './names';
@@ -19,8 +19,7 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     return conv(k, a.arg, b.arg);
   if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
     return conv(k, a.type, b.type);
-  if (a.tag === 'EFst' && b.tag === 'EFst') return;
-  if (a.tag === 'ESnd' && b.tag === 'ESnd') return;
+  if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
   if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
     conv(k, a.prop, b.prop);
     for (let i = 0; i < a.args.length; i ++)
@@ -70,12 +69,12 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     return conv(k + 1, vapp(a, b.plicity, v), b.body(v));
   }
   if (a.tag === 'VPair') {
-    conv(k, a.fst, vfst(b));
-    return conv(k, a.snd, vsnd(b));
+    conv(k, a.fst, vproj('fst', b));
+    return conv(k, a.snd, vproj('snd', b));
   }
   if (b.tag === 'VPair') {
-    conv(k, vfst(a), b.fst);
-    return conv(k, vsnd(a), b.snd);
+    conv(k, vproj('fst', a), b.fst);
+    return conv(k, vproj('snd', a), b.snd);
   }
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
