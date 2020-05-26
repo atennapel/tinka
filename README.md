@@ -4,10 +4,13 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- simplify indDesc in the domain
+- simplify unsafeCast
+- simplify enums
 - better syntax for fst/snd
 - named projection from sigma
 - indexed projection from sigma
-- data descriptions
+- indexed data descriptions
 - create a CEK machine
 - zonk all elims
 - insert skolems in check
