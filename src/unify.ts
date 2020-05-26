@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, UnsafeCast, Sigma, Pair, Fst, Snd, EnumInd } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Fst, Snd, EnumInd } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -193,11 +193,6 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Sigma(t.name, ty, body);
-  }
-  if (t.tag === 'UnsafeCast') {
-    const type = checkSolution(k, m, is, t.type);
-    const val = checkSolution(k, m, is, t.val);
-    return UnsafeCast(type, val);
   }
   if (t.tag === 'EnumInd') {
     const prop = checkSolution(k, m, is, t.prop);

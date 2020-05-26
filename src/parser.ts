@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, isPrimName, Prim } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, isPrimName, Prim } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -263,17 +263,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
-  }
-  if (isName(ts[0], 'unsafeCast')) {
-    if (ts[1].tag === 'List' && ts[1].bracket === '{') {
-      const [ty, b] = expr(ts[1]);
-      if (!b) return serr(`something went wrong when parsing UnsafeCast`);
-      const body = exprs(ts.slice(2), '(');
-      return UnsafeCast(ty, body);
-    } else {
-      const body = exprs(ts.slice(1), '(');
-      return UnsafeCast(null, body);
-    }
   }
   if (isName(ts[0], 'fst')) {
     if (ts.length < 2) return serr(`something went wrong when parsing fst`);

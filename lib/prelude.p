@@ -1,5 +1,7 @@
 import lib/combinators.p
 
+import lib/unsafecast.p
+
 import lib/eq.p
 import lib/ex.p
 

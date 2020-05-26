@@ -23,6 +23,8 @@ const primTypes: { [K in PrimName]: () => Val } = {
 
   'Fix': () => VPi(false, '_', VDesc, _ => VType),
   'In': () => VPi(true, 'd', VDesc, d => VPi(false, '_', vapp(vapp(evaluate(Global('interpDesc')), false, d), false, vapp(VFix, false, d)), _ => vapp(VFix, false, d))),
+
+  'unsafeCast': () => VPi(true, 'a', VType, a => VPi(true, 'b', VType, b => VPi(false, '_', b, _ => a))),
 };
 
 export const primType = (name: PrimName): Val => primTypes[name]() || impossible(`primType: ${name}`);

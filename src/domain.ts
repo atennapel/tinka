@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr, toArray } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Prim } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Prim } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -22,8 +22,8 @@ export type Elim = EApp | EUnsafeCast | EFst | ESnd | EEnumInd | EDescInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
-export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val };
-export const EUnsafeCast = (type: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type });
+export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
+export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
 export type EFst = { tag: 'EFst' };
 export const EFst: EFst = { tag: 'EFst' };
 export type ESnd = { tag: 'ESnd' };
@@ -71,7 +71,7 @@ export const force = (v: Val): Val => {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
     return force(foldr((elim, y) =>
-      elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, y) :
+      elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, elim.fromtype, y) :
       elim.tag === 'EFst' ? vfst(y) :
       elim.tag === 'ESnd' ? vsnd(y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
@@ -85,7 +85,7 @@ export const forceGlue = (v: Val): Val => {
     const val = metaGet(v.head.index);
     if (val.tag === 'Unsolved') return v;
     return forceGlue(foldr((elim, y) =>
-      elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, y) :
+      elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, elim.fromtype, y) :
       elim.tag === 'EFst' ? vfst(y) :
       elim.tag === 'ESnd' ? vsnd(y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
@@ -106,10 +106,10 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`vapp: ${a.tag}`);
 };
-export const vunsafecast = (type: Val, v: Val): Val => {
-  if (v.tag === 'VNe') return VNe(v.head, Cons(EUnsafeCast(type), v.args));
+export const vunsafecast = (type: Val, fromtype: Val, v: Val): Val => {
+  if (v.tag === 'VNe') return VNe(v.head, Cons(EUnsafeCast(type, fromtype), v.args));
   if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EUnsafeCast(type), v.args), mapLazy(v.val, v => vunsafecast(type, v)));
+    return VGlued(v.head, Cons(EUnsafeCast(type, fromtype), v.args), mapLazy(v.val, v => vunsafecast(type, fromtype, v)));
   return v;
 };
 export const vfst = (v: Val): Val => {
@@ -164,6 +164,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         VAbs(false, 'r', VPi(false, 'r', VDesc, r => VPi(false, '_', vapp(P, false, r), _ => vapp(P, false, vapp(VPrim('Rec'), false, r)))), r =>
         VAbs(false, 'a', VPi(true, 't', VType, t => VPi(false, 'f', VPi(false, '_', t, _ => VDesc), f => VPi(false, '_', VPi(false, 'x', t, x => vapp(P, false, vapp(f, false, x))), _ => vapp(P, false, vapp(vapp(VPrim('Arg'), true, t), false, f))))), a =>
         vdescind([x, P, e, r, a]))))));
+    if (t.name === 'unsafeCast')
+      return VAbs(true, 'a', VType, a => VAbs(true, 'b', VType, b => VAbs(false, '_', b, x => vunsafecast(a, b, x))));
     return VPrim(t.name);
   }
   if (t.tag === 'Var') {
@@ -189,8 +191,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VPi(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Sigma')
     return VSigma(t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
-  if (t.tag === 'UnsafeCast')
-    return vunsafecast(evaluate(t.type, vs), evaluate(t.val, vs));
   if (t.tag === 'Pair')
     return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'Fst') return vfst(evaluate(t.term, vs));
@@ -216,13 +216,16 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 };
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
-  if (e.tag === 'EUnsafeCast') return UnsafeCast(quote(e.type, k, full), t);
   if (e.tag === 'EFst') return Fst(t);
   if (e.tag === 'ESnd') return Snd(t);
   if (e.tag === 'EEnumInd') return EnumInd(e.num, quote(e.prop, k, full), t, e.args.map(x => quote(x, k, full)));
   if (e.tag === 'EDescInd') {
     const [Pq, eq, rq, aq] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(Prim('indDesc'), false, t), true, Pq), false, eq), false, rq), false, aq);
+  }
+  if (e.tag === 'EUnsafeCast') {
+    const [type, fromtype] = [e.type, e.fromtype].map(x => quote(x, k, full));
+    return App(App(App(Prim('unsafeCast'), true, type), true, fromtype), false, t);
   }
   return e;
 };
@@ -319,7 +322,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
       App(spine[1], tm.plicity, zonk(tm.right, vs, k, full)) :
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
-  if (tm.tag === 'UnsafeCast') return UnsafeCast(zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full));
   if (tm.tag === 'Fst') return Fst(zonk(tm.term, vs, k, full));
   if (tm.tag === 'Snd') return Snd(zonk(tm.term, vs, k, full));
   if (tm.tag === 'EnumInd')

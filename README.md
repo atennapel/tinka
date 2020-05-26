@@ -5,8 +5,9 @@ Try it out at https://atennapel.github.io/tinka
 ```
 todo:
 - simplify indDesc in the domain
-- simplify unsafeCast
+- simplify unsafeCast in the domain
 - simplify enums
+- combine fst and snd in to proj
 - better syntax for fst/snd
 - named projection from sigma
 - indexed projection from sigma

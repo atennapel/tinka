@@ -119,12 +119,6 @@ const synth = (local: Local, tm: Term): Val => {
     check(local, tm.snd, vtf.body(evaluate(tm.fst, local.vs)));
     return vt;
   }
-  if (tm.tag === 'UnsafeCast') {
-    check(localInType(local), tm.type, VType);
-    const vt = evaluate(tm.type, local.vs);
-    synth(local, tm.val);
-    return vt;
-  }
   if (tm.tag === 'Fst') {
     const ty = synth(local, tm.term);
     const fty = force(ty);

@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, UnsafeCast, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, Prim, Type } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sigma, Pair, Fst, Snd, Enum, Elem, EnumInd, Desc, Prim, Type } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vfst, VEnum, vapp, VElem } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -88,11 +88,6 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     return x;
-  }
-  if (tm.tag === 'UnsafeCast') {
-    const type = quote(ty, local.index, false);
-    const [val] = synth(local, tm.val);
-    return UnsafeCast(type, val);
   }
   if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
     const fst = check(local, tm.fst, fty.type);
@@ -252,19 +247,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
-  }
-  if (tm.tag === 'UnsafeCast') {
-    if (tm.type) {
-      const type = check(localInType(local), tm.type, VType);
-      const vt = evaluate(type, local.vs);
-      const [val] = synth(local, tm.val);
-      return [UnsafeCast(type, val), vt];
-    } else {
-      const type = newMeta(local.ts);
-      const vt = evaluate(type, local.vs);
-      const [val] = synth(local, tm.val);
-      return [UnsafeCast(type, val), vt];
-    }
   }
   if (tm.tag === 'EnumInd') {
     if (tm.args.length !== tm.num)
