@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EUnsafeCast | EProj | EEnumInd | EDescInd;
+export type Elim = EApp | EUnsafeCast | EProj | EEnumInd | EDescInd | EFixInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -30,6 +30,8 @@ export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
 export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
 export type EDescInd = { tag: 'EDescInd', args: Val[] };
 export const EDescInd = (args: Val[]): EDescInd => ({ tag: 'EDescInd', args });
+export type EFixInd = { tag: 'EFixInd', args: Val[] };
+export const EFixInd = (args: Val[]): EFixInd => ({ tag: 'EFixInd', args });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VEnum | VElem;
@@ -58,6 +60,7 @@ export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
 export const VType = VPrim('*');
 export const VDesc = VPrim('Desc');
+export const VFix = VPrim('Fix');
 
 export type EnvV = List<Val>;
 export const extendV = (vs: EnvV, val: Val): EnvV => Cons(val, vs);
@@ -73,6 +76,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       elim.tag === 'EDescInd' ? vdescind([y].concat(elim.args)) :
+      elim.tag === 'EFixInd' ? vfixind([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -86,6 +90,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       elim.tag === 'EDescInd' ? vdescind([y].concat(elim.args)) :
+      elim.tag === 'EFixInd' ? vfixind([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -143,9 +148,34 @@ export const vdescind = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EDescInd(rest), v.args), mapLazy(v.val, v => vdescind([v].concat(rest))));
   return impossible(`vdescind: ${v.tag}`);
 };
+export const vfixind = (args: Val[]): Val => {
+  const v = args[0];
+  const rest = args.slice(1);
+  if (v.tag === 'VNe') {
+    if (v.head.tag === 'HPrim' && v.head.name === 'In') {
+      const [D, P, f] = rest;
+      const d = ((v.args as Cons<Elim>).head as EApp).arg;
+      return vapp(
+        vapp(f, false, d), false,
+        vapp(vapp(vapp(vapp(vapp(evaluate(Global('allDesc')), false, D), true, vapp(VFix, false, D)), true, P), false, VAbs(false, 'x', vapp(VFix, false, D), x => vfixind([x, D, P, f]))), false, d)
+      );
+    }
+    return VNe(v.head, Cons(EFixInd(rest), v.args));
+  }
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EFixInd(rest), v.args), mapLazy(v.val, v => vfixind([v].concat(rest))));
+  return impossible(`vfixind: ${v.tag}`);
+};
+
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
+    if (t.name === 'indFix')
+      return VAbs(false, 'D', VDesc, D =>
+        VAbs(false, 'x', vapp(VFix, false, D), x =>
+        VAbs(true, 'P', VPi(false, '_', vapp(VFix, false, D), _ => VType), P =>
+        VAbs(false, 'f', VPi(false, 'd', vapp(vapp(evaluate(Global('interpDesc')), false, D), false, vapp(VFix, false, D)), d => VPi(false, '_', vapp(vapp(vapp(vapp(evaluate(Global('AllDesc')), false, D), false, vapp(VFix, false, D)), false, P), false, d), _ => vapp(P, false, vapp(vapp(VPrim('In'), true, D), false, d)))), f =>
+        vfixind([x, D, P, f])))));
     if (t.name === 'indDesc')
       return VAbs(false, 'x', VDesc, x =>
         VAbs(true, 'P', VPi(false, '_', VDesc, _ => VType), P =>
@@ -210,6 +240,10 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
     const [Pq, eq, rq, aq] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(Prim('indDesc'), false, t), true, Pq), false, eq), false, rq), false, aq);
   }
+  if (e.tag === 'EFixInd') {
+    const [D, P, f] = e.args.map(x => quote(x, k, full));
+    return App(App(App(App(Prim('indFix'), false, D), false, t), true, P), false, f);
+  }
   if (e.tag === 'EUnsafeCast') {
     const [type, fromtype] = [e.type, e.fromtype].map(x => quote(x, k, full));
     return App(App(App(Prim('unsafeCast'), true, type), true, fromtype), false, t);
@@ -268,6 +302,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EProj') return e.proj;
   if (e.tag === 'EEnumInd') return `?${e.num} {${showTermS(e.prop, ns, k, full)}} ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EDescInd') return `inddesc ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`
+  if (e.tag === 'EFixInd') return `indfix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`
   return e;
 };
 

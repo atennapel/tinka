@@ -4,6 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- combine indDesc and indFix?
 - simplify indDesc in the domain
 - simplify unsafeCast in the domain
 - simplify enums

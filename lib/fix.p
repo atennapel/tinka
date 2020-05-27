@@ -1,19 +1,12 @@
--- mendler-style inductive types
-def Alg = \(f : * -> *) (t : *). {r : *} -> (r -> t) -> f r -> t
-def Fix = \(f : * -> *). {t : *} -> Alg f t -> t
+import lib/desc.p
 
-def fold
-  : {f : * -> *} -> {t : *} -> Alg f t -> Fix f -> t
-  = \alg fix. fix alg
+def Fix : Desc -> * = %Fix
+def In : {d : Desc} -> interpDesc d (Fix d) -> Fix d = %In
 
-def In
-  : {f : * -> *} -> f (Fix f) -> Fix f
-  = \x alg. alg (fold alg) x
+def indFix
+  : (D : Desc) -> (x : Fix D) -> {P : Fix D -> *} -> ((d : interpDesc D (Fix D)) -> AllDesc D (Fix D) P d -> P (In {D} d)) -> P x
+  = %indFix
 
 def out
-  : {f : * -> *} -> Fix f -> f (Fix f)
-  = \{f} x. x {f (Fix f)} (\_ y. unsafeCast y)
-
-def gindFix
-  : {f : * -> *} -> {P : Fix f -> *} -> (((x : Fix f) -> P x) -> (y : f (Fix f)) -> P (In {f} y)) -> (x : Fix f) -> P x
-  = \{f} {P} alg x. x {P x} (unsafeCast alg)
+  : (D : Desc) -> Fix D -> interpDesc D (Fix D)
+  = \D x. indFix D x {\_. interpDesc D (Fix D)} (\y _. y)

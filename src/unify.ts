@@ -27,6 +27,11 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       unify(k, a.args[i], b.args[i]);
     return;
   }
+  if (a.tag === 'EFixInd' && b.tag === 'EFixInd' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -131,6 +136,7 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
     if (elim.tag === 'EProj') return terr(`fst in meta spine`);
     if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
     if (elim.tag === 'EDescInd') return terr(`desc ind in meta spine`);
+    if (elim.tag === 'EFixInd') return terr(`fix ind in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
