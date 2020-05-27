@@ -34,3 +34,15 @@ def caseFix
 def out
   : (D : Desc) -> Fix D -> interpDesc D (Fix D)
   = \D x. indFix D x {\_. interpDesc D (Fix D)} (\y _. y)
+
+def replaceCataFix
+  : (D : Desc) -> {X Y : *} -> (xs : interpDesc D X) -> AllDesc D X (\_. Y) xs -> interpDesc D Y
+  = \D. indDesc {\D. {X Y : *} -> (xs : interpDesc D X) -> AllDesc D X (\_. Y) xs -> interpDesc D Y}
+    (\{X} {Y} xs ys. ())
+    (\r pr {X} {Y} xs ys. (fst ys, pr {X} {Y} (snd xs) (snd ys)))
+    (\{t} f pf {X} {Y} xs ys. (fst xs, pf (fst xs) {X} {Y} (snd xs) ys))
+    D
+
+def cataFix
+  : (D : Desc) -> {t : *} -> (interpDesc D t -> t) -> Fix D -> t
+  = \D {t} f x. indFix D x {\_. t} \xs hs. f (replaceCataFix D {Fix D} {t} xs hs)

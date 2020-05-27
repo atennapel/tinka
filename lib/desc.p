@@ -28,3 +28,19 @@ def genMap
     (\r pr {a} {b} f x. (f (fst x), pr {a} {b} f (snd x)))
     (\{t} f pf {a} {b} fn x. (fst x, pf (fst x) {a} {b} fn (snd x)))
     d
+
+def CasesDesc
+  : (d : Desc) -> * -> * -> *
+  = \d. indDesc {\d. * -> * -> *}
+    (\a b. b)
+    (\_ r a b. a -> r a b)
+    (\{t} _ pf a b. (x : t) -> pf x a b)
+    d
+
+def genCase
+  : (d : Desc) -> {a b : *} -> interpDesc d a -> CasesDesc d a b -> b
+  = \d. indDesc {\d. {a b : *} -> interpDesc d a -> CasesDesc d a b -> b}
+    (\{a} {b} x c. c)
+    (\r pr {a} {b} x c. pr {a} {b} (snd x) (c (fst x)))
+    (\{t} f pf {a} {b} x c. pf (fst x) {a} {b} (snd x) (c (fst x)))
+    d

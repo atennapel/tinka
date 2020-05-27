@@ -8,8 +8,18 @@ def Nat = Fix NatD
 def Z : Nat = In {NatD} (True, ())
 def S : Nat -> Nat = \n. In {NatD} (False, (n, ()))
 
--- def caseNat
---   : {t : *} -> Nat -> t -> (Nat -> t) -> t
---   = \{t} n z s. indSigma {Bool} {\b. if b UnitType (Nat ** UnitType)} {\_. t} (\b. indBool {\b. if b UnitType (Nat ** UnitType) -> t} (\_. z) (\n. s (fst n)) b) (out NatD n)
+def caseNatR
+  : {a b : *} -> interpDesc NatD a -> b -> (a -> b) -> b
+  = \{a} {b} n z s. genCase NatD {a} {b} n (\d. indBool {\d. CasesDesc (if d End (Rec End)) a b} z s d)
 
--- def pred : Nat -> Nat = \n. caseNat n Z (\n. n)
+def caseNat
+  : {t : *} -> Nat -> t -> (Nat -> t) -> t
+  = \{t} n z s. caseNatR {Nat} {t} (out NatD n) z s
+
+def pred : Nat -> Nat = \n. caseNat n Z (\m. m)
+
+def cataNat
+  : {t : *} -> Nat -> t -> (t -> t) -> t
+  = \{t} n z s. cataFix NatD {t} (\c. caseNatR {t} {t} c z s) n
+
+def add : Nat -> Nat -> Nat = \a b. cataNat a b S
