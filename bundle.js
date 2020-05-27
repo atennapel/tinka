@@ -911,7 +911,7 @@ const exprs = (ts, br) => {
         if (s.length < 2)
             return utils_1.serr(`parsing failed with ,`);
         const args = s.map(x => exprs(x, '('));
-        return args.reduce((x, y) => surface_1.Pair(x, y));
+        return args.reduceRight((x, y) => surface_1.Pair(y, x));
     }
     const l = ts.findIndex(x => isName(x, '\\'));
     let all = [];

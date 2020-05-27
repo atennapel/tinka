@@ -329,7 +329,7 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const s = splitTokens(ts, x => isName(x, ','));
     if (s.length < 2) return serr(`parsing failed with ,`);
     const args = s.map(x => exprs(x, '('));
-    return args.reduce((x, y) => Pair(x, y));
+    return args.reduceRight((x, y) => Pair(y, x));
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

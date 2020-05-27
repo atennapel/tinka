@@ -21,22 +21,6 @@ def interpDesc : Desc -> * -> *
     (\{t} f pf x. (s : t) ** pf s x)
     d
 
-def AllDesc
-  : (d : Desc) -> (x : *) -> (P : x -> *) -> interpDesc d x -> *
-  = \d. indDesc {\d. (x : *) -> (P : x -> *) -> interpDesc d x -> *}
-    (\x P xs. UnitType)
-    (\r pr x P xs. (P (fst xs)) ** (pr x P (snd xs)))
-    (\{t} f pf x P xs. pf (fst xs) x P (snd xs))
-    d
-
-def allDesc
-  : (d : Desc) -> {x : *} -> {P : x -> *} -> (p : (y : x) -> P y) -> (xs : interpDesc d x) -> AllDesc d x P xs
-  = \d. indDesc {\d. {x : *} -> {P : x -> *} -> (p : (y : x) -> P y) -> (xs : interpDesc d x) -> AllDesc d x P xs}
-    (\{x} {P} p xs. xs)
-    (\r pr {x} {P} p xs. (p (fst xs), pr {x} {P} p (snd xs)))
-    (\{t} f pf {x} {P} p xs. pf (fst xs) {x} {P} p (snd xs))
-    d
-
 def genMap
   : (d : Desc) -> {a : *} -> {b : *} -> (a -> b) -> interpDesc d a -> interpDesc d b
   = \d. indDesc {\d. {a : *} -> {b : *} -> (a -> b) -> interpDesc d a -> interpDesc d b}
