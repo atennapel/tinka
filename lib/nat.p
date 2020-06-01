@@ -18,6 +18,10 @@ def caseNat
 
 def pred : Nat -> Nat = \n. caseNat n Z (\m. m)
 
+def indNat
+  : {P : Nat -> *} -> (n : Nat) -> P Z -> ({m : Nat} -> P m -> P (S m)) -> P n
+  = \{P} n z s. indFix NatD n {P} (\c r. indSigma )
+
 def cataNat
   : {t : *} -> Nat -> t -> (t -> t) -> t
   = \{t} n z s. cataFix NatD {t} (\c. caseNatR {t} {t} c z s) n
