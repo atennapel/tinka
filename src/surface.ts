@@ -34,14 +34,13 @@ export const Elem = (num: number, total: number | null): Elem => ({ tag: 'Elem',
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
 
-export type PrimName = '*' | 'Desc' | 'End' | 'Arg' | 'Rec' | 'indDesc' | 'Fix' | 'In' | 'indFix' | 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix';
-export const primNames = ['*', 'Desc', 'End', 'Arg', 'Rec', 'indDesc', 'Fix', 'In', 'indFix', 'unsafeCast', 'IFix', 'IIn', 'genindIFix'];
+export type PrimName = '*' | 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix' | 'uniqUnit';
+export const primNames = ['*', 'unsafeCast', 'IFix', 'IIn', 'genindIFix', 'uniqUnit'];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
 
 export const Type: Prim = Prim('*');
-export const Desc: Prim = Prim('Desc');
 
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
@@ -156,7 +155,12 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
   if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));
-  if (t.tag === 'App') return t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
+  if (t.tag === 'App') {
+    const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
+    if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast' || res.left.name === 'uniqUnit'))
+      return res.right;
+    return res;
+  }
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Sigma') return Sigma(t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));

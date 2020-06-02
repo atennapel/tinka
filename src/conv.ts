@@ -26,20 +26,14 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EDescInd' && b.tag === 'EDescInd' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      conv(k, a.args[i], b.args[i]);
-    return;
-  }
-  if (a.tag === 'EFixInd' && b.tag === 'EFixInd' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      conv(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       conv(k, a.args[i], b.args[i]);
     return;
+  }
+  if (a.tag === 'EUniqUnit' && b.tag === 'EUniqUnit') {
+    conv(k, a.fn, b.fn);
+    return conv(k, a.val, b.val);
   }
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };

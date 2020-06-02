@@ -54,20 +54,14 @@ const convElim = (k, a, b, x, y) => {
             exports.conv(k, a.args[i], b.args[i]);
         return;
     }
-    if (a.tag === 'EDescInd' && b.tag === 'EDescInd' && a.args.length === b.args.length) {
-        for (let i = 0; i < a.args.length; i++)
-            exports.conv(k, a.args[i], b.args[i]);
-        return;
-    }
-    if (a.tag === 'EFixInd' && b.tag === 'EFixInd' && a.args.length === b.args.length) {
-        for (let i = 0; i < a.args.length; i++)
-            exports.conv(k, a.args[i], b.args[i]);
-        return;
-    }
     if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
         for (let i = 0; i < a.args.length; i++)
             exports.conv(k, a.args[i], b.args[i]);
         return;
+    }
+    if (a.tag === 'EUniqUnit' && b.tag === 'EUniqUnit') {
+        exports.conv(k, a.fn, b.fn);
+        return exports.conv(k, a.val, b.val);
     }
     return utils_1.terr(`conv failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
@@ -139,7 +133,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vfixind = exports.vdescind = exports.venumind = exports.vproj = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VIFix = exports.VFix = exports.VDesc = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VElem = exports.VEnum = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EFixInd = exports.EDescInd = exports.EEnumInd = exports.EProj = exports.EUnsafeCast = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vuniqunit = exports.vifixind = exports.venumind = exports.vproj = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VIFix = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VElem = exports.VEnum = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EUniqUnit = exports.EIFixInd = exports.EEnumInd = exports.EProj = exports.EUnsafeCast = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -154,9 +148,8 @@ exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EUnsafeCast = (type, fromtype) => ({ tag: 'EUnsafeCast', type, fromtype });
 exports.EProj = (proj) => ({ tag: 'EProj', proj });
 exports.EEnumInd = (num, prop, args) => ({ tag: 'EEnumInd', num, prop, args });
-exports.EDescInd = (args) => ({ tag: 'EDescInd', args });
-exports.EFixInd = (args) => ({ tag: 'EFixInd', args });
 exports.EIFixInd = (args) => ({ tag: 'EIFixInd', args });
+exports.EUniqUnit = (fn, val) => ({ tag: 'EUniqUnit', fn, val });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -170,8 +163,6 @@ exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
 exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
 exports.VType = exports.VPrim('*');
-exports.VDesc = exports.VPrim('Desc');
-exports.VFix = exports.VPrim('Fix');
 exports.VIFix = exports.VPrim('IFix');
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
 exports.showEnvV = (l, k = 0, full = false) => list_1.listToString(l, v => syntax_1.showTerm(exports.quote(v, k, full)));
@@ -185,10 +176,9 @@ exports.force = (v) => {
         return exports.force(list_1.foldr((elim, y) => elim.tag === 'EUnsafeCast' ? exports.vunsafecast(elim.type, elim.fromtype, y) :
             elim.tag === 'EProj' ? exports.vproj(elim.proj, y) :
                 elim.tag === 'EEnumInd' ? exports.venumind(elim.num, elim.prop, elim.args, y) :
-                    elim.tag === 'EDescInd' ? exports.vdescind([y].concat(elim.args)) :
-                        elim.tag === 'EFixInd' ? exports.vfixind([y].concat(elim.args)) :
-                            elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
-                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                    elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
+                        elim.tag === 'EUniqUnit' ? exports.vuniqunit(elim.fn, elim.val, y) :
+                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -200,18 +190,19 @@ exports.forceGlue = (v) => {
         return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EUnsafeCast' ? exports.vunsafecast(elim.type, elim.fromtype, y) :
             elim.tag === 'EProj' ? exports.vproj(elim.proj, y) :
                 elim.tag === 'EEnumInd' ? exports.venumind(elim.num, elim.prop, elim.args, y) :
-                    elim.tag === 'EDescInd' ? exports.vdescind([y].concat(elim.args)) :
-                        elim.tag === 'EFixInd' ? exports.vfixind([y].concat(elim.args)) :
-                            elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
-                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                    elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
+                        elim.tag === 'EUniqUnit' ? exports.vuniqunit(elim.fn, elim.val, y) :
+                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
 // do the eliminators have to force?
 exports.vapp = (a, plicity, b) => {
     if (a.tag === 'VAbs') {
-        if (a.plicity !== plicity)
+        if (a.plicity !== plicity) {
+            console.log(a, plicity, b);
             return utils_1.impossible(`plicity mismatch in vapp`);
+        }
         return a.body(b);
     }
     if (a.tag === 'VNe')
@@ -222,7 +213,7 @@ exports.vapp = (a, plicity, b) => {
 };
 exports.vunsafecast = (type, fromtype, v) => {
     if (v.tag === 'VNe')
-        return exports.VNe(v.head, list_1.Cons(exports.EUnsafeCast(type, fromtype), v.args));
+        return v.head.tag === 'HPrim' ? v : exports.VNe(v.head, list_1.Cons(exports.EUnsafeCast(type, fromtype), v.args));
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EUnsafeCast(type, fromtype), v.args), lazy_1.mapLazy(v.val, v => exports.vunsafecast(type, fromtype, v)));
     return v;
@@ -245,43 +236,6 @@ exports.venumind = (n, prop, args, v) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EEnumInd(n, prop, args), v.args), lazy_1.mapLazy(v.val, v => exports.venumind(n, prop, args, v)));
     return utils_1.impossible(`venumind: ${v.tag}`);
 };
-exports.vdescind = (args) => {
-    const v = args[0];
-    const rest = args.slice(1);
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim') {
-            if (v.head.name === 'End')
-                return args[2];
-            if (v.head.name === 'Rec') {
-                const arg = v.args.head.arg;
-                return exports.vapp(exports.vapp(args[3], false, arg), false, exports.vdescind([arg].concat(rest)));
-            }
-            if (v.head.name === 'Arg') {
-                const as = list_1.toArray(v.args, e => e.arg).reverse();
-                return exports.vapp(exports.vapp(exports.vapp(args[4], true, as[0]), false, as[1]), false, exports.VAbs(false, 'x', as[0], x => exports.vdescind([exports.vapp(as[1], false, x)].concat(rest))));
-            }
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EDescInd(rest), v.args));
-    }
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EDescInd(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vdescind([v].concat(rest))));
-    return utils_1.impossible(`vdescind: ${v.tag}`);
-};
-exports.vfixind = (args) => {
-    const v = args[0];
-    const rest = args.slice(1);
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim' && v.head.name === 'In') {
-            const [D, P, f] = rest;
-            const d = v.args.head.arg;
-            return exports.vapp(exports.vapp(f, false, d), false, exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.evaluate(syntax_1.Global('allDesc')), false, D), true, exports.vapp(exports.VFix, false, D)), true, P), false, exports.VAbs(false, 'x', exports.vapp(exports.VFix, false, D), x => exports.vfixind([x, D, P, f]))), false, d));
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EFixInd(rest), v.args));
-    }
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EFixInd(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vfixind([v].concat(rest))));
-    return utils_1.impossible(`vfixind: ${v.tag}`);
-};
 exports.vifixind = (args) => {
     const v = args[0];
     const rest = args.slice(1);
@@ -291,7 +245,7 @@ exports.vifixind = (args) => {
             const [I, F, P, f, i] = rest;
             const args = v.args;
             const x = args.head.arg;
-            return exports.vapp(exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VAbs(true, 'i', I, i => exports.VAbs(false, 'y', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), y => exports.vifixind([y, I, F, P, f, i]))), true, I), true, F), true, P), false, f)), true, i), false, x);
+            return exports.vapp(exports.vapp(exports.vapp(f, false, exports.VAbs(true, 'i', I, i => exports.VAbs(false, 'y', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), y => exports.vifixind([y, I, F, P, f, i])))), true, i), false, x);
         }
         return exports.VNe(v.head, list_1.Cons(exports.EIFixInd(rest), v.args));
     }
@@ -299,16 +253,21 @@ exports.vifixind = (args) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EIFixInd(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vifixind([v].concat(rest))));
     return utils_1.impossible(`vifixind: ${v.tag}`);
 };
+exports.vuniqunit = (fn, val, v) => {
+    if (v.tag === 'VNe')
+        return v.head.tag === 'HPrim' ? val : exports.VNe(v.head, list_1.Cons(exports.EUniqUnit(fn, val), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EUniqUnit(fn, val), v.args), lazy_1.mapLazy(v.val, v => exports.vuniqunit(fn, val, v)));
+    return val;
+};
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
-        if (t.name === 'indFix')
-            return exports.VAbs(false, 'D', exports.VDesc, D => exports.VAbs(false, 'x', exports.vapp(exports.VFix, false, D), x => exports.VAbs(true, 'P', exports.VPi(false, '_', exports.vapp(exports.VFix, false, D), _ => exports.VType), P => exports.VAbs(false, 'f', exports.VPi(false, 'd', exports.vapp(exports.vapp(exports.evaluate(syntax_1.Global('interpDesc')), false, D), false, exports.vapp(exports.VFix, false, D)), d => exports.VPi(false, '_', exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.evaluate(syntax_1.Global('AllDesc')), false, D), false, exports.vapp(exports.VFix, false, D)), false, P), false, d), _ => exports.vapp(P, false, exports.vapp(exports.vapp(exports.VPrim('In'), true, D), false, d)))), f => exports.vfixind([x, D, P, f])))));
-        if (t.name === 'indDesc')
-            return exports.VAbs(false, 'x', exports.VDesc, x => exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VDesc, _ => exports.VType), P => exports.VAbs(false, 'e', exports.vapp(P, false, exports.VPrim('End')), e => exports.VAbs(false, 'r', exports.VPi(false, 'r', exports.VDesc, r => exports.VPi(false, '_', exports.vapp(P, false, r), _ => exports.vapp(P, false, exports.vapp(exports.VPrim('Rec'), false, r)))), r => exports.VAbs(false, 'a', exports.VPi(true, 't', exports.VType, t => exports.VPi(false, 'f', exports.VPi(false, '_', t, _ => exports.VDesc), f => exports.VPi(false, '_', exports.VPi(false, 'x', t, x => exports.vapp(P, false, exports.vapp(f, false, x))), _ => exports.vapp(P, false, exports.vapp(exports.vapp(exports.VPrim('Arg'), true, t), false, f))))), a => exports.vdescind([x, P, e, r, a]))))));
         if (t.name === 'genindIFix')
             return exports.VAbs(true, 'I', exports.VType, I => exports.VAbs(true, 'F', exports.VPi(false, '_', exports.VPi(false, '_', I, _ => exports.VType), _ => exports.VPi(false, '_', I, _ => exports.VType)), F => exports.VAbs(true, 'P', exports.VPi(false, 'i', I, i => exports.VPi(false, '_', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), _ => exports.VType)), P => exports.VAbs(false, 'f', exports.VPi(false, '_', exports.VPi(true, 'i', I, i => exports.VPi(false, 'y', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), y => exports.vapp(exports.vapp(P, false, i), false, y))), _ => exports.VPi(true, 'i', I, i => exports.VPi(false, 'z', exports.vapp(exports.vapp(F, false, exports.vapp(exports.vapp(exports.VIFix, false, I), false, F)), false, i), z => exports.vapp(exports.vapp(P, false, i), false, exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VPrim('IIn'), true, I), true, F), true, i), false, z))))), f => exports.VAbs(true, 'i', I, i => exports.VAbs(false, 'x', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), x => exports.vifixind([x, I, F, P, f, i])))))));
         if (t.name === 'unsafeCast')
             return exports.VAbs(true, 'a', exports.VType, a => exports.VAbs(true, 'b', exports.VType, b => exports.VAbs(false, '_', b, x => exports.vunsafecast(a, b, x))));
+        if (t.name === 'uniqUnit')
+            return exports.VAbs(true, 'u', exports.VEnum(1), u => exports.VAbs(true, 'f', exports.VPi(false, '_', exports.VEnum(1), _ => exports.VType), f => exports.VAbs(false, 'v', exports.vapp(f, false, u), v => exports.vuniqunit(f, v, u))));
         return exports.VPrim(t.name);
     }
     if (t.tag === 'Var') {
@@ -371,14 +330,6 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.Proj(e.proj, t);
     if (e.tag === 'EEnumInd')
         return syntax_1.EnumInd(e.num, exports.quote(e.prop, k, full), t, e.args.map(x => exports.quote(x, k, full)));
-    if (e.tag === 'EDescInd') {
-        const [Pq, eq, rq, aq] = e.args.map(x => exports.quote(x, k, full));
-        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('indDesc'), false, t), true, Pq), false, eq), false, rq), false, aq);
-    }
-    if (e.tag === 'EFixInd') {
-        const [D, P, f] = e.args.map(x => exports.quote(x, k, full));
-        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('indFix'), false, D), false, t), true, P), false, f);
-    }
     if (e.tag === 'EIFixInd') {
         const [I, F, P, f, i] = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('genindIFix'), true, I), true, F), true, P), false, f), true, i), false, t);
@@ -386,6 +337,10 @@ const quoteElim = (t, e, k, full) => {
     if (e.tag === 'EUnsafeCast') {
         const [type, fromtype] = [e.type, e.fromtype].map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('unsafeCast'), true, type), true, fromtype), false, t);
+    }
+    if (e.tag === 'EUniqUnit') {
+        const [fn, val] = [e.fn, e.val].map(x => exports.quote(x, k, full));
+        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('uniqUnit'), true, t), true, fn), false, val);
     }
     return e;
 };
@@ -435,12 +390,10 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return e.proj;
     if (e.tag === 'EEnumInd')
         return `?${e.num} {${exports.showTermS(e.prop, ns, k, full)}} ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
-    if (e.tag === 'EDescInd')
-        return `inddesc ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
-    if (e.tag === 'EFixInd')
-        return `indfix ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'EIFixInd')
         return `genindifix ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+    if (e.tag === 'EUniqUnit')
+        return `uniqUnit {${exports.showTermS(e.fn, ns, k, full)}} ${exports.showTermS(e.val, ns, k, full)}`;
     return e;
 };
 const zonkSpine = (tm, vs, k, full) => {
@@ -1037,17 +990,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.primType = void 0;
 const domain_1 = require("./domain");
 const utils_1 = require("./utils/utils");
-const syntax_1 = require("./syntax");
 const primTypes = {
     '*': () => domain_1.VType,
-    'Desc': () => domain_1.VType,
-    'End': () => domain_1.VDesc,
-    'Rec': () => domain_1.VPi(false, '_', domain_1.VDesc, _ => domain_1.VDesc),
-    'Arg': () => domain_1.VPi(true, 't', domain_1.VType, t => domain_1.VPi(false, '_', domain_1.VPi(false, '_', t, _ => domain_1.VDesc), _ => domain_1.VDesc)),
-    'indDesc': () => domain_1.VPi(false, 'd', domain_1.VDesc, d => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.VDesc, _ => domain_1.VType), P => domain_1.VPi(false, '_', domain_1.vapp(P, false, domain_1.VPrim('End')), _ => domain_1.VPi(false, '_', domain_1.VPi(false, 'r', domain_1.VDesc, r => domain_1.VPi(false, '_', domain_1.vapp(P, false, r), _ => domain_1.vapp(P, false, domain_1.vapp(domain_1.VPrim('Rec'), false, r)))), _ => domain_1.VPi(false, '_', domain_1.VPi(true, 't', domain_1.VType, t => domain_1.VPi(false, 'f', domain_1.VPi(false, '_', t, _ => domain_1.VDesc), f => domain_1.VPi(false, '_', domain_1.VPi(false, 'x', t, x => domain_1.vapp(P, false, domain_1.vapp(f, false, x))), _ => domain_1.vapp(P, false, domain_1.vapp(domain_1.vapp(domain_1.VPrim('Arg'), true, t), false, f))))), _ => domain_1.vapp(P, false, d)))))),
-    'Fix': () => domain_1.VPi(false, '_', domain_1.VDesc, _ => domain_1.VType),
-    'In': () => domain_1.VPi(true, 'd', domain_1.VDesc, d => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(domain_1.evaluate(syntax_1.Global('interpDesc')), false, d), false, domain_1.vapp(domain_1.VFix, false, d)), _ => domain_1.vapp(domain_1.VFix, false, d))),
-    'indFix': () => domain_1.VPi(false, 'D', domain_1.VDesc, D => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.VFix, false, D), x => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.vapp(domain_1.VFix, false, D), _ => domain_1.VType), P => domain_1.VPi(false, '_', domain_1.VPi(false, 'd', domain_1.vapp(domain_1.vapp(domain_1.evaluate(syntax_1.Global('interpDesc')), false, D), false, domain_1.vapp(domain_1.VFix, false, D)), d => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.evaluate(syntax_1.Global('AllDesc')), false, D), false, domain_1.vapp(domain_1.VFix, false, D)), false, P), false, d), _ => domain_1.vapp(P, false, domain_1.vapp(domain_1.vapp(domain_1.VPrim('In'), true, D), false, d)))), _ => domain_1.vapp(P, false, x))))),
     'unsafeCast': () => domain_1.VPi(true, 'a', domain_1.VType, a => domain_1.VPi(true, 'b', domain_1.VType, b => domain_1.VPi(false, '_', b, _ => a))),
     'IFix': () => domain_1.VPi(false, 'I', domain_1.VType, I => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType))),
     'IIn': () => domain_1.VPi(true, 'I', domain_1.VType, I => domain_1.VPi(true, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(F, false, domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F)), false, i), _ => domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i))))),
@@ -1067,10 +1011,12 @@ const primTypes = {
       -> P i x
     */
     'genindIFix': () => domain_1.VPi(true, 'I', domain_1.VType, I => domain_1.VPi(true, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(true, 'P', domain_1.VPi(false, 'i', I, i => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'y', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), y => domain_1.vapp(domain_1.vapp(P, false, i), false, y))), _ => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'z', domain_1.vapp(domain_1.vapp(F, false, domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F)), false, i), z => domain_1.vapp(domain_1.vapp(P, false, i), false, domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VPrim('IIn'), true, I), true, F), true, i), false, z))))), _ => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), x => domain_1.vapp(domain_1.vapp(P, false, i), false, x))))))),
+    // {u : UnitType} -> {f : UnitType -> *} -> f u -> f Unit
+    'uniqUnit': () => domain_1.VPi(true, 'u', domain_1.VEnum(1), u => domain_1.VPi(true, 'f', domain_1.VPi(false, '_', domain_1.VEnum(1), _ => domain_1.VType), f => domain_1.VPi(false, '_', domain_1.vapp(f, false, u), _ => domain_1.vapp(f, false, domain_1.VElem(0, 1))))),
 };
 exports.primType = (name) => primTypes[name]() || utils_1.impossible(`primType: ${name}`);
 
-},{"./domain":3,"./syntax":11,"./utils/utils":16}],9:[function(require,module,exports){
+},{"./domain":3,"./utils/utils":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -1233,7 +1179,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Desc = exports.Type = exports.Prim = exports.isPrimName = exports.primNames = exports.EnumInd = exports.Elem = exports.Enum = exports.Meta = exports.Hole = exports.Ann = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.Prim = exports.isPrimName = exports.primNames = exports.EnumInd = exports.Elem = exports.Enum = exports.Meta = exports.Hole = exports.Ann = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
@@ -1248,11 +1194,10 @@ exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.Enum = (num) => ({ tag: 'Enum', num });
 exports.Elem = (num, total) => ({ tag: 'Elem', num, total });
 exports.EnumInd = (num, prop, term, args) => ({ tag: 'EnumInd', num, prop, term, args });
-exports.primNames = ['*', 'Desc', 'End', 'Arg', 'Rec', 'indDesc', 'Fix', 'In', 'indFix', 'unsafeCast', 'IFix', 'IIn', 'genindIFix'];
+exports.primNames = ['*', 'unsafeCast', 'IFix', 'IIn', 'genindIFix', 'uniqUnit'];
 exports.isPrimName = (x) => exports.primNames.includes(x);
 exports.Prim = (name) => ({ tag: 'Prim', name });
 exports.Type = exports.Prim('*');
-exports.Desc = exports.Prim('Desc');
 exports.showTermS = (t) => {
     if (t.tag === 'Var')
         return t.name;
@@ -1391,8 +1336,12 @@ exports.erase = (t) => {
         return t.plicity ? exports.erase(t.body) : exports.Abs(false, t.name, null, exports.erase(t.body));
     if (t.tag === 'Pair')
         return exports.Pair(exports.erase(t.fst), exports.erase(t.snd));
-    if (t.tag === 'App')
-        return t.plicity ? exports.erase(t.left) : exports.App(exports.erase(t.left), false, exports.erase(t.right));
+    if (t.tag === 'App') {
+        const res = t.plicity ? exports.erase(t.left) : exports.App(exports.erase(t.left), false, exports.erase(t.right));
+        if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast' || res.left.name === 'uniqUnit'))
+            return res.right;
+        return res;
+    }
     if (t.tag === 'Pi')
         return exports.Pi(t.plicity, t.name, exports.erase(t.type), exports.erase(t.body));
     if (t.tag === 'Sigma')
@@ -1416,7 +1365,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Desc = exports.Type = exports.EnumInd = exports.Elem = exports.Enum = exports.Meta = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
+exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.EnumInd = exports.Elem = exports.Enum = exports.Meta = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1437,7 +1386,6 @@ exports.Enum = (num) => ({ tag: 'Enum', num });
 exports.Elem = (num, total) => ({ tag: 'Elem', num, total });
 exports.EnumInd = (num, prop, term, args) => ({ tag: 'EnumInd', num, prop, term, args });
 exports.Type = exports.Prim('*');
-exports.Desc = exports.Prim('Desc');
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
         return `${t.index}`;
@@ -1656,10 +1604,8 @@ const check = (local, tm, ty) => {
     const fty = domain_1.force(ty);
     if (tm.tag === 'Prim' && tm.name === '*' && fty === domain_1.VType)
         return syntax_1.Type;
-    if (tm.tag === 'Prim' && tm.name === 'Desc' && fty === domain_1.VType)
-        return syntax_1.Desc;
     if (tm.tag === 'Enum' && fty === domain_1.VType)
-        return syntax_1.Desc;
+        return syntax_1.Enum(tm.num);
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         return x;
@@ -1925,20 +1871,14 @@ const unifyElim = (k, a, b, x, y) => {
             exports.unify(k, a.args[i], b.args[i]);
         return;
     }
-    if (a.tag === 'EDescInd' && b.tag === 'EDescInd' && a.args.length === b.args.length) {
-        for (let i = 0; i < a.args.length; i++)
-            exports.unify(k, a.args[i], b.args[i]);
-        return;
-    }
-    if (a.tag === 'EFixInd' && b.tag === 'EFixInd' && a.args.length === b.args.length) {
-        for (let i = 0; i < a.args.length; i++)
-            exports.unify(k, a.args[i], b.args[i]);
-        return;
-    }
     if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
         for (let i = 0; i < a.args.length; i++)
             exports.unify(k, a.args[i], b.args[i]);
         return;
+    }
+    if (a.tag === 'EUniqUnit' && b.tag === 'EUniqUnit') {
+        exports.unify(k, a.fn, b.fn);
+        return exports.unify(k, a.val, b.val);
     }
     return utils_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
@@ -2049,14 +1989,12 @@ const solve = (k, m, spine, val) => {
 const checkSpine = (k, spine) => list_1.map(spine, elim => {
     if (elim.tag === 'EUnsafeCast')
         return utils_1.terr(`unsafeCast in meta spine`);
+    if (elim.tag === 'EUniqUnit')
+        return utils_1.terr(`uniqUnit in meta spine`);
     if (elim.tag === 'EProj')
         return utils_1.terr(`fst in meta spine`);
     if (elim.tag === 'EEnumInd')
         return utils_1.terr(`?${elim.num} in meta spine`);
-    if (elim.tag === 'EDescInd')
-        return utils_1.terr(`desc ind in meta spine`);
-    if (elim.tag === 'EFixInd')
-        return utils_1.terr(`fix ind in meta spine`);
     if (elim.tag === 'EIFixInd')
         return utils_1.terr(`%genindIFix in meta spine`);
     if (elim.tag === 'EApp') {
@@ -2075,6 +2013,10 @@ const checkSolution = (k, m, is, t) => {
     if (t.tag === 'Global')
         return t;
     if (t.tag === 'Prim')
+        return t;
+    if (t.tag === 'Elem')
+        return t;
+    if (t.tag === 'Enum')
         return t;
     if (t.tag === 'Var') {
         const i = k - t.index - 1;

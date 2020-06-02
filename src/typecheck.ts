@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sigma, Pair, Enum, Elem, EnumInd, Desc, Prim, Type, Proj } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sigma, Pair, Enum, Elem, EnumInd, Prim, Type, Proj } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, VEnum, vapp, VElem, vproj } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
 import { Ix, Name } from './names';
@@ -83,8 +83,7 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
   if (tm.tag === 'Prim' && tm.name === '*' && fty === VType) return Type;
-  if (tm.tag === 'Prim' && tm.name === 'Desc' && fty === VType) return Desc;
-  if (tm.tag === 'Enum' && fty === VType) return Desc;
+  if (tm.tag === 'Enum' && fty === VType) return Enum(tm.num);
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     return x;

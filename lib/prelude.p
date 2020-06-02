@@ -12,11 +12,7 @@ import lib/unit.p
 import lib/bool.p
 import lib/sum.p
 
-import lib/desc.p
-import lib/maybe.p
-
+import lib/ifix.p
 import lib/fix.p
 
 import lib/nat.p
-import lib/bin.p
-import lib/list.p

@@ -38,7 +38,6 @@ export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, arg
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
 
 export const Type: Prim = Prim('*');
-export const Desc: Prim = Prim('Desc');
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;

@@ -22,20 +22,14 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       unify(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EDescInd' && b.tag === 'EDescInd' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
-  if (a.tag === 'EFixInd' && b.tag === 'EFixInd' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       unify(k, a.args[i], b.args[i]);
     return;
+  }
+  if (a.tag === 'EUniqUnit' && b.tag === 'EUniqUnit') {
+    unify(k, a.fn, b.fn);
+    return unify(k, a.val, b.val);
   }
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
@@ -138,10 +132,9 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
+    if (elim.tag === 'EUniqUnit') return terr(`uniqUnit in meta spine`);
     if (elim.tag === 'EProj') return terr(`fst in meta spine`);
     if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
-    if (elim.tag === 'EDescInd') return terr(`desc ind in meta spine`);
-    if (elim.tag === 'EFixInd') return terr(`fix ind in meta spine`);
     if (elim.tag === 'EIFixInd') return terr(`%genindIFix in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
@@ -159,6 +152,8 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Global') return t;
   if (t.tag === 'Prim') return t;
+  if (t.tag === 'Elem') return t;
+  if (t.tag === 'Enum') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
     if (contains(is, i))

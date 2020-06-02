@@ -3,8 +3,9 @@ import { initREPL, runREPL } from './repl';
 import { setConfig } from './config';
 import { globalReset, globalMap } from './globalenv';
 import { typecheckDefs } from './typecheck';
-import { showTermSZ } from './domain';
+import { showTermSZ, normalize } from './domain';
 import { showSurfaceZ } from './syntax';
+import { Nil } from './utils/list';
 
 if (process.argv[2]) {
   const option = process.argv[3] || '';
@@ -21,6 +22,7 @@ if (process.argv[2]) {
       if (!main) console.log(`defined ${ns.join(' ')}`);
       else {
         console.log(`${showSurfaceZ(main.term)} : ${showTermSZ(main.type)}`);
+        console.log(`${showSurfaceZ(normalize(main.term, Nil, 0, true))}`);
       }
       process.exit();
     }).catch(err => {

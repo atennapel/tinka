@@ -14,3 +14,11 @@ def uniqUnit
 def uniqUnitR
   : (x : UnitType) -> Eq UnitType Unit x
   = \x. symm (uniqUnit x)
+
+def uniqUnitE
+  : {x : UnitType} -> Eq UnitType x Unit
+  = %uniqUnit
+
+def uniqUnitER
+  : {x : UnitType} -> Eq UnitType Unit x
+  = \{x}. symm (uniqUnitE {x})
