@@ -42,10 +42,10 @@ export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, type: Val, body:
 export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, type, body});
 export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: Clos };
 export const VPi = (plicity: Plicity, name: Name, type: Val, body: Clos): VPi => ({ tag: 'VPi', plicity, name, type, body});
-export type VSigma = { tag: 'VSigma', name: Name, type: Val, body: Clos };
-export const VSigma = (name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', name, type, body});
-export type VPair = { tag: 'VPair', fst: Val, snd: Val, type: Val };
-export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
+export type VSigma = { tag: 'VSigma', plicity: Plicity, name: Name, type: Val, body: Clos };
+export const VSigma = (plicity: Plicity, name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', plicity, name, type, body});
+export type VPair = { tag: 'VPair', plicity: Plicity, fst: Val, snd: Val, type: Val };
+export const VPair = (plicity: Plicity, fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', plicity, fst, snd, type });
 export type VEnum = { tag: 'VEnum', num: number };
 export const VEnum = (num: number): VEnum => ({ tag: 'VEnum', num });
 export type VElem = { tag: 'VElem', num: number, total: number };
@@ -185,9 +185,9 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Pi')
     return VPi(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Sigma')
-    return VSigma(t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
+    return VSigma(t.plicity, t.name, evaluate(t.type, vs), v => evaluate(t.body, extendV(vs, v)));
   if (t.tag === 'Pair')
-    return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
+    return VPair(t.plicity, evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'Proj') return vproj(t.proj, evaluate(t.term, vs));
   if (t.tag === 'Enum') return VEnum(t.num);
   if (t.tag === 'Elem') return VElem(t.num, t.total);
@@ -245,9 +245,9 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   if (v.tag === 'VPi')
     return Pi(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VSigma')
-    return Sigma(v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
+    return Sigma(v.plicity, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
-    return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
+    return Pair(v.plicity, quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
   if (v.tag === 'VEnum') return Enum(v.num);
   if (v.tag === 'VElem') return Elem(v.num, v.total);
   return v;
@@ -301,13 +301,13 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Pi')
     return Pi(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Sigma')
-    return Sigma(tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
+    return Sigma(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Let')
     return Let(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.val, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Abs')
     return Abs(tm.plicity, tm.name, zonk(tm.type, vs, k, full), zonk(tm.body, extendV(vs, VVar(k)), k + 1, full));
   if (tm.tag === 'Pair')
-    return Pair(zonk(tm.fst, vs, k, full), zonk(tm.snd, vs, k, full), zonk(tm.type, vs, k, full));
+    return Pair(tm.plicity, zonk(tm.fst, vs, k, full), zonk(tm.snd, vs, k, full), zonk(tm.type, vs, k, full));
   if (tm.tag === 'App') {
     const spine = zonkSpine(tm.left, vs, k, full);
     return spine[0] ?

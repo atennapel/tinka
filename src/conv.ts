@@ -45,12 +45,12 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     const v = VVar(k);
     return conv(k + 1, a.body(v), b.body(v));
   }
-  if (a.tag === 'VSigma' && b.tag === 'VSigma') {
+  if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);
     return conv(k + 1, a.body(v), b.body(v));
   }
-  if (a.tag === 'VPair' && b.tag === 'VPair') {
+  if (a.tag === 'VPair' && b.tag === 'VPair' && a.plicity === b.plicity) {
     conv(k, a.fst, b.fst);
     conv(k, a.snd, b.snd);
     return conv(k, a.type, b.type);

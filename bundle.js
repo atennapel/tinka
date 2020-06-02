@@ -76,12 +76,12 @@ exports.conv = (k, a_, b_) => {
         const v = domain_1.VVar(k);
         return exports.conv(k + 1, a.body(v), b.body(v));
     }
-    if (a.tag === 'VSigma' && b.tag === 'VSigma') {
+    if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.plicity === b.plicity) {
         exports.conv(k, a.type, b.type);
         const v = domain_1.VVar(k);
         return exports.conv(k + 1, a.body(v), b.body(v));
     }
-    if (a.tag === 'VPair' && b.tag === 'VPair') {
+    if (a.tag === 'VPair' && b.tag === 'VPair' && a.plicity === b.plicity) {
         exports.conv(k, a.fst, b.fst);
         exports.conv(k, a.snd, b.snd);
         return exports.conv(k, a.type, b.type);
@@ -153,8 +153,8 @@ exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
 exports.VPi = (plicity, name, type, body) => ({ tag: 'VPi', plicity, name, type, body });
-exports.VSigma = (name, type, body) => ({ tag: 'VSigma', name, type, body });
-exports.VPair = (fst, snd, type) => ({ tag: 'VPair', fst, snd, type });
+exports.VSigma = (plicity, name, type, body) => ({ tag: 'VSigma', plicity, name, type, body });
+exports.VPair = (plicity, fst, snd, type) => ({ tag: 'VPair', plicity, fst, snd, type });
 exports.VEnum = (num) => ({ tag: 'VEnum', num });
 exports.VElem = (num, total) => ({ tag: 'VElem', num, total });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
@@ -280,9 +280,9 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Pi')
         return exports.VPi(t.plicity, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Sigma')
-        return exports.VSigma(t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
+        return exports.VSigma(t.plicity, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, exports.extendV(vs, v)));
     if (t.tag === 'Pair')
-        return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs), exports.evaluate(t.type, vs));
+        return exports.VPair(t.plicity, exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs), exports.evaluate(t.type, vs));
     if (t.tag === 'Proj')
         return exports.vproj(t.proj, exports.evaluate(t.term, vs));
     if (t.tag === 'Enum')
@@ -345,9 +345,9 @@ exports.quote = (v_, k, full) => {
     if (v.tag === 'VPi')
         return syntax_1.Pi(v.plicity, v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VSigma')
-        return syntax_1.Sigma(v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
+        return syntax_1.Sigma(v.plicity, v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
     if (v.tag === 'VPair')
-        return syntax_1.Pair(exports.quote(v.fst, k, full), exports.quote(v.snd, k, full), exports.quote(v.type, k, full));
+        return syntax_1.Pair(v.plicity, exports.quote(v.fst, k, full), exports.quote(v.snd, k, full), exports.quote(v.type, k, full));
     if (v.tag === 'VEnum')
         return syntax_1.Enum(v.num);
     if (v.tag === 'VElem')
@@ -402,13 +402,13 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
     if (tm.tag === 'Pi')
         return syntax_1.Pi(tm.plicity, tm.name, exports.zonk(tm.type, vs, k, full), exports.zonk(tm.body, exports.extendV(vs, exports.VVar(k)), k + 1, full));
     if (tm.tag === 'Sigma')
-        return syntax_1.Sigma(tm.name, exports.zonk(tm.type, vs, k, full), exports.zonk(tm.body, exports.extendV(vs, exports.VVar(k)), k + 1, full));
+        return syntax_1.Sigma(tm.plicity, tm.name, exports.zonk(tm.type, vs, k, full), exports.zonk(tm.body, exports.extendV(vs, exports.VVar(k)), k + 1, full));
     if (tm.tag === 'Let')
         return syntax_1.Let(tm.plicity, tm.name, exports.zonk(tm.type, vs, k, full), exports.zonk(tm.val, vs, k, full), exports.zonk(tm.body, exports.extendV(vs, exports.VVar(k)), k + 1, full));
     if (tm.tag === 'Abs')
         return syntax_1.Abs(tm.plicity, tm.name, exports.zonk(tm.type, vs, k, full), exports.zonk(tm.body, exports.extendV(vs, exports.VVar(k)), k + 1, full));
     if (tm.tag === 'Pair')
-        return syntax_1.Pair(exports.zonk(tm.fst, vs, k, full), exports.zonk(tm.snd, vs, k, full), exports.zonk(tm.type, vs, k, full));
+        return syntax_1.Pair(tm.plicity, exports.zonk(tm.fst, vs, k, full), exports.zonk(tm.snd, vs, k, full), exports.zonk(tm.type, vs, k, full));
     if (tm.tag === 'App') {
         const spine = zonkSpine(tm.left, vs, k, full);
         return spine[0] ?
@@ -868,19 +868,28 @@ const exprs = (ts, br) => {
             .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')]])
             .reduce((x, y) => x.concat(y), []);
         const body = exprs(s[s.length - 1], '(');
-        return args.reduceRight((x, [name, impl, ty]) => {
-            if (impl)
-                return utils_1.serr(`sigma param cannot be implicit`);
-            return surface_1.Sigma(name, ty, x);
-        }, body);
+        return args.reduceRight((x, [name, impl, ty]) => surface_1.Sigma(impl, name, ty, x), body);
     }
     const jp = ts.findIndex(x => isName(x, ','));
     if (jp >= 0) {
         const s = splitTokens(ts, x => isName(x, ','));
         if (s.length < 2)
             return utils_1.serr(`parsing failed with ,`);
-        const args = s.map(x => exprs(x, '('));
-        return args.reduceRight((x, y) => surface_1.Pair(y, x));
+        const args = s.map(x => {
+            if (x.length === 1) {
+                const h = x[0];
+                if (h.tag === 'List' && h.bracket === '{')
+                    return expr(h);
+            }
+            return [exprs(x, '('), false];
+        });
+        if (args.length === 0)
+            return utils_1.serr(`empty pair`);
+        if (args.length === 1)
+            return utils_1.serr(`singleton pair`);
+        if (args[args.length - 1][1])
+            return utils_1.serr(`second element of pair cannot be erased`);
+        return args.slice(0, -1).reduceRight((x, [y, p]) => surface_1.Pair(p, y, x), args[args.length - 1][0]);
     }
     const l = ts.findIndex(x => isName(x, '\\'));
     let all = [];
@@ -1163,11 +1172,11 @@ exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.show
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
-exports.Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
+exports.Pair = (plicity, fst, snd) => ({ tag: 'Pair', plicity, fst, snd });
 exports.Proj = (proj, term) => ({ tag: 'Proj', proj, term });
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
-exports.Sigma = (name, type, body) => ({ tag: 'Sigma', name, type, body });
+exports.Sigma = (plicity, name, type, body) => ({ tag: 'Sigma', plicity, name, type, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
@@ -1198,13 +1207,13 @@ exports.showTermS = (t) => {
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTermS(t.type)}). ${exports.showTermS(t.body)})`;
     if (t.tag === 'Sigma')
-        return `((${t.name} : ${exports.showTermS(t.type)}) ** ${exports.showTermS(t.body)})`;
+        return `(${t.plicity ? '{' : '('}${t.name} : ${exports.showTermS(t.type)}${t.plicity ? '}' : ')'} ** ${exports.showTermS(t.body)})`;
     if (t.tag === 'Ann')
         return `(${exports.showTermS(t.term)} : ${exports.showTermS(t.type)})`;
     if (t.tag === 'Hole')
         return `_${t.name || ''}`;
     if (t.tag === 'Pair')
-        return `(${exports.showTermS(t.fst)}, ${exports.showTermS(t.snd)})`;
+        return `(${t.plicity ? '{' : ''}${exports.showTermS(t.fst)}${t.plicity ? '}' : ''}, ${exports.showTermS(t.snd)})`;
     if (t.tag === 'Proj')
         return `(${t.proj} ${exports.showTermS(t.term)})`;
     if (t.tag === 'EnumInd')
@@ -1238,7 +1247,7 @@ exports.flattenPi = (t) => {
 exports.flattenSigma = (t) => {
     const r = [];
     while (t.tag === 'Sigma') {
-        r.push([t.name, t.type]);
+        r.push([t.name, t.plicity, t.type]);
         t = t.body;
     }
     return [r, t];
@@ -1246,10 +1255,10 @@ exports.flattenSigma = (t) => {
 exports.flattenPair = (t) => {
     const r = [];
     while (t.tag === 'Pair') {
-        r.push(t.fst);
+        r.push([t.plicity, t.fst]);
         t = t.snd;
     }
-    r.push(t);
+    r.push([false, t]);
     return r;
 };
 exports.showTermP = (b, t) => b ? `(${exports.showTerm(t)})` : exports.showTerm(t);
@@ -1279,11 +1288,11 @@ exports.showTerm = (t) => {
     }
     if (t.tag === 'Sigma') {
         const [as, b] = exports.flattenSigma(t);
-        return `${as.map(([x, t]) => x === '_' ? exports.showTermP(t.tag === 'Ann' || t.tag === 'EnumInd' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t) : `(${x} : ${exports.showTermP(t.tag === 'Ann', t)})`).join(' ** ')} ** ${exports.showTermP(b.tag === 'Ann', b)}`;
+        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'EnumInd' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${exports.showTermP(b.tag === 'Ann', b)}`;
     }
     if (t.tag === 'Pair') {
         const ps = exports.flattenPair(t);
-        return `(${ps.map(t => exports.showTerm(t)).join(', ')})`;
+        return `(${ps.map(([p, t]) => p ? `{${exports.showTerm(t)}}` : exports.showTerm(t)).join(', ')})`;
     }
     if (t.tag === 'Let')
         return `let ${t.plicity ? `{${t.name}}` : t.name}${t.type ? ` : ${exports.showTermP(t.type.tag === 'Let' || t.type.tag === 'Ann', t.type)}` : ''} = ${exports.showTermP(t.val.tag === 'Let', t.val)} in ${exports.showTermP(t.body.tag === 'Ann', t.body)}`;
@@ -1315,7 +1324,7 @@ exports.erase = (t) => {
     if (t.tag === 'Abs')
         return t.plicity ? exports.erase(t.body) : exports.Abs(false, t.name, null, exports.erase(t.body));
     if (t.tag === 'Pair')
-        return exports.Pair(exports.erase(t.fst), exports.erase(t.snd));
+        return t.plicity ? exports.erase(t.snd) : exports.Pair(false, exports.erase(t.fst), exports.erase(t.snd));
     if (t.tag === 'App') {
         const res = t.plicity ? exports.erase(t.left) : exports.App(exports.erase(t.left), false, exports.erase(t.right));
         if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast'))
@@ -1325,7 +1334,7 @@ exports.erase = (t) => {
     if (t.tag === 'Pi')
         return exports.Pi(t.plicity, t.name, exports.erase(t.type), exports.erase(t.body));
     if (t.tag === 'Sigma')
-        return exports.Sigma(t.name, exports.erase(t.type), exports.erase(t.body));
+        return exports.Sigma(t.plicity, t.name, exports.erase(t.type), exports.erase(t.body));
     if (t.tag === 'Let')
         return t.plicity ? exports.erase(t.body) : exports.Let(false, t.name, null, exports.erase(t.val), exports.erase(t.body));
     if (t.tag === 'Proj')
@@ -1356,11 +1365,11 @@ exports.Var = (index) => ({ tag: 'Var', index });
 exports.Global = (name) => ({ tag: 'Global', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
-exports.Pair = (fst, snd, type) => ({ tag: 'Pair', fst, snd, type });
+exports.Pair = (plicity, fst, snd, type) => ({ tag: 'Pair', plicity, fst, snd, type });
 exports.Proj = (proj, term) => ({ tag: 'Proj', proj, term });
 exports.Let = (plicity, name, type, val, body) => ({ tag: 'Let', plicity, name, type, val, body });
 exports.Pi = (plicity, name, type, body) => ({ tag: 'Pi', plicity, name, type, body });
-exports.Sigma = (name, type, body) => ({ tag: 'Sigma', name, type, body });
+exports.Sigma = (plicity, name, type, body) => ({ tag: 'Sigma', plicity, name, type, body });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.Enum = (num) => ({ tag: 'Enum', num });
 exports.Elem = (num, total) => ({ tag: 'Elem', num, total });
@@ -1384,13 +1393,13 @@ exports.showTerm = (t) => {
     if (t.tag === 'Abs')
         return `(\\(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
     if (t.tag === 'Pair')
-        return `(${exports.showTerm(t.fst)}, ${exports.showTerm(t.snd)} : ${exports.showTerm(t.type)})`;
+        return `(${t.plicity ? '{' : ''}${exports.showTerm(t.fst)}${t.plicity ? '}' : ''}, ${exports.showTerm(t.snd)} : ${exports.showTerm(t.type)})`;
     if (t.tag === 'Let')
         return `(let ${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)} = ${exports.showTerm(t.val)} in ${exports.showTerm(t.body)})`;
     if (t.tag === 'Pi')
         return `(/(${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}). ${exports.showTerm(t.body)})`;
     if (t.tag === 'Sigma')
-        return `((${t.name} : ${exports.showTerm(t.type)}) ** ${exports.showTerm(t.body)})`;
+        return `((${t.plicity ? '-' : ''}${t.name} : ${exports.showTerm(t.type)}) ** ${exports.showTerm(t.body)})`;
     if (t.tag === 'Proj')
         return `(${t.proj} ${exports.showTerm(t.term)})`;
     if (t.tag === 'EnumInd')
@@ -1486,7 +1495,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     if (t.tag === 'App')
         return S.App(exports.toSurface(t.left, ns), t.plicity, exports.toSurface(t.right, ns));
     if (t.tag === 'Pair')
-        return S.Ann(S.Pair(exports.toSurface(t.fst, ns), exports.toSurface(t.snd, ns)), exports.toSurface(t.type, ns));
+        return S.Ann(S.Pair(t.plicity, exports.toSurface(t.fst, ns), exports.toSurface(t.snd, ns)), exports.toSurface(t.type, ns));
     if (t.tag === 'Proj')
         return S.Proj(t.proj, exports.toSurface(t.term, ns));
     if (t.tag === 'EnumInd')
@@ -1505,7 +1514,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     }
     if (t.tag === 'Sigma') {
         const x = decideName(t.name, t.body, ns);
-        return S.Sigma(x, exports.toSurface(t.type, ns), exports.toSurface(t.body, list_1.Cons(x, ns)));
+        return S.Sigma(t.plicity, x, exports.toSurface(t.type, ns), exports.toSurface(t.body, list_1.Cons(x, ns)));
     }
     return t;
 };
@@ -1591,9 +1600,11 @@ const check = (local, tm, ty) => {
         return x;
     }
     if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
-        const fst = check(local, tm.fst, fty.type);
+        if (tm.plicity !== fty.plicity)
+            return utils_1.terr(`Pair with mismatched plicity: ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}`);
+        const fst = check(fty.plicity ? exports.localInType(local) : local, tm.fst, fty.type);
         const snd = check(local, tm.snd, fty.body(domain_1.evaluate(fst, local.vs)));
-        return syntax_1.Pair(fst, snd, domain_1.quote(ty, local.index, false));
+        return syntax_1.Pair(tm.plicity, fst, snd, domain_1.quote(ty, local.index, false));
     }
     if (tm.tag === 'Elem' && tm.total === null && fty.tag === 'VEnum' && tm.num < fty.num)
         return syntax_1.Elem(tm.num, fty.num);
@@ -1733,20 +1744,22 @@ const synth = (local, tm) => {
     if (tm.tag === 'Sigma') {
         const type = check(exports.localInType(local), tm.type, domain_1.VType);
         const body = check(exports.extend(local, tm.name, domain_1.evaluate(type, local.vs), true, false, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
-        return [syntax_1.Sigma(tm.name, type, body), domain_1.VType];
+        return [syntax_1.Sigma(tm.plicity, tm.name, type, body), domain_1.VType];
     }
     if (tm.tag === 'Pair') {
-        const [fst, fstty] = synth(local, tm.fst);
+        const [fst, fstty] = synth(tm.plicity ? exports.localInType(local) : local, tm.fst);
         const [snd, sndty] = synth(local, tm.snd);
-        const ty = domain_1.VSigma('_', fstty, _ => sndty);
+        const ty = domain_1.VSigma(tm.plicity, '_', fstty, _ => sndty);
         const qty = domain_1.quote(ty, local.index, false);
-        return [syntax_1.Pair(fst, snd, qty), ty];
+        return [syntax_1.Pair(tm.plicity, fst, snd, qty), ty];
     }
     if (tm.tag === 'Proj') {
         const [term, ty] = synth(local, tm.term);
         const fty = domain_1.force(ty);
         if (fty.tag !== 'VSigma')
             return utils_1.terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
+        if (tm.proj === 'fst' && fty.plicity && !local.inType)
+            return utils_1.terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
         const e = syntax_1.Proj(tm.proj, term);
         return tm.proj === 'fst' ? [e, fty.type] : [e, fty.body(domain_1.vproj('fst', domain_1.evaluate(term, local.vs)))];
     }
@@ -1873,12 +1886,12 @@ exports.unify = (k, a_, b_) => {
         const v = domain_1.VVar(k);
         return exports.unify(k + 1, a.body(v), b.body(v));
     }
-    if (a.tag === 'VSigma' && b.tag === 'VSigma') {
+    if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
         const v = domain_1.VVar(k);
         return exports.unify(k + 1, a.body(v), b.body(v));
     }
-    if (a.tag === 'VPair' && b.tag === 'VPair') {
+    if (a.tag === 'VPair' && b.tag === 'VPair' && a.plicity === b.plicity) {
         exports.unify(k, a.fst, b.fst);
         exports.unify(k, a.snd, b.snd);
         return exports.unify(k, a.type, b.type);
@@ -2018,7 +2031,7 @@ const checkSolution = (k, m, is, t) => {
         const l = checkSolution(k, m, is, t.fst);
         const r = checkSolution(k, m, is, t.snd);
         const ty = checkSolution(k, m, is, t.type);
-        return syntax_1.Pair(l, r, ty);
+        return syntax_1.Pair(t.plicity, l, r, ty);
     }
     if (t.tag === 'Proj') {
         const x = checkSolution(k, m, is, t.term);
@@ -2037,7 +2050,7 @@ const checkSolution = (k, m, is, t) => {
     if (t.tag === 'Sigma') {
         const ty = checkSolution(k, m, is, t.type);
         const body = checkSolution(k + 1, m, list_1.Cons(k, is), t.body);
-        return syntax_1.Sigma(t.name, ty, body);
+        return syntax_1.Sigma(t.plicity, t.name, ty, body);
     }
     if (t.tag === 'EnumInd') {
         const prop = checkSolution(k, m, is, t.prop);
@@ -2349,7 +2362,9 @@ const synth = (local, tm) => {
         const vtf = domain_1.force(vt);
         if (vtf.tag !== 'VSigma')
             return utils_1.terr(`Pair with non-sigma type: ${syntax_1.showTerm(tm)}`);
-        check(local, tm.fst, vtf.type);
+        if (tm.plicity !== vtf.plicity)
+            return utils_1.terr(`Pair with mismatched plicity: ${syntax_1.showTerm(tm)}`);
+        check(vtf.plicity ? exports.localInType(local) : local, tm.fst, vtf.type);
         check(local, tm.snd, vtf.body(domain_1.evaluate(tm.fst, local.vs)));
         return vt;
     }
@@ -2358,6 +2373,8 @@ const synth = (local, tm) => {
         const fty = domain_1.force(ty);
         if (fty.tag !== 'VSigma')
             return utils_1.terr(`not a sigma type in ${tm.proj}: ${syntax_1.showTerm(tm)}`);
+        if (tm.proj === 'fst' && fty.plicity && !local.inType)
+            return utils_1.terr(`cannot call fst on erased sigma: ${syntax_1.showTerm(tm)}`);
         return tm.proj === 'fst' ? fty.type : fty.body(domain_1.vproj('fst', domain_1.evaluate(tm.term, local.vs)));
     }
     if (tm.tag === 'EnumInd') {

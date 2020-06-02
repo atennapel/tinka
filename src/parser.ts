@@ -319,17 +319,24 @@ const exprs = (ts: Token[], br: BracketO): Term => {
       .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')] as [Name, boolean, Term]])
       .reduce((x, y) => x.concat(y), []);
     const body = exprs(s[s.length - 1], '(');
-    return args.reduceRight((x, [name, impl, ty]) => {
-      if (impl) return serr(`sigma param cannot be implicit`);
-      return Sigma(name, ty, x);
-    }, body);
+    return args.reduceRight((x, [name, impl, ty]) => Sigma(impl, name, ty, x), body);
   }
   const jp = ts.findIndex(x => isName(x, ','));
   if (jp >= 0) {
     const s = splitTokens(ts, x => isName(x, ','));
     if (s.length < 2) return serr(`parsing failed with ,`);
-    const args = s.map(x => exprs(x, '('));
-    return args.reduceRight((x, y) => Pair(y, x));
+    const args: [Term, boolean][] = s.map(x => {
+      if (x.length === 1) {
+        const h = x[0];
+        if (h.tag === 'List' && h.bracket === '{')
+          return expr(h)
+      }
+      return [exprs(x, '('), false];
+    });
+    if (args.length === 0) return serr(`empty pair`);
+    if (args.length === 1) return serr(`singleton pair`);
+    if (args[args.length - 1][1]) return serr(`second element of pair cannot be erased`);
+    return args.slice(0, -1).reduceRight((x, [y, p]) => Pair(p, y, x), args[args.length - 1][0]);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

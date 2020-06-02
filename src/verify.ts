@@ -115,7 +115,8 @@ const synth = (local: Local, tm: Term): Val => {
     const vt = evaluate(tm.type, local.vs);
     const vtf = force(vt);
     if (vtf.tag !== 'VSigma') return terr(`Pair with non-sigma type: ${showTerm(tm)}`);
-    check(local, tm.fst, vtf.type);
+    if (tm.plicity !== vtf.plicity) return terr(`Pair with mismatched plicity: ${showTerm(tm)}`);
+    check(vtf.plicity ? localInType(local) : local, tm.fst, vtf.type);
     check(local, tm.snd, vtf.body(evaluate(tm.fst, local.vs)));
     return vt;
   }
@@ -123,6 +124,7 @@ const synth = (local: Local, tm: Term): Val => {
     const ty = synth(local, tm.term);
     const fty = force(ty);
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in ${tm.proj}: ${showTerm(tm)}`);
+    if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${showTerm(tm)}`);
     return tm.proj === 'fst' ? fty.type : fty.body(vproj('fst', evaluate(tm.term, local.vs)));
   }
   if (tm.tag === 'EnumInd') {

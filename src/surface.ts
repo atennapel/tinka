@@ -10,16 +10,16 @@ export type App = { tag: 'App', left: Term, plicity: Plicity, right: Term };
 export const App = (left: Term, plicity: Plicity, right: Term): App => ({ tag: 'App', left, plicity, right });
 export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term | null, body: Term };
 export const Abs = (plicity: Plicity, name: Name, type: Term | null, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
-export type Pair = { tag: 'Pair', fst: Term, snd: Term };
-export const Pair = (fst: Term, snd: Term): Pair => ({ tag: 'Pair', fst, snd });
+export type Pair = { tag: 'Pair', plicity: Plicity, fst: Term, snd: Term };
+export const Pair = (plicity: Plicity, fst: Term, snd: Term): Pair => ({ tag: 'Pair', plicity, fst, snd });
 export type Proj = { tag: 'Proj', proj: 'fst' | 'snd', term: Term };
 export const Proj = (proj: 'fst' | 'snd', term: Term): Proj => ({ tag: 'Proj', proj, term });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
-export type Sigma = { tag: 'Sigma', name: Name, type: Term, body: Term };
-export const Sigma = (name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', name, type, body });
+export type Sigma = { tag: 'Sigma', plicity: Plicity, name: Name, type: Term, body: Term };
+export const Sigma = (plicity: Plicity, name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', plicity, name, type, body });
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -53,10 +53,10 @@ export const showTermS = (t: Term): string => {
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
   if (t.tag === 'Let') return `(let ${t.plicity ? '-' : ''}${t.name}${t.type ? ` : ${showTermS(t.type)}` : ''} = ${showTermS(t.val)} in ${showTermS(t.body)})`;
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})`;
-  if (t.tag === 'Sigma') return `((${t.name} : ${showTermS(t.type)}) ** ${showTermS(t.body)})`;
+  if (t.tag === 'Sigma') return `(${t.plicity ? '{' : '('}${t.name} : ${showTermS(t.type)}${t.plicity ? '}' : ')'} ** ${showTermS(t.body)})`;
   if (t.tag === 'Ann') return `(${showTermS(t.term)} : ${showTermS(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
-  if (t.tag === 'Pair') return `(${showTermS(t.fst)}, ${showTermS(t.snd)})`;
+  if (t.tag === 'Pair') return `(${t.plicity ? '{' : ''}${showTermS(t.fst)}${t.plicity ? '}' : ''}, ${showTermS(t.snd)})`;
   if (t.tag === 'Proj') return `(${t.proj} ${showTermS(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTermS(t.prop)}} ${showTermS(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
   return t;
@@ -86,21 +86,21 @@ export const flattenPi = (t: Term): [[Name, Plicity, Term][], Term] => {
   }
   return [r, t];
 };
-export const flattenSigma = (t: Term): [[Name, Term][], Term] => {
-  const r: [Name, Term][] = [];
+export const flattenSigma = (t: Term): [[Name, Plicity, Term][], Term] => {
+  const r: [Name, Plicity, Term][] = [];
   while (t.tag === 'Sigma') {
-    r.push([t.name, t.type]);
+    r.push([t.name, t.plicity, t.type]);
     t = t.body;
   }
   return [r, t];
 };
-export const flattenPair = (t: Term): Term[] => {
-  const r: Term[] = [];
+export const flattenPair = (t: Term): [Plicity, Term][] => {
+  const r: [Plicity, Term][] = [];
   while (t.tag === 'Pair') {
-    r.push(t.fst);
+    r.push([t.plicity, t.fst]);
     t = t.snd;
   }
-  r.push(t);
+  r.push([false, t]);
   return r;
 };
 
@@ -129,11 +129,11 @@ export const showTerm = (t: Term): string => {
   }
   if (t.tag === 'Sigma') {
     const [as, b] = flattenSigma(t);
-    return `${as.map(([x, t]) => x === '_' ? showTermP(t.tag === 'Ann' || t.tag === 'EnumInd' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t) : `(${x} : ${showTermP(t.tag === 'Ann', t)})`).join(' ** ')} ** ${showTermP(b.tag === 'Ann', b)}`
+    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` :showTermP(t.tag === 'Ann' || t.tag === 'EnumInd' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${showTermP(b.tag === 'Ann', b)}`
   }
   if (t.tag === 'Pair') {
     const ps = flattenPair(t);
-    return `(${ps.map(t => showTerm(t)).join(', ')})`;
+    return `(${ps.map(([p, t]) => p ? `{${showTerm(t)}}` : showTerm(t)).join(', ')})`;
   }
   if (t.tag === 'Let')
     return `let ${t.plicity ? `{${t.name}}` : t.name}${t.type ? ` : ${showTermP(t.type.tag === 'Let' || t.type.tag === 'Ann', t.type)}` : ''} = ${showTermP(t.val.tag === 'Let', t.val)} in ${showTermP(t.body.tag === 'Ann', t.body)}`;
@@ -154,7 +154,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Prim') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
-  if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));
+  if (t.tag === 'Pair') return t.plicity ? erase(t.snd) : Pair(false, erase(t.fst), erase(t.snd));
   if (t.tag === 'App') {
     const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
     if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast'))
@@ -162,7 +162,7 @@ export const erase = (t: Term): Term => {
     return res;
   }
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
-  if (t.tag === 'Sigma') return Sigma(t.name, erase(t.type), erase(t.body));
+  if (t.tag === 'Sigma') return Sigma(t.plicity, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
   if (t.tag === 'EnumInd') return EnumInd(t.num, erase(t.prop), erase(t.term), t.args.map(erase));
