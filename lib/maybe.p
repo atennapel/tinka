@@ -12,4 +12,4 @@ def caseMaybe
 
 def indMaybe
   : {t : *} -> {P : Maybe t -> *} -> P (Nothing {t}) -> ((x : t) -> P (Just {t} x)) -> (m : Maybe t) -> P m
-  = \{t} {P} n j m. indSum {UnitType} {t} {P} (\u. rewrite {UnitType} {\u. P (InL u)} (uniqUnitR u) n) j m
+  = \{t} {P} n j m. indSum {UnitType} {t} {P} (\_. n) j m

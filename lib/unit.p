@@ -7,10 +7,10 @@ def indUnit
   : {P : UnitType -> *} -> P Unit -> (u : UnitType) -> P u
   = \{P} pu u. ?1 {P} u pu
 
-def uniqUnit
-  : (x : UnitType) -> Eq UnitType x Unit
-  = \x. indUnit {\x. Eq UnitType x Unit} (refl {UnitType} {Unit}) x
+def uniteta
+  : {x : UnitType} -> Eq UnitType x Unit
+  = \{x}. refl {UnitType} {x}
 
-def uniqUnitR
-  : (x : UnitType) -> Eq UnitType Unit x
-  = \x. symm (uniqUnit x)
+def unitetaR
+  : {x : UnitType} -> Eq UnitType Unit x
+  = \{x}. symm (uniteta {x})
