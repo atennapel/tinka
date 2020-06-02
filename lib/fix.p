@@ -6,15 +6,11 @@ def fToIndexed : (* -> *) -> ((UnitType -> *) -> (UnitType -> *)) = \f r _. f (r
 def Fix : (* -> *) -> * = \f. IFix UnitType (fToIndexed f) ()
 def In : {f : * -> *} -> f (Fix f) -> Fix f = \{f} x. IIn {UnitType} {fToIndexed f} {()} x 
 
-def propToIndexed
-  : {F : * -> *} -> (Fix F -> *) -> ((i : UnitType) -> IFix UnitType (fToIndexed F) i -> *)
-  = \{F} P u x. P (rewrite {UnitType} {\i. IFix UnitType (fToIndexed F) i} (uniqUnit u) x)
-
 def genindFix
   : {F : * -> *} -> {P : Fix F -> *} -> (((y : Fix F) -> P y) -> (z : F (Fix F)) -> P (In {F} z)) -> (x : Fix F) -> P x
   = \{F} {P} f x.
-    genindIFix {UnitType} {fToIndexed F} {propToIndexed P}
-      (\rec {i} z. rewrite {UnitType} {\i. propToIndexed {F} P i (IIn {UnitType} {fToIndexed F} {i} z)} (uniqUnitER {i}) (f (rec {()}) z))
+    genindIFix {UnitType} {fToIndexed F} {\_. P}
+      (\rec {i} z. f (rec {()}) z)
       {()}
       x
 

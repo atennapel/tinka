@@ -27,10 +27,6 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       unify(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EUniqUnit' && b.tag === 'EUniqUnit') {
-    unify(k, a.fn, b.fn);
-    return unify(k, a.val, b.val);
-  }
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -39,7 +35,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
-  if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num) return;
+  if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num && a.total === b.total) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -60,6 +56,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
   }
+  // eta
   if (a.tag === 'VAbs') {
     const v = VVar(k);
     return unify(k + 1, a.body(v), vapp(b, a.plicity, v));
@@ -76,6 +73,9 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, vproj('fst', a), b.fst);
     return unify(k, vproj('snd', a), b.snd);
   }
+  if (a.tag === 'VElem' && a.num === 0 && a.total === 1) return;
+  if (b.tag === 'VElem' && b.num === 0 && b.total === 1) return;
+  // neutrals
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
   if (a.tag === 'VNe' && b.tag === 'VNe' && a.head.tag === 'HMeta' && b.head.tag === 'HMeta')
@@ -132,7 +132,6 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
-    if (elim.tag === 'EUniqUnit') return terr(`uniqUnit in meta spine`);
     if (elim.tag === 'EProj') return terr(`fst in meta spine`);
     if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
     if (elim.tag === 'EIFixInd') return terr(`%genindIFix in meta spine`);

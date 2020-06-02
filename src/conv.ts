@@ -31,10 +31,6 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EUniqUnit' && b.tag === 'EUniqUnit') {
-    conv(k, a.fn, b.fn);
-    return conv(k, a.val, b.val);
-  }
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const conv = (k: Ix, a_: Val, b_: Val): void => {
@@ -43,7 +39,7 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
-  if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num) return;
+  if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num && a.total === b.total) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -80,6 +76,8 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     conv(k, vproj('fst', a), b.fst);
     return conv(k, vproj('snd', a), b.snd);
   }
+  if (a.tag === 'VElem' && a.num === 0 && a.total === 1) return;
+  if (b.tag === 'VElem' && b.num === 0 && b.total === 1) return;
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
   if (a.tag === 'VGlued' && b.tag === 'VGlued' && eqHead(a.head, b.head) && length(a.args) === length(b.args)) {

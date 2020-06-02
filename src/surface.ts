@@ -34,8 +34,8 @@ export const Elem = (num: number, total: number | null): Elem => ({ tag: 'Elem',
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
 
-export type PrimName = '*' | 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix' | 'uniqUnit';
-export const primNames = ['*', 'unsafeCast', 'IFix', 'IIn', 'genindIFix', 'uniqUnit'];
+export type PrimName = '*' | 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix';
+export const primNames = ['*', 'unsafeCast', 'IFix', 'IIn', 'genindIFix'];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
@@ -157,7 +157,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Pair') return Pair(erase(t.fst), erase(t.snd));
   if (t.tag === 'App') {
     const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
-    if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast' || res.left.name === 'uniqUnit'))
+    if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast'))
       return res.right;
     return res;
   }

@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EUnsafeCast | EProj | EEnumInd | EIFixInd | EUniqUnit;
+export type Elim = EApp | EUnsafeCast | EProj | EEnumInd | EIFixInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -30,8 +30,6 @@ export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
 export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
 export type EIFixInd = { tag: 'EIFixInd', args: Val[] };
 export const EIFixInd = (args: Val[]): EIFixInd => ({ tag: 'EIFixInd', args });
-export type EUniqUnit = { tag: 'EUniqUnit', fn: Val, val: Val };
-export const EUniqUnit = (fn: Val, val: Val): EUniqUnit => ({ tag: 'EUniqUnit', fn, val });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VEnum | VElem;
@@ -75,7 +73,6 @@ export const force = (v: Val): Val => {
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
-      elim.tag === 'EUniqUnit' ? vuniqunit(elim.fn, elim.val, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -89,7 +86,6 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
       elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
-      elim.tag === 'EUniqUnit' ? vuniqunit(elim.fn, elim.val, y) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -147,12 +143,6 @@ export const vifixind = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EIFixInd(rest), v.args), mapLazy(v.val, v => vifixind([v].concat(rest))));
   return impossible(`vifixind: ${v.tag}`);
 };
-export const vuniqunit = (fn: Val, val: Val, v: Val): Val => {
-  if (v.tag === 'VNe') return v.head.tag === 'HPrim' ? val : VNe(v.head, Cons(EUniqUnit(fn, val), v.args));
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EUniqUnit(fn, val), v.args), mapLazy(v.val, v => vuniqunit(fn, val, v)));
-  return val;
-};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
@@ -171,11 +161,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         vifixind([x, I, F, P, f, i])))))));
     if (t.name === 'unsafeCast')
       return VAbs(true, 'a', VType, a => VAbs(true, 'b', VType, b => VAbs(false, '_', b, x => vunsafecast(a, b, x))));
-    if (t.name === 'uniqUnit')
-      return VAbs(true, 'u', VEnum(1), u =>
-        VAbs(true, 'f', VPi(false, '_', VEnum(1), _ => VType), f =>
-        VAbs(false, 'v', vapp(f, false, u), v =>
-        vuniqunit(f, v, u))));
     return VPrim(t.name);
   }
   if (t.tag === 'Var') {
@@ -235,10 +220,6 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
     const [type, fromtype] = [e.type, e.fromtype].map(x => quote(x, k, full));
     return App(App(App(Prim('unsafeCast'), true, type), true, fromtype), false, t);
   }
-  if (e.tag === 'EUniqUnit') {
-    const [fn, val] = [e.fn, e.val].map(x => quote(x, k, full));
-    return App(App(App(Prim('uniqUnit'), true, t), true, fn), false, val);
-  }
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -293,7 +274,6 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EProj') return e.proj;
   if (e.tag === 'EEnumInd') return `?${e.num} {${showTermS(e.prop, ns, k, full)}} ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIFixInd') return `genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
-  if (e.tag === 'EUniqUnit') return `uniqUnit {${showTermS(e.fn, ns, k, full)}} ${showTermS(e.val, ns, k, full)}`;
   return e;
 };
 
