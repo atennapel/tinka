@@ -1630,6 +1630,11 @@ const check = (local, tm, ty) => {
         return syntax_1.Enum(tm.num);
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
+        if (tm.name) {
+            if (holes[tm.name])
+                return utils_1.terr(`named hole used more than once: _${tm.name}`);
+            holes[tm.name] = [domain_1.evaluate(x, local.vs), ty, local];
+        }
         return x;
     }
     if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
@@ -1676,8 +1681,10 @@ const check = (local, tm, ty) => {
     try {
         config_1.log(() => `unify ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}`);
         metas_1.metaPush();
+        holesPush();
         unify_1.unify(local.index, ty2, ty);
         metas_1.metaDiscard();
+        holesPush();
         return term;
     }
     catch (err) {
@@ -1685,17 +1692,21 @@ const check = (local, tm, ty) => {
             throw err;
         try {
             metas_1.metaPop();
+            holesPop();
             metas_1.metaPush();
+            holesPush();
             const [ty2inst, ms] = inst(local.ts, local.vs, ty2);
             config_1.log(() => `unify-inst ${domain_1.showTermS(ty2inst, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}`);
             unify_1.unify(local.index, ty2inst, ty);
             metas_1.metaDiscard();
+            holesDiscard();
             return list_1.foldl((a, m) => syntax_1.App(a, true, m), term, ms);
         }
         catch {
             if (!(err instanceof TypeError))
                 throw err;
             metas_1.metaPop();
+            holesPop();
             return utils_1.terr(`failed to unify ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
         }
     }
@@ -1736,6 +1747,11 @@ const synth = (local, tm) => {
     if (tm.tag === 'Hole') {
         const t = newMeta(local.ts);
         const vt = domain_1.evaluate(newMeta(local.ts), local.vs);
+        if (tm.name) {
+            if (holes[tm.name])
+                return utils_1.terr(`named hole used more than once: _${tm.name}`);
+            holes[tm.name] = [domain_1.evaluate(t, local.vs), vt, local];
+        }
         return [t, vt];
     }
     if (tm.tag === 'App') {
@@ -1845,10 +1861,40 @@ const synthapp = (local, ty_, plicity, tm, tmall) => {
     }
     return utils_1.terr(`invalid type or plicity mismatch in synthapp in ${S.showTerm(tmall)}: ${domain_1.showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}`);
 };
+let holesStack = [];
+let holes = {};
+const holesPush = () => {
+    const old = holes;
+    holesStack.push(holes);
+    holes = {};
+    for (let k in old)
+        holes[k] = old[k];
+};
+const holesPop = () => {
+    const x = holesStack.pop();
+    if (!x)
+        return;
+    holes = x;
+};
+const holesDiscard = () => { holesStack.pop(); };
+const holesReset = () => { holesStack = []; holes = {}; };
 exports.typecheck = (tm) => {
+    holesDiscard();
+    holesReset();
     const [etm, ty] = synth(exports.localEmpty, tm);
     const ztm = domain_1.zonk(etm, list_1.Nil, 0);
-    if (syntax_1.isUnsolved(ztm))
+    const holeprops = Object.entries(holes);
+    if (holeprops.length > 0) {
+        const strtype = domain_1.showTermSZ(ty);
+        const strterm = syntax_1.showSurface(ztm);
+        const str = holeprops.map(([x, [t, v, local]]) => {
+            const all = list_1.zipWith(([x, v], { bound: def, type: ty, inserted, plicity }) => [x, v, def, ty, inserted, plicity], list_1.zipWith((x, v) => [x, v], local.names, local.vs), local.ts);
+            const allstr = list_1.toArray(all, ([x, v, b, t, _, p]) => `${p ? `{${x}}` : x} : ${domain_1.showTermSZ(t, local.names, local.vs, local.index)}${b ? '' : ` = ${domain_1.showTermSZ(v, local.names, local.vs, local.index)}`}`).join('\n');
+            return `\n_${x} : ${domain_1.showTermSZ(v, local.names, local.vs, local.index)} = ${domain_1.showTermSZ(t, local.names, local.vs, local.index)}\nlocal:\n${allstr}\n`;
+        }).join('\n');
+        return utils_1.terr(`unsolved holes\ntype: ${strtype}\nterm: ${strterm}\n${str}`);
+    }
+    if (syntax_1.isUnsolved(ztm)) // do I have to check types as well? Or maybe only metas?
         return utils_1.terr(`elaborated term was unsolved: ${syntax_1.showSurfaceZ(ztm)}`);
     if (config_1.config.verify)
         verify_1.verify(ztm);

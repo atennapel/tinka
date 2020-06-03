@@ -1,6 +1,6 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, isUnsolved, showSurfaceZ, Sigma, Pair, Enum, Elem, EnumInd, Prim, Type, Proj } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, VEnum, vapp, VElem, vproj } from './domain';
-import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl } from './utils/list';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Enum, Elem, EnumInd, Prim, Type, Proj } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, VEnum, vapp, VElem, vproj, showTermSZ } from './domain';
+import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
 import { unify } from './unify';
@@ -86,6 +86,10 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   if (tm.tag === 'Enum' && fty === VType) return Enum(tm.num);
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
+    if (tm.name) {
+      if (holes[tm.name]) return terr(`named hole used more than once: _${tm.name}`);
+      holes[tm.name] = [evaluate(x, local.vs), ty, local];
+    }
     return x;
   }
   if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
@@ -128,22 +132,28 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   try {
     log(() => `unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
     metaPush();
+    holesPush();
     unify(local.index, ty2, ty);
     metaDiscard();
+    holesPush();
     return term;
   } catch(err) {
     if (!(err instanceof TypeError)) throw err;
     try {
       metaPop();
+      holesPop();
       metaPush();
+      holesPush();
       const [ty2inst, ms] = inst(local.ts, local.vs, ty2); 
       log(() => `unify-inst ${showTermS(ty2inst, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
       unify(local.index, ty2inst, ty);
       metaDiscard();
+      holesDiscard();
       return foldl((a, m) => App(a, true, m), term, ms);
     } catch {
       if (!(err instanceof TypeError)) throw err;
       metaPop();
+      holesPop();
       return terr(`failed to unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}: ${err.message}`);
     }
   }
@@ -180,6 +190,10 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   if (tm.tag === 'Hole') {
     const t = newMeta(local.ts);
     const vt = evaluate(newMeta(local.ts), local.vs);
+    if (tm.name) {
+      if (holes[tm.name]) return terr(`named hole used more than once: _${tm.name}`);
+      holes[tm.name] = [evaluate(t, local.vs), vt, local];
+    }
     return [t, vt];
   }
   if (tm.tag === 'App') {
@@ -285,10 +299,40 @@ const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S
   return terr(`invalid type or plicity mismatch in synthapp in ${S.showTerm(tmall)}: ${showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}`);
 };
 
+type HoleInfo = [Val, Val, Local];
+let holesStack: { [key:string]: HoleInfo }[] = [];
+let holes: { [key:string]: HoleInfo } = {};
+const holesPush = (): void => {
+  const old = holes;
+  holesStack.push(holes);
+  holes = {};
+  for (let k in old) holes[k] = old[k];
+};
+const holesPop = (): void => {
+  const x = holesStack.pop();
+  if (!x) return;
+  holes = x;
+};
+const holesDiscard = (): void => { holesStack.pop() };
+const holesReset = (): void => { holesStack = []; holes = {} };
+
 export const typecheck = (tm: S.Term): [Term, Val] => {
+  holesDiscard();
+  holesReset();
   const [etm, ty] = synth(localEmpty, tm);
   const ztm = zonk(etm, Nil, 0);
-  if (isUnsolved(ztm))
+  const holeprops = Object.entries(holes);
+  if (holeprops.length > 0) {
+    const strtype = showTermSZ(ty);
+    const strterm = showSurface(ztm);
+    const str = holeprops.map(([x, [t, v, local]]) => {
+      const all = zipWith(([x, v], { bound: def, type: ty, inserted, plicity }) => [x, v, def, ty, inserted, plicity] as [Name, Val, boolean, Val, boolean, Plicity], zipWith((x, v) => [x, v] as [Name, Val], local.names, local.vs), local.ts);
+      const allstr = toArray(all, ([x, v, b, t, _, p]) => `${p ? `{${x}}` : x} : ${showTermSZ(t, local.names, local.vs, local.index)}${b ? '' : ` = ${showTermSZ(v, local.names, local.vs, local.index)}`}`).join('\n');
+      return `\n_${x} : ${showTermSZ(v, local.names, local.vs, local.index)} = ${showTermSZ(t, local.names, local.vs, local.index)}\nlocal:\n${allstr}\n`;
+    }).join('\n');
+    return terr(`unsolved holes\ntype: ${strtype}\nterm: ${strterm}\n${str}`);
+  }
+  if (isUnsolved(ztm)) // do I have to check types as well? Or maybe only metas?
     return terr(`elaborated term was unsolved: ${showSurfaceZ(ztm)}`);
   if (config.verify) verify(ztm);
   return [ztm, ty];
