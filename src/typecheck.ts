@@ -89,11 +89,12 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     return x;
   }
   if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
-    if (tm.plicity !== fty.plicity)
-      return terr(`Pair with mismatched plicity: ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}`);
+    if (tm.plicity !== fty.plicity) return terr(`Pair with mismatched plicity (fst): ${S.showTerm(tm)} : ${showTermS(fty, local.names, local.index)}`);
+    if (tm.plicity2 !== fty.plicity2) return terr(`Pair with mismatched plicity (snd): ${S.showTerm(tm)} : ${showTermS(fty, local.names, local.index)}`);
+    if (tm.plicity && tm.plicity2) return terr(`Pair cannot be erased in both element: ${S.showTerm(tm)} : ${showTermS(fty, local.names, local.index)}`);
     const fst = check(fty.plicity ? localInType(local) : local, tm.fst, fty.type);
-    const snd = check(local, tm.snd, fty.body(evaluate(fst, local.vs)));
-    return Pair(tm.plicity, fst, snd, quote(ty, local.index, false));
+    const snd = check(fty.plicity2 ? localInType(local) : local, tm.snd, fty.body(evaluate(fst, local.vs)));
+    return Pair(tm.plicity, tm.plicity2, fst, snd, quote(ty, local.index, false));
   }
   if (tm.tag === 'Elem' && tm.total === null && fty.tag === 'VEnum' && tm.num < fty.num)
     return Elem(tm.num, fty.num);
@@ -222,20 +223,21 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   if (tm.tag === 'Sigma') {
     const type = check(localInType(local), tm.type, VType);
     const body = check(extend(local, tm.name, evaluate(type, local.vs), true, false, false, VVar(local.index)), tm.body, VType);
-    return [Sigma(tm.plicity, tm.name, type, body), VType];
+    return [Sigma(tm.plicity, tm.plicity2, tm.name, type, body), VType];
   }
   if (tm.tag === 'Pair') {
     const [fst, fstty] = synth(tm.plicity ? localInType(local) : local, tm.fst);
-    const [snd, sndty] = synth(local, tm.snd);
-    const ty = VSigma(tm.plicity, '_', fstty, _ => sndty);
+    const [snd, sndty] = synth(tm.plicity2 ? localInType(local) : local, tm.snd);
+    const ty = VSigma(tm.plicity, tm.plicity2, '_', fstty, _ => sndty);
     const qty = quote(ty, local.index, false);
-    return [Pair(tm.plicity, fst, snd, qty), ty];
+    return [Pair(tm.plicity, tm.plicity2, fst, snd, qty), ty];
   }
   if (tm.tag === 'Proj') {
     const [term, ty] = synth(local, tm.term);
     const fty = force(ty);
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
     if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
+    if (tm.proj === 'snd' && fty.plicity2 && !local.inType) return terr(`cannot call snd on erased sigma: ${S.showTerm(tm)}`);
     const e = Proj(tm.proj, term);
     return tm.proj === 'fst' ? [e, fty.type] : [e, fty.body(vproj('fst', evaluate(term, local.vs)))];
   }

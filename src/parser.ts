@@ -315,11 +315,21 @@ const exprs = (ts: Token[], br: BracketO): Term => {
   if (js >= 0) {
     const s = splitTokens(ts, x => isName(x, '**'));
     if (s.length < 2) return serr(`parsing failed with **`);
+    // TODO: erasure in second component
     const args: [Name, boolean, Term][] = s.slice(0, -1)
       .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')] as [Name, boolean, Term]])
       .reduce((x, y) => x.concat(y), []);
-    const body = exprs(s[s.length - 1], '(');
-    return args.reduceRight((x, [name, impl, ty]) => Sigma(impl, name, ty, x), body);
+    const rest = s[s.length - 1];
+    let body: [Term, boolean];
+    if (rest.length === 1) {
+      const h = rest[0];
+      if (h.tag === 'List' && h.bracket === '{')
+        body = expr(h)
+      else body = [exprs(s[s.length - 1], '('), false];
+    } else body = [exprs(s[s.length - 1], '('), false];
+    const last = args[args.length - 1];
+    const lastitem = Sigma(last[1], body[1], last[0], last[2], body[0]);
+    return args.slice(0, -1).reduceRight((x, [name, impl, ty]) => Sigma(impl, false, name, ty, x), lastitem);
   }
   const jp = ts.findIndex(x => isName(x, ','));
   if (jp >= 0) {
@@ -335,8 +345,10 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     });
     if (args.length === 0) return serr(`empty pair`);
     if (args.length === 1) return serr(`singleton pair`);
-    if (args[args.length - 1][1]) return serr(`second element of pair cannot be erased`);
-    return args.slice(0, -1).reduceRight((x, [y, p]) => Pair(p, y, x), args[args.length - 1][0]);
+    const last1 = args[args.length - 1];
+    const last2 = args[args.length - 2];
+    const lastitem = Pair(last2[1], last1[1], last2[0], last1[0]);
+    return args.slice(0, -2).reduceRight((x, [y, p]) => Pair(p, false, y, x), lastitem);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

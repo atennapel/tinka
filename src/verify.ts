@@ -114,10 +114,12 @@ const synth = (local: Local, tm: Term): Val => {
     check(localInType(local), tm.type, VType);
     const vt = evaluate(tm.type, local.vs);
     const vtf = force(vt);
-    if (vtf.tag !== 'VSigma') return terr(`Pair with non-sigma type: ${showTerm(tm)}`);
-    if (tm.plicity !== vtf.plicity) return terr(`Pair with mismatched plicity: ${showTerm(tm)}`);
+    if (vtf.tag !== 'VSigma') return terr(`Pair with non-sigma type: ${showTerm(tm)} : ${showTermS(vtf, local.names, local.index)}`);
+    if (tm.plicity !== vtf.plicity) return terr(`Pair with mismatched plicity (fst): ${showTerm(tm)} : ${showTermS(vtf, local.names, local.index)}`);
+    if (tm.plicity2 !== vtf.plicity2) return terr(`Pair with mismatched plicity (snd): ${showTerm(tm)} : ${showTermS(vtf, local.names, local.index)}`);
+    if (tm.plicity && tm.plicity2) return terr(`Pair cannot be erased in both element: ${showTerm(tm)} : ${showTermS(vtf, local.names, local.index)}`);
     check(vtf.plicity ? localInType(local) : local, tm.fst, vtf.type);
-    check(local, tm.snd, vtf.body(evaluate(tm.fst, local.vs)));
+    check(vtf.plicity2 ? localInType(local) : local, tm.snd, vtf.body(evaluate(tm.fst, local.vs)));
     return vt;
   }
   if (tm.tag === 'Proj') {

@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- erasure for second element of sigma
 - better syntax for fst/snd
 - named projection from sigma
 - indexed projection from sigma

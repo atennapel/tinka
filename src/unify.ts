@@ -41,12 +41,12 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
   }
-  if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.plicity === b.plicity) {
+  if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.plicity === b.plicity && a.plicity2 === b.plicity2) {
     unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
   }
-  if (a.tag === 'VPair' && b.tag === 'VPair' && a.plicity === b.plicity) {
+  if (a.tag === 'VPair' && b.tag === 'VPair' && a.plicity === b.plicity && a.plicity2 === b.plicity2) {
     unify(k, a.fst, b.fst);
     unify(k, a.snd, b.snd);
     return unify(k, a.type, b.type);
@@ -173,7 +173,7 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const l = checkSolution(k, m, is, t.fst);
     const r = checkSolution(k, m, is, t.snd);
     const ty = checkSolution(k, m, is, t.type);
-    return Pair(t.plicity, l, r, ty);
+    return Pair(t.plicity, t.plicity2, l, r, ty);
   }
   if (t.tag === 'Proj') {
     const x = checkSolution(k, m, is, t.term);
@@ -192,7 +192,7 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Sigma') {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
-    return Sigma(t.plicity, t.name, ty, body);
+    return Sigma(t.plicity, t.plicity2, t.name, ty, body);
   }
   if (t.tag === 'EnumInd') {
     const prop = checkSolution(k, m, is, t.prop);
