@@ -226,6 +226,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     return [Sigma(tm.plicity, tm.plicity2, tm.name, type, body), VType];
   }
   if (tm.tag === 'Pair') {
+    if (tm.plicity && tm.plicity2) return terr(`Pair cannot be erased in both element: ${S.showTerm(tm)}`);
     const [fst, fstty] = synth(tm.plicity ? localInType(local) : local, tm.fst);
     const [snd, sndty] = synth(tm.plicity2 ? localInType(local) : local, tm.snd);
     const ty = VSigma(tm.plicity, tm.plicity2, '_', fstty, _ => sndty);
