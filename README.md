@@ -4,9 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- better syntax for fst/snd
 - named projection from sigma
 - indexed projection from sigma
+- allow standalone projection
 - create a CEK machine
 - reset metas before
 - insert skolems in check

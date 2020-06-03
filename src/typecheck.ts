@@ -248,13 +248,17 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     return [Pair(tm.plicity, tm.plicity2, fst, snd, qty), ty];
   }
   if (tm.tag === 'Proj') {
-    const [term, ty] = synth(local, tm.term);
-    const fty = force(ty);
-    if (fty.tag !== 'VSigma') return terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
-    if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
-    if (tm.proj === 'snd' && fty.plicity2 && !local.inType) return terr(`cannot call snd on erased sigma: ${S.showTerm(tm)}`);
-    const e = Proj(tm.proj, term);
-    return tm.proj === 'fst' ? [e, fty.type] : [e, fty.body(vproj('fst', evaluate(term, local.vs)))];
+    const proj = tm.proj;
+    if (proj.tag === 'PCore') {
+      const tag = proj.proj;
+      const [term, ty] = synth(local, tm.term);
+      const fty = force(ty);
+      if (fty.tag !== 'VSigma') return terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
+      if (tag === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
+      if (tag === 'snd' && fty.plicity2 && !local.inType) return terr(`cannot call snd on erased sigma: ${S.showTerm(tm)}`);
+      const e = Proj(tag, term);
+      return tag === 'fst' ? [e, fty.type] : [e, fty.body(vproj('fst', evaluate(term, local.vs)))];
+    } else return terr(`unimplemented: ${S.showTerm(tm)}`);
   }
   if (tm.tag === 'Ann') {
     const type = check(localInType(local), tm.type, VType);

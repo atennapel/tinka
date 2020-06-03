@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, Enum, Elem, EnumInd, isPrimName, Prim, Proj } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, Enum, Elem, EnumInd, isPrimName, Prim, Proj, PCore, PIndex, PName } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -22,7 +22,7 @@ const TName = (name: string): Token => ({ tag: 'Name', name });
 const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
-const SYM1: string[] = ['\\', ':', '/', '.', '*', '=', '|', ','];
+const SYM1: string[] = ['\\', ':', '/', '*', '=', '|', ','];
 const SYM2: string[] = ['->', '**'];
 
 const START = 0;
@@ -41,8 +41,9 @@ const tokenize = (sc: string): Token[] => {
     if (state === START) {
       if (SYM2.indexOf(c + next) >= 0) r.push(TName(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(TName(c));
+      else if (c === '.' && !/[\.\?\@\#\%\_a-z]/i.test(next)) r.push(TName('.'));
       else if (c + next === '--') i++, state = COMMENT;
-      else if (/[\?\@\#\%\_a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\.\?\@\#\%\_a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}') {
@@ -132,6 +133,22 @@ const piParams = (t: Token): [Name, boolean, Term][] => {
   return serr(`invalid pi param`);
 };
 
+const parseProj = (t: Term, xx: string): Term => {
+  const spl = xx.split('.');
+  let c = t;
+  for (let i = 0; i < spl.length; i++) {
+    const x = spl[i];
+    const n = +x;
+    let proj;
+    if (!isNaN(n) && n >= 0 && Math.floor(n) === n) proj = PIndex(n);
+    else if (x === 'fst') proj = PCore('fst');
+    else if (x === 'snd') proj = PCore('snd');
+    else proj = PName(x);
+    c = Proj(proj, c);
+  }
+  return c;
+};
+
 const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'List')
     return [exprs(t.list, '('), t.bracket === '{'];
@@ -164,7 +181,15 @@ const expr = (t: Token): [Term, boolean] => {
       if (isPrimName(rest)) return [Prim(rest), false];
       return serr(`invalid prim: ${x}`);
     }
-    if (/[a-z]/i.test(x[0])) return [Var(x), false];
+    if (/[a-z]/i.test(x[0])) {
+      if (x.includes('.')) {
+        const spl = x.split('.');
+        const v = spl[0];
+        const rest = spl.slice(1).join('.');
+        return [parseProj(Var(v), rest), false];
+      }
+      return [Var(x), false];
+    }
     return serr(`invalid name: ${x}`);
   }
   if (t.tag === 'Num') {
@@ -264,23 +289,13 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [name, impl, ty]) => Abs(impl, name, ty, x), body);
   }
-  if (isName(ts[0], 'fst')) {
-    if (ts.length < 2) return serr(`something went wrong when parsing fst`);
+  if (ts[0].tag === 'Name' && ts[0].name[0] === '.') {
+    const x = ts[0].name.slice(1);
+    if (ts.length < 2) return serr(`something went wrong when parsing .${x}`);
     if (ts.length === 2) {
       const [term, tb] = expr(ts[1]);
-      if (tb) return serr(`something went wrong when parsing fst`);
-      return Proj('fst', term);
-    }
-    const indPart = ts.slice(0, 2);
-    const rest = ts.slice(2);
-    return exprs([TList(indPart, '(')].concat(rest), '(');
-  }
-  if (isName(ts[0], 'snd')) {
-    if (ts.length < 2) return serr(`something went wrong when parsing snd`);
-    if (ts.length === 2) {
-      const [term, tb] = expr(ts[1]);
-      if (tb) return serr(`something went wrong when parsing snd`);
-      return Proj('snd', term);
+      if (tb) return serr(`something went wrong when parsing .${x}`);
+      return parseProj(term, x);
     }
     const indPart = ts.slice(0, 2);
     const rest = ts.slice(2);

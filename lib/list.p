@@ -9,15 +9,15 @@ def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. In {ListF t} (InR (hd,
 
 def caseList
   : {t r : *} -> List t -> r -> (t -> List t -> r) -> r
-  = \l n c. caseSum (outFix l) (\_. n) (\p. c (fst p) (snd p))
+  = \l n c. caseSum (outFix l) (\_. n) (\p. c p.fst p.snd)
 
 def cataList
   : {t r : *} -> List t -> r -> (t -> r -> r) -> r
-  = \{t} {r} l n c. mendlerFix {ListF t} {r} (\rec y. caseSum y (\_. n) (\p. c (fst p) (rec (snd p)))) l
+  = \{t} {r} l n c. mendlerFix {ListF t} {r} (\rec y. caseSum y (\_. n) (\p. c p.fst (rec p.snd))) l
 
 def paraList
   : {t r : *} -> List t -> r -> (t -> List t -> r -> r) -> r
-  = \{t} {r} l n c. genrecFix {ListF t} {r} (\rec y. caseSum y (\_. n) (\p. let tl = snd p in c (fst p) tl (rec tl))) l
+  = \{t} {r} l n c. genrecFix {ListF t} {r} (\rec y. caseSum y (\_. n) (\p. let tl = p.snd in c p.fst tl (rec tl))) l
 
 def indList
   : {t : *}
@@ -29,7 +29,7 @@ def indList
   = \{t} {P} n c l. genindFix {ListF t} {P}
     (\rec y. indSum {UnitType} {t ** List t} {\s. P (In {ListF t} s)}
       (\_. n)
-      (\p. let tl = snd p in c {tl} (fst p) (rec tl))
+      (\p. let tl = .snd p in c {tl} p.fst (rec tl))
       y)
     l
 

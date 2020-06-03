@@ -36,5 +36,5 @@ def indVecR
 --  = \{t} {P} nil cons {n} x. indVecR {t} {P} (\rec {k} z.
 --    caseSum {Eq Nat Z k} {(m : Nat) ** t ** r m ** Eq Nat (S m) k} z
 --      (\q. rewrite {Nat} {\m. P m (IIn {Nat} {VecF t} {m} (InL (refl {Nat} {m})))} q nil)
---      (\p. cons {fst p} (fst (snd p)) (fst (snd (snd p))) (rec {fst p} (fst (snd (snd p))))))
+--      (\p. cons {p.fst} p.snd.fst p.snd.snd.fst (rec {p.fst} p.snd.snd.fst)))
 --    {n} x

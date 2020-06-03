@@ -2,6 +2,14 @@ import { Name, Ix } from './names';
 
 export type Plicity = boolean;
 
+export type ProjType = PName | PIndex | PCore;
+export type PName = { tag: 'PName', name: Name };
+export const PName = (name: Name): PName => ({ tag: 'PName', name });
+export type PIndex = { tag: 'PIndex', index: Ix };
+export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
+export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
+export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
+
 export type Term = Var | App | Abs | Pair | Proj | Elem | EnumInd | Let | Pi | Sigma | Enum | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
@@ -12,8 +20,8 @@ export type Abs = { tag: 'Abs', plicity: Plicity, name: Name, type: Term | null,
 export const Abs = (plicity: Plicity, name: Name, type: Term | null, body: Term): Abs => ({ tag: 'Abs', plicity, name, type, body });
 export type Pair = { tag: 'Pair', plicity: Plicity, plicity2: Plicity, fst: Term, snd: Term };
 export const Pair = (plicity: Plicity, plicity2: Plicity, fst: Term, snd: Term): Pair => ({ tag: 'Pair', plicity, plicity2, fst, snd });
-export type Proj = { tag: 'Proj', proj: 'fst' | 'snd', term: Term };
-export const Proj = (proj: 'fst' | 'snd', term: Term): Proj => ({ tag: 'Proj', proj, term });
+export type Proj = { tag: 'Proj', proj: ProjType, term: Term };
+export const Proj = (proj: ProjType, term: Term): Proj => ({ tag: 'Proj', proj, term });
 export type Let = { tag: 'Let', plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term };
 export const Let = (plicity: Plicity, name: Name, type: Term | null, val: Term, body: Term): Let => ({ tag: 'Let', plicity, name, type, val, body });
 export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Term };
@@ -57,7 +65,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Ann') return `(${showTermS(t.term)} : ${showTermS(t.type)})`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Pair') return `(${t.plicity ? '{' : ''}${showTermS(t.fst)}${t.plicity ? '}' : ''}, ${t.plicity ? '{' : ''}${showTermS(t.snd)}${t.plicity ? '}' : ''})`;
-  if (t.tag === 'Proj') return `(${t.proj} ${showTermS(t.term)})`;
+  if (t.tag === 'Proj') return `(.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermS(t.term)})`;
   if (t.tag === 'EnumInd') return `(?${t.num} {${showTermS(t.prop)}} ${showTermS(t.term)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
   return t;
 };
@@ -152,7 +160,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Ann')
     return `${showTermP(t.term.tag === 'Ann', t.term)} : ${showTermP(t.term.tag === 'Ann', t.type)}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
-  if (t.tag === 'Proj') return `${t.proj} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
+  if (t.tag === 'Proj') return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
   if (t.tag === 'EnumInd') return `?${t.num} {${showTerm(t.prop)}} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim', x)).join(' ')}` : ''}`;
   return t;
 };

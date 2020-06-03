@@ -114,7 +114,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Elem') return S.Elem(t.num, t.total);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(t.plicity, t.plicity2, toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
-  if (t.tag === 'Proj') return S.Proj(t.proj, toSurface(t.term, ns));
+  if (t.tag === 'Proj') return S.Proj(S.PCore(t.proj), toSurface(t.term, ns));
   if (t.tag === 'EnumInd') return S.EnumInd(t.num, toSurface(t.prop, ns), toSurface(t.term, ns), t.args.map(x => toSurface(x, ns)));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);

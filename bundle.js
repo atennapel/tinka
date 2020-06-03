@@ -512,7 +512,7 @@ const matchingBracket = (c) => {
 const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
-const SYM1 = ['\\', ':', '/', '.', '*', '=', '|', ','];
+const SYM1 = ['\\', ':', '/', '*', '=', '|', ','];
 const SYM2 = ['->', '**'];
 const START = 0;
 const NAME = 1;
@@ -532,9 +532,11 @@ const tokenize = (sc) => {
                 r.push(TName(c + next)), i++;
             else if (SYM1.indexOf(c) >= 0)
                 r.push(TName(c));
+            else if (c === '.' && !/[\.\?\@\#\%\_a-z]/i.test(next))
+                r.push(TName('.'));
             else if (c + next === '--')
                 i++, state = COMMENT;
-            else if (/[\?\@\#\%\_a-z]/i.test(c))
+            else if (/[\.\?\@\#\%\_a-z]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUMBER;
@@ -643,6 +645,25 @@ const piParams = (t) => {
     }
     return utils_1.serr(`invalid pi param`);
 };
+const parseProj = (t, xx) => {
+    const spl = xx.split('.');
+    let c = t;
+    for (let i = 0; i < spl.length; i++) {
+        const x = spl[i];
+        const n = +x;
+        let proj;
+        if (!isNaN(n) && n >= 0 && Math.floor(n) === n)
+            proj = surface_1.PIndex(n);
+        else if (x === 'fst')
+            proj = surface_1.PCore('fst');
+        else if (x === 'snd')
+            proj = surface_1.PCore('snd');
+        else
+            proj = surface_1.PName(x);
+        c = surface_1.Proj(proj, c);
+    }
+    return c;
+};
 const expr = (t) => {
     if (t.tag === 'List')
         return [exprs(t.list, '('), t.bracket === '{'];
@@ -685,8 +706,15 @@ const expr = (t) => {
                 return [surface_1.Prim(rest), false];
             return utils_1.serr(`invalid prim: ${x}`);
         }
-        if (/[a-z]/i.test(x[0]))
+        if (/[a-z]/i.test(x[0])) {
+            if (x.includes('.')) {
+                const spl = x.split('.');
+                const v = spl[0];
+                const rest = spl.slice(1).join('.');
+                return [parseProj(surface_1.Var(v), rest), false];
+            }
             return [surface_1.Var(x), false];
+        }
         return utils_1.serr(`invalid name: ${x}`);
     }
     if (t.tag === 'Num') {
@@ -803,27 +831,15 @@ const exprs = (ts, br) => {
         const body = exprs(ts.slice(i + 1), '(');
         return args.reduceRight((x, [name, impl, ty]) => surface_1.Abs(impl, name, ty, x), body);
     }
-    if (isName(ts[0], 'fst')) {
+    if (ts[0].tag === 'Name' && ts[0].name[0] === '.') {
+        const x = ts[0].name.slice(1);
         if (ts.length < 2)
-            return utils_1.serr(`something went wrong when parsing fst`);
+            return utils_1.serr(`something went wrong when parsing .${x}`);
         if (ts.length === 2) {
             const [term, tb] = expr(ts[1]);
             if (tb)
-                return utils_1.serr(`something went wrong when parsing fst`);
-            return surface_1.Proj('fst', term);
-        }
-        const indPart = ts.slice(0, 2);
-        const rest = ts.slice(2);
-        return exprs([TList(indPart, '(')].concat(rest), '(');
-    }
-    if (isName(ts[0], 'snd')) {
-        if (ts.length < 2)
-            return utils_1.serr(`something went wrong when parsing snd`);
-        if (ts.length === 2) {
-            const [term, tb] = expr(ts[1]);
-            if (tb)
-                return utils_1.serr(`something went wrong when parsing snd`);
-            return surface_1.Proj('snd', term);
+                return utils_1.serr(`something went wrong when parsing .${x}`);
+            return parseProj(term, x);
         }
         const indPart = ts.slice(0, 2);
         const rest = ts.slice(2);
@@ -1182,7 +1198,10 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.Prim = exports.isPrimName = exports.primNames = exports.EnumInd = exports.Elem = exports.Enum = exports.Meta = exports.Hole = exports.Ann = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Type = exports.Prim = exports.isPrimName = exports.primNames = exports.EnumInd = exports.Elem = exports.Enum = exports.Meta = exports.Hole = exports.Ann = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
+exports.PName = (name) => ({ tag: 'PName', name });
+exports.PIndex = (index) => ({ tag: 'PIndex', index });
+exports.PCore = (proj) => ({ tag: 'PCore', proj });
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.App = (left, plicity, right) => ({ tag: 'App', left, plicity, right });
 exports.Abs = (plicity, name, type, body) => ({ tag: 'Abs', plicity, name, type, body });
@@ -1229,7 +1248,7 @@ exports.showTermS = (t) => {
     if (t.tag === 'Pair')
         return `(${t.plicity ? '{' : ''}${exports.showTermS(t.fst)}${t.plicity ? '}' : ''}, ${t.plicity ? '{' : ''}${exports.showTermS(t.snd)}${t.plicity ? '}' : ''})`;
     if (t.tag === 'Proj')
-        return `(${t.proj} ${exports.showTermS(t.term)})`;
+        return `(.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${exports.showTermS(t.term)})`;
     if (t.tag === 'EnumInd')
         return `(?${t.num} {${exports.showTermS(t.prop)}} ${exports.showTermS(t.term)}${t.args.length > 0 ? ` ${t.args.map(exports.showTermS).join(' ')}` : ''})`;
     return t;
@@ -1327,7 +1346,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Hole')
         return `_${t.name || ''}`;
     if (t.tag === 'Proj')
-        return `${t.proj} ${exports.showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
+        return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${exports.showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
     if (t.tag === 'EnumInd')
         return `?${t.num} {${exports.showTerm(t.prop)}} ${exports.showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}${t.args.length > 0 ? ` ${t.args.map(x => exports.showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim', x)).join(' ')}` : ''}`;
     return t;
@@ -1530,7 +1549,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     if (t.tag === 'Pair')
         return S.Ann(S.Pair(t.plicity, t.plicity2, exports.toSurface(t.fst, ns), exports.toSurface(t.snd, ns)), exports.toSurface(t.type, ns));
     if (t.tag === 'Proj')
-        return S.Proj(t.proj, exports.toSurface(t.term, ns));
+        return S.Proj(S.PCore(t.proj), exports.toSurface(t.term, ns));
     if (t.tag === 'EnumInd')
         return S.EnumInd(t.num, exports.toSurface(t.prop, ns), exports.toSurface(t.term, ns), t.args.map(x => exports.toSurface(x, ns)));
     if (t.tag === 'Abs') {
@@ -1809,16 +1828,22 @@ const synth = (local, tm) => {
         return [syntax_1.Pair(tm.plicity, tm.plicity2, fst, snd, qty), ty];
     }
     if (tm.tag === 'Proj') {
-        const [term, ty] = synth(local, tm.term);
-        const fty = domain_1.force(ty);
-        if (fty.tag !== 'VSigma')
-            return utils_1.terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
-        if (tm.proj === 'fst' && fty.plicity && !local.inType)
-            return utils_1.terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
-        if (tm.proj === 'snd' && fty.plicity2 && !local.inType)
-            return utils_1.terr(`cannot call snd on erased sigma: ${S.showTerm(tm)}`);
-        const e = syntax_1.Proj(tm.proj, term);
-        return tm.proj === 'fst' ? [e, fty.type] : [e, fty.body(domain_1.vproj('fst', domain_1.evaluate(term, local.vs)))];
+        const proj = tm.proj;
+        if (proj.tag === 'PCore') {
+            const tag = proj.proj;
+            const [term, ty] = synth(local, tm.term);
+            const fty = domain_1.force(ty);
+            if (fty.tag !== 'VSigma')
+                return utils_1.terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
+            if (tag === 'fst' && fty.plicity && !local.inType)
+                return utils_1.terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
+            if (tag === 'snd' && fty.plicity2 && !local.inType)
+                return utils_1.terr(`cannot call snd on erased sigma: ${S.showTerm(tm)}`);
+            const e = syntax_1.Proj(tag, term);
+            return tag === 'fst' ? [e, fty.type] : [e, fty.body(domain_1.vproj('fst', domain_1.evaluate(term, local.vs)))];
+        }
+        else
+            return utils_1.terr(`unimplemented: ${S.showTerm(tm)}`);
     }
     if (tm.tag === 'Ann') {
         const type = check(exports.localInType(local), tm.type, domain_1.VType);
