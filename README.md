@@ -4,8 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- named projection from sigma
-- indexed projection from sigma
 - allow standalone projection
 - create a CEK machine
 - reset metas before

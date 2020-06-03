@@ -1828,13 +1828,13 @@ const synth = (local, tm) => {
         return [syntax_1.Pair(tm.plicity, tm.plicity2, fst, snd, qty), ty];
     }
     if (tm.tag === 'Proj') {
+        const [term, ty] = synth(local, tm.term);
+        const fty = domain_1.force(ty);
+        if (fty.tag !== 'VSigma')
+            return utils_1.terr(`not a sigma type in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
         const proj = tm.proj;
         if (proj.tag === 'PCore') {
             const tag = proj.proj;
-            const [term, ty] = synth(local, tm.term);
-            const fty = domain_1.force(ty);
-            if (fty.tag !== 'VSigma')
-                return utils_1.terr(`not a sigma type in fst: ${S.showTerm(tm)}`);
             if (tag === 'fst' && fty.plicity && !local.inType)
                 return utils_1.terr(`cannot call fst on erased sigma: ${S.showTerm(tm)}`);
             if (tag === 'snd' && fty.plicity2 && !local.inType)
@@ -1842,8 +1842,46 @@ const synth = (local, tm) => {
             const e = syntax_1.Proj(tag, term);
             return tag === 'fst' ? [e, fty.type] : [e, fty.body(domain_1.vproj('fst', domain_1.evaluate(term, local.vs)))];
         }
-        else
-            return utils_1.terr(`unimplemented: ${S.showTerm(tm)}`);
+        else if (proj.tag === 'PIndex') {
+            let c = term;
+            let t = fty;
+            let v = domain_1.evaluate(term, local.vs);
+            for (let i = 0; i < proj.index; i++) {
+                if (t.tag !== 'VSigma')
+                    return utils_1.terr(`not a sigma type in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+                if (t.plicity2 && !local.inType)
+                    return utils_1.terr(`trying to project from erased element of sigma in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+                c = syntax_1.Proj('snd', c);
+                t = t.body(domain_1.vproj('fst', v));
+                v = domain_1.vproj('snd', v);
+            }
+            if (t.tag !== 'VSigma')
+                return utils_1.terr(`not a sigma type in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+            if (t.plicity && !local.inType)
+                return utils_1.terr(`trying to project from erased element of sigma in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+            return [syntax_1.Proj('fst', c), t.type];
+        }
+        else if (proj.tag === 'PName') {
+            let c = term;
+            let t = fty;
+            let v = domain_1.evaluate(term, local.vs);
+            while (true) {
+                if (t.tag !== 'VSigma')
+                    return utils_1.terr(`not a sigma type or name not found in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+                if (t.name === proj.name)
+                    break;
+                if (t.plicity2 && !local.inType)
+                    return utils_1.terr(`trying to project from erased element of sigma in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+                c = syntax_1.Proj('snd', c);
+                t = t.body(domain_1.vproj('fst', v));
+                v = domain_1.vproj('snd', v);
+            }
+            if (t.tag !== 'VSigma')
+                return utils_1.terr(`not a sigma type in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+            if (t.plicity && !local.inType)
+                return utils_1.terr(`trying to project from erased element of sigma in ${S.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
+            return [syntax_1.Proj('fst', c), t.type];
+        }
     }
     if (tm.tag === 'Ann') {
         const type = check(exports.localInType(local), tm.type, domain_1.VType);
@@ -2488,7 +2526,7 @@ const synth = (local, tm) => {
         const ty = synth(local, tm.term);
         const fty = domain_1.force(ty);
         if (fty.tag !== 'VSigma')
-            return utils_1.terr(`not a sigma type in ${tm.proj}: ${syntax_1.showTerm(tm)}`);
+            return utils_1.terr(`not a sigma type in ${tm.proj}: ${syntax_1.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
         if (tm.proj === 'fst' && fty.plicity && !local.inType)
             return utils_1.terr(`cannot call fst on erased sigma: ${syntax_1.showTerm(tm)}`);
         return tm.proj === 'fst' ? fty.type : fty.body(domain_1.vproj('fst', domain_1.evaluate(tm.term, local.vs)));
