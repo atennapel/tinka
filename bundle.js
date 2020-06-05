@@ -730,6 +730,16 @@ const expr = (t) => {
                 c = surface_1.App(s[i] === '0' ? s0 : s1, false, c);
             return [c, false];
         }
+        else if (t.num.endsWith('f')) {
+            const n = +t.num.slice(0, -1);
+            if (isNaN(n))
+                return utils_1.serr(`invalid number: ${t.num}`);
+            const s = surface_1.Var('FS');
+            let c = surface_1.Var('FZ');
+            for (let i = 0; i < n; i++)
+                c = surface_1.App(s, false, c);
+            return [c, false];
+        }
         else {
             const n = +t.num;
             if (isNaN(n))

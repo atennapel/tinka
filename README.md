@@ -4,6 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- make first parameter to Eq erased
+- add induction and case to Fin
+- fix Vec
 - allow standalone projection
 - create a CEK machine
 - reset metas before

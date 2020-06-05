@@ -202,6 +202,13 @@ const expr = (t: Token): [Term, boolean] => {
       const s = n.toString(2);
       for (let i = 0; i < s.length; i++) c = App(s[i] === '0' ? s0 : s1, false, c);
       return [c, false];
+    } else if (t.num.endsWith('f')) {
+      const n = +t.num.slice(0, -1);
+      if (isNaN(n)) return serr(`invalid number: ${t.num}`);
+      const s = Var('FS');
+      let c: Term = Var('FZ');
+      for (let i = 0; i < n; i++) c = App(s, false, c);
+      return [c, false];
     } else {
       const n = +t.num;
       if (isNaN(n)) return serr(`invalid number: ${t.num}`);
