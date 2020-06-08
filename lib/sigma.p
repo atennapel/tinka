@@ -1,5 +1,3 @@
-import lib/eq.p
-
 def Sigma = \(a : *) (b : a -> *). (x : a) ** b x
 
 def indSigma

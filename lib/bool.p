@@ -17,5 +17,5 @@ def if
 def liftBool : (b : Bool) -> * = \b. if b UnitType Void
 
 def trueNeqFalse
-  : Neq Bool True False
+  : Neq {Bool} True False
   = \eq. castF {Bool} {True} {False} {liftBool} eq (Unit : liftBool True)

@@ -386,11 +386,19 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
     const d = ds[i];
     log(() => `typecheckDefs ${S.showDef(d)}`);
     if (d.tag === 'DDef') {
-      const [tm_, ty] = typecheck(d.value);
-      const tm = zonk(tm_);
-      log(() => `set ${d.name} = ${showTerm(tm)}`);
-      globalSet(d.name, tm, evaluate(tm, Nil), ty, d.plicity);
-      xs.push(d.name);
+      try {
+        const [tm_, ty] = typecheck(d.value);
+        const tm = zonk(tm_);
+        log(() => `set ${d.name} = ${showTerm(tm)}`);
+        globalSet(d.name, tm, evaluate(tm, Nil), ty, d.plicity);
+
+        const i = xs.indexOf(d.name);
+        if (i >= 0) xs.splice(i, 1);
+        xs.push(d.name);
+      } catch (err) {
+        err.message = `type error in def ${d.name}: ${err.message}`;
+        throw err;
+      }
     }
   }
   return xs;

@@ -2006,11 +2006,20 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
         const d = ds[i];
         config_1.log(() => `typecheckDefs ${S.showDef(d)}`);
         if (d.tag === 'DDef') {
-            const [tm_, ty] = exports.typecheck(d.value);
-            const tm = domain_1.zonk(tm_);
-            config_1.log(() => `set ${d.name} = ${syntax_1.showTerm(tm)}`);
-            globalenv_1.globalSet(d.name, tm, domain_1.evaluate(tm, list_1.Nil), ty, d.plicity);
-            xs.push(d.name);
+            try {
+                const [tm_, ty] = exports.typecheck(d.value);
+                const tm = domain_1.zonk(tm_);
+                config_1.log(() => `set ${d.name} = ${syntax_1.showTerm(tm)}`);
+                globalenv_1.globalSet(d.name, tm, domain_1.evaluate(tm, list_1.Nil), ty, d.plicity);
+                const i = xs.indexOf(d.name);
+                if (i >= 0)
+                    xs.splice(i, 1);
+                xs.push(d.name);
+            }
+            catch (err) {
+                err.message = `type error in def ${d.name}: ${err.message}`;
+                throw err;
+            }
         }
     }
     return xs;

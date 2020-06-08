@@ -19,6 +19,10 @@ def paraNat
   : {t : *} -> Nat -> t -> (Nat -> t -> t) -> t
   = \{t} n z s. genrecFix {NatF} {t} (\rec y. caseSum y (\_. z) (\n. s n (rec n))) n
 
+def recNat
+  : {t : *} -> Nat -> t -> ((Nat -> t) -> Nat -> t) -> t
+  = \{t} n z s. genrecFix {NatF} {t} (\rec y. caseSum y (\_. z) (\n. s rec n)) n
+
 def indNat
   : {P : Nat -> *}
     -> P Z

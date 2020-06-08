@@ -22,6 +22,11 @@ def paraBin
   = \{t} b e b0 b1. genrecFix {BinF} {t} (\rec y.
       caseSum y (\_. e) (\z. caseSum z (\b. b0 b (rec b)) (\b. b1 b (rec b)))) b
 
+def recBin
+  : {t : *} -> Bin -> t -> ((Bin -> t) -> Bin -> t) -> ((Bin -> t) -> Bin -> t) -> t
+  = \{t} b e b0 b1. genrecFix {BinF} {t} (\rec y.
+      caseSum y (\_. e) (\z. caseSum z (\b. b0 rec b) (\b. b1 rec b))) b
+
 def BinZ : Bin = BE
 def BinS : Bin -> Bin =
   \b. paraBin b

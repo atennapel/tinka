@@ -19,6 +19,10 @@ def paraList
   : {t r : *} -> List t -> r -> (t -> List t -> r -> r) -> r
   = \{t} {r} l n c. genrecFix {ListF t} {r} (\rec y. caseSum y (\_. n) (\p. let tl = p.snd in c p.fst tl (rec tl))) l
 
+def recList
+  : {t r : *} -> List t -> r -> ((List t -> r) -> t -> List t -> r) -> r
+  = \{t} {r} l n c. genrecFix {ListF t} {r} (\rec y. caseSum y (\_. n) (\p. let tl = p.snd in c rec p.fst tl)) l
+
 def indList
   : {t : *}
     -> {P : List t -> *}
@@ -29,7 +33,7 @@ def indList
   = \{t} {P} n c l. genindFix {ListF t} {P}
     (\rec y. indSum {UnitType} {t ** List t} {\s. P (In {ListF t} s)}
       (\_. n)
-      (\p. let tl = .snd p in c {tl} p.fst (rec tl))
+      (\p. let tl = p.snd in c {tl} p.fst (rec tl))
       y)
     l
 
