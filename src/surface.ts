@@ -196,11 +196,11 @@ export const erase = (t: Term): Term => {
 
 export type Def = DDef;
 
-export type DDef = { tag: 'DDef', name: Name, value: Term };
-export const DDef = (name: Name, value: Term): DDef => ({ tag: 'DDef', name, value });
+export type DDef = { tag: 'DDef', name: Name, value: Term, plicity: Plicity };
+export const DDef = (name: Name, value: Term, plicity: Plicity): DDef => ({ tag: 'DDef', name, value, plicity });
 
 export const showDef = (d: Def): string => {
-  if (d.tag === 'DDef') return `def ${d.name} = ${showTerm(d.value)}`;
+  if (d.tag === 'DDef') return `def ${d.plicity ? '{' : ''}${d.name}${d.plicity ? '}' : ''} = ${showTerm(d.value)}`;
   return d.tag;
 };
 export const showDefs = (ds: Def[]): string => ds.map(showDef).join('\n');

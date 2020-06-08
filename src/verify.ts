@@ -73,6 +73,7 @@ const synth = (local: Local, tm: Term): Val => {
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);
     if (!entry) return terr(`global ${tm.name} not found`);
+    if (entry.plicity && !local.inType) return terr(`erased global ${showTerm(tm)} used`);
     return entry.type;
   }
   if (tm.tag === 'Var') {

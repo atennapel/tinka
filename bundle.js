@@ -432,8 +432,8 @@ exports.globalReset = () => {
 };
 exports.globalMap = () => env;
 exports.globalGet = (name) => env[name] || null;
-exports.globalSet = (name, term, val, type) => {
-    env[name] = { term, val, type };
+exports.globalSet = (name, term, val, type, plicity) => {
+    env[name] = { term, val, type, plicity };
 };
 exports.globalDelete = (name) => {
     delete env[name];
@@ -974,14 +974,31 @@ exports.parseDef = async (c, importMap) => {
         return fdefs;
     }
     else if (c[0].tag === 'Name' && c[0].name === 'def') {
-        if (c[1].tag === 'Name') {
-            const name = c[1].name;
+        const x = c[1];
+        let impl = false;
+        let name = '';
+        if (x.tag === 'Name') {
+            name = x.name;
+        }
+        else if (x.tag === 'List' && x.bracket === '{') {
+            const a = x.list;
+            if (a.length !== 1)
+                return utils_1.serr(`invalid name for def`);
+            const h = a[0];
+            if (h.tag !== 'Name')
+                return utils_1.serr(`invalid name for def`);
+            name = h.name;
+            impl = true;
+        }
+        else
+            return utils_1.serr(`invalid name for def`);
+        if (name) {
             const fst = 2;
             const sym = c[fst];
             if (sym.tag !== 'Name')
                 return utils_1.serr(`def: after name should be : or =`);
             if (sym.name === '=') {
-                return [surface_2.DDef(name, exprs(c.slice(fst + 1), '('))];
+                return [surface_2.DDef(name, exprs(c.slice(fst + 1), '('), impl)];
             }
             else if (sym.name === ':') {
                 const tyts = [];
@@ -995,7 +1012,7 @@ exports.parseDef = async (c, importMap) => {
                 }
                 const ety = exprs(tyts, '(');
                 const body = exprs(c.slice(j + 1), '(');
-                return [surface_2.DDef(name, surface_1.Let(false, name, ety, body, surface_1.Var(name)))];
+                return [surface_2.DDef(name, surface_1.Let(false, name, ety, body, surface_1.Var(name)), impl)];
             }
             else
                 return utils_1.serr(`def: : or = expected but got ${sym.name}`);
@@ -1405,10 +1422,10 @@ exports.erase = (t) => {
         return exports.EnumInd(t.num, exports.erase(t.prop), exports.erase(t.term), t.args.map(exports.erase));
     return t;
 };
-exports.DDef = (name, value) => ({ tag: 'DDef', name, value });
+exports.DDef = (name, value, plicity) => ({ tag: 'DDef', name, value, plicity });
 exports.showDef = (d) => {
     if (d.tag === 'DDef')
-        return `def ${d.name} = ${exports.showTerm(d.value)}`;
+        return `def ${d.plicity ? '{' : ''}${d.name}${d.plicity ? '}' : ''} = ${exports.showTerm(d.value)}`;
     return d.tag;
 };
 exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
@@ -1764,6 +1781,8 @@ const synth = (local, tm) => {
             const entry = globalenv_1.globalGet(tm.name);
             if (!entry)
                 return utils_1.terr(`global ${tm.name} not found`);
+            if (entry.plicity && !local.inType)
+                return utils_1.terr(`erased global ${S.showTerm(tm)} used`);
             return [syntax_1.Global(tm.name), entry.type];
         }
         else {
@@ -1990,7 +2009,7 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
             const [tm_, ty] = exports.typecheck(d.value);
             const tm = domain_1.zonk(tm_);
             config_1.log(() => `set ${d.name} = ${syntax_1.showTerm(tm)}`);
-            globalenv_1.globalSet(d.name, tm, domain_1.evaluate(tm, list_1.Nil), ty);
+            globalenv_1.globalSet(d.name, tm, domain_1.evaluate(tm, list_1.Nil), ty, d.plicity);
             xs.push(d.name);
         }
     }
@@ -2478,6 +2497,8 @@ const synth = (local, tm) => {
         const entry = globalenv_1.globalGet(tm.name);
         if (!entry)
             return utils_1.terr(`global ${tm.name} not found`);
+        if (entry.plicity && !local.inType)
+            return utils_1.terr(`erased global ${syntax_1.showTerm(tm)} used`);
         return entry.type;
     }
     if (tm.tag === 'Var') {

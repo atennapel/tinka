@@ -180,6 +180,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     if (i < 0) {
       const entry = globalGet(tm.name);
       if (!entry) return terr(`global ${tm.name} not found`);
+      if (entry.plicity && !local.inType) return terr(`erased global ${S.showTerm(tm)} used`);
       return [Global(tm.name), entry.type];
     } else {
       const [entry, j] = indexT(local.ts, i) || terr(`var out of scope ${S.showTerm(tm)}`);
@@ -388,7 +389,7 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
       const [tm_, ty] = typecheck(d.value);
       const tm = zonk(tm_);
       log(() => `set ${d.name} = ${showTerm(tm)}`);
-      globalSet(d.name, tm, evaluate(tm, Nil), ty);
+      globalSet(d.name, tm, evaluate(tm, Nil), ty, d.plicity);
       xs.push(d.name);
     }
   }

@@ -412,13 +412,25 @@ export const parseDef = async (c: Token[], importMap: ImportMap): Promise<Def[]>
     log(() => `imported ${fdefs.map(x => x.name).join(' ')}`);
     return fdefs;
   } else if (c[0].tag === 'Name' && c[0].name === 'def') {
-    if (c[1].tag === 'Name') {
-      const name = c[1].name;
+    const x = c[1];
+    let impl = false;
+    let name = '';
+    if (x.tag === 'Name') {
+      name = x.name;
+    } else if (x.tag === 'List' && x.bracket === '{') {
+      const a = x.list;
+      if (a.length !== 1) return serr(`invalid name for def`);
+      const h = a[0];
+      if (h.tag !== 'Name') return serr(`invalid name for def`);
+      name = h.name;
+      impl = true;
+    } else return serr(`invalid name for def`);
+    if (name) {
       const fst = 2;
       const sym = c[fst];
       if (sym.tag !== 'Name') return serr(`def: after name should be : or =`);
       if (sym.name === '=') {
-        return [DDef(name, exprs(c.slice(fst + 1), '('))];
+        return [DDef(name, exprs(c.slice(fst + 1), '('), impl)];
       } else if (sym.name === ':') {
         const tyts: Token[] = [];
         let j = fst + 1;
@@ -430,7 +442,7 @@ export const parseDef = async (c: Token[], importMap: ImportMap): Promise<Def[]>
         }
         const ety = exprs(tyts, '(');
         const body = exprs(c.slice(j + 1), '(');
-        return [DDef(name, Let(false, name, ety, body, Var(name)))];
+        return [DDef(name, Let(false, name, ety, body, Var(name)), impl)];
       } else return serr(`def: : or = expected but got ${sym.name}`);
     } else return serr(`def should start with a name`);
   } else return serr(`def should start with def or import`);
