@@ -1717,7 +1717,7 @@ const check = (local, tm, ty) => {
             val = check(local, tm.val, vty);
         }
         else {
-            [val, vty] = synth(local, tm.val);
+            [val, vty] = synth(tm.plicity ? exports.localInType(local) : local, tm.val);
             type = domain_1.quote(vty, local.index, false);
         }
         const body = check(exports.extend(local, tm.name, vty, false, tm.plicity, false, domain_1.evaluate(val, local.vs)), tm.body, ty);
@@ -1831,7 +1831,7 @@ const synth = (local, tm) => {
             val = check(local, tm.val, vty);
         }
         else {
-            [val, vty] = synth(local, tm.val);
+            [val, vty] = synth(tm.plicity ? exports.localInType(local) : local, tm.val);
             type = domain_1.quote(vty, local.index, false);
         }
         const [body, rt] = synth(exports.extend(local, tm.name, vty, false, tm.plicity, false, domain_1.evaluate(val, local.vs)), tm.body);
@@ -1970,10 +1970,10 @@ const holesPop = () => {
 };
 const holesDiscard = () => { holesStack.pop(); };
 const holesReset = () => { holesStack = []; holes = {}; };
-exports.typecheck = (tm) => {
+exports.typecheck = (tm, plicity = false) => {
     holesDiscard();
     holesReset();
-    const [etm, ty] = synth(exports.localEmpty, tm);
+    const [etm, ty] = synth(plicity ? exports.localInType(exports.localEmpty) : exports.localEmpty, tm);
     const ztm = domain_1.zonk(etm, list_1.Nil, 0);
     const holeprops = Object.entries(holes);
     if (holeprops.length > 0) {
@@ -2007,7 +2007,7 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
         config_1.log(() => `typecheckDefs ${S.showDef(d)}`);
         if (d.tag === 'DDef') {
             try {
-                const [tm_, ty] = exports.typecheck(d.value);
+                const [tm_, ty] = exports.typecheck(d.value, d.plicity);
                 const tm = domain_1.zonk(tm_);
                 config_1.log(() => `set ${d.name} = ${syntax_1.showTerm(tm)}`);
                 globalenv_1.globalSet(d.name, tm, domain_1.evaluate(tm, list_1.Nil), ty, d.plicity);

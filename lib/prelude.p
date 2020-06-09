@@ -18,5 +18,3 @@ import lib/fix.p
 import lib/nat.p
 import lib/bin.p
 import lib/list.p
-
-import lib/fin.p

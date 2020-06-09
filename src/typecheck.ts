@@ -122,7 +122,7 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
       vty = evaluate(type, local.vs);
       val = check(local, tm.val, vty);
     } else {
-      [val, vty] = synth(local, tm.val);
+      [val, vty] = synth(tm.plicity ? localInType(local) : local, tm.val);
       type = quote(vty, local.index, false);
     }
     const body = check(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body, ty);
@@ -224,7 +224,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       vty = evaluate(type, local.vs);
       val = check(local, tm.val, vty);
     } else {
-      [val, vty] = synth(local, tm.val);
+      [val, vty] = synth(tm.plicity ? localInType(local) : local, tm.val);
       type = quote(vty, local.index, false);
     }
     const [body, rt] = synth(extend(local, tm.name, vty, false, tm.plicity, false, evaluate(val, local.vs)), tm.body);
@@ -350,10 +350,10 @@ const holesPop = (): void => {
 const holesDiscard = (): void => { holesStack.pop() };
 const holesReset = (): void => { holesStack = []; holes = {} };
 
-export const typecheck = (tm: S.Term): [Term, Val] => {
+export const typecheck = (tm: S.Term, plicity: Plicity = false): [Term, Val] => {
   holesDiscard();
   holesReset();
-  const [etm, ty] = synth(localEmpty, tm);
+  const [etm, ty] = synth(plicity ? localInType(localEmpty) : localEmpty, tm);
   const ztm = zonk(etm, Nil, 0);
   const holeprops = Object.entries(holes);
   if (holeprops.length > 0) {
@@ -387,7 +387,7 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
     log(() => `typecheckDefs ${S.showDef(d)}`);
     if (d.tag === 'DDef') {
       try {
-        const [tm_, ty] = typecheck(d.value);
+        const [tm_, ty] = typecheck(d.value, d.plicity);
         const tm = zonk(tm_);
         log(() => `set ${d.name} = ${showTerm(tm)}`);
         globalSet(d.name, tm, evaluate(tm, Nil), ty, d.plicity);

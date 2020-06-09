@@ -17,6 +17,21 @@ def genindIFix
     -> P i x
   = %genindIFix
 
+def genrecIFix
+  : {I : *}
+    -> {F : (I -> *) -> (I -> *)}
+    -> {t : *}
+    -> (
+      ({i : I} -> IFix I F i -> t)
+      -> {i : I}
+      -> F (IFix I F) i
+      -> t
+    )
+    -> {i : I}
+    -> IFix I F i
+    -> t
+  = \{I} {F} {t} f {i} x. genindIFix {I} {F} {\_ _. t} f {i} x
+
 def outIFix
   : {I : *} -> {F : (I -> *) -> (I -> *)} -> {i : I} -> IFix I F i -> F (IFix I F) i
   = \{I} {F} {i} x. genindIFix {I} {F} {\i _. F (IFix I F) i} (\_ {_} z. z) {i} x
