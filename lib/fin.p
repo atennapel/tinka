@@ -23,14 +23,15 @@ def genindFin
     -> (x : Fin n)
     -> P n x
   = \{P} fz fs {n} x. genindIFix {Nat} {FinF} {P}
-      (\rec {i} z. indSum
+      (\rec {i} z.
+        indSum
         {{m : Nat} ** Eq {Nat} (S m) i}
         {{m : Nat} ** Fin m ** Eq {Nat} (S m) i}
         {\s. P i (IIn {Nat} {FinF} {i} s)}
         (\p.
           let {m} = p.fst in
           let q = p.snd in
-          rewrite {Nat} {\j. P j (IIn {Nat} {FinF} {j} (InL {{m : Nat} ** Eq {Nat} (S m) j} {_} ({pred j}, refl {Nat} {j})))} {S m} {i} q (fz {m}))
+          _q (fz {m}))
         (\p. _y)
         z)
       {n} x

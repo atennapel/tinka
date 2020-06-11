@@ -9,7 +9,7 @@ def indUnit
 
 def uniteta
   : {x : UnitType} -> Eq {UnitType} x Unit
-  = \{x}. refl {UnitType} {x}
+  = \{x}. Refl {UnitType} {x}
 
 def unitetaR
   : {x : UnitType} -> Eq {UnitType} Unit x

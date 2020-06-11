@@ -1,59 +1,70 @@
 import lib/void.p
-import lib/unsafecast.p
 
-def Eq = \{t : *} (a b : t). {f : t -> *} -> f a -> f b
+def HEq = %HEq
+def HRefl
+  : {A : *} -> {a : A} -> HEq {A} {A} a a
+  = %ReflHEq
+def elimHEq
+  : {A : *}
+    -> {a : A}
+    -> {P : (b : A) -> HEq {A} {A} a b -> *}
+    -> P a (HRefl {A} {a})
+    -> {b : A}
+    -> (p : HEq {A} {A} a b)
+    -> P b p
+  = %elimHEq
+
+def HNeq = \{A : *} {B : *} (a : A) (b : B). HEq {A} {B} a b -> Void
+
+def Eq = \{t : *} (a b : t). HEq {t} {t} a b
 def Neq = \{t : *} (a b : t). Eq {t} a b -> Void
 
-def castF
-  : {t : *} -> {a b : t} -> {f : t -> *} -> (e : Eq {t} a b) -> f a -> f b
-  = \{t} {a b} {f} e. e {f}
+def Refl
+  : {A : *} -> {a : A} -> Eq {A} a a
+  = HRefl
 
-def cast
-  : {a b : *} -> Eq {*} a b -> a -> b
-  = \{a b}. castF {*} {a} {b} {\x. x}
+def elimEq
+  : {A : *}
+    -> {a : A}
+    -> {P : (b : A) -> Eq a b -> *}
+    -> P a (Refl {A} {a})
+    -> {b : A}
+    -> (p : Eq {A} a b)
+    -> P b p
+  = elimHEq
 
 def rewrite
-  : {t : *} -> {f : t -> *} -> {a b : t} -> (e : Eq {t} a b) -> f a -> f b
-  = \{t} {f} {a} {b} e. e {f}
+  : {t : *} -> {f : t -> *} -> {a b : t} -> Eq {t} a b -> f a -> f b
+  = \{t} {f} {a} {b} p x. elimEq {t} {a} {\_ _. f b} x {b} p
 
-def refl : {t : *} -> {x : t} -> Eq {t} x x = \x. x
+def cast
+  : {a b : *} -> Eq a b -> a -> b
+  = \{a} {b} p x. rewrite {*} {\x. x} {a} {b} p x
 
 def symm
-  : {t : *} -> {a b : t} -> Eq {t} a b -> Eq {t} b a
-  = \{t} {a b} x {f} fa. castF {t} {a} {b} {\x. f x -> f a} x (\x. x) fa
+  : {t : *} -> {a b : t} -> Eq a b -> Eq b a
+  = \{t} {a} {b} p. (elimEq {t} {a} {\c _. Eq c c -> Eq c a} (\x. x) {b} p) (rewrite {_} {\x. Eq x b} p p)
+
+def eqRefl
+  : {t : *} -> {x : t} -> (p : Eq x x) -> Eq p (Refl {t} {x})
+  = \{t} {x} p. elimEq {t} {x} {\c q. HEq q (Refl {t} {c})} Refl {x} p
+
+def eqK
+  : {t : *} -> {x : t} -> {P : Eq x x -> *} -> P (Refl {t} {x}) -> (p : Eq x x) -> P p
+  = \{t} {x} {P} q p. let pRefl = eqRefl {t} {x} p in rewrite {_} {\x. P x} (symm pRefl) q
+
+def eqJ
+  : {t : *} -> {P : (a b : t) -> Eq a b -> *} -> ({x : t} -> P x x (Refl {t} {x})) -> {a b : t} -> (p : Eq a b) -> P a b p
+  = \{t} {P} q {a} {b} p. elimEq {t} {a} {\c q. P a c q} (q {a}) {b} p
+
+def uip
+  : {t : *} -> {a b : t} -> (p1 p2 : Eq a b) -> Eq p1 p2
+  = \{t} {a} {b} p1 p2. (elimEq {t} {a} {\c p. (q : Eq a c) -> Eq q p} (eqRefl {t} {a}) {b} p2) p1
 
 def lift
-  : {t1 : *} -> {t2 : *} -> {a b : t1} -> {f : t1 -> t2} -> Eq {t1} a b -> Eq {t2} (f a) (f b)
-  = \{t1} {t2} {a} {b} {f} e. e {\x. Eq {t2} (f a) (f x)} (refl {t2} {f a}) 
+  : {t1 : *} -> {t2 : *} -> {f : t1 -> t2} -> {a b : t1} -> Eq a b -> Eq (f a) (f b)
+  = \{t1} {t2} {f} {a} {b} p. rewrite {_} {\x. Eq (f a) (f x)} p (Refl {_} {f a})
 
-def dfuneta
-  : {a : *} -> {b : a -> *} -> {f g : (x : a) -> b x} -> Eq {(x : a) -> b x} f g -> Eq {(x : a) -> b x} (\x. f x) (\x. g x)
-  = \e. e
-
-def dfunetaR
-  : {a : *} -> {b : a -> *} -> {f g : (x : a) -> b x} -> Eq {(x : a) -> b x} (\x. f x) (\x. g x) -> Eq {(x : a) -> b x} f g
-  = \e. e
-
-def funeta
-  : {a b : *} -> {f g : a -> b} -> Eq {a -> b} f g -> Eq {a -> b} (\x. f x) (\x. g x)
-  = \e. e
-
-def funetaR
-  : {a b : *} -> {f g : a -> b} -> Eq {a -> b} (\x. f x) (\x. g x) -> Eq {a -> b} f g
-  = \e. e
-
-def dfunextR
-  : {a : *} -> {b : a -> *} -> {f g : (x : a) -> b x} -> Eq {(x : a) -> b x} f g -> (x : a) -> Eq {b x} (f x) (g x)
-  = \{a} {b} {f} {g} e x. lift {(x : a) -> b x} {b x} {f} {g} {\f. f x} e
-
-def funextR
-  : {a b : *} -> {f g : a -> b} -> Eq {a -> b} f g -> (x : a) -> Eq {b} (f x) (g x)
-  = \{a} {b}. dfunextR {a} {\_. b}
-
-def unsafeDFunext
-  : {a : *} -> {b : a -> *} -> {f g : (x : a) -> b x} -> ((x : a) -> Eq {b x} (f x) (g x)) -> Eq {(x : a) -> b x} f g
-  = \{a} {b} {f} {g} app. unsafeCast (refl {(x : a) -> b x} {f})
-
-def unsafeFunext
-  : {a b : *} -> {f g : a -> b} -> ((x : a) -> Eq {b} (f x) (g x)) -> Eq {a -> b} f g
-  = \{a} {b}. unsafeDFunext {a} {\_. b}
+def trans
+  : {t : *} -> {a b c : t} -> Eq a b -> Eq b c -> Eq a c
+  = \{t} {a} {b} {c} p q. rewrite {_} {\x. Eq a x} q p
