@@ -45,6 +45,14 @@ def symm
   : {t : *} -> {a b : t} -> Eq a b -> Eq b a
   = \{t} {a} {b} p. (elimEq {t} {a} {\c _. Eq c c -> Eq c a} (\x. x) {b} p) (rewrite {_} {\x. Eq x b} p p)
 
+def trans
+  : {t : *} -> {a b c : t} -> Eq a b -> Eq b c -> Eq a c
+  = \{t} {a} {b} {c} p q. rewrite {_} {\x. Eq a x} q p
+
+def lift
+  : {t1 : *} -> {t2 : *} -> {f : t1 -> t2} -> {a b : t1} -> Eq a b -> Eq (f a) (f b)
+  = \{t1} {t2} {f} {a} {b} p. rewrite {_} {\x. Eq (f a) (f x)} p (Refl {_} {f a})
+
 def eqRefl
   : {t : *} -> {x : t} -> (p : Eq x x) -> Eq p (Refl {t} {x})
   = \{t} {x} p. elimEq {t} {x} {\c q. HEq q (Refl {t} {c})} Refl {x} p
@@ -61,10 +69,6 @@ def uip
   : {t : *} -> {a b : t} -> (p1 p2 : Eq a b) -> Eq p1 p2
   = \{t} {a} {b} p1 p2. (elimEq {t} {a} {\c p. (q : Eq a c) -> Eq q p} (eqRefl {t} {a}) {b} p2) p1
 
-def lift
-  : {t1 : *} -> {t2 : *} -> {f : t1 -> t2} -> {a b : t1} -> Eq a b -> Eq (f a) (f b)
-  = \{t1} {t2} {f} {a} {b} p. rewrite {_} {\x. Eq (f a) (f x)} p (Refl {_} {f a})
-
-def trans
-  : {t : *} -> {a b c : t} -> Eq a b -> Eq b c -> Eq a c
-  = \{t} {a} {b} {c} p q. rewrite {_} {\x. Eq a x} q p
+def rewriteBoth
+  : {t : *} -> {f : (x y : t) -> Eq {t} x y -> *} -> {a b : t} -> (p : Eq {t} a b) -> f a b p -> f b a (symm p)
+  = \{t} {f} {a} {b} p x. (elimEq {t} {a} {\y e. f a y e -> f y a (symm e)} (\x. x) {b} p) x

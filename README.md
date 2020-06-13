@@ -4,7 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- make first parameter to Eq erased
+- fix Fin
+- add functions for vec
+- erase more (elimHEq, ?...)
+- fix annotated let parser
 - add induction and case to Fin
 - fix Vec
 - allow standalone projection

@@ -6,12 +6,12 @@ import lib/eq.p
 
 def VecF = \(t : *) (r : Nat -> *) (i : Nat). Sum (Eq {Nat} Z i) ({m : Nat} ** t ** r m ** Eq {Nat} (S m) i)
 def Vec = \(n : Nat) (t : *). IFix Nat (VecF t) n
-def VNil : {t : *} -> Vec Z t = \{t}. IIn {Nat} {VecF t} {Z} (InL (refl {Nat} {Z}))
+def VNil : {t : *} -> Vec Z t = \{t}. IIn {Nat} {VecF t} {Z} (InL (Refl {Nat} {Z}))
 def VCons
   : {t : *} -> {n : Nat} -> t -> Vec n t -> Vec (S n) t
-  = \{t} {n} hd tl. IIn {Nat} {VecF t} {S n} (InR {_} {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) (S n)} ({n}, hd, tl, refl {Nat} {S n}))
+  = \{t} {n} hd tl. IIn {Nat} {VecF t} {S n} (InR {_} {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) (S n)} ({n}, hd, tl, Refl {Nat} {S n}))
 
-def genindFin
+def genindVec
   : {t : *}
     -> {P : (i : Nat) -> Vec i t -> *}
     -> P Z (VNil {t})
@@ -25,7 +25,12 @@ def genindFin
         {Eq {Nat} Z i}
         {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) i}
         {\s. P i (IIn {Nat} {VecF t} {i} s)}
-        (\q. rewrite {_} {\j. P j (IIn {Nat} {VecF t} {j} (InL {Eq {Nat} Z j} {_} (_q)))} q fz)
-        (\p. _y)
+        (\q. elimEq {_} {_} {\z e. P z (IIn {Nat} {VecF t} {z} (InL e))} fz q)
+        (\p.
+          let {mm} = p.0 in
+          let hd = p.1 in
+          let tl = p.2 in
+          let q = p.snd.snd.snd in
+          elimEq {_} {_} {\j e. P j (IIn {Nat} {VecF t} {j} (InR {_} {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) j} ({mm}, hd, tl, e)))} (fs rec {mm} hd tl) q)
         z)
       {n} x

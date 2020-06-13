@@ -9,11 +9,11 @@ def Fin = IFix Nat FinF
 def FZ
   : {n : Nat} -> Fin (S n)
   = \{n}. IIn {Nat} {FinF} {S n}
-      (InL {{m : Nat} ** Eq {Nat} (S m) (S n)} {_} ({n}, refl {Nat} {S n}))
+      (InL {{m : Nat} ** Eq {Nat} (S m) (S n)} {_} ({n}, Refl {Nat} {S n}))
 def FS
   : {n : Nat} -> Fin n -> Fin (S n)
   = \{n} f. IIn {Nat} {FinF} {S n}
-      (InR {_} {{m : Nat} ** Fin m ** Eq {Nat} (S m) (S n)} ({n}, f, refl {Nat} {S n}))
+      (InR {_} {{m : Nat} ** Fin m ** Eq {Nat} (S m) (S n)} ({n}, f, Refl {Nat} {S n}))
 
 def genindFin
   : {P : (i : Nat) -> Fin i -> *}
@@ -29,9 +29,15 @@ def genindFin
         {{m : Nat} ** Fin m ** Eq {Nat} (S m) i}
         {\s. P i (IIn {Nat} {FinF} {i} s)}
         (\p.
-          let {m} = p.fst in
-          let q = p.snd in
-          _q (fz {m}))
+          let {pm} = p.fst in
+          let pp = p.snd in
+          let f = (fz {pm} : P (S pm) (IIn {Nat} {FinF} {S pm} (InL {{m : Nat} ** Eq {Nat} (S m) (S pm)} {_} ({pm}, Refl {Nat} {S pm})))) in
+          --let refl = rewrite {_} {\x. Eq {Nat} (S pm) x} pp (Refl {_} {S pm}) in
+          --let uipx = uip refl pp in
+          --let uipfixed = eqJ {_} {\a b pi. HEq (Refl {Nat} {a}) pi} (\{x}. Refl) pp in
+          --let uipfixedrewr = rewriteBoth {_} {\spm j qq. HEq {Eq {Nat} (S pm) (S pm)} (Refl {Nat} {S pm}) qq} pp uipfixed in
+          let xxx = rewrite {_} {\x. {m : Nat} ** Eq {Nat} (S m) x} (symm pp) p in
+          _x)
         (\p. _y)
         z)
       {n} x
