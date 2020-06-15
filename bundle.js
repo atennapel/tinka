@@ -1447,6 +1447,8 @@ exports.erase = (t) => {
         const res = t.plicity ? exports.erase(t.left) : exports.App(exports.erase(t.left), false, exports.erase(t.right));
         if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast'))
             return res.right;
+        if (res.tag === 'App' && res.left.tag === 'App' && res.left.left.tag === 'Prim' && res.left.left.name === 'elimHEq')
+            return res.left.right;
         return res;
     }
     if (t.tag === 'Pi')
@@ -1457,8 +1459,13 @@ exports.erase = (t) => {
         return t.plicity ? exports.erase(t.body) : exports.Let(false, t.name, null, exports.erase(t.val), exports.erase(t.body));
     if (t.tag === 'Proj')
         return exports.Proj(t.proj, exports.erase(t.term));
-    if (t.tag === 'EnumInd')
-        return exports.EnumInd(t.num, exports.erase(t.prop), exports.erase(t.term), t.args.map(exports.erase));
+    if (t.tag === 'EnumInd') {
+        if (t.num === 0)
+            return exports.erase(t.term);
+        if (t.num === 1)
+            return exports.erase(t.args[0]);
+        return exports.EnumInd(t.num, exports.Type, exports.erase(t.term), t.args.map(exports.erase));
+    }
     return t;
 };
 exports.DDef = (name, value, plicity) => ({ tag: 'DDef', name, value, plicity });

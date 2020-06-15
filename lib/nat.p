@@ -2,6 +2,7 @@ import lib/unit.p
 import lib/sum.p
 import lib/fix.p
 import lib/eq.p
+import lib/bool.p
 
 def NatF = \(r : *). Sum UnitType r
 def Nat = Fix NatF
@@ -68,3 +69,9 @@ def eq_S
 def eq_S_symm
   : {n m : Nat} -> Eq (S n) (S m) -> Eq n m
   = \e. lift {_} {_} {pred} e
+
+def isZero : Nat -> Bool = \n. caseNat n True (\_. False)
+
+def z_neq_S
+  : {n : Nat} -> Neq Z (S n)
+  = \{n} eq. rewrite {_} {\n. liftBool (isZero n)} eq Unit

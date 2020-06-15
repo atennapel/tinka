@@ -51,14 +51,14 @@ def paraList
   : {t r : *} -> List t -> r -> (t -> List t -> r -> r) -> r
   = \l n c. recList l n (\rec hd tl. c hd tl (rec tl))
 
-def map
+def mapList
   : {a b : *} -> (a -> b) -> List a -> List b
   = \{a} {b} f l. cataList l (Nil {b}) (\hd tl. Cons (f hd) tl)
 
-def head
+def headList
   : {t : *} -> List t -> Maybe t
   = \{t} l. caseList l (Nothing {t}) (\hd _. Just hd)
 
-def tail
+def tailList
   : {t : *} -> List t -> Maybe (List t)
   = \{t} l. caseList l (Nothing {List t}) (\_ tl. Just tl)

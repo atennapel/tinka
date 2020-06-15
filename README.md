@@ -4,12 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- fix Fin
-- add functions for vec
-- erase more (elimHEq, ?...)
+- replace enum with void, unit, bool
+- add genindType
+- add functions for vec (head, tail, index, S-is-cons)
 - fix annotated let parser
-- add induction and case to Fin
-- fix Vec
 - allow standalone projection
 - create a CEK machine
 - reset metas before

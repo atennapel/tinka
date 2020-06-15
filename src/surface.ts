@@ -184,13 +184,19 @@ export const erase = (t: Term): Term => {
     const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
     if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast'))
       return res.right;
+    if (res.tag === 'App' && res.left.tag === 'App' && res.left.left.tag === 'Prim' && res.left.left.name === 'elimHEq')
+      return res.left.right;
     return res;
   }
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Sigma') return Sigma(t.plicity, t.plicity2, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
-  if (t.tag === 'EnumInd') return EnumInd(t.num, erase(t.prop), erase(t.term), t.args.map(erase));
+  if (t.tag === 'EnumInd') {
+    if (t.num === 0) return erase(t.term);
+    if (t.num === 1) return erase(t.args[0]);
+    return EnumInd(t.num, Type, erase(t.term), t.args.map(erase));
+  }
   return t;
 };
 

@@ -16,7 +16,7 @@ if (process.argv[2]) {
     globalReset();
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
     parseDefs(sc, {}).then(ds => {
-      const ns = typecheckDefs(ds);
+      const ns = typecheckDefs(ds, false);
       const m = globalMap();
       const main = m.main;
       if (!main) console.log(`defined ${ns.join(' ')}`);
