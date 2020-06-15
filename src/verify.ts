@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, VEnum, VPi, vapp, VElem, vproj } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -67,9 +67,7 @@ const check = (local: Local, tm: Term, ty: Val): void => {
 
 const synth = (local: Local, tm: Term): Val => {
   log(() => `synth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Enum') return VType;
   if (tm.tag === 'Prim') return primType(tm.name);
-  if (tm.tag === 'Elem' && tm.num < tm.total) return VEnum(tm.total);
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);
     if (!entry) return terr(`global ${tm.name} not found`);
@@ -129,16 +127,6 @@ const synth = (local: Local, tm: Term): Val => {
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in ${tm.proj}: ${showTerm(tm)}: ${showTermS(fty, local.names, local.index)}`);
     if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${showTerm(tm)}`);
     return tm.proj === 'fst' ? fty.type : fty.body(vproj('fst', evaluate(tm.term, local.vs)));
-  }
-  if (tm.tag === 'EnumInd') {
-    if (tm.args.length !== tm.num)
-      return terr(`invalid enum induction, cases do not match: ${showTerm(tm)}`);
-    check(localInType(local), tm.prop, VPi(false, '_', VEnum(tm.num), _ => VType));
-    const P = evaluate(tm.prop, local.vs);
-    check(local, tm.term, VEnum(tm.num));
-    for (let i = 0; i < tm.args.length; i++)
-      check(local, tm.args[i], vapp(P, false, VElem(i, tm.num)));
-    return vapp(P, false, evaluate(tm.term, local.vs));
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Enum, Elem, EnumInd, Prim, Proj, Type } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EUnsafeCast | EProj | EEnumInd | EIFixInd | EElimHEq | EIndUnit | EIndBool;
+export type Elim = EApp | EUnsafeCast | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -26,8 +26,6 @@ export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
 export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
 export type EProj = { tag: 'EProj', proj: 'fst' | 'snd' };
 export const EProj = (proj: 'fst' | 'snd'): EProj => ({ tag: 'EProj', proj });
-export type EEnumInd = { tag: 'EEnumInd', num: number, prop: Val, args: Val[] };
-export const EEnumInd = (num: number, prop: Val, args: Val[]): EEnumInd => ({ tag: 'EEnumInd', num, prop, args });
 export type EIFixInd = { tag: 'EIFixInd', args: Val[] };
 export const EIFixInd = (args: Val[]): EIFixInd => ({ tag: 'EIFixInd', args });
 export type EElimHEq = { tag: 'EElimHEq', args: Val[] };
@@ -38,7 +36,7 @@ export type EIndBool = { tag: 'EIndBool', args: Val[] };
 export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VEnum | VElem | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -52,10 +50,6 @@ export type VSigma = { tag: 'VSigma', plicity: Plicity, plicity2: Plicity, name:
 export const VSigma = (plicity: Plicity, plicity2: Plicity, name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', plicity, plicity2, name, type, body});
 export type VPair = { tag: 'VPair', plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val };
 export const VPair = (plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', plicity, plicity2, fst, snd, type });
-export type VEnum = { tag: 'VEnum', num: number };
-export const VEnum = (num: number): VEnum => ({ tag: 'VEnum', num });
-export type VElem = { tag: 'VElem', num: number, total: number };
-export const VElem = (num: number, total: number): VElem => ({ tag: 'VElem', num, total });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
 
@@ -87,7 +81,6 @@ export const force = (v: Val): Val => {
     return force(foldr((elim, y) =>
       elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, elim.fromtype, y) :
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
-      elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
@@ -103,7 +96,6 @@ export const forceGlue = (v: Val): Val => {
     return forceGlue(foldr((elim, y) =>
       elim.tag === 'EUnsafeCast' ? vunsafecast(elim.type, elim.fromtype, y) :
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
-      elim.tag === 'EEnumInd' ? venumind(elim.num, elim.prop, elim.args, y) :
       elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
@@ -139,13 +131,6 @@ export const vproj = (proj: 'fst' | 'snd', v: Val): Val => {
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EProj(proj), v.args), mapLazy(v.val, v => vproj(proj, v)));
   return impossible(`vsnd: ${v.tag}`);
-};
-export const venumind = (n: number, prop: Val, args: Val[], v: Val): Val => {
-  if (v.tag === 'VElem') return args[v.num];
-  if (v.tag === 'VNe') return VNe(v.head, Cons(EEnumInd(n, prop, args), v.args));
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EEnumInd(n, prop, args), v.args), mapLazy(v.val, v => venumind(n, prop, args, v)));
-  return impossible(`venumind: ${v.tag}`);
 };
 export const vifixind = (args: Val[]): Val => {
   const v = args[0];
@@ -270,10 +255,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Pair')
     return VPair(t.plicity, t.plicity2, evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'Proj') return vproj(t.proj, evaluate(t.term, vs));
-  if (t.tag === 'Enum') return VEnum(t.num);
-  if (t.tag === 'Elem') return VElem(t.num, t.total);
-  if (t.tag === 'EnumInd')
-    return venumind(t.num, evaluate(t.prop, vs), t.args.map(x => evaluate(x, vs)), evaluate(t.term, vs));
   return t;
 };
 
@@ -292,7 +273,6 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   if (e.tag === 'EProj') return Proj(e.proj, t);
-  if (e.tag === 'EEnumInd') return EnumInd(e.num, quote(e.prop, k, full), t, e.args.map(x => quote(x, k, full)));
   if (e.tag === 'EIFixInd') {
     const [I, F, P, f, i] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(App(Prim('genindIFix'), true, I), true, F), true, P), false, f), true, i), false, t);
@@ -342,8 +322,6 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Sigma(v.plicity, v.plicity2, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
     return Pair(v.plicity, v.plicity2, quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
-  if (v.tag === 'VEnum') return Enum(v.num);
-  if (v.tag === 'VElem') return Elem(v.num, v.total);
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -366,7 +344,6 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
   if (e.tag === 'EUnsafeCast') return `unsafeCast {${showTermS(e.type, ns, k, full)}}`;
   if (e.tag === 'EProj') return e.proj;
-  if (e.tag === 'EEnumInd') return `?${e.num} {${showTermS(e.prop, ns, k, full)}} ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIFixInd') return `genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndUnit') return `indunit ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
@@ -413,7 +390,5 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
   if (tm.tag === 'Proj') return Proj(tm.proj, zonk(tm.term, vs, k, full));
-  if (tm.tag === 'EnumInd')
-    return EnumInd(tm.num, zonk(tm.prop, vs, k, full), zonk(tm.term, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

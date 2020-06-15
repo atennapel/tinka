@@ -20,12 +20,6 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
     return conv(k, a.type, b.type);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
-  if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
-    conv(k, a.prop, b.prop);
-    for (let i = 0; i < a.args.length; i ++)
-      conv(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       conv(k, a.args[i], b.args[i]);
@@ -54,8 +48,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
-  if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
-  if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num && a.total === b.total) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -92,8 +84,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     conv(k, vproj('fst', a), b.fst);
     return conv(k, vproj('snd', a), b.snd);
   }
-  if (a.tag === 'VElem' && a.num === 0 && a.total === 1) return;
-  if (b.tag === 'VElem' && b.num === 0 && b.total === 1) return;
   if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
   if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))

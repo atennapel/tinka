@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Enum, Elem, EnumInd, Prim, Type, Proj } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, VEnum, vapp, VElem, vproj, showTermSZ } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -83,7 +83,6 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
   if (tm.tag === 'Type' && fty === VType) return Type;
-  if (tm.tag === 'Enum' && fty === VType) return Enum(tm.num);
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     if (tm.name) {
@@ -100,8 +99,6 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
     const snd = check(fty.plicity2 ? localInType(local) : local, tm.snd, fty.body(evaluate(fst, local.vs)));
     return Pair(tm.plicity, tm.plicity2, fst, snd, quote(ty, local.index, false));
   }
-  if (tm.tag === 'Elem' && tm.total === null && fty.tag === 'VEnum' && tm.num < fty.num)
-    return Elem(tm.num, fty.num);
   if (tm.tag === 'Abs' && !tm.type && fty.tag === 'VPi' && tm.plicity === fty.plicity) {
     const v = VVar(local.index);
     const x = tm.name === '_' ? fty.name : tm.name;
@@ -168,13 +165,7 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
 
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Enum') return [Enum(tm.num), VType];
   if (tm.tag === 'Prim') return [Prim(tm.name), primType(tm.name)];
-  if (tm.tag === 'Elem') {
-    const total = tm.total === null ? tm.num + 1 : tm.total;
-    if (!(tm.num < total)) return terr(`invalid elem: ${S.showTerm(tm)}`);
-    return [Elem(tm.num, total), VEnum(total)];
-  }
   if (tm.tag === 'Var') {
     const i = indexOf(local.namesSurface, tm.name);
     if (i < 0) {
@@ -295,15 +286,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
-  }
-  if (tm.tag === 'EnumInd') {
-    if (tm.args.length !== tm.num)
-      return terr(`invalid enum induction, cases do not match: ${S.showTerm(tm)}`);
-    const prop = check(localInType(local), tm.prop, VPi(false, '_', VEnum(tm.num), _ => VType));
-    const P = evaluate(prop, local.vs);
-    const term = check(local, tm.term, VEnum(tm.num));
-    const args = tm.args.map((x, i) => check(local, x, vapp(P, false, VElem(i, tm.num))));
-    return [EnumInd(tm.num, prop, term, args), vapp(P, false, evaluate(term, local.vs))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

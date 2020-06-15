@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, EnumInd, Proj } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -16,12 +16,6 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'EUnsafeCast' && b.tag === 'EUnsafeCast')
     return unify(k, a.type, b.type);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
-  if (a.tag === 'EEnumInd' && b.tag === 'EEnumInd' && a.num === b.num && a.args.length === b.args.length) {
-    unify(k, a.prop, b.prop);
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       unify(k, a.args[i], b.args[i]);
@@ -50,8 +44,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
-  if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
-  if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num && a.total === b.total) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -89,8 +81,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, vproj('fst', a), b.fst);
     return unify(k, vproj('snd', a), b.snd);
   }
-  if (a.tag === 'VElem' && a.num === 0 && a.total === 1) return;
-  if (b.tag === 'VElem' && b.num === 0 && b.total === 1) return;
   if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
   if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
   // neutrals
@@ -151,7 +141,6 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
     if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
     if (elim.tag === 'EProj') return terr(`fst in meta spine`);
-    if (elim.tag === 'EEnumInd') return terr(`?${elim.num} in meta spine`);
     if (elim.tag === 'EIFixInd') return terr(`%genindIFix in meta spine`);
     if (elim.tag === 'EElimHEq') return terr(`%elimHEq in meta spine`);
     if (elim.tag === 'EIndUnit') return terr(`%indUnit in meta spine`);
@@ -172,8 +161,6 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Global') return t;
   if (t.tag === 'Prim') return t;
-  if (t.tag === 'Elem') return t;
-  if (t.tag === 'Enum') return t;
   if (t.tag === 'Type') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
@@ -215,12 +202,6 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Sigma(t.plicity, t.plicity2, t.name, ty, body);
-  }
-  if (t.tag === 'EnumInd') {
-    const prop = checkSolution(k, m, is, t.prop);
-    const term = checkSolution(k, m, is, t.term);
-    const args = t.args.map(x => checkSolution(k, m, is, x));
-    return EnumInd(t.num, prop, term, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };
