@@ -1,5 +1,5 @@
 import { Ix, Name } from './names';
-import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
+import { List, Cons, Nil, listToString, index, foldr, toArray } from './utils/list';
 import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
@@ -18,12 +18,10 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EUnsafeCast | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool;
+export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool | EUnsafeCast | EIndType;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
-export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
-export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
 export type EProj = { tag: 'EProj', proj: 'fst' | 'snd' };
 export const EProj = (proj: 'fst' | 'snd'): EProj => ({ tag: 'EProj', proj });
 export type EIFixInd = { tag: 'EIFixInd', args: Val[] };
@@ -34,6 +32,10 @@ export type EIndUnit = { tag: 'EIndUnit', args: Val[] };
 export const EIndUnit = (args: Val[]): EIndUnit => ({ tag: 'EIndUnit', args });
 export type EIndBool = { tag: 'EIndBool', args: Val[] };
 export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
+export type EIndType = { tag: 'EIndType', args: Val[] };
+export const EIndType = (args: Val[]): EIndType => ({ tag: 'EIndType', args });
+export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
+export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType;
@@ -85,6 +87,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
+      elim.tag === 'EIndType' ? vindtype([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -100,6 +103,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
+      elim.tag === 'EIndType' ? vindtype([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -196,6 +200,35 @@ export const vindbool = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EIndBool(rest), v.args), mapLazy(v.val, v => vindbool([v].concat(rest))));
   return impossible(`vindbool: ${v.tag}`);
 };
+export const vindtype = (args: Val[]): Val => {
+  const v = args[0];
+  const rest = args.slice(1);
+  // P, pt, pp1, pp2, ps1, ps2, ps3, pv, pu, pb, pf, pe
+  const rec = () => VAbs(false, 't', VType, t => vindtype([t].concat(rest)));
+  if (v.tag === 'VType') return vapp(rest[1], false, rec());
+  if (v.tag === 'VPi' && !v.plicity) return vapp(vapp(vapp(rest[2], false, rec()), false, v.type), false, VAbs(false, 'x', v.type, x => v.body(x)));
+  if (v.tag === 'VPi' && v.plicity) return vapp(vapp(vapp(rest[3], false, rec()), false, v.type), false, VAbs(false, 'x', v.type, x => v.body(x)));
+  if (v.tag === 'VSigma' && !v.plicity && !v.plicity2) return vapp(vapp(vapp(rest[4], false, rec()), false, v.type), false, VAbs(false, 'x', v.type, x => v.body(x)));
+  if (v.tag === 'VSigma' && v.plicity && !v.plicity2) return vapp(vapp(vapp(rest[5], false, rec()), false, v.type), false, VAbs(false, 'x', v.type, x => v.body(x)));
+  if (v.tag === 'VSigma' && !v.plicity && v.plicity2) return vapp(vapp(vapp(rest[6], false, rec()), false, v.type), false, VAbs(false, 'x', v.type, x => v.body(x)));
+  if (v.tag === 'VNe') {
+    if (v.head.tag === 'HPrim' && v.head.name === 'Void') return vapp(rest[7], false, rec());
+    if (v.head.tag === 'HPrim' && v.head.name === 'UnitType') return vapp(rest[8], false, rec());
+    if (v.head.tag === 'HPrim' && v.head.name === 'Bool') return vapp(rest[9], false, rec());
+    if (v.head.tag === 'HPrim' && v.head.name === 'IFix') {
+      const args = toArray(v.args, x => (x as EApp).arg).reverse();
+      return vapp(vapp(vapp(vapp(rest[10], false, rec()), false, args[0]), false, args[1]), false, args[2]);
+    }
+    if (v.head.tag === 'HPrim' && v.head.name === 'HEq') {
+      const args = toArray(v.args, x => (x as EApp).arg).reverse();
+      return vapp(vapp(vapp(vapp(vapp(rest[11], false, rec()), false, args[0]), false, args[1]), false, args[2]), false, args[3]);
+    }
+    return VNe(v.head, Cons(EIndType(rest), v.args));
+  }
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EIndType(rest), v.args), mapLazy(v.val, v => vindtype([v].concat(rest))));
+  return impossible(`vindtype: ${v.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
@@ -226,6 +259,21 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
       return VAbs(true, 'P', VPi(false, '_', VUnitType, _ => VType), P => VAbs(false, 'p', vapp(P, false, VUnit), p => VAbs(false, 'x', VUnitType, x => vindunit([x, P, p]))));
     if (t.name === 'indBool')
       return VAbs(true, 'P', VPi(false, '_', VBool, _ => VType), P => VAbs(false, 't', vapp(P, false, VTrue), t => VAbs(false, 'f', vapp(P, false, VFalse), f => VAbs(false, 'x', VBool, x => vindbool([x, P, t, f])))));
+    if (t.name === 'genindType') {
+      return VAbs(true, 'P', VPi(false, '_', VType, _ => VType), P =>
+        VAbs(false, 'pt', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VType)), pt =>
+        VAbs(false, 'pp1', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VPi(false, 'x', A, x => vapp(B, false, x)))))), pp1 =>
+        VAbs(false, 'pp2', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VPi(true, 'x', A, x => vapp(B, false, x)))))), pp2 =>
+        VAbs(false, 'ps1', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VSigma(false, false, 'x', A, x => vapp(B, false, x)))))), ps1 =>
+        VAbs(false, 'ps2', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VSigma(true, false, 'x', A, x => vapp(B, false, x)))))), ps2 =>
+        VAbs(false, 'ps3', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VSigma(false, true, 'x', A, x => vapp(B, false, x)))))), ps3 =>
+        VAbs(false, 'pv', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VVoid)), pv =>
+        VAbs(false, 'pu', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VUnitType)), pu =>
+        VAbs(false, 'pb', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VBool)), pb =>
+        VAbs(false, 'pf', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'I', VType, I => VPi(false, 'F', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), F => VPi(false, 'i', I, i => vapp(P, false, vapp(vapp(vapp(VIFix, false, I), false, F), false, i)))))), pf =>
+        VAbs(false, 'pe', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VType, B => VPi(false, 'a', A, a => VPi(false, 'b', B, b => vapp(P, false, vheq(A, B, a, b))))))), pe =>
+        VAbs(false, 't', VType, t => vindtype([t, P, pt, pp1, pp2, ps1, ps2, ps3, pv, pu, pb, pf, pe]))))))))))))))
+    }
     return VPrim(t.name);
   }
   if (t.tag === 'Type') return VType;
@@ -293,6 +341,10 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
     const [P, pt, pf] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(Prim('indBool'), true, P), false, pt), false, pf), false, t);
   }
+  if (e.tag === 'EIndType') {
+    const [P, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11] = e.args.map(x => quote(x, k, full));
+    return App(App(App(App(App(App(App(App(App(App(App(App(App(Prim('genindType'), true, P), false, p1), false, p2), false, p3), false, p4), false, p5), false, p6), false, p7), false, p8), false, p9), false, p10), false, p11), false, t);
+  }
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -348,6 +400,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndUnit') return `indunit ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndBool') return `indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'EIndType') return `indtype ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   return e;
 };
 

@@ -68,6 +68,11 @@ const convElim = (k, a, b, x, y) => {
             exports.conv(k, a.args[i], b.args[i]);
         return;
     }
+    if (a.tag === 'EIndType' && b.tag === 'EIndType' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.conv(k, a.args[i], b.args[i]);
+        return;
+    }
     return utils_1.terr(`conv failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.conv = (k, a_, b_) => {
@@ -140,7 +145,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vindbool = exports.vindunit = exports.velimheq = exports.vifixind = exports.vproj = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.vheq = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VReflHEq = exports.VHEq = exports.VIFix = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIndBool = exports.EIndUnit = exports.EElimHEq = exports.EIFixInd = exports.EProj = exports.EUnsafeCast = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vindtype = exports.vindbool = exports.vindunit = exports.velimheq = exports.vifixind = exports.vproj = exports.vunsafecast = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.vheq = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VReflHEq = exports.VHEq = exports.VIFix = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EUnsafeCast = exports.EIndType = exports.EIndBool = exports.EIndUnit = exports.EElimHEq = exports.EIFixInd = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -152,12 +157,13 @@ exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HMeta = (index) => ({ tag: 'HMeta', index });
 exports.HPrim = (name) => ({ tag: 'HPrim', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
-exports.EUnsafeCast = (type, fromtype) => ({ tag: 'EUnsafeCast', type, fromtype });
 exports.EProj = (proj) => ({ tag: 'EProj', proj });
 exports.EIFixInd = (args) => ({ tag: 'EIFixInd', args });
 exports.EElimHEq = (args) => ({ tag: 'EElimHEq', args });
 exports.EIndUnit = (args) => ({ tag: 'EIndUnit', args });
 exports.EIndBool = (args) => ({ tag: 'EIndBool', args });
+exports.EIndType = (args) => ({ tag: 'EIndType', args });
+exports.EUnsafeCast = (type, fromtype) => ({ tag: 'EUnsafeCast', type, fromtype });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -194,7 +200,8 @@ exports.force = (v) => {
                     elim.tag === 'EElimHEq' ? exports.velimheq([y].concat(elim.args)) :
                         elim.tag === 'EIndUnit' ? exports.vindunit([y].concat(elim.args)) :
                             elim.tag === 'EIndBool' ? exports.vindbool([y].concat(elim.args)) :
-                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                                elim.tag === 'EIndType' ? exports.vindtype([y].concat(elim.args)) :
+                                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -209,7 +216,8 @@ exports.forceGlue = (v) => {
                     elim.tag === 'EElimHEq' ? exports.velimheq([y].concat(elim.args)) :
                         elim.tag === 'EIndUnit' ? exports.vindunit([y].concat(elim.args)) :
                             elim.tag === 'EIndBool' ? exports.vindbool([y].concat(elim.args)) :
-                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                                elim.tag === 'EIndType' ? exports.vindtype([y].concat(elim.args)) :
+                                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -307,6 +315,44 @@ exports.vindbool = (args) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EIndBool(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vindbool([v].concat(rest))));
     return utils_1.impossible(`vindbool: ${v.tag}`);
 };
+exports.vindtype = (args) => {
+    const v = args[0];
+    const rest = args.slice(1);
+    // P, pt, pp1, pp2, ps1, ps2, ps3, pv, pu, pb, pf, pe
+    const rec = () => exports.VAbs(false, 't', exports.VType, t => exports.vindtype([t].concat(rest)));
+    if (v.tag === 'VType')
+        return exports.vapp(rest[1], false, rec());
+    if (v.tag === 'VPi' && !v.plicity)
+        return exports.vapp(exports.vapp(exports.vapp(rest[2], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VPi' && v.plicity)
+        return exports.vapp(exports.vapp(exports.vapp(rest[3], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VSigma' && !v.plicity && !v.plicity2)
+        return exports.vapp(exports.vapp(exports.vapp(rest[4], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VSigma' && v.plicity && !v.plicity2)
+        return exports.vapp(exports.vapp(exports.vapp(rest[5], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VSigma' && !v.plicity && v.plicity2)
+        return exports.vapp(exports.vapp(exports.vapp(rest[6], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VNe') {
+        if (v.head.tag === 'HPrim' && v.head.name === 'Void')
+            return exports.vapp(rest[7], false, rec());
+        if (v.head.tag === 'HPrim' && v.head.name === 'UnitType')
+            return exports.vapp(rest[8], false, rec());
+        if (v.head.tag === 'HPrim' && v.head.name === 'Bool')
+            return exports.vapp(rest[9], false, rec());
+        if (v.head.tag === 'HPrim' && v.head.name === 'IFix') {
+            const args = list_1.toArray(v.args, x => x.arg).reverse();
+            return exports.vapp(exports.vapp(exports.vapp(exports.vapp(rest[10], false, rec()), false, args[0]), false, args[1]), false, args[2]);
+        }
+        if (v.head.tag === 'HPrim' && v.head.name === 'HEq') {
+            const args = list_1.toArray(v.args, x => x.arg).reverse();
+            return exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.vapp(rest[11], false, rec()), false, args[0]), false, args[1]), false, args[2]), false, args[3]);
+        }
+        return exports.VNe(v.head, list_1.Cons(exports.EIndType(rest), v.args));
+    }
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EIndType(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vindtype([v].concat(rest))));
+    return utils_1.impossible(`vindtype: ${v.tag}`);
+};
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'genindIFix')
@@ -319,6 +365,9 @@ exports.evaluate = (t, vs = list_1.Nil) => {
             return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VUnitType, _ => exports.VType), P => exports.VAbs(false, 'p', exports.vapp(P, false, exports.VUnit), p => exports.VAbs(false, 'x', exports.VUnitType, x => exports.vindunit([x, P, p]))));
         if (t.name === 'indBool')
             return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VBool, _ => exports.VType), P => exports.VAbs(false, 't', exports.vapp(P, false, exports.VTrue), t => exports.VAbs(false, 'f', exports.vapp(P, false, exports.VFalse), f => exports.VAbs(false, 'x', exports.VBool, x => exports.vindbool([x, P, t, f])))));
+        if (t.name === 'genindType') {
+            return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VType, _ => exports.VType), P => exports.VAbs(false, 'pt', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VType)), pt => exports.VAbs(false, 'pp1', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VPi(false, 'x', A, x => exports.vapp(B, false, x)))))), pp1 => exports.VAbs(false, 'pp2', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VPi(true, 'x', A, x => exports.vapp(B, false, x)))))), pp2 => exports.VAbs(false, 'ps1', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VSigma(false, false, 'x', A, x => exports.vapp(B, false, x)))))), ps1 => exports.VAbs(false, 'ps2', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VSigma(true, false, 'x', A, x => exports.vapp(B, false, x)))))), ps2 => exports.VAbs(false, 'ps3', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VSigma(false, true, 'x', A, x => exports.vapp(B, false, x)))))), ps3 => exports.VAbs(false, 'pv', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VVoid)), pv => exports.VAbs(false, 'pu', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VUnitType)), pu => exports.VAbs(false, 'pb', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VBool)), pb => exports.VAbs(false, 'pf', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'I', exports.VType, I => exports.VPi(false, 'F', exports.VPi(false, '_', exports.VPi(false, '_', I, _ => exports.VType), _ => exports.VPi(false, '_', I, _ => exports.VType)), F => exports.VPi(false, 'i', I, i => exports.vapp(P, false, exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i)))))), pf => exports.VAbs(false, 'pe', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VType, B => exports.VPi(false, 'a', A, a => exports.VPi(false, 'b', B, b => exports.vapp(P, false, exports.vheq(A, B, a, b))))))), pe => exports.VAbs(false, 't', exports.VType, t => exports.vindtype([t, P, pt, pp1, pp2, ps1, ps2, ps3, pv, pu, pb, pf, pe]))))))))))))));
+        }
         return exports.VPrim(t.name);
     }
     if (t.tag === 'Type')
@@ -395,6 +444,10 @@ const quoteElim = (t, e, k, full) => {
         const [P, pt, pf] = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('indBool'), true, P), false, pt), false, pf), false, t);
     }
+    if (e.tag === 'EIndType') {
+        const [P, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11] = e.args.map(x => exports.quote(x, k, full));
+        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('genindType'), true, P), false, p1), false, p2), false, p3), false, p4), false, p5), false, p6), false, p7), false, p8), false, p9), false, p10), false, p11), false, t);
+    }
     return e;
 };
 exports.quote = (v_, k, full) => {
@@ -447,6 +500,8 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return `indunit ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'EIndBool')
         return `indbool ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+    if (e.tag === 'EIndType')
+        return `indtype ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     return e;
 };
 const zonkSpine = (tm, vs, k, full) => {
@@ -1101,6 +1156,23 @@ const primTypes = {
     'ReflHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.vheq(A, A, a, a))),
     // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> (q : HEq {A} {A} a b) -> P b q
     'elimHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.VPi(true, 'P', domain_1.VPi(false, 'b', A, b => domain_1.VPi(false, '_', domain_1.vheq(A, A, a, b), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(P, false, a), false, domain_1.vapp(domain_1.vapp(domain_1.VPrim('ReflHEq'), true, A), true, a)), _ => domain_1.VPi(true, 'b', A, b => domain_1.VPi(false, 'p', domain_1.vheq(A, A, a, b), p => domain_1.vapp(domain_1.vapp(P, false, b), false, p))))))),
+    /*
+    indType
+    : {P : * -> *}
+      -> (((t : *) -> P t) -> P *)
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) -> B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ({x : A} -> B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) ** B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ({x : A} ** B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) ** {B x}))
+      -> (((t : *) -> P t) -> P Void)
+      -> (((t : *) -> P t) -> P UnitType)
+      -> (((t : *) -> P t) -> P Bool)
+      -> (((t : *) -> P t) -> (I : *) -> (F : (I -> *) -> (I -> *)) -> (i : *) -> P (IFix I F i))
+      -> (((t : *) -> P t) -> (A : *) -> (B : *) -> (a : A) -> (b : B) -> P (HEq {A} {B} a b))
+      -> (t : *) -> P t
+    */
+    genindType: () => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.VType, _ => domain_1.VType), P => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VType)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VPi(false, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VPi(true, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VSigma(false, false, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VSigma(true, false, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VSigma(false, true, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VVoid)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VUnitType)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VBool)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'I', domain_1.VType, I => domain_1.VPi(false, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(false, 'i', I, i => domain_1.vapp(P, false, domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VType, B => domain_1.VPi(false, 'a', A, a => domain_1.VPi(false, 'b', B, b => domain_1.vapp(P, false, domain_1.vheq(A, B, a, b))))))), _ => domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)))))))))))))),
 };
 exports.primType = (name) => primTypes[name]() || utils_1.impossible(`primType: ${name}`);
 
@@ -1283,7 +1355,7 @@ exports.Type = { tag: 'Type' };
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
-exports.primNames = ['unsafeCast', 'Void', 'indVoid', 'UnitType', 'Unit', 'indUnit', 'Bool', 'True', 'False', 'indBool', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq'];
+exports.primNames = ['unsafeCast', 'Void', 'indVoid', 'UnitType', 'Unit', 'indUnit', 'Bool', 'True', 'False', 'indBool', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq', 'genindType'];
 exports.isPrimName = (x) => exports.primNames.includes(x);
 exports.Prim = (name) => ({ tag: 'Prim', name });
 exports.showTermS = (t) => {
@@ -2055,6 +2127,11 @@ const unifyElim = (k, a, b, x, y) => {
             exports.unify(k, a.args[i], b.args[i]);
         return;
     }
+    if (a.tag === 'EIndType' && b.tag === 'EIndType' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.unify(k, a.args[i], b.args[i]);
+        return;
+    }
     return utils_1.terr(`unify failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.unify = (k, a_, b_) => {
@@ -2178,6 +2255,8 @@ const checkSpine = (k, spine) => list_1.map(spine, elim => {
         return utils_1.terr(`%indUnit in meta spine`);
     if (elim.tag === 'EIndBool')
         return utils_1.terr(`%indBool in meta spine`);
+    if (elim.tag === 'EIndType')
+        return utils_1.terr(`%genindType in meta spine`);
     if (elim.tag === 'EApp') {
         const v = domain_1.forceGlue(elim.arg);
         if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && list_1.length(v.args) === 0)

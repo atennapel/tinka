@@ -1,5 +1,5 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq } from './domain';
+import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq, VSigma } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
@@ -69,6 +69,37 @@ const primTypes: { [K in PrimName]: () => Val } = {
     VPi(true, 'b', A, b =>
     VPi(false, 'p', vheq(A, A, a, b), p =>
     vapp(vapp(P, false, b), false, p))))))),
+
+  /*
+  indType
+  : {P : * -> *}
+    -> (((t : *) -> P t) -> P *)
+    -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) -> B x))
+    -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ({x : A} -> B x))
+    -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) ** B x))
+    -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ({x : A} ** B x))
+    -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) ** {B x}))
+    -> (((t : *) -> P t) -> P Void)
+    -> (((t : *) -> P t) -> P UnitType)
+    -> (((t : *) -> P t) -> P Bool)
+    -> (((t : *) -> P t) -> (I : *) -> (F : (I -> *) -> (I -> *)) -> (i : *) -> P (IFix I F i))
+    -> (((t : *) -> P t) -> (A : *) -> (B : *) -> (a : A) -> (b : B) -> P (HEq {A} {B} a b))
+    -> (t : *) -> P t
+  */
+  genindType: () =>
+    VPi(true, 'P', VPi(false, '_', VType, _ => VType), P =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VType)), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VPi(false, 'x', A, x => vapp(B, false, x)))))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VPi(true, 'x', A, x => vapp(B, false, x)))))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VSigma(false, false, 'x', A, x => vapp(B, false, x)))))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VSigma(true, false, 'x', A, x => vapp(B, false, x)))))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VPi(false, '_', A, _ => VType), B => vapp(P, false, VSigma(false, true, 'x', A, x => vapp(B, false, x)))))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VVoid)), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VUnitType)), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => vapp(P, false, VBool)), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'I', VType, I => VPi(false, 'F', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), F => VPi(false, 'i', I, i => vapp(P, false, vapp(vapp(vapp(VIFix, false, I), false, F), false, i)))))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VType, B => VPi(false, 'a', A, a => VPi(false, 'b', B, b => vapp(P, false, vheq(A, B, a, b))))))), _ =>
+    VPi(false, 't', VType, t => vapp(P, false, t)))))))))))))),
 };
 
 export const primType = (name: PrimName): Val => primTypes[name]() || impossible(`primType: ${name}`);
