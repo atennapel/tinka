@@ -5,6 +5,8 @@ Try it out at https://atennapel.github.io/tinka
 ```
 todo:
 - replace enum with void, unit, bool
+- does indVoid need elimination?
+- combine all prim eliminators
 - add genindType
 - add functions for vec (head, tail, index, S-is-cons)
 - maybe eqElim should not be erased?

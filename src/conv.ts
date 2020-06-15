@@ -36,6 +36,16 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
+  if (a.tag === 'EIndUnit' && b.tag === 'EIndUnit' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
+  if (a.tag === 'EIndBool' && b.tag === 'EIndBool' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const conv = (k: Ix, a_: Val, b_: Val): void => {
@@ -84,6 +94,8 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   }
   if (a.tag === 'VElem' && a.num === 0 && a.total === 1) return;
   if (b.tag === 'VElem' && b.num === 0 && b.total === 1) return;
+  if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
+  if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
   if (a.tag === 'VGlued' && b.tag === 'VGlued' && eqHead(a.head, b.head) && length(a.args) === length(b.args)) {

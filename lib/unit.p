@@ -1,11 +1,11 @@
 import lib/eq.p
 
-def UnitType = #1
-def Unit : UnitType = @0
+def UnitType = %UnitType
+def Unit : UnitType = %Unit
 
 def indUnit
   : {P : UnitType -> *} -> P Unit -> (u : UnitType) -> P u
-  = \{P} pu u. ?1 {P} u pu
+  = %indUnit
 
 def uniteta
   : {x : UnitType} -> Eq {UnitType} x Unit

@@ -1,8 +1,8 @@
-def Void = #0
+def Void = %Void
 
 def indVoid
   : {P : Void -> *} -> (x : Void) -> P x
-  = \{P} x. ?0 {P} x
+  = %indVoid
 
 def caseVoid
   : {t : *} -> Void -> t

@@ -44,8 +44,8 @@ export const Elem = (num: number, total: number | null): Elem => ({ tag: 'Elem',
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
 
-export type PrimName = 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix' | 'HEq' | 'ReflHEq' | 'elimHEq';
-export const primNames = ['unsafeCast', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq'];
+export type PrimName = 'unsafeCast' | 'Void' | 'indVoid' | 'UnitType' | 'Unit' | 'indUnit' | 'Bool' | 'True' | 'False' | 'indBool' | 'IFix' | 'IIn' | 'genindIFix' | 'HEq' | 'ReflHEq' | 'elimHEq';
+export const primNames = ['unsafeCast', 'Void', 'indVoid', 'UnitType', 'Unit', 'indUnit', 'Bool', 'True', 'False', 'indBool', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq'];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });

@@ -2,13 +2,13 @@ import lib/eq.p
 import lib/unit.p
 import lib/void.p
 
-def Bool = #2
-def True : Bool = @0
-def False : Bool = @1
+def Bool = %Bool
+def True : Bool = %True
+def False : Bool = %False
 
 def indBool
   : {P : Bool -> *} -> P True -> P False -> (b : Bool) -> P b
-  = \{P} t f b. ?2 {P} b t f
+  = %indBool
 
 def if
   : {r : *} -> Bool -> r -> r -> r

@@ -1,9 +1,24 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, VIFix, vheq } from './domain';
+import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
   'unsafeCast': () => VPi(true, 'a', VType, a => VPi(true, 'b', VType, b => VPi(false, '_', b, _ => a))),
+
+  'Void': () => VType,
+  // indVoid : {P : Void -> *} -> (x : Void) -> P x
+  'indVoid': () => VPi(true, 'P', VPi(false, '_', VVoid, _ => VType), P => VPi(false, 'x', VVoid, x => vapp(P, false, x))),
+
+  'UnitType': () => VType,
+  'Unit': () => VUnitType,
+  // indUnit : {P : UnitType -> *} -> P Unit -> (u : UnitType) -> P u
+  'indUnit': () => VPi(true, 'P', VPi(false, '_', VUnitType, _ => VType), P => VPi(false, '_', vapp(P, false, VUnit), _ => VPi(false, 'x', VUnitType, x => vapp(P, false, x)))),
+
+  'Bool': () => VType,
+  'True': () => VBool,
+  'False': () => VBool,
+  // indBool : {P : Bool -> *} -> P True -> P False -> (b : Bool) -> P b
+  'indBool': () => VPi(true, 'P', VPi(false, '_', VBool, _ => VType), P => VPi(false, '_', vapp(P, false, VTrue), _ => VPi(false, '_', vapp(P, false, VFalse), _ => VPi(false, 'x', VBool, x => vapp(P, false, x))))),
 
   'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),
   'IIn': () =>
