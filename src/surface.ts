@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Elem | EnumInd | Let | Pi | Sigma | Enum | Ann | Hole | Meta | Prim;
+export type Term = Var | App | Abs | Pair | Proj | Elem | EnumInd | Let | Pi | Sigma | Type | Enum | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -28,6 +28,8 @@ export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Te
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Sigma = { tag: 'Sigma', plicity: Plicity, plicity2: Plicity, name: Name, type: Term, body: Term };
 export const Sigma = (plicity: Plicity, plicity2: Plicity, name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', plicity, plicity2, name, type, body });
+export type Type = { tag: 'Type' };
+export const Type: Type = { tag: 'Type' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -42,17 +44,16 @@ export const Elem = (num: number, total: number | null): Elem => ({ tag: 'Elem',
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
 
-export type PrimName = '*' | 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix' | 'HEq' | 'ReflHEq' | 'elimHEq';
-export const primNames = ['*', 'unsafeCast', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq'];
+export type PrimName = 'unsafeCast' | 'IFix' | 'IIn' | 'genindIFix' | 'HEq' | 'ReflHEq' | 'elimHEq';
+export const primNames = ['unsafeCast', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq'];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
 
-export const Type: Prim = Prim('*');
-
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
-  if (t.tag === 'Prim') return t.name === '*' ? t.name : `%${t.name}`;
+  if (t.tag === 'Prim') return `%${t.name}`;
+  if (t.tag === 'Type') return '*';
   if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Enum') return `#${t.num}`;
   if (t.tag === 'Elem') return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
@@ -127,10 +128,11 @@ export const flattenPair = (t: Term): [Plicity, Term][] => {
 export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
 export const showTerm = (t: Term): string => {
-  if (t.tag === 'Prim') return t.name === '*' ? t.name : `%${t.name}`;
+  if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Enum') return `#${t.num}`;
+  if (t.tag === 'Type') return '*';
   if (t.tag === 'Elem') return t.total === null ? `@${t.num}` : `@${t.num}/${t.total}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);

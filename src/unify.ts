@@ -39,6 +39,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   const b = forceGlue(b_);
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
+  if (a.tag === 'VType' && b.tag === 'VType') return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
   if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num && a.total === b.total) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
@@ -159,6 +160,7 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Prim') return t;
   if (t.tag === 'Elem') return t;
   if (t.tag === 'Enum') return t;
+  if (t.tag === 'Type') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
     if (contains(is, i))

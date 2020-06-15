@@ -43,6 +43,7 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   const b = forceGlue(b_);
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
+  if (a.tag === 'VType' && b.tag === 'VType') return;
   if (a.tag === 'VEnum' && b.tag === 'VEnum' && a.num === b.num) return;
   if (a.tag === 'VElem' && b.tag === 'VElem' && a.num === b.num && a.total === b.total) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {

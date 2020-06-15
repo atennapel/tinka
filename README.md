@@ -7,6 +7,7 @@ todo:
 - replace enum with void, unit, bool
 - add genindType
 - add functions for vec (head, tail, index, S-is-cons)
+- maybe eqElim should not be erased?
 - fix annotated let parser
 - allow standalone projection
 - create a CEK machine

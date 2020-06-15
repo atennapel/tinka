@@ -82,7 +82,7 @@ const inst = (ts: EnvT, vs: EnvV, ty_: Val): [Val, List<Term>] => {
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
-  if (tm.tag === 'Prim' && tm.name === '*' && fty === VType) return Type;
+  if (tm.tag === 'Type' && fty === VType) return Type;
   if (tm.tag === 'Enum' && fty === VType) return Enum(tm.num);
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);

@@ -3,8 +3,6 @@ import { Val, VPrim, VPi, vapp, VType, VIFix, vheq } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
-  '*': () => VType,
-
   'unsafeCast': () => VPi(true, 'a', VType, a => VPi(true, 'b', VType, b => VPi(false, '_', b, _ => a))),
 
   'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),

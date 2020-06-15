@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Enum, Elem, EnumInd, Prim, Proj } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Enum, Elem, EnumInd, Prim, Proj, Type } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -34,7 +34,7 @@ export type EElimHEq = { tag: 'EElimHEq', args: Val[] };
 export const EElimHEq = (args: Val[]): EElimHEq => ({ tag: 'EElimHEq', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VEnum | VElem;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VEnum | VElem | VType;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -52,13 +52,14 @@ export type VEnum = { tag: 'VEnum', num: number };
 export const VEnum = (num: number): VEnum => ({ tag: 'VEnum', num });
 export type VElem = { tag: 'VElem', num: number, total: number };
 export const VElem = (num: number, total: number): VElem => ({ tag: 'VElem', num, total });
+export type VType = { tag: 'VType' };
+export const VType: VType = { tag: 'VType' };
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
 export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
-export const VType = VPrim('*');
 export const VIFix = VPrim('IFix');
 export const VHEq = VPrim('HEq');
 export const VReflHEq = VPrim('ReflHEq');
@@ -192,6 +193,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
       return VAbs(true, 'a', VType, a => VAbs(true, 'b', VType, b => VAbs(false, '_', b, x => vunsafecast(a, b, x))));
     return VPrim(t.name);
   }
+  if (t.tag === 'Type') return VType;
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -257,6 +259,7 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   const v = forceGlue(v_);
+  if (v.tag === 'VType') return Type;
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),
@@ -328,6 +331,7 @@ const zonkSpine = (tm: Term, vs: EnvV, k: Ix, full: boolean): S => {
   return [true, zonk(tm, vs, k, full)];
 };
 export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term => {
+  if (tm.tag === 'Type') return tm;
   if (tm.tag === 'Meta') {
     const s = metaGet(tm.index);
     return s.tag === 'Solved' ? quote(s.val, k, full) : tm;

@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | EnumInd | Elem | Let | Enum | Pi | Sigma | Meta | Prim;
+export type Term = Var | Global | App | Abs | Pair | Proj | EnumInd | Elem | Let | Enum | Pi | Sigma | Type | Prim | Meta;
 
 export type Prim = { tag: 'Prim', name: S.PrimName };
 export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
@@ -27,6 +27,8 @@ export type Pi = { tag: 'Pi', plicity: Plicity, name: Name, type: Term, body: Te
 export const Pi = (plicity: Plicity, name: Name, type: Term, body: Term): Pi => ({ tag: 'Pi', plicity, name, type, body });
 export type Sigma = { tag: 'Sigma', plicity: Plicity, plicity2: Plicity, name: Name, type: Term, body: Term };
 export const Sigma = (plicity: Plicity, plicity2: Plicity, name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', plicity, plicity2, name, type, body });
+export type Type = { tag: 'Type' };
+export const Type: Type = { tag: 'Type' };
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
@@ -37,13 +39,12 @@ export const Elem = (num: number, total: number): Elem => ({ tag: 'Elem', num, t
 export type EnumInd = { tag: 'EnumInd', num: number, prop: Term, term: Term, args: Term[] };
 export const EnumInd = (num: number, prop: Term, term: Term, args: Term[]): EnumInd => ({ tag: 'EnumInd', num, prop, term, args });
 
-export const Type: Prim = Prim('*');
-
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
   if (t.tag === 'Meta') return `??${t.index}`;
   if (t.tag === 'Global') return t.name;
-  if (t.tag === 'Prim') return t.name === '*' ? t.name : `%${t.name}`;
+  if (t.tag === 'Type') return '*';
+  if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Enum') return `#${t.num}`;
   if (t.tag === 'Elem') return `@${t.num}/${t.total}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
@@ -110,6 +111,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Meta') return S.Meta(t.index);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'Prim') return S.Prim(t.name);
+  if (t.tag === 'Type') return S.Type;
   if (t.tag === 'Enum') return S.Enum(t.num);
   if (t.tag === 'Elem') return S.Elem(t.num, t.total);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
