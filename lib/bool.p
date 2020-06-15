@@ -14,8 +14,14 @@ def if
   : {r : *} -> Bool -> r -> r -> r
   = \{r} b t f. indBool {\_. r} t f b
 
-def liftBool : (b : Bool) -> * = \b. if b UnitType Void
+def liftBool : Bool -> * = \b. if b UnitType Void
 
 def trueNeqFalse
   : Neq {Bool} True False
   = \eq. rewrite {Bool} {liftBool} eq (Unit : liftBool True)
+
+def not : Bool -> Bool = \b. if b False True
+def and : Bool -> Bool -> Bool = \a b. if a b False
+def or : Bool -> Bool -> Bool = \a b. if a True b
+
+def eqBool : Bool -> Bool -> Bool = \a b. if a b (not b)

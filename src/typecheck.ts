@@ -151,7 +151,7 @@ const check = (local: Local, tm: S.Term, ty: Val): Term => {
       if (!(err instanceof TypeError)) throw err;
       metaPop();
       holesPop();
-      return terr(`failed to unify ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}: ${err.message}`);
+      return terr(`failed to unify in ${S.showTerm(tm)}:  ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}: ${err.message}`);
     }
   }
 };

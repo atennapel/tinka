@@ -1831,7 +1831,7 @@ const check = (local, tm, ty) => {
                 throw err;
             metas_1.metaPop();
             holesPop();
-            return utils_1.terr(`failed to unify ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
+            return utils_1.terr(`failed to unify in ${S.showTerm(tm)}:  ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
         }
     }
 };
