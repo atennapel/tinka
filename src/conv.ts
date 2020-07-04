@@ -53,6 +53,7 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
+  if (a.tag === 'VNat' && b.tag === 'VNat' && a.val === b.val) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);

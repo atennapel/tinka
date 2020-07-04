@@ -3,7 +3,7 @@ import { List, Cons, Nil, listToString, index, foldr, toArray } from './utils/li
 import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
-import { Plicity, PrimName } from './surface';
+import { Plicity, PrimName, Nat } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
@@ -38,7 +38,7 @@ export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
 export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType | VNat;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -54,6 +54,8 @@ export type VPair = { tag: 'VPair', plicity: Plicity, plicity2: Plicity, fst: Va
 export const VPair = (plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', plicity, plicity2, fst, snd, type });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
+export type VNat = { tag: 'VNat', val: bigint };
+export const VNat = (val: bigint): VNat => ({ tag: 'VNat', val });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
@@ -69,6 +71,7 @@ export const VUnit = VPrim('Unit');
 export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
+export const VNatType = VPrim('Nat');
 export const vheq = (A: Val, B: Val, a: Val, b: Val) => vapp(vapp(vapp(vapp(VHEq, true, A), true, B), false, a), false, b);
 
 export type EnvV = List<Val>;
@@ -303,6 +306,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Pair')
     return VPair(t.plicity, t.plicity2, evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'Proj') return vproj(t.proj, evaluate(t.term, vs));
+  if (t.tag === 'Nat') return VNat(t.val);
   return t;
 };
 
@@ -374,6 +378,7 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Sigma(v.plicity, v.plicity2, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
     return Pair(v.plicity, v.plicity2, quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
+  if (v.tag === 'VNat') return Nat(v.val);
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -421,7 +426,6 @@ const zonkSpine = (tm: Term, vs: EnvV, k: Ix, full: boolean): S => {
   return [true, zonk(tm, vs, k, full)];
 };
 export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term => {
-  if (tm.tag === 'Type') return tm;
   if (tm.tag === 'Meta') {
     const s = metaGet(tm.index);
     return s.tag === 'Solved' ? quote(s.val, k, full) : tm;

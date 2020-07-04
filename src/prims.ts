@@ -20,6 +20,8 @@ const primTypes: { [K in PrimName]: () => Val } = {
   // indBool : {P : Bool -> *} -> P True -> P False -> (b : Bool) -> P b
   'indBool': () => VPi(true, 'P', VPi(false, '_', VBool, _ => VType), P => VPi(false, '_', vapp(P, false, VTrue), _ => VPi(false, '_', vapp(P, false, VFalse), _ => VPi(false, 'x', VBool, x => vapp(P, false, x))))),
 
+  'Nat': () => VType,
+
   'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),
   'IIn': () =>
     VPi(true, 'I', VType, I =>
