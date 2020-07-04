@@ -39,8 +39,25 @@ export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
-export type PrimName = 'unsafeCast' | 'Void' | 'indVoid' | 'UnitType' | 'Unit' | 'indUnit' | 'Bool' | 'True' | 'False' | 'indBool' | 'Nat' | 'IFix' | 'IIn' | 'genindIFix' | 'HEq' | 'ReflHEq' | 'elimHEq' | 'genindType';
-export const primNames = ['unsafeCast', 'Void', 'indVoid', 'UnitType', 'Unit', 'indUnit', 'Bool', 'True', 'False', 'indBool', 'Nat', 'IFix', 'IIn', 'genindIFix', 'HEq', 'ReflHEq', 'elimHEq', 'genindType'];
+export type PrimName =
+  'unsafeCast' |
+  'Void' | 'indVoid' |
+  'UnitType' | 'Unit' | 'indUnit' |
+  'Bool' | 'True' | 'False' | 'indBool' |
+  'Nat' | 'addNat' | 'mulNat' |
+  'IFix' | 'IIn' | 'genindIFix' |
+  'HEq' | 'ReflHEq' | 'elimHEq' |
+  'genindType';
+export const primNames = [
+  'unsafeCast',
+  'Void', 'indVoid',
+  'UnitType', 'Unit', 'indUnit',
+  'Bool', 'True', 'False', 'indBool',
+  'Nat', 'addNat', 'mulNat',
+  'IFix', 'IIn', 'genindIFix',
+  'HEq', 'ReflHEq', 'elimHEq',
+  'genindType'
+];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });

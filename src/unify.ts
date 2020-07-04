@@ -41,6 +41,7 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       unify(k, a.args[i], b.args[i]);
     return;
   }
+  if (a.tag === 'ENatBinop' && b.tag === 'ENatBinop' && a.op === b.op) return unify(k, a.arg, b.arg);
   return terr(`unify failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -145,13 +146,6 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
 
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   map(spine, elim => {
-    if (elim.tag === 'EUnsafeCast') return terr(`unsafeCast in meta spine`);
-    if (elim.tag === 'EProj') return terr(`fst in meta spine`);
-    if (elim.tag === 'EIFixInd') return terr(`%genindIFix in meta spine`);
-    if (elim.tag === 'EElimHEq') return terr(`%elimHEq in meta spine`);
-    if (elim.tag === 'EIndUnit') return terr(`%indUnit in meta spine`);
-    if (elim.tag === 'EIndBool') return terr(`%indBool in meta spine`);
-    if (elim.tag === 'EIndType') return terr(`%genindType in meta spine`);
     if (elim.tag === 'EApp') {
       const v = forceGlue(elim.arg);
       if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
@@ -162,13 +156,14 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
         return [elim.plicity, v.head.name];
       return terr(`not a var in spine: ${showTermQ(v, k)}`);
     }
-    return elim;
+    return terr(`unexpected elim in meta spine: ${elim.tag}`);
   });
 
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Global') return t;
   if (t.tag === 'Prim') return t;
   if (t.tag === 'Type') return t;
+  if (t.tag === 'Nat') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
     if (contains(is, i))

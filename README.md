@@ -4,6 +4,16 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- add nat operations
+  - division
+  - subtraction
+  - comparisons
+  - equality
+  - log operations
+  - more?
+- add nat general induction
+- add efficient nat iteration
+- add native Fin
 - does indVoid need elimination?
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)

@@ -1,5 +1,5 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq, VSigma } from './domain';
+import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq, VSigma, VNatType } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
@@ -21,6 +21,8 @@ const primTypes: { [K in PrimName]: () => Val } = {
   'indBool': () => VPi(true, 'P', VPi(false, '_', VBool, _ => VType), P => VPi(false, '_', vapp(P, false, VTrue), _ => VPi(false, '_', vapp(P, false, VFalse), _ => VPi(false, 'x', VBool, x => vapp(P, false, x))))),
 
   'Nat': () => VType,
+  'addNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
+  'mulNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
 
   'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),
   'IIn': () =>

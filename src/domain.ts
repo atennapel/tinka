@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool | EUnsafeCast | EIndType;
+export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool | EUnsafeCast | EIndType | ENatBinop;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -36,6 +36,10 @@ export type EIndType = { tag: 'EIndType', args: Val[] };
 export const EIndType = (args: Val[]): EIndType => ({ tag: 'EIndType', args });
 export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
 export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
+
+export type NatBinops = 'addNat' | 'mulNat';
+export type ENatBinop = { tag: 'ENatBinop', op: NatBinops, arg: Val };
+export const ENatBinop = (op: NatBinops, arg: Val): ENatBinop => ({ tag: 'ENatBinop', op, arg });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType | VNat;
@@ -91,6 +95,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
       elim.tag === 'EIndType' ? vindtype([y].concat(elim.args)) :
+      elim.tag === 'ENatBinop' ? vnatbinop(elim.op, y, elim.arg) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -107,6 +112,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
       elim.tag === 'EIndType' ? vindtype([y].concat(elim.args)) :
+      elim.tag === 'ENatBinop' ? vnatbinop(elim.op, y, elim.arg) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -232,6 +238,25 @@ export const vindtype = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EIndType(rest), v.args), mapLazy(v.val, v => vindtype([v].concat(rest))));
   return impossible(`vindtype: ${v.tag}`);
 };
+export const vnatbinop = (op: NatBinops, a: Val, b: Val): Val => {
+  if (op === 'addNat') {
+    if (a.tag === 'VNat' && a.val === 0n) return b;
+    if (b.tag === 'VNat' && b.val === 0n) return a;
+    if (a.tag === 'VNat' && b.tag === 'VNat') return VNat(a.val + b.val);
+  }
+  if (op === 'mulNat') {
+    if (a.tag === 'VNat' && a.val === 0n) return VNat(0n);
+    if (b.tag === 'VNat' && b.val === 0n) return VNat(0n);
+    if (a.tag === 'VNat' && a.val === 1n) return b;
+    if (b.tag === 'VNat' && b.val === 1n) return a;
+    if (a.tag === 'VNat' && b.tag === 'VNat') return VNat(a.val * b.val);
+  }
+  if (a.tag === 'VNe')
+    return VNe(a.head, Cons(ENatBinop(op, b), a.args));
+  if (a.tag === 'VGlued')
+    return VGlued(a.head, Cons(ENatBinop(op, b), a.args), mapLazy(a.val, v => vnatbinop(op, v, b)));
+  return impossible(`vaddnat: ${op} ${a.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
@@ -277,6 +302,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         VAbs(false, 'pe', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VType, B => VPi(false, 'a', A, a => VPi(false, 'b', B, b => vapp(P, false, vheq(A, B, a, b))))))), pe =>
         VAbs(false, 't', VType, t => vindtype([t, P, pt, pp1, pp2, ps1, ps2, ps3, pv, pu, pb, pf, pe]))))))))))))))
     }
+    if (t.name === 'addNat' || t.name === 'mulNat')
+      return VAbs(false, 'a', VNatType, a => VAbs(false, 'b', VNatType, b => vnatbinop(t.name as any, a, b)));
     return VPrim(t.name);
   }
   if (t.tag === 'Type') return VType;
@@ -349,6 +376,8 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
     const [P, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(App(App(App(App(App(App(App(App(Prim('genindType'), true, P), false, p1), false, p2), false, p3), false, p4), false, p5), false, p6), false, p7), false, p8), false, p9), false, p10), false, p11), false, t);
   }
+  if (e.tag === 'ENatBinop')
+    return App(App(Prim(e.op), false, t), false, quote(e.arg, k, full));
   return e;
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
@@ -406,6 +435,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EIndUnit') return `indunit ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndBool') return `indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndType') return `indtype ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'ENatBinop') return `${e.op} ${showTermS(e.arg, ns, k, full)}`;
   return e;
 };
 
