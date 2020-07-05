@@ -38,7 +38,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Global') return t.name;
-  if (t.tag === 'Nat') return `${t.val}`;
+  if (t.tag === 'Nat') return `#${t.val}`;
   if (t.tag === 'Type') return '*';
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;

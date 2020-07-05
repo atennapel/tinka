@@ -44,7 +44,10 @@ export type PrimName =
   'Void' | 'indVoid' |
   'UnitType' | 'Unit' | 'indUnit' |
   'Bool' | 'True' | 'False' | 'indBool' |
-  'Nat' | 'addNat' | 'mulNat' |
+  'Nat' |
+    'addNat' | 'mulNat' | 'subNat' | 'powNat' | 'divNat' | 'modNat' |
+    'eqNat' | 'ltNat' | 'lteqNat' |
+    'genindNat' |
   'IFix' | 'IIn' | 'genindIFix' |
   'HEq' | 'ReflHEq' | 'elimHEq' |
   'genindType';
@@ -53,7 +56,10 @@ export const primNames = [
   'Void', 'indVoid',
   'UnitType', 'Unit', 'indUnit',
   'Bool', 'True', 'False', 'indBool',
-  'Nat', 'addNat', 'mulNat',
+  'Nat',
+    'addNat', 'mulNat', 'subNat', 'powNat', 'divNat', 'modNat',
+    'eqNat', 'ltNat', 'lteqNat',
+    'genindNat',
   'IFix', 'IIn', 'genindIFix',
   'HEq', 'ReflHEq', 'elimHEq',
   'genindType'

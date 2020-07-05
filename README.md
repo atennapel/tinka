@@ -4,15 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add nat operations
-  - division
-  - subtraction
-  - comparisons
-  - equality
-  - log operations
-  - more?
-- add nat general induction
-- add efficient nat iteration
+- add more identities for nat:
+  - eq (add x n) 0 = false (for n > 0)
+  - sub (add x n) m = add x (sub n m) (?)
 - add native Fin
 - does indVoid need elimination?
 - combine all prim eliminators

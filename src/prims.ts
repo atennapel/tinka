@@ -1,5 +1,5 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq, VSigma, VNatType } from './domain';
+import { Val, VPrim, VPi, vapp, VType, VIFix, VVoid, VUnitType, VUnit, VBool, VTrue, VFalse, vheq, VSigma, VNatType, VNat, vnatbinop } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
@@ -23,6 +23,25 @@ const primTypes: { [K in PrimName]: () => Val } = {
   'Nat': () => VType,
   'addNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
   'mulNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
+  'subNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
+  'powNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
+  'divNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
+  'modNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VNatType)),
+  'eqNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VBool)),
+  'ltNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VBool)),
+  'lteqNat': () => VPi(false, '_', VNatType, _ => VPi(false, '_', VNatType, _ => VBool)),
+  /*
+    genindNat
+    : {P : Nat -> *}
+      -> (((n : Nat) -> P n) -> P 0)
+      -> (((n : Nat) -> P n) -> (m : Nat) -> P (add m 1))
+      -> (n : Nat) -> P n
+  */
+  'genindNat': () =>
+    VPi(true, 'P', VPi(false, '_', VNatType, _ => VType), P =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 'n', VNatType, n => vapp(P, false, n)), _ => vapp(P, false, VNat(0n))), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 'n', VNatType, n => vapp(P, false, n)), _ => VPi(false, 'm', VNatType, m => vapp(P, false, vnatbinop('addNat', m, VNat(1n))))), _ =>
+    VPi(false, 'n', VNatType, n => vapp(P, false, n))))),
 
   'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),
   'IIn': () =>

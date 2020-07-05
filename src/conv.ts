@@ -45,6 +45,11 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
+  if (a.tag === 'EIndNat' && b.tag === 'EIndNat' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
   if (a.tag === 'ENatBinop' && b.tag === 'ENatBinop' && a.op === b.op) return conv(k, a.arg, b.arg);
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };

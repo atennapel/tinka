@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool | EUnsafeCast | EIndType | ENatBinop;
+export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndUnit | EIndBool | EUnsafeCast | EIndType | EIndNat | ENatBinop;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -34,10 +34,12 @@ export type EIndBool = { tag: 'EIndBool', args: Val[] };
 export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
 export type EIndType = { tag: 'EIndType', args: Val[] };
 export const EIndType = (args: Val[]): EIndType => ({ tag: 'EIndType', args });
+export type EIndNat = { tag: 'EIndNat', args: Val[] };
+export const EIndNat = (args: Val[]): EIndNat => ({ tag: 'EIndNat', args });
 export type EUnsafeCast = { tag: 'EUnsafeCast', type: Val, fromtype: Val };
 export const EUnsafeCast = (type: Val, fromtype: Val): EUnsafeCast => ({ tag: 'EUnsafeCast', type, fromtype });
 
-export type NatBinops = 'addNat' | 'mulNat';
+export type NatBinops = 'addNat' | 'mulNat' | 'subNat' | 'powNat' | 'divNat' | 'modNat' | 'eqNat' | 'ltNat' | 'lteqNat';
 export type ENatBinop = { tag: 'ENatBinop', op: NatBinops, arg: Val };
 export const ENatBinop = (op: NatBinops, arg: Val): ENatBinop => ({ tag: 'ENatBinop', op, arg });
 
@@ -95,6 +97,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
       elim.tag === 'EIndType' ? vindtype([y].concat(elim.args)) :
+      elim.tag === 'EIndNat' ? vindnat([y].concat(elim.args)) :
       elim.tag === 'ENatBinop' ? vnatbinop(elim.op, y, elim.arg) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
@@ -112,6 +115,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EIndUnit' ? vindunit([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
       elim.tag === 'EIndType' ? vindtype([y].concat(elim.args)) :
+      elim.tag === 'EIndNat' ? vindnat([y].concat(elim.args)) :
       elim.tag === 'ENatBinop' ? vnatbinop(elim.op, y, elim.arg) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
@@ -209,6 +213,21 @@ export const vindbool = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EIndBool(rest), v.args), mapLazy(v.val, v => vindbool([v].concat(rest))));
   return impossible(`vindbool: ${v.tag}`);
 };
+export const vindnat = (args: Val[]): Val => {
+  const v = args[0];
+  const rest = args.slice(1);
+  const [P, z, s] = rest;
+  if (v.tag === 'VNat') {
+    return v.val === 0n ?
+      vapp(z, false, VAbs(false, 'n', VNatType, n => vindnat([n, P, z, s]))) :
+      vapp(vapp(s, false, VAbs(false, 'n', VNatType, n => vindnat([n, P, z, s]))), false, VNat(v.val - 1n));
+  }
+  if (v.tag === 'VNe')
+    return VNe(v.head, Cons(EIndNat(rest), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EIndNat(rest), v.args), mapLazy(v.val, v => vindnat([v].concat(rest))));
+  return impossible(`vindnat: ${v.tag}`);
+};
 export const vindtype = (args: Val[]): Val => {
   const v = args[0];
   const rest = args.slice(1);
@@ -251,11 +270,51 @@ export const vnatbinop = (op: NatBinops, a: Val, b: Val): Val => {
     if (b.tag === 'VNat' && b.val === 1n) return a;
     if (a.tag === 'VNat' && b.tag === 'VNat') return VNat(a.val * b.val);
   }
+  if (op === 'subNat') {
+    if (a.tag === 'VNat' && a.val === 0n) return VNat(0n);
+    if (b.tag === 'VNat' && b.val === 0n) return a;
+    if (a.tag === 'VNat' && b.tag === 'VNat') return b.val >= a.val ? VNat(0n) : VNat(a.val - b.val);
+  }
+  if (op === 'powNat') {
+    if (b.tag === 'VNat' && b.val === 0n) return VNat(1n);
+    if (b.tag === 'VNat' && b.val === 1n) return a;
+    if (a.tag === 'VNat' && a.val === 0n) return VNat(0n);
+    if (a.tag === 'VNat' && a.val === 1n) return VNat(1n);
+    if (a.tag === 'VNat' && b.tag === 'VNat') return VNat(a.val ** b.val);
+  }
+  if (op === 'divNat') {
+    // a / 0 = 0
+    if (b.tag === 'VNat' && b.val === 0n) return VNat(0n);
+    if (b.tag === 'VNat' && b.val === 1n) return a;
+    if (a.tag === 'VNat' && a.val === 0n) return VNat(0n);
+    if (a.tag === 'VNat' && a.val === 1n) return VNat(0n);
+    if (a.tag === 'VNat' && b.tag === 'VNat') return VNat(a.val / b.val);
+  }
+  if (op === 'modNat') {
+    // a % 0 = 0
+    if (b.tag === 'VNat' && b.val === 0n) return VNat(0n);
+    if (b.tag === 'VNat' && b.val === 1n) return VNat(0n);
+    if (a.tag === 'VNat' && a.val === 0n) return VNat(0n);
+    if (a.tag === 'VNat' && b.tag === 'VNat') return VNat(a.val % b.val);
+  }
+  if (op === 'eqNat') {
+    if (a.tag === 'VNat' && b.tag === 'VNat') return a.val === b.val ? VTrue : VFalse;
+  }
+  if (op === 'ltNat') {
+    // x < 0 = false
+    if (b.tag === 'VNat' && b.val === 0n) return VFalse;
+    if (a.tag === 'VNat' && b.tag === 'VNat') return a.val < b.val ? VTrue : VFalse;
+  }
+  if (op === 'lteqNat') {
+    // 0 <= x = true
+    if (a.tag === 'VNat' && a.val === 0n) return VTrue;
+    if (a.tag === 'VNat' && b.tag === 'VNat') return a.val <= b.val ? VTrue : VFalse;
+  }
   if (a.tag === 'VNe')
     return VNe(a.head, Cons(ENatBinop(op, b), a.args));
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(ENatBinop(op, b), a.args), mapLazy(a.val, v => vnatbinop(op, v, b)));
-  return impossible(`vaddnat: ${op} ${a.tag}`);
+  return impossible(`vnatbinop: ${op} ${a.tag}`);
 };
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
@@ -302,7 +361,13 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         VAbs(false, 'pe', VPi(false, '_', VPi(false, 't', VType, t => vapp(P, false, t)), _ => VPi(false, 'A', VType, A => VPi(false, 'B', VType, B => VPi(false, 'a', A, a => VPi(false, 'b', B, b => vapp(P, false, vheq(A, B, a, b))))))), pe =>
         VAbs(false, 't', VType, t => vindtype([t, P, pt, pp1, pp2, ps1, ps2, ps3, pv, pu, pb, pf, pe]))))))))))))))
     }
-    if (t.name === 'addNat' || t.name === 'mulNat')
+    if (t.name === 'genindNat') {
+      return VAbs(true, 'P', VPi(false, '_', VNatType, _ => VType), P =>
+        VAbs(false, 'z', VPi(false, '_', VPi(false, 'n', VNatType, n => vapp(P, false, n)), _ => vapp(P, false, VNat(0n))), z =>
+        VAbs(false, 's', VPi(false, '_', VPi(false, 'n', VNatType, n => vapp(P, false, n)), _ => VPi(false, 'm', VNatType, m => vapp(P, false, vapp(vapp(VPrim('addNat'), false, m), false, VNat(1n))))), s =>
+        VAbs(false, 'n', VNatType, n => vindnat([n, P, z, s])))));
+    }
+    if (t.name === 'addNat' || t.name === 'mulNat' || t.name === 'subNat' || t.name === 'powNat' || t.name === 'divNat' || t.name === 'modNat' || t.name === 'eqNat' || t.name === 'ltNat' || t.name === 'lteqNat')
       return VAbs(false, 'a', VNatType, a => VAbs(false, 'b', VNatType, b => vnatbinop(t.name as any, a, b)));
     return VPrim(t.name);
   }
@@ -376,6 +441,10 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
     const [P, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(App(App(App(App(App(App(App(App(Prim('genindType'), true, P), false, p1), false, p2), false, p3), false, p4), false, p5), false, p6), false, p7), false, p8), false, p9), false, p10), false, p11), false, t);
   }
+  if (e.tag === 'EIndNat') {
+    const [P, z, s] = e.args.map(x => quote(x, k, full));
+    return App(App(App(App(Prim('genindNat'), true, P), false, z), false, s), false, t);
+  }
   if (e.tag === 'ENatBinop')
     return App(App(Prim(e.op), false, t), false, quote(e.arg, k, full));
   return e;
@@ -435,6 +504,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EIndUnit') return `indunit ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndBool') return `indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndType') return `indtype ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'EIndNat') return `indnat ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'ENatBinop') return `${e.op} ${showTermS(e.arg, ns, k, full)}`;
   return e;
 };
