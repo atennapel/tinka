@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Ann | Nat | Hole | Meta | Prim;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -32,37 +32,23 @@ export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
-export type Nat = { tag: 'Nat', val: bigint };
-export const Nat = (val: bigint): Nat => ({ tag: 'Nat', val });
 export type Hole = { tag: 'Hole', name: Name | null };
 export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
 export type PrimName =
-  'unsafeCast' |
-  'Void' | 'indVoid' |
-  'UnitType' | 'Unit' | 'indUnit' |
-  'Bool' | 'True' | 'False' | 'indBool' |
-  'Nat' |
-    'addNat' | 'mulNat' | 'subNat' | 'powNat' | 'divNat' | 'modNat' |
-    'eqNat' | 'ltNat' | 'lteqNat' |
-    'genindNat' |
-  'IFix' | 'IIn' | 'genindIFix' |
+  'drec' | 'dreci' |
   'HEq' | 'ReflHEq' | 'elimHEq' |
-  'genindType';
+  'Nat' | 'Z' | 'S' | 'elimNat' |
+  'Fin' | 'FZ' | 'FS' | 'elimFin' | 'elimFin0' |
+  'IFix' | 'IIn' | 'elimIFix';
 export const primNames = [
-  'unsafeCast',
-  'Void', 'indVoid',
-  'UnitType', 'Unit', 'indUnit',
-  'Bool', 'True', 'False', 'indBool',
-  'Nat',
-    'addNat', 'mulNat', 'subNat', 'powNat', 'divNat', 'modNat',
-    'eqNat', 'ltNat', 'lteqNat',
-    'genindNat',
-  'IFix', 'IIn', 'genindIFix',
+  'drec', 'dreci',
   'HEq', 'ReflHEq', 'elimHEq',
-  'genindType'
+  'Nat', 'Z', 'S', 'elimNat',
+  'Fin', 'FZ', 'FS', 'elimFin', 'elimFin0',
+  'IFix', 'IIn', 'elimIFix',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
@@ -73,7 +59,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Type') return '*';
   if (t.tag === 'Meta') return `?${t.index}`;
-  if (t.tag === 'Nat') return `${t.val}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
@@ -148,7 +133,6 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Type') return '*';
-  if (t.tag === 'Nat') return `${t.val}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
     return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${
@@ -186,7 +170,6 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Meta') return t;
   if (t.tag === 'Var') return t;
   if (t.tag === 'Prim') return t;
-  if (t.tag === 'Nat') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
   if (t.tag === 'Pair') {
@@ -195,14 +178,8 @@ export const erase = (t: Term): Term => {
     if (t.plicity2) return erase(t.fst);
     return Pair(false, false, erase(t.fst), erase(t.snd));
   }
-  if (t.tag === 'App') {
-    const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
-    if (res.tag === 'App' && res.left.tag === 'Prim' && (res.left.name === 'IIn' || res.left.name === 'unsafeCast'))
-      return res.right;
-    if (res.tag === 'App' && res.left.tag === 'App' && res.left.left.tag === 'Prim' && res.left.left.name === 'elimHEq')
-      return res.left.right;
-    return res;
-  }
+  if (t.tag === 'App')
+    return t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Sigma') return Sigma(t.plicity, t.plicity2, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));

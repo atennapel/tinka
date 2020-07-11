@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Prim | Meta | Nat;
+export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Prim | Meta;
 
 export type Prim = { tag: 'Prim', name: S.PrimName };
 export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
@@ -31,14 +31,11 @@ export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
-export type Nat = { tag: 'Nat', val: bigint };
-export const Nat = (val: bigint): Nat => ({ tag: 'Nat', val });
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Global') return t.name;
-  if (t.tag === 'Nat') return `#${t.val}`;
   if (t.tag === 'Type') return '*';
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
@@ -101,7 +98,6 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Meta') return S.Meta(t.index);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'Prim') return S.Prim(t.name);
-  if (t.tag === 'Nat') return S.Nat(t.val);
   if (t.tag === 'Type') return S.Type;
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(t.plicity, t.plicity2, toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));

@@ -1,13 +1,11 @@
-import lib/nat.p
-import lib/fin.p
 import lib/eq.p
 
-def UnitType = Fin 1
-def Unit : UnitType = 0f
+def UnitType = %UnitType
+def Unit : UnitType = %Unit
 
---def indUnit
---  : {P : UnitType -> *} -> P Unit -> (u : UnitType) -> P u
---  = %indUnit
+def indUnit
+  : {P : UnitType -> *} -> P Unit -> (u : UnitType) -> P u
+  = %indUnit
 
 def uniteta
   : {x : UnitType} -> Eq {UnitType} x Unit
