@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -268,6 +268,35 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const a = ts.slice(0, i);
     const b = ts.slice(i + 1);
     return Ann(exprs(a, '('), exprs(b, '('));
+  }
+  if (isName(ts[0], 'data')) {
+    const args = ts.slice(1).map(x => {
+      const [t, b] = expr(x);
+      if (b) return serr(`data arg cannot be implicit`);
+      return t;
+    });
+    if (args.length === 0) return Data(Type, []);
+    return Data(args[0], args.slice(1));
+  }
+  if (isName(ts[0], 'tcon')) {
+    const args = ts.slice(1).map(x => {
+      const [t, b] = expr(x);
+      if (b) return serr(`tcon arg cannot be implicit`);
+      return t;
+    });
+    if (args.length === 0) return serr(`tcon needs arg`);
+    return TCon(args[0], args.slice(1));
+  }
+  if (isName(ts[0], 'con')) {
+    const ix = ts[1];
+    if (ix.tag !== 'Num') return serr(`first arg to con needs to be number`);
+    const args = ts.slice(2).map(x => {
+      const [t, b] = expr(x);
+      if (b) return serr(`con arg cannot be implicit`);
+      return t;
+    });
+    if (args.length === 0) return serr(`con needs arg`);
+    return Con(+ix.num, args[0], args.slice(1));
   }
   if (isName(ts[0], '\\')) {
     const args: [Name, boolean, Term | null][] = [];

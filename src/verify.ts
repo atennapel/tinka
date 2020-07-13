@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VPi, VDataSort, vapp, VTCon } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -128,9 +128,39 @@ const synth = (local: Local, tm: Term): Val => {
     if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${showTerm(tm)}`);
     return tm.proj === 'fst' ? fty.type : fty.body(vproj('fst', evaluate(tm.term, local.vs)));
   }
+  if (tm.tag === 'Data') {
+    check(localInType(local), tm.kind, VType);
+    const contype = VPi(false, '_', evaluate(tm.kind, local.vs), _ => VType);
+    tm.cons.forEach(con => check(localInType(local), con, contype));
+    return VDataSort;
+  }
+  if (tm.tag === 'TCon') {
+    check(localInType(local), tm.data, VDataSort);
+    const vdata = evaluate(tm.data, local.vs);
+    const fdata = force(vdata);
+    if (fdata.tag !== 'VData') return terr(`not data in tcon: ${showTerm(tm)}`);
+    const ty = synthapps(localInType(local), fdata.kind, tm.args);
+    if (force(ty).tag !== 'VType') return terr(`invalid application in tcon: ${showTerm(tm)}`);
+    return ty;
+  }
+  if (tm.tag === 'Con') {
+    check(localInType(local), tm.data, VDataSort);
+    const vdata = evaluate(tm.data, local.vs);
+    const fdata = force(vdata);
+    if (fdata.tag !== 'VData') return terr(`not data in con: ${showTerm(tm)}`);
+    const con = fdata.cons[tm.ix];
+    if (!con) return terr(`con index out of range: ${showTerm(tm)}`);
+    const ty = synthapps(localInType(local), vapp(con, false, VTCon(vdata, [])), tm.args);
+    if (force(ty).tag !== 'VTCon') return terr(`invalid application in con: ${showTerm(tm)}`);
+    return ty;
+  }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 
+const synthapps = (local: Local, ty_: Val, args: Term[]): Val => {
+  if (args.length === 0) return ty_;
+  return terr(`unimplemented`);
+};
 const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: Term, tmall: Term): Val => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);

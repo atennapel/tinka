@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Ann | Hole | Meta | Prim;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Data | TCon | Con | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -30,6 +30,12 @@ export type Sigma = { tag: 'Sigma', plicity: Plicity, plicity2: Plicity, name: N
 export const Sigma = (plicity: Plicity, plicity2: Plicity, name: Name, type: Term, body: Term): Sigma => ({ tag: 'Sigma', plicity, plicity2, name, type, body });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
+export type Data = { tag: 'Data', kind: Term, cons: Term[] };
+export const Data = (kind: Term, cons: Term[]): Data => ({ tag: 'Data', kind, cons });
+export type TCon = { tag: 'TCon', data: Term, args: Term[] };
+export const TCon = (data: Term, args: Term[]): TCon => ({ tag: 'TCon', data, args });
+export type Con = { tag: 'Con', ix: Ix, data: Term, args: Term[] };
+export const Con = (ix: Ix, data: Term, args: Term[]): Con => ({ tag: 'Con', ix, data, args });
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -38,12 +44,14 @@ export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
 export type PrimName =
+  'Data' |
   'drec' | 'dreci' |
   'HEq' | 'ReflHEq' | 'elimHEq' |
   'Nat' | 'Z' | 'S' | 'elimNat' |
   'Fin' | 'FZ' | 'FS' | 'elimFin' | 'elimFin0' |
   'IFix' | 'IIn' | 'elimIFix';
 export const primNames = [
+  'Data',
   'drec', 'dreci',
   'HEq', 'ReflHEq', 'elimHEq',
   'Nat', 'Z', 'S', 'elimNat',
@@ -69,6 +77,9 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Pair') return `(${t.plicity ? '{' : ''}${showTermS(t.fst)}${t.plicity ? '}' : ''}, ${t.plicity ? '{' : ''}${showTermS(t.snd)}${t.plicity ? '}' : ''})`;
   if (t.tag === 'Proj') return `(.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermS(t.term)})`;
+  if (t.tag === 'Data') return `(data ${showTermS(t.kind)}${t.cons.length > 0 ? ` ${t.cons.map(showTermS).join(' ')}` : ''})`;
+  if (t.tag === 'TCon') return `(tcon ${showTermS(t.data)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
+  if (t.tag === 'Con') return `(con ${t.ix} ${showTermS(t.data)}${t.args.length > 0 ? ` ${t.args.map(showTermS).join(' ')}` : ''})`;
   return t;
 };
 
@@ -135,10 +146,10 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Type') return '*';
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
-    return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${
+    return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj' || f.tag === 'Data' || f.tag === 'TCon' || f.tag === 'Con', f)} ${
       as.map(([im, t], i) =>
         im ? `{${showTerm(t)}}` :
-          `${showTermP(t.tag === 'App' || t.tag === 'Ann' ||t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)}`).join(' ')}`;
+          `${showTermP(t.tag === 'App' || t.tag === 'Ann' ||t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con', t)}`).join(' ')}`;
   }
   if (t.tag === 'Abs') {
     const [as, b] = flattenAbs(t);
@@ -146,11 +157,11 @@ export const showTerm = (t: Term): string => {
   }
   if (t.tag === 'Pi') {
     const [as, b] = flattenPi(t);
-    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
+    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
   }
   if (t.tag === 'Sigma') {
     const [as, b, p] = flattenSigma(t);
-    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` :showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${showTerm(b)}}` : showTermP(b.tag === 'Ann', b)}`
+    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` :showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${showTerm(b)}}` : showTermP(b.tag === 'Ann', b)}`
   }
   if (t.tag === 'Pair') {
     const ps = flattenPair(t);
@@ -161,7 +172,10 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Ann')
     return `${showTermP(t.term.tag === 'Ann', t.term)} : ${showTermP(t.term.tag === 'Ann', t.type)}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
-  if (t.tag === 'Proj') return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
+  if (t.tag === 'Proj') return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim' && t.term.tag !== 'Type', t.term)}`;
+  if (t.tag === 'Data') return `data ${showTermP(t.kind.tag !== 'Var' && t.kind.tag !== 'Meta' && t.kind.tag !== 'Prim' && t.kind.tag !== 'Type', t.kind)}${t.cons.length > 0 ? ` ${t.cons.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim' && x.tag !== 'Type', x)).join(' ')}` : ''}`;
+  if (t.tag === 'TCon') return `tcon ${showTermP(t.data.tag !== 'Var' && t.data.tag !== 'Meta' && t.data.tag !== 'Prim' && t.data.tag !== 'Type', t.data)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim' && x.tag !== 'Type', x)).join(' ')}` : ''}`;
+  if (t.tag === 'Con') return `con ${t.ix} ${showTermP(t.data.tag !== 'Var' && t.data.tag !== 'Meta' && t.data.tag !== 'Prim' && t.data.tag !== 'Type', t.data)}${t.args.length > 0 ? ` ${t.args.map(x => showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim' && x.tag !== 'Type', x)).join(' ')}` : ''}`;
   return t;
 };
 
@@ -184,6 +198,9 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Sigma') return Sigma(t.plicity, t.plicity2, t.name, erase(t.type), erase(t.body));
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
+  if (t.tag === 'Data') return Data(erase(t.kind), t.cons.map(erase));
+  if (t.tag === 'TCon') return TCon(erase(t.data), t.args.map(erase));
+  if (t.tag === 'Con') return Con(t.ix, erase(t.data), t.args.map(erase));
   return t;
 };
 

@@ -3,6 +3,8 @@ import { Val, VPrim, VPi, vapp, VType, vheq, VNat, VZ, VS, VFin, VFZ, VFS, VIFix
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
+  'Data': () => VType,
+
   // {a : *} -> {b : a -> *} -> (((x : a) -> b x) -> ((x : a) -> b x)) -> (x : a) -> b x
   'drec': () =>
     VPi(true, 'a', VType, a =>

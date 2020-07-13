@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -46,6 +46,24 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
   if (isVUnit(a) || isVUnit(b)) return;
+  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+    unify(k, a.kind, b.kind);
+    for (let i = 0; i < a.cons.length; i ++)
+      unify(k, a.cons[i], b.cons[i]);
+    return;
+  }
+  if (a.tag === 'VTCon' && b.tag === 'VTCon' && a.args.length === b.args.length) {
+    unify(k, a.data, b.data);
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.args.length === b.args.length && a.ix === b.ix) {
+    unify(k, a.data, b.data);
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -62,7 +80,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return unify(k, a.type, b.type);
   }
   if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
-    unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
   }
@@ -196,6 +213,21 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Sigma(t.plicity, t.plicity2, t.name, ty, body);
+  }
+  if (t.tag === 'Data') {
+    const kind = checkSolution(k, m, is, t.kind);
+    const cons = t.cons.map(x => checkSolution(k, m, is, x));
+    return Data(kind, cons);
+  }
+  if (t.tag === 'TCon') {
+    const data = checkSolution(k, m, is, t.data);
+    const args = t.args.map(x => checkSolution(k, m, is, x));
+    return TCon(data, args);
+  }
+  if (t.tag === 'Con') {
+    const data = checkSolution(k, m, is, t.data);
+    const args = t.args.map(x => checkSolution(k, m, is, x));
+    return Con(t.ix, data, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

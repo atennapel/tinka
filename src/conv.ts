@@ -50,6 +50,24 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
   if (isVUnit(a) || isVUnit(b)) return;
+  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+    conv(k, a.kind, b.kind);
+    for (let i = 0; i < a.cons.length; i ++)
+      conv(k, a.cons[i], b.cons[i]);
+    return;
+  }
+  if (a.tag === 'VTCon' && b.tag === 'VTCon' && a.args.length === b.args.length) {
+    conv(k, a.data, b.data);
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.args.length === b.args.length && a.ix === b.ix) {
+    conv(k, a.data, b.data);
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -66,7 +84,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     return conv(k, a.type, b.type);
   }
   if (a.tag === 'VAbs' && b.tag === 'VAbs' && a.plicity === b.plicity) {
-    conv(k, a.type, b.type);
     const v = VVar(k);
     return conv(k + 1, a.body(v), b.body(v));
   }

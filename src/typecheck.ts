@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDataSort, vapp, VTCon } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -287,9 +287,39 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
   }
+  if (tm.tag === 'Data') {
+    const kind = check(localInType(local), tm.kind, VType);
+    const contype = VPi(false, '_', evaluate(kind, local.vs), _ => VType);
+    const cons = tm.cons.map(con => check(localInType(local), con, contype));
+    return [Data(kind, cons), VDataSort];
+  }
+  if (tm.tag === 'TCon') {
+    const data = check(localInType(local), tm.data, VDataSort);
+    const vdata = evaluate(data, local.vs);
+    const fdata = force(vdata);
+    if (fdata.tag !== 'VData') return terr(`not data in tcon: ${S.showTerm(tm)}`);
+    const [args, ty] = synthapps(localInType(local), fdata.kind, tm.args);
+    if (force(ty).tag !== 'VType') return terr(`invalid application in tcon: ${S.showTerm(tm)}`);
+    return [TCon(data, args), ty];
+  }
+  if (tm.tag === 'Con') {
+    const data = check(localInType(local), tm.data, VDataSort);
+    const vdata = evaluate(data, local.vs);
+    const fdata = force(vdata);
+    if (fdata.tag !== 'VData') return terr(`not data in con: ${S.showTerm(tm)}`);
+    const con = fdata.cons[tm.ix];
+    if (!con) return terr(`con index out of range: ${S.showTerm(tm)}`);
+    const [args, ty] = synthapps(localInType(local), vapp(con, false, VTCon(vdata, [])), tm.args);
+    if (force(ty).tag !== 'VTCon') return terr(`invalid application in con: ${S.showTerm(tm)}`);
+    return [Con(tm.ix, data, args), ty];
+  }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 
+const synthapps = (local: Local, ty_: Val, args: S.Term[]): [Term[], Val] => {
+  if (args.length === 0) return [[], ty_];
+  return terr(`unimplemented`);
+};
 const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: S.Term, tmall: S.Term): [Term, Val, List<Term>] => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);
