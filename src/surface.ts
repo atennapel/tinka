@@ -200,7 +200,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
   if (t.tag === 'Data') return Data(erase(t.kind), t.cons.map(erase));
   if (t.tag === 'TCon') return TCon(erase(t.data), t.args.map(erase));
-  if (t.tag === 'Con') return Con(t.ix, erase(t.data), t.args.map(erase));
+  if (t.tag === 'Con') return Con(t.ix, Type, t.args.map(erase));
   return t;
 };
 

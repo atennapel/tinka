@@ -1569,7 +1569,7 @@ exports.erase = (t) => {
     if (t.tag === 'TCon')
         return exports.TCon(exports.erase(t.data), t.args.map(exports.erase));
     if (t.tag === 'Con')
-        return exports.Con(t.ix, exports.erase(t.data), t.args.map(exports.erase));
+        return exports.Con(t.ix, exports.Type, t.args.map(exports.erase));
     return t;
 };
 exports.DDef = (name, value, plicity) => ({ tag: 'DDef', name, value, plicity });
@@ -2084,7 +2084,7 @@ const synth = (local, tm) => {
         const fdata = domain_1.force(vdata);
         if (fdata.tag !== 'VData')
             return utils_1.terr(`not data in tcon: ${S.showTerm(tm)}`);
-        const [args, ty] = synthapps(exports.localInType(local), fdata.kind, tm.args);
+        const [args, ty] = synthapps(exports.localInType(local), fdata.kind, tm.args, tm);
         if (domain_1.force(ty).tag !== 'VType')
             return utils_1.terr(`invalid application in tcon: ${S.showTerm(tm)}`);
         return [syntax_1.TCon(data, args), ty];
@@ -2098,17 +2098,25 @@ const synth = (local, tm) => {
         const con = fdata.cons[tm.ix];
         if (!con)
             return utils_1.terr(`con index out of range: ${S.showTerm(tm)}`);
-        const [args, ty] = synthapps(exports.localInType(local), domain_1.vapp(con, false, domain_1.VTCon(vdata, [])), tm.args);
+        const [args, ty] = synthapps(exports.localInType(local), domain_1.vapp(con, false, domain_1.VTCon(vdata, [])), tm.args, tm);
         if (domain_1.force(ty).tag !== 'VTCon')
             return utils_1.terr(`invalid application in con: ${S.showTerm(tm)}`);
         return [syntax_1.Con(tm.ix, data, args), ty];
     }
     return utils_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
-const synthapps = (local, ty_, args) => {
+const synthapps = (local, ty_, args, tmall) => {
     if (args.length === 0)
         return [[], ty_];
-    return utils_1.terr(`unimplemented`);
+    let c = ty_;
+    const out = [];
+    for (let i = 0; i < args.length; i++) {
+        const [tmarg, ret, ms] = synthapp(local, c, false, args[i], tmall);
+        c = ret;
+        list_1.toArray(ms, x => x).reverse().forEach(x => out.push(x));
+        out.push(tmarg);
+    }
+    return [out, c];
 };
 const synthapp = (local, ty_, plicity, tm, tmall) => {
     config_1.log(() => `synthapp ${domain_1.showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
@@ -2782,7 +2790,7 @@ const synth = (local, tm) => {
         const fdata = domain_1.force(vdata);
         if (fdata.tag !== 'VData')
             return utils_1.terr(`not data in tcon: ${syntax_1.showTerm(tm)}`);
-        const ty = synthapps(exports.localInType(local), fdata.kind, tm.args);
+        const ty = synthapps(exports.localInType(local), fdata.kind, tm.args, tm);
         if (domain_1.force(ty).tag !== 'VType')
             return utils_1.terr(`invalid application in tcon: ${syntax_1.showTerm(tm)}`);
         return ty;
@@ -2796,17 +2804,20 @@ const synth = (local, tm) => {
         const con = fdata.cons[tm.ix];
         if (!con)
             return utils_1.terr(`con index out of range: ${syntax_1.showTerm(tm)}`);
-        const ty = synthapps(exports.localInType(local), domain_1.vapp(con, false, domain_1.VTCon(vdata, [])), tm.args);
+        const ty = synthapps(exports.localInType(local), domain_1.vapp(con, false, domain_1.VTCon(vdata, [])), tm.args, tm);
         if (domain_1.force(ty).tag !== 'VTCon')
             return utils_1.terr(`invalid application in con: ${syntax_1.showTerm(tm)}`);
         return ty;
     }
     return utils_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };
-const synthapps = (local, ty_, args) => {
+const synthapps = (local, ty_, args, tmall) => {
     if (args.length === 0)
         return ty_;
-    return utils_1.terr(`unimplemented`);
+    let c = ty_;
+    for (let i = 0; i < args.length; i++)
+        c = synthapp(local, c, false, args[i], tmall);
+    return c;
 };
 const synthapp = (local, ty_, plicity, tm, tmall) => {
     config_1.log(() => `synthapp ${domain_1.showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);

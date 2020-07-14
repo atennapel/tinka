@@ -139,7 +139,7 @@ const synth = (local: Local, tm: Term): Val => {
     const vdata = evaluate(tm.data, local.vs);
     const fdata = force(vdata);
     if (fdata.tag !== 'VData') return terr(`not data in tcon: ${showTerm(tm)}`);
-    const ty = synthapps(localInType(local), fdata.kind, tm.args);
+    const ty = synthapps(localInType(local), fdata.kind, tm.args, tm);
     if (force(ty).tag !== 'VType') return terr(`invalid application in tcon: ${showTerm(tm)}`);
     return ty;
   }
@@ -150,16 +150,19 @@ const synth = (local: Local, tm: Term): Val => {
     if (fdata.tag !== 'VData') return terr(`not data in con: ${showTerm(tm)}`);
     const con = fdata.cons[tm.ix];
     if (!con) return terr(`con index out of range: ${showTerm(tm)}`);
-    const ty = synthapps(localInType(local), vapp(con, false, VTCon(vdata, [])), tm.args);
+    const ty = synthapps(localInType(local), vapp(con, false, VTCon(vdata, [])), tm.args, tm);
     if (force(ty).tag !== 'VTCon') return terr(`invalid application in con: ${showTerm(tm)}`);
     return ty;
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 
-const synthapps = (local: Local, ty_: Val, args: Term[]): Val => {
+const synthapps = (local: Local, ty_: Val, args: Term[], tmall: Term): Val => {
   if (args.length === 0) return ty_;
-  return terr(`unimplemented`);
+  let c = ty_;
+  for (let i = 0; i < args.length; i++)
+    c = synthapp(local, c, false, args[i], tmall);
+  return c;
 };
 const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: Term, tmall: Term): Val => {
   log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
