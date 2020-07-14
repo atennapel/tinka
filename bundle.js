@@ -58,24 +58,6 @@ const convElim = (k, a, b, x, y) => {
             exports.conv(k, a.args[i], b.args[i]);
         return;
     }
-    if (a.tag === 'EElimIFix' && b.tag === 'EElimIFix' && a.args.length === b.args.length) {
-        for (let i = 0; i < a.args.length; i++)
-            exports.conv(k, a.args[i], b.args[i]);
-        return;
-    }
-    if (a.tag === 'EElimNat' && b.tag === 'EElimNat') {
-        exports.conv(k, a.p, b.p);
-        exports.conv(k, a.z, b.z);
-        exports.conv(k, a.s, b.s);
-        return;
-    }
-    if (a.tag === 'EElimFin' && b.tag === 'EElimFin') {
-        exports.conv(k, a.p, b.p);
-        exports.conv(k, a.z, b.z);
-        exports.conv(k, a.s, b.s);
-        exports.conv(k, a.n, b.n);
-        return;
-    }
     return utils_1.terr(`conv failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.conv = (k, a_, b_) => {
@@ -163,7 +145,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vdelim = exports.velimifix = exports.velimfin = exports.velimnat = exports.velimheq = exports.vproj = exports.vapp = exports.isCanonical = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.isVUnit = exports.vheq = exports.VReflHEq = exports.VHEq = exports.VFS = exports.VFZ = exports.VFin = exports.VS = exports.VZ = exports.VNat = exports.VIFix = exports.VDataSort = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VCon = exports.VTCon = exports.VData = exports.VType = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EDElim = exports.EElimIFix = exports.EElimFin = exports.EElimNat = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vdelim = exports.velimheq = exports.vproj = exports.vapp = exports.isCanonical = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.isVUnit = exports.vheq = exports.VReflHEq = exports.VHEq = exports.VDataSort = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VCon = exports.VTCon = exports.VData = exports.VType = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EDElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -177,9 +159,6 @@ exports.HPrim = (name) => ({ tag: 'HPrim', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EProj = (proj) => ({ tag: 'EProj', proj });
 exports.EElimHEq = (args) => ({ tag: 'EElimHEq', args });
-exports.EElimNat = (p, z, s) => ({ tag: 'EElimNat', p, z, s });
-exports.EElimFin = (p, z, s, n) => ({ tag: 'EElimFin', p, z, s, n });
-exports.EElimIFix = (args) => ({ tag: 'EElimIFix', args });
 exports.EDElim = (data, motive, args) => ({ tag: 'EDElim', data, motive, args });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
@@ -196,22 +175,11 @@ exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
 exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
 exports.VDataSort = exports.VPrim('Data');
-exports.VIFix = exports.VPrim('IFix');
-exports.VNat = exports.VPrim('Nat');
-exports.VZ = exports.VPrim('Z');
-exports.VS = (n) => exports.vapp(exports.VPrim('S'), false, n);
-exports.VFin = exports.VPrim('Fin');
-exports.VFZ = exports.VPrim('FZ');
-exports.VFS = exports.VPrim('FS');
 exports.VHEq = exports.VPrim('HEq');
 exports.VReflHEq = exports.VPrim('ReflHEq');
 exports.vheq = (A, B, a, b) => exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VHEq, true, A), true, B), false, a), false, b);
-exports.isVUnit = (v) => {
-    if (v.tag !== 'VNe' || v.head.tag !== 'HPrim' || v.head.name !== 'FZ')
-        return false;
-    const n = exports.force(v.args.head.arg);
-    return n.tag === 'VNe' && n.head.tag === 'HPrim' && n.head.name === 'Z';
-};
+// TODO: implement
+exports.isVUnit = (v) => false;
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
 exports.showEnvV = (l, k = 0, full = false) => list_1.listToString(l, v => syntax_1.showTerm(exports.quote(v, k, full)));
 exports.force = (v) => {
@@ -223,11 +191,8 @@ exports.force = (v) => {
             return v;
         return exports.force(list_1.foldr((elim, y) => elim.tag === 'EProj' ? exports.vproj(elim.proj, y) :
             elim.tag === 'EElimHEq' ? exports.velimheq([y].concat(elim.args)) :
-                elim.tag === 'EElimIFix' ? exports.velimifix([y].concat(elim.args)) :
-                    elim.tag === 'EElimNat' ? exports.velimnat(y, elim.p, elim.z, elim.s) :
-                        elim.tag === 'EElimFin' ? exports.velimfin(y, elim.p, elim.z, elim.s, elim.n) :
-                            elim.tag === 'EDElim' ? exports.vdelim(y, elim.data, elim.motive, elim.args) :
-                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                elim.tag === 'EDElim' ? exports.vdelim(y, elim.data, elim.motive, elim.args) :
+                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -238,11 +203,8 @@ exports.forceGlue = (v) => {
             return v;
         return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EProj' ? exports.vproj(elim.proj, y) :
             elim.tag === 'EElimHEq' ? exports.velimheq([y].concat(elim.args)) :
-                elim.tag === 'EElimIFix' ? exports.velimifix([y].concat(elim.args)) :
-                    elim.tag === 'EElimNat' ? exports.velimnat(y, elim.p, elim.z, elim.s) :
-                        elim.tag === 'EElimFin' ? exports.velimfin(y, elim.p, elim.z, elim.s, elim.n) :
-                            elim.tag === 'EDElim' ? exports.vdelim(y, elim.data, elim.motive, elim.args) :
-                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                elim.tag === 'EDElim' ? exports.vdelim(y, elim.data, elim.motive, elim.args) :
+                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -304,59 +266,6 @@ exports.velimheq = (args) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EElimHEq(rest), v.args), lazy_1.mapLazy(v.val, v => exports.velimheq([v].concat(rest))));
     return utils_1.impossible(`velimheq: ${v.tag}`);
 };
-exports.velimnat = (v, p, z, s) => {
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim' && v.head.name === 'Z') {
-            // elimNat {P} z s Z ~> z
-            return z;
-        }
-        if (v.head.tag === 'HPrim' && v.head.name === 'S') {
-            // elimNat {P} z s (S n) ~> s n
-            const n = v.args.head.arg;
-            return exports.vapp(s, false, n);
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EElimNat(p, z, s), v.args));
-    }
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EElimNat(p, z, s), v.args), lazy_1.mapLazy(v.val, v => exports.velimnat(v, p, z, s)));
-    return utils_1.impossible(`velimnat: ${v.tag}`);
-};
-exports.velimfin = (v, p, z, s, n) => {
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim' && v.head.name === 'FZ') {
-            // elimFin {P} z s {n} (FZ {m}) ~> z {m}
-            const m = v.args.head.arg;
-            return exports.vapp(z, true, m);
-        }
-        if (v.head.tag === 'HPrim' && v.head.name === 'FS') {
-            // elimNat {P} z s {n} (FS {m} x) ~> s {m} x
-            const args = v.args;
-            const x = args.head.arg;
-            const m = args.tail.head.arg;
-            return exports.vapp(exports.vapp(s, true, m), false, x);
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EElimFin(p, z, s, n), v.args));
-    }
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EElimFin(p, z, s, n), v.args), lazy_1.mapLazy(v.val, v => exports.velimfin(v, p, z, s, n)));
-    return utils_1.impossible(`velimnat: ${v.tag}`);
-};
-exports.velimifix = (args) => {
-    const v = args[0];
-    const rest = args.slice(1);
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim' && v.head.name === 'IIn') {
-            // elimIFix {I} {F} {P} f {i} (IIn {i} x) ~> f {i} x
-            const args = v.args;
-            const x = args.head.arg;
-            return exports.vapp(exports.vapp(rest[3], true, rest[4]), false, x);
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EElimIFix(rest), v.args));
-    }
-    if (v.tag === 'VGlued')
-        return exports.VGlued(v.head, list_1.Cons(exports.EElimIFix(rest), v.args), lazy_1.mapLazy(v.val, v => exports.velimifix([v].concat(rest))));
-    return utils_1.impossible(`velimifix: ${v.tag}`);
-};
 exports.vdelim = (v, data, motive, args) => {
     if (v.tag === 'VCon')
         return v.args.reduce((x, y) => exports.vapp(x, false, y), args[v.ix]);
@@ -370,12 +279,6 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'elimHEq')
             return exports.VAbs(true, 'A', exports.VType, A => exports.VAbs(true, 'a', A, a => exports.VAbs(true, 'P', exports.VPi(false, 'b', A, b => exports.VPi(false, '_', exports.vheq(A, A, a, b), _ => exports.VType)), P => exports.VAbs(false, 'q', exports.vapp(exports.vapp(P, false, a), false, exports.vapp(exports.vapp(exports.VPrim('ReflHEq'), true, A), true, a)), q => exports.VAbs(true, 'b', A, b => exports.VAbs(false, 'p', exports.vheq(A, A, a, b), p => exports.velimheq([p, A, a, P, q, b])))))));
-        if (t.name === 'elimNat')
-            return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VNat, _ => exports.VType), P => exports.VAbs(false, 'z', exports.vapp(P, false, exports.VZ), z => exports.VAbs(false, 's', exports.VPi(false, 'm', exports.VNat, m => exports.vapp(P, false, exports.VS(m))), s => exports.VAbs(false, 'n', exports.VNat, n => exports.velimnat(n, P, z, s)))));
-        if (t.name === 'elimFin')
-            return exports.VAbs(true, 'P', exports.VPi(false, 'n', exports.VNat, n => exports.VPi(false, '_', exports.vapp(exports.VFin, false, n), _ => exports.VType)), P => exports.VAbs(false, 'z', exports.VPi(true, 'm', exports.VNat, m => exports.vapp(exports.vapp(P, false, exports.VS(m)), false, exports.vapp(exports.VFZ, true, m))), z => exports.VAbs(false, 's', exports.VPi(true, 'm', exports.VNat, m => exports.VPi(false, 'y', exports.vapp(exports.VFin, false, m), y => exports.vapp(exports.vapp(P, false, exports.VS(m)), false, exports.vapp(exports.vapp(exports.VFS, true, m), false, y)))), s => exports.VAbs(true, 'n', exports.VNat, n => exports.VAbs(false, 'x', exports.vapp(exports.VFin, false, n), x => exports.velimfin(x, P, z, s, n))))));
-        if (t.name === 'elimIFix')
-            return exports.VAbs(true, 'I', exports.VType, I => exports.VAbs(true, 'F', exports.VPi(false, '_', exports.VPi(false, '_', I, _ => exports.VType), _ => exports.VPi(false, '_', I, _ => exports.VType)), F => exports.VAbs(true, 'P', exports.VPi(false, 'i', I, i => exports.VPi(false, '_', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), _ => exports.VType)), P => exports.VAbs(false, 'r', exports.VPi(true, 'i', I, i => exports.VPi(false, 'z', exports.vapp(exports.vapp(F, false, exports.vapp(exports.vapp(exports.VIFix, false, I), false, F)), false, i), z => exports.vapp(exports.vapp(P, false, i), false, exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VPrim('IIn'), true, I), true, F), true, i), false, z)))), r => exports.VAbs(true, 'i', I, i => exports.VAbs(false, 'x', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), x => exports.velimifix([x, I, F, P, r, i])))))));
         return exports.VPrim(t.name);
     }
     if (t.tag === 'Type')
@@ -446,18 +349,6 @@ const quoteElim = (t, e, k, full) => {
         const [A, a, P, q, b] = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), false, t);
     }
-    if (e.tag === 'EElimNat') {
-        const [P, z, s] = [e.p, e.z, e.s].map(x => exports.quote(x, k, full));
-        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimNat'), true, P), false, z), false, s), false, t);
-    }
-    if (e.tag === 'EElimFin') {
-        const [P, z, s, n] = [e.p, e.z, e.s, e.n].map(x => exports.quote(x, k, full));
-        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimFin'), true, P), false, z), false, s), true, n), false, t);
-    }
-    if (e.tag === 'EElimIFix') {
-        const [I, F, P, f, i] = e.args.map(x => exports.quote(x, k, full));
-        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimIFix'), true, I), true, F), true, P), false, f), true, i), false, t);
-    }
     return e;
 };
 exports.quote = (v_, k, full) => {
@@ -510,12 +401,6 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return `delim ${[e.data, e.motive].concat(e.args).map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'EElimHEq')
         return `elimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
-    if (e.tag === 'EElimIFix')
-        return `elimifix ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
-    if (e.tag === 'EElimNat')
-        return `elimnat ${[e.p, e.z, e.s].map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
-    if (e.tag === 'EElimFin')
-        return `elimfin ${[e.p, e.z, e.s, e.n].map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     return e;
 };
 const zonkSpine = (tm, vs, k, full) => {
@@ -1209,37 +1094,6 @@ const primTypes = {
     'ReflHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.vheq(A, A, a, a))),
     // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> (q : HEq {A} {A} a b) -> P b q
     'elimHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.VPi(true, 'P', domain_1.VPi(false, 'b', A, b => domain_1.VPi(false, '_', domain_1.vheq(A, A, a, b), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(P, false, a), false, domain_1.vapp(domain_1.vapp(domain_1.VPrim('ReflHEq'), true, A), true, a)), _ => domain_1.VPi(true, 'b', A, b => domain_1.VPi(false, 'p', domain_1.vheq(A, A, a, b), p => domain_1.vapp(domain_1.vapp(P, false, b), false, p))))))),
-    'Nat': () => domain_1.VType,
-    'Z': () => domain_1.VNat,
-    'S': () => domain_1.VPi(false, '_', domain_1.VNat, _ => domain_1.VNat),
-    // {P : Nat -> *} -> P Z -> ((m : Nat) -> P (S m)) -> (n : Nat) -> P n
-    'elimNat': () => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.VNat, _ => domain_1.VType), P => domain_1.VPi(false, '_', domain_1.vapp(P, false, domain_1.VZ), _ => domain_1.VPi(false, '_', domain_1.VPi(false, 'm', domain_1.VNat, m => domain_1.vapp(P, false, domain_1.VS(m))), _ => domain_1.VPi(false, 'n', domain_1.VNat, n => domain_1.vapp(P, false, n))))),
-    'Fin': () => domain_1.VPi(false, '_', domain_1.VNat, _ => domain_1.VType),
-    'FZ': () => domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.vapp(domain_1.VFin, false, domain_1.VS(n))),
-    'FS': () => domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.VPi(false, '_', domain_1.vapp(domain_1.VFin, false, n), _ => domain_1.vapp(domain_1.VFin, false, domain_1.VS(n)))),
-    // {P : (n : Nat) -> Fin n -> *} -> ({m : Nat} -> P (S m) (FZ {m})) -> ({m : Nat} -> (y : Fin m) -> P (S m) (FS {m} y)) -> {n : Nat} -> (x : Fin n) -> P n f
-    'elimFin': () => domain_1.VPi(true, 'P', domain_1.VPi(false, 'n', domain_1.VNat, n => domain_1.VPi(false, '_', domain_1.vapp(domain_1.VFin, false, n), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.VPi(true, 'm', domain_1.VNat, m => domain_1.vapp(domain_1.vapp(P, false, domain_1.VS(m)), false, domain_1.vapp(domain_1.VFZ, true, m))), _ => domain_1.VPi(false, '_', domain_1.VPi(true, 'm', domain_1.VNat, m => domain_1.VPi(false, 'y', domain_1.vapp(domain_1.VFin, false, m), y => domain_1.vapp(domain_1.vapp(P, false, domain_1.VS(m)), false, domain_1.vapp(domain_1.vapp(domain_1.VFS, true, m), false, y)))), _ => domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.VFin, false, n), x => domain_1.vapp(domain_1.vapp(P, false, n), false, x)))))),
-    // {P : Fin 0 -> *} -> (x : Fin 0) -> P x
-    'elimFin0': () => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.vapp(domain_1.VFin, false, domain_1.VZ), _ => domain_1.VType), P => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.VFin, false, domain_1.VZ), x => domain_1.vapp(P, false, x))),
-    // (I : *) -> ((I -> *) -> I -> *) -> I -> *
-    'IFix': () => domain_1.VPi(false, 'I', domain_1.VType, I => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType))),
-    // {I : *} -> {F : (I -> *) -> I -> *} -> {i : I} -> F (IFix {I} F) i IFix {I} F i
-    'IIn': () => domain_1.VPi(true, 'I', domain_1.VType, I => domain_1.VPi(true, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(F, false, domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F)), false, i), _ => domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i))))),
-    /*
-      elimIFix
-      : {I : *}
-      -> {F : (I -> *) -> (I -> *)}
-      -> {P : (i : I) -> IFix I F i -> P}
-      -> (
-        -> {i : I}
-        -> (z : F (IFix I F) i)
-        -> P i (IIn {I} {F} {i} z)
-      )
-      -> {i : I}
-      -> (x : IFix I F i)
-      -> P i x
-    */
-    'elimIFix': () => domain_1.VPi(true, 'I', domain_1.VType, I => domain_1.VPi(true, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(true, 'P', domain_1.VPi(false, 'i', I, i => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'z', domain_1.vapp(domain_1.vapp(F, false, domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F)), false, i), z => domain_1.vapp(domain_1.vapp(P, false, i), false, domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VPrim('IIn'), true, I), true, F), true, i), false, z)))), _ => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), x => domain_1.vapp(domain_1.vapp(P, false, i), false, x))))))),
 };
 exports.primType = (name) => primTypes[name]() || utils_1.impossible(`primType: ${name}`);
 
@@ -1430,9 +1284,6 @@ exports.primNames = [
     'Data',
     'drec', 'dreci',
     'HEq', 'ReflHEq', 'elimHEq',
-    'Nat', 'Z', 'S', 'elimNat',
-    'Fin', 'FZ', 'FS', 'elimFin', 'elimFin0',
-    'IFix', 'IIn', 'elimIFix',
 ];
 exports.isPrimName = (x) => exports.primNames.includes(x);
 exports.Prim = (name) => ({ tag: 'Prim', name });
@@ -2329,24 +2180,6 @@ const unifyElim = (k, a, b, x, y) => {
     if (a.tag === 'EElimHEq' && b.tag === 'EElimHEq' && a.args.length === b.args.length) {
         for (let i = 0; i < a.args.length; i++)
             exports.unify(k, a.args[i], b.args[i]);
-        return;
-    }
-    if (a.tag === 'EElimIFix' && b.tag === 'EElimIFix' && a.args.length === b.args.length) {
-        for (let i = 0; i < a.args.length; i++)
-            exports.unify(k, a.args[i], b.args[i]);
-        return;
-    }
-    if (a.tag === 'EElimNat' && b.tag === 'EElimNat') {
-        exports.unify(k, a.p, b.p);
-        exports.unify(k, a.z, b.z);
-        exports.unify(k, a.s, b.s);
-        return;
-    }
-    if (a.tag === 'EElimFin' && b.tag === 'EElimFin') {
-        exports.unify(k, a.p, b.p);
-        exports.unify(k, a.z, b.z);
-        exports.unify(k, a.s, b.s);
-        exports.unify(k, a.n, b.n);
         return;
     }
     return utils_1.terr(`unify elim failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);

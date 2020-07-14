@@ -26,24 +26,6 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       unify(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EElimIFix' && b.tag === 'EElimIFix' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
-  if (a.tag === 'EElimNat' && b.tag === 'EElimNat') {
-    unify(k, a.p, b.p);
-    unify(k, a.z, b.z);
-    unify(k, a.s, b.s);
-    return;
-  }
-  if (a.tag === 'EElimFin' && b.tag === 'EElimFin') {
-    unify(k, a.p, b.p);
-    unify(k, a.z, b.z);
-    unify(k, a.s, b.s);
-    unify(k, a.n, b.n);
-    return;
-  }
   return terr(`unify elim failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {

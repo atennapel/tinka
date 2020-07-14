@@ -48,17 +48,11 @@ export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type PrimName =
   'Data' |
   'drec' | 'dreci' |
-  'HEq' | 'ReflHEq' | 'elimHEq' |
-  'Nat' | 'Z' | 'S' | 'elimNat' |
-  'Fin' | 'FZ' | 'FS' | 'elimFin' | 'elimFin0' |
-  'IFix' | 'IIn' | 'elimIFix';
+  'HEq' | 'ReflHEq' | 'elimHEq';
 export const primNames = [
   'Data',
   'drec', 'dreci',
   'HEq', 'ReflHEq', 'elimHEq',
-  'Nat', 'Z', 'S', 'elimNat',
-  'Fin', 'FZ', 'FS', 'elimFin', 'elimFin0',
-  'IFix', 'IIn', 'elimIFix',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
