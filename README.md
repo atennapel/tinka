@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add elim
 - add plicities to tcon and con
 - fix indexed datatypes
 - combine all prim eliminators

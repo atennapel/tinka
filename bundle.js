@@ -2171,10 +2171,25 @@ const synth = (local, tm) => {
         const scrut = check(local, tm.scrut, type);
         const vscrut = domain_1.evaluate(scrut, local.vs);
         const ret = domain_1.vapp(vmotive, false, vscrut);
-        const args = tm.args.map((arg, i) => check(local, arg, domain_1.vapp(fdata.cons[i], false, ret)));
+        const args = tm.args.map((arg, i) => {
+            const ctype = genCaseType(i, fdata, vmotive, local.index, domain_1.vapp(fdata.cons[i], false, domain_1.VTCon(fdata, [])), 0);
+            config_1.log(() => `caseType ${i}: ${domain_1.showTermS(ctype, local.names, local.index)}`);
+            return check(local, arg, ctype);
+        });
         return [syntax_1.DElim(data, motive, scrut, args), ret];
     }
     return utils_1.terr(`cannot synth ${S.showTerm(tm)}`);
+};
+const name = (x) => x === '_' ? 'x' : x;
+const genCaseType = (i, rec, P, k, v_, count) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VPi') {
+        return domain_1.VPi(v.plicity, name(v.name), v.type, x => genCaseType(i, rec, P, k + 1, v.body(x), count + 1));
+    }
+    else if (v.tag === 'VTCon' && v.data === rec) {
+        return domain_1.vapp(P, false, domain_1.VCon(i, rec, utils_1.range(count).map(x => domain_1.VVar(k - x - 1)).reverse()));
+    }
+    return utils_1.terr(`invalid type in constructor: ${v.tag}`);
 };
 const synthapps = (local, ty_, args, tmall) => {
     if (args.length === 0)
@@ -2792,6 +2807,8 @@ const check = (local, tm, ty) => {
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
+    if (tm.tag === 'Type')
+        return domain_1.VType;
     if (tm.tag === 'Prim')
         return prims_1.primType(tm.name);
     if (tm.tag === 'Global') {
@@ -2906,10 +2923,25 @@ const synth = (local, tm) => {
         check(local, tm.scrut, type);
         const vscrut = domain_1.evaluate(tm.scrut, local.vs);
         const ret = domain_1.vapp(vmotive, false, vscrut);
-        tm.args.forEach((arg, i) => check(local, arg, domain_1.vapp(fdata.cons[i], false, ret)));
+        tm.args.forEach((arg, i) => {
+            const ctype = genCaseType(i, fdata, vmotive, local.index, domain_1.vapp(fdata.cons[i], false, domain_1.VTCon(fdata, [])), 0);
+            config_1.log(() => `core caseType ${i}: ${domain_1.showTermS(ctype, local.names, local.index)}`);
+            check(local, arg, ctype);
+        });
         return ret;
     }
     return utils_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
+};
+const name = (x) => x === '_' ? 'x' : x;
+const genCaseType = (i, rec, P, k, v_, count) => {
+    const v = domain_1.force(v_);
+    if (v.tag === 'VPi') {
+        return domain_1.VPi(v.plicity, name(v.name), v.type, x => genCaseType(i, rec, P, k + 1, v.body(x), count + 1));
+    }
+    else if (v.tag === 'VTCon' && v.data === rec) {
+        return domain_1.vapp(P, false, domain_1.VCon(i, rec, utils_1.range(count).map(x => domain_1.VVar(k - x - 1)).reverse()));
+    }
+    return utils_1.terr(`invalid type in constructor (core): ${v.tag}`);
 };
 const synthapps = (local, ty_, args, tmall) => {
     if (args.length === 0)

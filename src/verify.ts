@@ -1,8 +1,8 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VPi, VDataSort, vapp, VTCon } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VPi, VDataSort, vapp, VTCon, VCon } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
-import { terr } from './utils/utils';
+import { terr, range } from './utils/utils';
 import { Plicity } from './surface';
 import { log, config } from './config';
 import { globalGet } from './globalenv';
@@ -67,6 +67,7 @@ const check = (local: Local, tm: Term, ty: Val): void => {
 
 const synth = (local: Local, tm: Term): Val => {
   log(() => `synth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  if (tm.tag === 'Type') return VType;
   if (tm.tag === 'Prim') return primType(tm.name);
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);
@@ -165,10 +166,25 @@ const synth = (local: Local, tm: Term): Val => {
     check(local, tm.scrut, type);
     const vscrut = evaluate(tm.scrut, local.vs);
     const ret = vapp(vmotive, false, vscrut);
-    tm.args.forEach((arg, i) => check(local, arg, vapp(fdata.cons[i], false, ret)));
+    tm.args.forEach((arg, i) => {
+      const ctype = genCaseType(i, fdata, vmotive, local.index, vapp(fdata.cons[i], false, VTCon(fdata, [])), 0);
+      log(() => `core caseType ${i}: ${showTermS(ctype, local.names, local.index)}`);
+      check(local, arg, ctype);
+    });
     return ret;
   }
   return terr(`cannot synth ${showTerm(tm)}`);
+};
+
+const name = (x: Name) => x === '_' ? 'x' : x;
+const genCaseType = (i: Ix, rec: Val, P: Val, k: Ix, v_: Val, count: number): Val => {
+  const v = force(v_);
+  if (v.tag === 'VPi') {
+    return VPi(v.plicity, name(v.name), v.type, x => genCaseType(i, rec, P, k + 1, v.body(x), count + 1));
+  } else if (v.tag === 'VTCon' && v.data === rec) {
+    return vapp(P, false, VCon(i, rec, range(count).map(x => VVar(k - x - 1)).reverse()));
+  }
+  return terr(`invalid type in constructor (core): ${v.tag}`);
 };
 
 const synthapps = (local: Local, ty_: Val, args: Term[], tmall: Term): Val => {
