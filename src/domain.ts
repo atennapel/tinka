@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr, length, toArray } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon, Con } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon, Con, DElim } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EProj | EElimHEq | EElimNat | EElimFin | EElimIFix;
+export type Elim = EApp | EProj | EElimHEq | EElimNat | EElimFin | EElimIFix | EDElim;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -32,6 +32,8 @@ export type EElimFin = { tag: 'EElimFin', p: Val, z: Val, s: Val, n: Val };
 export const EElimFin = (p: Val, z: Val, s: Val, n: Val): EElimFin => ({ tag: 'EElimFin', p, z, s, n });
 export type EElimIFix = { tag: 'EElimIFix', args: Val[] };
 export const EElimIFix = (args: Val[]): EElimIFix => ({ tag: 'EElimIFix', args });
+export type EDElim = { tag: 'EDElim', data: Val, motive: Val, args: Val[] };
+export const EDElim = (data: Val, motive: Val, args: Val[]): EDElim => ({ tag: 'EDElim', data, motive, args });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType | VData | VTCon | VCon;
@@ -95,6 +97,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EElimIFix' ? velimifix([y].concat(elim.args)) :
       elim.tag === 'EElimNat' ? velimnat(y, elim.p, elim.z, elim.s) :
       elim.tag === 'EElimFin' ? velimfin(y, elim.p, elim.z, elim.s, elim.n) :
+      elim.tag === 'EDElim' ? vdelim(y, elim.data, elim.motive, elim.args) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -109,6 +112,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EElimIFix' ? velimifix([y].concat(elim.args)) :
       elim.tag === 'EElimNat' ? velimnat(y, elim.p, elim.z, elim.s) :
       elim.tag === 'EElimFin' ? velimfin(y, elim.p, elim.z, elim.s, elim.n) :
+      elim.tag === 'EDElim' ? vdelim(y, elim.data, elim.motive, elim.args) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -218,6 +222,15 @@ export const velimifix = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EElimIFix(rest), v.args), mapLazy(v.val, v => velimifix([v].concat(rest))));
   return impossible(`velimifix: ${v.tag}`);
 };
+export const vdelim = (v: Val, data: Val, motive: Val, args: Val[]): Val => {
+  if (v.tag === 'VCon')
+    return v.args.reduce((x, y) => vapp(x, false, y), args[v.ix]);
+  if (v.tag === 'VNe')
+    return VNe(v.head, Cons(EDElim(data, motive, args), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EDElim(data, motive, args), v.args), mapLazy(v.val, v => vdelim(v, data, motive, args)));
+  return impossible(`vdelim: ${v.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
@@ -283,6 +296,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Data') return VData(evaluate(t.kind, vs), t.cons.map(x => evaluate(x, vs)));
   if (t.tag === 'TCon') return VTCon(evaluate(t.data, vs), t.args.map(x => evaluate(x, vs)));
   if (t.tag === 'Con') return VCon(t.ix, evaluate(t.data, vs), t.args.map(x => evaluate(x, vs)));
+  if (t.tag === 'DElim') return vdelim(evaluate(t.scrut, vs), evaluate(t.data, vs), evaluate(t.motive, vs), t.args.map(x => evaluate(x, vs)));
   return t;
 };
 
@@ -301,6 +315,7 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   if (e.tag === 'EProj') return Proj(e.proj, t);
+  if (e.tag === 'EDElim') return DElim(quote(e.data, k, full), quote(e.motive, k, full), t, e.args.map(x => quote(x, k, full)));
   if (e.tag === 'EElimHEq') {
     const [A, a, P, q, b] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(App(Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), false, t);
@@ -373,6 +388,7 @@ export const showElimQ = (e: Elim, k: number = 0, full: boolean = false): string
 export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boolean = false): string => {
   if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
   if (e.tag === 'EProj') return e.proj;
+  if (e.tag === 'EDElim') return `delim ${[e.data, e.motive].concat(e.args).map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElimIFix') return `elimifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElimNat') return `elimnat ${[e.p, e.z, e.s].map(x => showTermS(x, ns, k, full)).join(' ')}`;
@@ -421,5 +437,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Data') return Data(zonk(tm.kind, vs, k, full), tm.cons.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'TCon') return TCon(zonk(tm.data, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'Con') return Con(tm.ix, zonk(tm.data, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
+  if (tm.tag === 'DElim') return DElim(zonk(tm.data, vs, k, full), zonk(tm.motive, vs, k, full), zonk(tm.scrut, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };

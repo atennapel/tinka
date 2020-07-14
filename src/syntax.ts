@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Data | TCon | Con | Prim | Meta;
+export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Type | Data | TCon | Con | DElim | Prim | Meta;
 
 export type Prim = { tag: 'Prim', name: S.PrimName };
 export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
@@ -35,6 +35,8 @@ export type TCon = { tag: 'TCon', data: Term, args: Term[] };
 export const TCon = (data: Term, args: Term[]): TCon => ({ tag: 'TCon', data, args });
 export type Con = { tag: 'Con', ix: Ix, data: Term, args: Term[] };
 export const Con = (ix: Ix, data: Term, args: Term[]): Con => ({ tag: 'Con', ix, data, args });
+export type DElim = { tag: 'DElim', data: Term, motive: Term, scrut: Term, args: Term[] };
+export const DElim = (data: Term, motive: Term, scrut: Term, args: Term[]): DElim => ({ tag: 'DElim', data, motive, scrut, args });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
@@ -54,6 +56,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Data') return `(data ${showTerm(t.kind)}${t.cons.length > 0 ? ` ${t.cons.map(showTerm).join(' ')}` : ''})`;
   if (t.tag === 'TCon') return `(tcon ${showTerm(t.data)}${t.args.length > 0 ? ` ${t.args.map(showTerm).join(' ')}` : ''})`;
   if (t.tag === 'Con') return `(con ${t.ix} ${showTerm(t.data)}${t.args.length > 0 ? ` ${t.args.map(showTerm).join(' ')}` : ''})`;
+  if (t.tag === 'DElim') return `(elim ${showTerm(t.data)} ${showTerm(t.motive)} ${showTerm(t.scrut)}${t.args.length > 0 ? ` ${t.args.map(showTerm).join(' ')}` : ''})`;
   return t;
 };
 
@@ -69,6 +72,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Data') return globalUsed(k, t.kind) || t.cons.some(x => globalUsed(k, x));
   if (t.tag === 'TCon') return globalUsed(k, t.data) || t.args.some(x => globalUsed(k, x));
   if (t.tag === 'Con') return globalUsed(k, t.data) || t.args.some(x => globalUsed(k, x));
+  if (t.tag === 'DElim') return globalUsed(k, t.data) || globalUsed(k, t.motive) || globalUsed(k, t.scrut) || t.args.some(x => globalUsed(k, x));
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -83,6 +87,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Data') return indexUsed(k, t.kind) || t.cons.some(x => indexUsed(k, x));
   if (t.tag === 'TCon') return indexUsed(k, t.data) || t.args.some(x => indexUsed(k, x));
   if (t.tag === 'Con') return indexUsed(k, t.data) || t.args.some(x => indexUsed(k, x));
+  if (t.tag === 'DElim') return indexUsed(k, t.data) || indexUsed(k, t.motive) || indexUsed(k, t.scrut) || t.args.some(x => indexUsed(k, x));
   return false;
 };
 
@@ -98,6 +103,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Data') return isUnsolved(t.kind) || t.cons.some(x => isUnsolved(x));
   if (t.tag === 'TCon') return isUnsolved(t.data) || t.args.some(x => isUnsolved(x));
   if (t.tag === 'Con') return isUnsolved(t.data) || t.args.some(x => isUnsolved(x));
+  if (t.tag === 'DElim') return isUnsolved(t.data) || isUnsolved(t.motive) || isUnsolved(t.scrut) || t.args.some(x => isUnsolved(x));
   return false;
 };
 
@@ -142,6 +148,8 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     return S.TCon(toSurface(t.data, ns), t.args.map(x => toSurface(x, ns)));
   if (t.tag === 'Con')
     return S.Con(t.ix, toSurface(t.data, ns), t.args.map(x => toSurface(x, ns)));
+  if (t.tag === 'DElim')
+    return S.DElim(toSurface(t.data, ns), toSurface(t.motive, ns), toSurface(t.scrut, ns), t.args.map(x => toSurface(x, ns)));
   return t;
 };
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));

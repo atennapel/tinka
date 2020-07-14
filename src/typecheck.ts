@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con, DElim } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDataSort, vapp, VTCon } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
@@ -312,6 +312,20 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const [args, ty] = synthapps(localInType(local), vapp(con, false, VTCon(vdata, [])), tm.args, tm);
     if (force(ty).tag !== 'VTCon') return terr(`invalid application in con: ${S.showTerm(tm)}`);
     return [Con(tm.ix, data, args), ty];
+  }
+  if (tm.tag === 'DElim') {
+    const data = check(localInType(local), tm.data, VDataSort);
+    const vdata = evaluate(data, local.vs);
+    const fdata = force(vdata);
+    if (fdata.tag !== 'VData') return terr(`not data in con: ${S.showTerm(tm)}`);
+    const type = VTCon(vdata, []);
+    const motive = check(localInType(local), tm.motive, VPi(false, '_', type, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    const scrut = check(local, tm.scrut, type);
+    const vscrut = evaluate(scrut, local.vs);
+    const ret = vapp(vmotive, false, vscrut);
+    const args = tm.args.map((arg, i) => check(local, arg, vapp(fdata.cons[i], false, ret)));
+    return [DElim(data, motive, scrut, args), ret];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

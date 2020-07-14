@@ -46,6 +46,13 @@ const convElim = (k, a, b, x, y) => {
         return exports.conv(k, a.arg, b.arg);
     if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj)
         return;
+    if (a.tag === 'EDElim' && b.tag === 'EDElim') {
+        exports.conv(k, a.data, b.data);
+        exports.conv(k, a.motive, b.motive);
+        for (let i = 0; i < a.args.length; i++)
+            exports.conv(k, a.args[i], b.args[i]);
+        return;
+    }
     if (a.tag === 'EElimHEq' && b.tag === 'EElimHEq' && a.args.length === b.args.length) {
         for (let i = 0; i < a.args.length; i++)
             exports.conv(k, a.args[i], b.args[i]);
@@ -156,7 +163,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.velimifix = exports.velimfin = exports.velimnat = exports.velimheq = exports.vproj = exports.vapp = exports.isCanonical = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.isVUnit = exports.vheq = exports.VReflHEq = exports.VHEq = exports.VFS = exports.VFZ = exports.VFin = exports.VS = exports.VZ = exports.VNat = exports.VIFix = exports.VDataSort = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VCon = exports.VTCon = exports.VData = exports.VType = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EElimIFix = exports.EElimFin = exports.EElimNat = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vdelim = exports.velimifix = exports.velimfin = exports.velimnat = exports.velimheq = exports.vproj = exports.vapp = exports.isCanonical = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.isVUnit = exports.vheq = exports.VReflHEq = exports.VHEq = exports.VFS = exports.VFZ = exports.VFin = exports.VS = exports.VZ = exports.VNat = exports.VIFix = exports.VDataSort = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VCon = exports.VTCon = exports.VData = exports.VType = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EDElim = exports.EElimIFix = exports.EElimFin = exports.EElimNat = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -173,6 +180,7 @@ exports.EElimHEq = (args) => ({ tag: 'EElimHEq', args });
 exports.EElimNat = (p, z, s) => ({ tag: 'EElimNat', p, z, s });
 exports.EElimFin = (p, z, s, n) => ({ tag: 'EElimFin', p, z, s, n });
 exports.EElimIFix = (args) => ({ tag: 'EElimIFix', args });
+exports.EDElim = (data, motive, args) => ({ tag: 'EDElim', data, motive, args });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -218,7 +226,8 @@ exports.force = (v) => {
                 elim.tag === 'EElimIFix' ? exports.velimifix([y].concat(elim.args)) :
                     elim.tag === 'EElimNat' ? exports.velimnat(y, elim.p, elim.z, elim.s) :
                         elim.tag === 'EElimFin' ? exports.velimfin(y, elim.p, elim.z, elim.s, elim.n) :
-                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                            elim.tag === 'EDElim' ? exports.vdelim(y, elim.data, elim.motive, elim.args) :
+                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -232,7 +241,8 @@ exports.forceGlue = (v) => {
                 elim.tag === 'EElimIFix' ? exports.velimifix([y].concat(elim.args)) :
                     elim.tag === 'EElimNat' ? exports.velimnat(y, elim.p, elim.z, elim.s) :
                         elim.tag === 'EElimFin' ? exports.velimfin(y, elim.p, elim.z, elim.s, elim.n) :
-                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                            elim.tag === 'EDElim' ? exports.vdelim(y, elim.data, elim.motive, elim.args) :
+                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -347,6 +357,15 @@ exports.velimifix = (args) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EElimIFix(rest), v.args), lazy_1.mapLazy(v.val, v => exports.velimifix([v].concat(rest))));
     return utils_1.impossible(`velimifix: ${v.tag}`);
 };
+exports.vdelim = (v, data, motive, args) => {
+    if (v.tag === 'VCon')
+        return v.args.reduce((x, y) => exports.vapp(x, false, y), args[v.ix]);
+    if (v.tag === 'VNe')
+        return exports.VNe(v.head, list_1.Cons(exports.EDElim(data, motive, args), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EDElim(data, motive, args), v.args), lazy_1.mapLazy(v.val, v => exports.vdelim(v, data, motive, args)));
+    return utils_1.impossible(`vdelim: ${v.tag}`);
+};
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'elimHEq')
@@ -394,6 +413,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VTCon(exports.evaluate(t.data, vs), t.args.map(x => exports.evaluate(x, vs)));
     if (t.tag === 'Con')
         return exports.VCon(t.ix, exports.evaluate(t.data, vs), t.args.map(x => exports.evaluate(x, vs)));
+    if (t.tag === 'DElim')
+        return exports.vdelim(exports.evaluate(t.scrut, vs), exports.evaluate(t.data, vs), exports.evaluate(t.motive, vs), t.args.map(x => exports.evaluate(x, vs)));
     return t;
 };
 const quoteHead = (h, k) => {
@@ -419,6 +440,8 @@ const quoteElim = (t, e, k, full) => {
         return syntax_1.App(t, e.plicity, exports.quote(e.arg, k, full));
     if (e.tag === 'EProj')
         return syntax_1.Proj(e.proj, t);
+    if (e.tag === 'EDElim')
+        return syntax_1.DElim(exports.quote(e.data, k, full), exports.quote(e.motive, k, full), t, e.args.map(x => exports.quote(x, k, full)));
     if (e.tag === 'EElimHEq') {
         const [A, a, P, q, b] = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), false, t);
@@ -483,6 +506,8 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return `${e.plicity ? '{' : ''}${exports.showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
     if (e.tag === 'EProj')
         return e.proj;
+    if (e.tag === 'EDElim')
+        return `delim ${[e.data, e.motive].concat(e.args).map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'EElimHEq')
         return `elimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'EElimIFix')
@@ -538,6 +563,8 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
         return syntax_1.TCon(exports.zonk(tm.data, vs, k, full), tm.args.map(x => exports.zonk(x, vs, k, full)));
     if (tm.tag === 'Con')
         return syntax_1.Con(tm.ix, exports.zonk(tm.data, vs, k, full), tm.args.map(x => exports.zonk(x, vs, k, full)));
+    if (tm.tag === 'DElim')
+        return syntax_1.DElim(exports.zonk(tm.data, vs, k, full), exports.zonk(tm.motive, vs, k, full), exports.zonk(tm.scrut, vs, k, full), tm.args.map(x => exports.zonk(x, vs, k, full)));
     return tm;
 };
 
@@ -964,6 +991,17 @@ const exprs = (ts, br) => {
             return utils_1.serr(`con needs arg`);
         return surface_1.Con(+ix.num, args[0], args.slice(1));
     }
+    if (isName(ts[0], 'elim')) {
+        const args = ts.slice(1).map(x => {
+            const [t, b] = expr(x);
+            if (b)
+                return utils_1.serr(`elim arg cannot be implicit`);
+            return t;
+        });
+        if (args.length < 3)
+            return utils_1.serr(`elim needs args`);
+        return surface_1.DElim(args[0], args[1], args[2], args.slice(3));
+    }
     if (isName(ts[0], '\\')) {
         const args = [];
         let found = false;
@@ -1368,7 +1406,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Meta = exports.Hole = exports.Ann = exports.Con = exports.TCon = exports.Data = exports.Type = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Meta = exports.Hole = exports.Ann = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Type = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
 exports.PName = (name) => ({ tag: 'PName', name });
 exports.PIndex = (index) => ({ tag: 'PIndex', index });
 exports.PCore = (proj) => ({ tag: 'PCore', proj });
@@ -1384,6 +1422,7 @@ exports.Type = { tag: 'Type' };
 exports.Data = (kind, cons) => ({ tag: 'Data', kind, cons });
 exports.TCon = (data, args) => ({ tag: 'TCon', data, args });
 exports.Con = (ix, data, args) => ({ tag: 'Con', ix, data, args });
+exports.DElim = (data, motive, scrut, args) => ({ tag: 'DElim', data, motive, scrut, args });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
@@ -1430,6 +1469,8 @@ exports.showTermS = (t) => {
         return `(tcon ${exports.showTermS(t.data)}${t.args.length > 0 ? ` ${t.args.map(exports.showTermS).join(' ')}` : ''})`;
     if (t.tag === 'Con')
         return `(con ${t.ix} ${exports.showTermS(t.data)}${t.args.length > 0 ? ` ${t.args.map(exports.showTermS).join(' ')}` : ''})`;
+    if (t.tag === 'DElim')
+        return `(elim ${exports.showTermS(t.data)} ${exports.showTermS(t.motive)} ${exports.showTermS(t.scrut)}${t.args.length > 0 ? ` ${t.args.map(exports.showTermS).join(' ')}` : ''})`;
     return t;
 };
 exports.flattenApp = (t) => {
@@ -1497,8 +1538,8 @@ exports.showTerm = (t) => {
         return '*';
     if (t.tag === 'App') {
         const [f, as] = exports.flattenApp(t);
-        return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj' || f.tag === 'Data' || f.tag === 'TCon' || f.tag === 'Con', f)} ${as.map(([im, t], i) => im ? `{${exports.showTerm(t)}}` :
-            `${exports.showTermP(t.tag === 'App' || t.tag === 'Ann' || t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con', t)}`).join(' ')}`;
+        return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj' || f.tag === 'Data' || f.tag === 'TCon' || f.tag === 'Con' || f.tag === 'DElim', f)} ${as.map(([im, t], i) => im ? `{${exports.showTerm(t)}}` :
+            `${exports.showTermP(t.tag === 'App' || t.tag === 'Ann' || t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)}`).join(' ')}`;
     }
     if (t.tag === 'Abs') {
         const [as, b] = exports.flattenAbs(t);
@@ -1506,11 +1547,11 @@ exports.showTerm = (t) => {
     }
     if (t.tag === 'Pi') {
         const [as, b] = exports.flattenPi(t);
-        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${exports.showTermP(b.tag === 'Ann', b)}`;
+        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${exports.showTermP(b.tag === 'Ann', b)}`;
     }
     if (t.tag === 'Sigma') {
         const [as, b, p] = exports.flattenSigma(t);
-        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${exports.showTerm(b)}}` : exports.showTermP(b.tag === 'Ann', b)}`;
+        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${exports.showTerm(b)}}` : exports.showTermP(b.tag === 'Ann', b)}`;
     }
     if (t.tag === 'Pair') {
         const ps = exports.flattenPair(t);
@@ -1530,6 +1571,8 @@ exports.showTerm = (t) => {
         return `tcon ${exports.showTermP(t.data.tag !== 'Var' && t.data.tag !== 'Meta' && t.data.tag !== 'Prim' && t.data.tag !== 'Type', t.data)}${t.args.length > 0 ? ` ${t.args.map(x => exports.showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim' && x.tag !== 'Type', x)).join(' ')}` : ''}`;
     if (t.tag === 'Con')
         return `con ${t.ix} ${exports.showTermP(t.data.tag !== 'Var' && t.data.tag !== 'Meta' && t.data.tag !== 'Prim' && t.data.tag !== 'Type', t.data)}${t.args.length > 0 ? ` ${t.args.map(x => exports.showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim' && x.tag !== 'Type', x)).join(' ')}` : ''}`;
+    if (t.tag === 'DElim')
+        return `elim ${exports.showTermP(t.data.tag !== 'Var' && t.data.tag !== 'Meta' && t.data.tag !== 'Prim' && t.data.tag !== 'Type', t.data)} ${exports.showTermP(t.motive.tag !== 'Var' && t.motive.tag !== 'Meta' && t.motive.tag !== 'Prim' && t.motive.tag !== 'Type', t.motive)} ${exports.showTermP(t.scrut.tag !== 'Var' && t.scrut.tag !== 'Meta' && t.scrut.tag !== 'Prim' && t.scrut.tag !== 'Type', t.scrut)}${t.args.length > 0 ? ` ${t.args.map(x => exports.showTermP(x.tag !== 'Var' && x.tag !== 'Meta' && x.tag !== 'Prim' && x.tag !== 'Type', x)).join(' ')}` : ''}`;
     return t;
 };
 exports.erase = (t) => {
@@ -1570,6 +1613,8 @@ exports.erase = (t) => {
         return exports.TCon(exports.erase(t.data), t.args.map(exports.erase));
     if (t.tag === 'Con')
         return exports.Con(t.ix, exports.Type, t.args.map(exports.erase));
+    if (t.tag === 'DElim')
+        return exports.DElim(exports.Type, exports.Type, exports.erase(t.scrut), t.args.map(exports.erase));
     return t;
 };
 exports.DDef = (name, value, plicity) => ({ tag: 'DDef', name, value, plicity });
@@ -1583,7 +1628,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Meta = exports.Con = exports.TCon = exports.Data = exports.Type = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
+exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Meta = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Type = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1603,6 +1648,7 @@ exports.Type = { tag: 'Type' };
 exports.Data = (kind, cons) => ({ tag: 'Data', kind, cons });
 exports.TCon = (data, args) => ({ tag: 'TCon', data, args });
 exports.Con = (ix, data, args) => ({ tag: 'Con', ix, data, args });
+exports.DElim = (data, motive, scrut, args) => ({ tag: 'DElim', data, motive, scrut, args });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
@@ -1635,6 +1681,8 @@ exports.showTerm = (t) => {
         return `(tcon ${exports.showTerm(t.data)}${t.args.length > 0 ? ` ${t.args.map(exports.showTerm).join(' ')}` : ''})`;
     if (t.tag === 'Con')
         return `(con ${t.ix} ${exports.showTerm(t.data)}${t.args.length > 0 ? ` ${t.args.map(exports.showTerm).join(' ')}` : ''})`;
+    if (t.tag === 'DElim')
+        return `(elim ${exports.showTerm(t.data)} ${exports.showTerm(t.motive)} ${exports.showTerm(t.scrut)}${t.args.length > 0 ? ` ${t.args.map(exports.showTerm).join(' ')}` : ''})`;
     return t;
 };
 exports.globalUsed = (k, t) => {
@@ -1660,6 +1708,8 @@ exports.globalUsed = (k, t) => {
         return exports.globalUsed(k, t.data) || t.args.some(x => exports.globalUsed(k, x));
     if (t.tag === 'Con')
         return exports.globalUsed(k, t.data) || t.args.some(x => exports.globalUsed(k, x));
+    if (t.tag === 'DElim')
+        return exports.globalUsed(k, t.data) || exports.globalUsed(k, t.motive) || exports.globalUsed(k, t.scrut) || t.args.some(x => exports.globalUsed(k, x));
     return false;
 };
 exports.indexUsed = (k, t) => {
@@ -1685,6 +1735,8 @@ exports.indexUsed = (k, t) => {
         return exports.indexUsed(k, t.data) || t.args.some(x => exports.indexUsed(k, x));
     if (t.tag === 'Con')
         return exports.indexUsed(k, t.data) || t.args.some(x => exports.indexUsed(k, x));
+    if (t.tag === 'DElim')
+        return exports.indexUsed(k, t.data) || exports.indexUsed(k, t.motive) || exports.indexUsed(k, t.scrut) || t.args.some(x => exports.indexUsed(k, x));
     return false;
 };
 exports.isUnsolved = (t) => {
@@ -1710,6 +1762,8 @@ exports.isUnsolved = (t) => {
         return exports.isUnsolved(t.data) || t.args.some(x => exports.isUnsolved(x));
     if (t.tag === 'Con')
         return exports.isUnsolved(t.data) || t.args.some(x => exports.isUnsolved(x));
+    if (t.tag === 'DElim')
+        return exports.isUnsolved(t.data) || exports.isUnsolved(t.motive) || exports.isUnsolved(t.scrut) || t.args.some(x => exports.isUnsolved(x));
     return false;
 };
 const decideNameMany = (x, t, ns) => {
@@ -1761,6 +1815,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.TCon(exports.toSurface(t.data, ns), t.args.map(x => exports.toSurface(x, ns)));
     if (t.tag === 'Con')
         return S.Con(t.ix, exports.toSurface(t.data, ns), t.args.map(x => exports.toSurface(x, ns)));
+    if (t.tag === 'DElim')
+        return S.DElim(exports.toSurface(t.data, ns), exports.toSurface(t.motive, ns), exports.toSurface(t.scrut, ns), t.args.map(x => exports.toSurface(x, ns)));
     return t;
 };
 exports.showSurface = (t, ns = list_1.Nil) => S.showTerm(exports.toSurface(t, ns));
@@ -2103,6 +2159,21 @@ const synth = (local, tm) => {
             return utils_1.terr(`invalid application in con: ${S.showTerm(tm)}`);
         return [syntax_1.Con(tm.ix, data, args), ty];
     }
+    if (tm.tag === 'DElim') {
+        const data = check(exports.localInType(local), tm.data, domain_1.VDataSort);
+        const vdata = domain_1.evaluate(data, local.vs);
+        const fdata = domain_1.force(vdata);
+        if (fdata.tag !== 'VData')
+            return utils_1.terr(`not data in con: ${S.showTerm(tm)}`);
+        const type = domain_1.VTCon(vdata, []);
+        const motive = check(exports.localInType(local), tm.motive, domain_1.VPi(false, '_', type, _ => domain_1.VType));
+        const vmotive = domain_1.evaluate(motive, local.vs);
+        const scrut = check(local, tm.scrut, type);
+        const vscrut = domain_1.evaluate(scrut, local.vs);
+        const ret = domain_1.vapp(vmotive, false, vscrut);
+        const args = tm.args.map((arg, i) => check(local, arg, domain_1.vapp(fdata.cons[i], false, ret)));
+        return [syntax_1.DElim(data, motive, scrut, args), ret];
+    }
     return utils_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
 const synthapps = (local, ty_, args, tmall) => {
@@ -2233,6 +2304,13 @@ const unifyElim = (k, a, b, x, y) => {
         return exports.unify(k, a.arg, b.arg);
     if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj)
         return;
+    if (a.tag === 'EDElim' && b.tag === 'EDElim') {
+        exports.unify(k, a.data, b.data);
+        exports.unify(k, a.motive, b.motive);
+        for (let i = 0; i < a.args.length; i++)
+            exports.unify(k, a.args[i], b.args[i]);
+        return;
+    }
     if (a.tag === 'EElimHEq' && b.tag === 'EElimHEq' && a.args.length === b.args.length) {
         for (let i = 0; i < a.args.length; i++)
             exports.unify(k, a.args[i], b.args[i]);
@@ -2456,6 +2534,13 @@ const checkSolution = (k, m, is, t) => {
         const data = checkSolution(k, m, is, t.data);
         const args = t.args.map(x => checkSolution(k, m, is, x));
         return syntax_1.Con(t.ix, data, args);
+    }
+    if (t.tag === 'DElim') {
+        const data = checkSolution(k, m, is, t.data);
+        const motive = checkSolution(k, m, is, t.motive);
+        const scrut = checkSolution(k, m, is, t.scrut);
+        const args = t.args.map(x => checkSolution(k, m, is, x));
+        return syntax_1.DElim(data, motive, scrut, args);
     }
     return utils_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };
@@ -2808,6 +2893,21 @@ const synth = (local, tm) => {
         if (domain_1.force(ty).tag !== 'VTCon')
             return utils_1.terr(`invalid application in con: ${syntax_1.showTerm(tm)}`);
         return ty;
+    }
+    if (tm.tag === 'DElim') {
+        check(exports.localInType(local), tm.data, domain_1.VDataSort);
+        const vdata = domain_1.evaluate(tm.data, local.vs);
+        const fdata = domain_1.force(vdata);
+        if (fdata.tag !== 'VData')
+            return utils_1.terr(`not data in con: ${syntax_1.showTerm(tm)}`);
+        const type = domain_1.VTCon(vdata, []);
+        check(exports.localInType(local), tm.motive, domain_1.VPi(false, '_', type, _ => domain_1.VType));
+        const vmotive = domain_1.evaluate(tm.motive, local.vs);
+        check(local, tm.scrut, type);
+        const vscrut = domain_1.evaluate(tm.scrut, local.vs);
+        const ret = domain_1.vapp(vmotive, false, vscrut);
+        tm.args.forEach((arg, i) => check(local, arg, domain_1.vapp(fdata.cons[i], false, ret)));
+        return ret;
     }
     return utils_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };

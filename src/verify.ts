@@ -154,6 +154,20 @@ const synth = (local: Local, tm: Term): Val => {
     if (force(ty).tag !== 'VTCon') return terr(`invalid application in con: ${showTerm(tm)}`);
     return ty;
   }
+  if (tm.tag === 'DElim') {
+    check(localInType(local), tm.data, VDataSort);
+    const vdata = evaluate(tm.data, local.vs);
+    const fdata = force(vdata);
+    if (fdata.tag !== 'VData') return terr(`not data in con: ${showTerm(tm)}`);
+    const type = VTCon(vdata, []);
+    check(localInType(local), tm.motive, VPi(false, '_', type, _ => VType));
+    const vmotive = evaluate(tm.motive, local.vs);
+    check(local, tm.scrut, type);
+    const vscrut = evaluate(tm.scrut, local.vs);
+    const ret = vapp(vmotive, false, vscrut);
+    tm.args.forEach((arg, i) => check(local, arg, vapp(fdata.cons[i], false, ret)));
+    return ret;
+  }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 

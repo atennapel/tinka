@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con, DElim } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -297,6 +297,15 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     });
     if (args.length === 0) return serr(`con needs arg`);
     return Con(+ix.num, args[0], args.slice(1));
+  }
+  if (isName(ts[0], 'elim')) {
+    const args = ts.slice(1).map(x => {
+      const [t, b] = expr(x);
+      if (b) return serr(`elim arg cannot be implicit`);
+      return t;
+    });
+    if (args.length < 3) return serr(`elim needs args`);
+    return DElim(args[0], args[1], args[2], args.slice(3));
   }
   if (isName(ts[0], '\\')) {
     const args: [Name, boolean, Term | null][] = [];
