@@ -1,8 +1,5 @@
 import lib/combinators.p
 
-import lib/unsafecast.p
-import lib/type.p
-
 import lib/eq.p
 
 import lib/functor.p
