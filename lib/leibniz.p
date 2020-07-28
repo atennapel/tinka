@@ -1,5 +1,4 @@
 import lib/void.p
-import lib/unsafecast.p
 
 def Eq = \{t : *} (a b : t). {f : t -> *} -> f a -> f b
 def Neq = \{t : *} (a b : t). Eq {t} a b -> Void
@@ -49,11 +48,3 @@ def dfunextR
 def funextR
   : {a b : *} -> {f g : a -> b} -> Eq {a -> b} f g -> (x : a) -> Eq {b} (f x) (g x)
   = \{a} {b}. dfunextR {a} {\_. b}
-
-def unsafeDFunext
-  : {a : *} -> {b : a -> *} -> {f g : (x : a) -> b x} -> ((x : a) -> Eq {b x} (f x) (g x)) -> Eq {(x : a) -> b x} f g
-  = \{a} {b} {f} {g} app. unsafeCast (refl {(x : a) -> b x} {f})
-
-def unsafeFunext
-  : {a b : *} -> {f g : a -> b} -> ((x : a) -> Eq {b} (f x) (g x)) -> Eq {a -> b} f g
-  = \{a} {b}. unsafeDFunext {a} {\_. b}
