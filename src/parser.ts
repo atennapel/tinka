@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -287,6 +287,17 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     if (args.length !== 2) return serr(`tcon needs exactly one arg`);
     return TCon(args[0], args[1]);
   }
+  if (isName(ts[0], 'con')) {
+    const ix = ts[1];
+    if (ix.tag !== 'Num') return serr(`first arg to con needs to be number`);
+    const args = ts.slice(2).map(x => {
+      const [t, b] = expr(x);
+      if (b) return serr(`con arg cannot be implicit`);
+      return t;
+    });
+    if (args.length !== 2) return serr(`con needs exactly one arg`);
+    return Con(+ix.num, args[0], args[1]);
+  }
   if (isName(ts[0], '\\')) {
     const args: [Name, boolean, Term | null][] = [];
     let found = false;
@@ -325,6 +336,25 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const body = exprs(s[s.length - 1], '(');
     return args.reduceRight((x, [name, impl, ty]) => Pi(impl, name, ty, x), body);
   }
+  const jp = ts.findIndex(x => isName(x, ','));
+  if (jp >= 0) {
+    const s = splitTokens(ts, x => isName(x, ','));
+    if (s.length < 2) return serr(`parsing failed with ,`);
+    const args: [Term, boolean][] = s.map(x => {
+      if (x.length === 1) {
+        const h = x[0];
+        if (h.tag === 'List' && h.bracket === '{')
+          return expr(h)
+      }
+      return [exprs(x, '('), false];
+    });
+    if (args.length === 0) return serr(`empty pair`);
+    if (args.length === 1) return serr(`singleton pair`);
+    const last1 = args[args.length - 1];
+    const last2 = args[args.length - 2];
+    const lastitem = Pair(last2[1], last1[1], last2[0], last1[0]);
+    return args.slice(0, -2).reduceRight((x, [y, p]) => Pair(p, false, y, x), lastitem);
+  }
   const js = ts.findIndex(x => isName(x, '**'));
   if (js >= 0) {
     const s = splitTokens(ts, x => isName(x, '**'));
@@ -344,25 +374,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const last = args[args.length - 1];
     const lastitem = Sigma(last[1], body[1], last[0], last[2], body[0]);
     return args.slice(0, -1).reduceRight((x, [name, impl, ty]) => Sigma(impl, false, name, ty, x), lastitem);
-  }
-  const jp = ts.findIndex(x => isName(x, ','));
-  if (jp >= 0) {
-    const s = splitTokens(ts, x => isName(x, ','));
-    if (s.length < 2) return serr(`parsing failed with ,`);
-    const args: [Term, boolean][] = s.map(x => {
-      if (x.length === 1) {
-        const h = x[0];
-        if (h.tag === 'List' && h.bracket === '{')
-          return expr(h)
-      }
-      return [exprs(x, '('), false];
-    });
-    if (args.length === 0) return serr(`empty pair`);
-    if (args.length === 1) return serr(`singleton pair`);
-    const last1 = args[args.length - 1];
-    const last2 = args[args.length - 2];
-    const lastitem = Pair(last2[1], last1[1], last2[0], last1[0]);
-    return args.slice(0, -2).reduceRight((x, [y, p]) => Pair(p, false, y, x), lastitem);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

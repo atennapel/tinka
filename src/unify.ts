@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -64,6 +64,11 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return;
   }
   if (a.tag === 'VTCon' && b.tag === 'VTCon') {
+    unify(k, a.data, b.data);
+    unify(k, a.arg, b.arg);
+    return;
+  }
+  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index) {
     unify(k, a.data, b.data);
     unify(k, a.arg, b.arg);
     return;
@@ -210,6 +215,11 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const data = checkSolution(k, m, is, t.data);
     const arg = checkSolution(k, m, is, t.arg);
     return TCon(data, arg);
+  }
+  if (t.tag === 'Con') {
+    const data = checkSolution(k, m, is, t.data);
+    const arg = checkSolution(k, m, is, t.arg);
+    return Con(t.index, data, arg);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

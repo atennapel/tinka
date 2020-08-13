@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDesc } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -298,7 +298,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
       VPi(false, 'a', A, a =>
       VPi(false, 'X', VType, X =>
       VPi(false, '_', VPi(false, '_', vix, _ => X), _ => X)))));
-    const cons = tm.cons.map(x => check(local, x, vcon));
+    const cons = tm.cons.map(x => check(localInType(local), x, vcon));
     return [Data(index, cons), VDesc];
   }
   if (tm.tag === 'TCon') {
@@ -307,6 +307,21 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     if (vdata.tag !== 'VData') return terr(`not a data type in ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
     const arg = check(local, tm.arg, vdata.index);
     return [TCon(data, arg), VType];
+  }
+  if (tm.tag === 'Con') {
+    const data = check(localInType(local), tm.data, VDesc);
+    const vdata = force(evaluate(data, local.vs));
+    const vdataf = force(vdata);
+    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    if (tm.index < 0 || tm.index >= vdataf.cons.length) return terr(`invalid index ${tm.index} for data type: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    const vcon = vdataf.cons[tm.index];
+    // arg : fst (Di (\i. tcon D i))
+    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
+    const vpair = vapp(vcon, false, vtcon);
+    const arg = check(local, tm.arg, vproj('fst', vpair));
+    // Di.snd a * (\j. tcon D j)
+    const varg = evaluate(arg, local.vs);
+    return [Con(tm.index, data, arg), vapp(vapp(vapp(vproj('snd', vpair), false, varg), false, VType), false, vtcon)];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

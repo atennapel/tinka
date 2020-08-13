@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VDesc, VPi, VSigma } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VDesc, VPi, VSigma, VAbs, VTCon, vapp } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -140,7 +140,7 @@ const synth = (local: Local, tm: Term): Val => {
       VPi(false, 'X', VType, X =>
       VPi(false, '_', VPi(false, '_', vix, _ => X), _ => X)))));
     for (let i = 0, l = tm.cons.length; i < l; i++)
-      check(local, tm.cons[i], vcon);
+      check(localInType(local), tm.cons[i], vcon);
     return VDesc;
   }
   if (tm.tag === 'TCon') {
@@ -149,6 +149,21 @@ const synth = (local: Local, tm: Term): Val => {
     if (vdata.tag !== 'VData') return terr(`not a data type in tcon: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
     check(local, tm.arg, vdata.index);
     return VType;
+  }
+  if (tm.tag === 'Con') {
+    check(localInType(local), tm.data, VDesc);
+    const vdata = force(evaluate(tm.data, local.vs));
+    const vdataf = force(vdata);
+    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    if (tm.index < 0 || tm.index >= vdataf.cons.length) return terr(`invalid index ${tm.index} for data type: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    const vcon = vdataf.cons[tm.index];
+    // arg : fst (Di (\i. tcon D i))
+    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
+    const vpair = vapp(vcon, false, vtcon);
+    check(local, tm.arg, vproj('fst', vpair));
+    // Di.snd a * (\j. tcon D j)
+    const varg = evaluate(tm.arg, local.vs);
+    return vapp(vapp(vapp(vproj('snd', vpair), false, varg), false, VType), false, vtcon);
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

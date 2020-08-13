@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon, Con } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -32,7 +32,7 @@ export type EIndBool = { tag: 'EIndBool', args: Val[] };
 export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VCon | VType;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -50,6 +50,8 @@ export type VData = { tag: 'VData', index: Val, cons: Val[] };
 export const VData = (index: Val, cons: Val[]): VData => ({ tag: 'VData', index, cons });
 export type VTCon = { tag: 'VTCon', data: Val, arg: Val };
 export const VTCon = (data: Val, arg: Val): VTCon => ({ tag: 'VTCon', data, arg });
+export type VCon = { tag: 'VCon', index: Ix, data: Val, arg: Val };
+export const VCon = (index: Ix, data: Val, arg: Val): VCon => ({ tag: 'VCon', data, index, arg });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
 
@@ -229,6 +231,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Proj') return vproj(t.proj, evaluate(t.term, vs));
   if (t.tag === 'Data') return VData(evaluate(t.index, vs), t.cons.map(x => evaluate(x, vs)));
   if (t.tag === 'TCon') return VTCon(evaluate(t.data, vs), evaluate(t.arg, vs));
+  if (t.tag === 'Con') return VCon(t.index, evaluate(t.data, vs), evaluate(t.arg, vs));
   return t;
 };
 
@@ -292,6 +295,8 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Data(quote(v.index, k, full), v.cons.map(x => quote(x, k, full)));
   if (v.tag === 'VTCon')
     return TCon(quote(v.data, k, full), quote(v.arg, k, full));
+  if (v.tag === 'VCon')
+    return Con(v.index, quote(v.data, k, full), quote(v.arg, k, full));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -359,5 +364,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Proj') return Proj(tm.proj, zonk(tm.term, vs, k, full));
   if (tm.tag === 'Data') return Data(zonk(tm.index, vs, k, full), tm.cons.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'TCon') return TCon(zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
+  if (tm.tag === 'Con') return Con(tm.index, zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
   return tm;
 };

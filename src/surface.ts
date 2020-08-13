@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Type | Ann | Hole | Meta | Prim;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | Type | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -32,6 +32,8 @@ export type Data = { tag: 'Data', index: Term, cons: Term[] };
 export const Data = (index: Term, cons: Term[]): Data => ({ tag: 'Data', index, cons });
 export type TCon = { tag: 'TCon', data: Term, arg: Term };
 export const TCon = (data: Term, arg: Term): TCon => ({ tag: 'TCon', data, arg });
+export type Con = { tag: 'Con', index: Ix, data: Term, arg: Term };
+export const Con = (index: Ix, data: Term, arg: Term): Con => ({ tag: 'Con', index, data, arg });
 export type Type = { tag: 'Type' };
 export const Type: Type = { tag: 'Type' };
 export type Ann = { tag: 'Ann', term: Term, type: Term };
@@ -75,6 +77,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Proj') return `(.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermS(t.term)})`;
   if (t.tag === 'Data') return `(data ${showTermS(t.index)}. ${t.cons.map(t => showTermS(t)).join(' ')})`;
   if (t.tag === 'TCon') return `(tcon ${showTermS(t.data)} ${showTermS(t.arg)})`;
+  if (t.tag === 'Con') return `(con ${t.index} ${showTermS(t.data)} ${showTermS(t.arg)})`;
   return t;
 };
 
@@ -171,6 +174,7 @@ export const showTerm = (t: Term): string => {
   // TODO
   if (t.tag === 'Data') return `(data ${showTermS(t.index)}. ${t.cons.map(t => showTermS(t)).join(' ')})`;
   if (t.tag === 'TCon') return `(tcon ${showTermS(t.data)} ${showTermS(t.arg)})`;
+  if (t.tag === 'Con') return `(con ${t.index} ${showTermS(t.data)} ${showTermS(t.arg)})`;
   return t;
 };
 
@@ -199,6 +203,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
   if (t.tag === 'Data') return Data(erase(t.index), t.cons.map(erase));
   if (t.tag === 'TCon') return TCon(erase(t.data), erase(t.arg));
+  if (t.tag === 'Con') return Con(t.index, Type, erase(t.arg));
   return t;
 };
 
