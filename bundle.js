@@ -64,7 +64,7 @@ exports.conv = (k, a_, b_) => {
     config_1.log(() => `conv(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
-    if (a.tag === 'VType' && b.tag === 'VType')
+    if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.conv(k, a.type, b.type);
@@ -144,7 +144,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.velim = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.vheq = exports.VUnit = exports.VUnitType = exports.VReflHEq = exports.VHEq = exports.VDesc = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VType = exports.VCon = exports.VTCon = exports.VData = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.velim = exports.velimheq = exports.vproj = exports.vapp = exports.isCanonical = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.vheq = exports.VUnit = exports.VUnitType = exports.VReflHEq = exports.VHEq = exports.VDesc = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VSort = exports.VCon = exports.VTCon = exports.VData = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -168,12 +168,13 @@ exports.VPair = (plicity, plicity2, fst, snd, type) => ({ tag: 'VPair', plicity,
 exports.VData = (index, cons) => ({ tag: 'VData', index, cons });
 exports.VTCon = (data, arg) => ({ tag: 'VTCon', data, arg });
 exports.VCon = (index, data, arg) => ({ tag: 'VCon', data, index, arg });
-exports.VType = { tag: 'VType' };
+exports.VSort = (sort) => ({ tag: 'VSort', sort });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
 exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
-exports.VDesc = exports.VPrim('Desc');
+exports.VType = exports.VSort('*');
+exports.VDesc = exports.VSort('#');
 exports.VHEq = exports.VPrim('HEq');
 exports.VReflHEq = exports.VPrim('ReflHEq');
 exports.VUnitType = exports.VPrim('UnitType');
@@ -207,17 +208,38 @@ exports.forceGlue = (v) => {
     }
     return v;
 };
-// do the eliminators have to force?
+exports.isCanonical = (v) => {
+    if (v.tag !== 'VNe')
+        return true;
+    if (v.head.tag === 'HGlobal')
+        return true;
+    if (v.head.tag === 'HPrim')
+        return true;
+    return false;
+};
 exports.vapp = (a, plicity, b) => {
     if (a.tag === 'VAbs') {
         if (a.plicity !== plicity) {
-            console.log(a, plicity, b);
             return utils_1.impossible(`plicity mismatch in vapp`);
         }
         return a.body(b);
     }
-    if (a.tag === 'VNe')
+    if (a.tag === 'VNe') {
+        // fix {a} {b} f @ x ~> f (fix {a} {b} f) x
+        if (a.head.tag === 'HPrim' && a.head.name === 'drec' && list_1.length(a.args) === 3 && exports.isCanonical(b)) {
+            if (plicity)
+                return utils_1.impossible(`plicity mismatch in vapp: drec`);
+            const [ta, tb, f] = list_1.toArray(a.args, x => x.arg).reverse();
+            return exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.VPrim('drec'), true, ta), true, tb), false, f)), false, b);
+        }
+        if (a.head.tag === 'HPrim' && a.head.name === 'dreci' && list_1.length(a.args) === 3 && exports.isCanonical(b)) {
+            if (!plicity)
+                return utils_1.impossible(`plicity mismatch in vapp: dreci`);
+            const [ta, tb, f] = list_1.toArray(a.args, x => x.arg).reverse();
+            return exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.VPrim('drec'), true, ta), true, tb), false, f)), true, b);
+        }
         return exports.VNe(a.head, list_1.Cons(exports.EApp(plicity, b), a.args));
+    }
     if (a.tag === 'VGlued')
         return exports.VGlued(a.head, list_1.Cons(exports.EApp(plicity, b), a.args), lazy_1.mapLazy(a.val, v => exports.vapp(v, plicity, b)));
     return utils_1.impossible(`vapp: ${a.tag}`);
@@ -265,8 +287,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
             return exports.VAbs(true, 'A', exports.VType, A => exports.VAbs(true, 'a', A, a => exports.VAbs(true, 'P', exports.VPi(false, 'b', A, b => exports.VPi(false, '_', exports.vheq(A, A, a, b), _ => exports.VType)), P => exports.VAbs(false, 'q', exports.vapp(exports.vapp(P, false, a), false, exports.vapp(exports.vapp(exports.VPrim('ReflHEq'), true, A), true, a)), q => exports.VAbs(true, 'b', A, b => exports.VAbs(false, 'p', exports.vheq(A, A, a, b), p => exports.velimheq([p, A, a, P, q, b])))))));
         return exports.VPrim(t.name);
     }
-    if (t.tag === 'Type')
-        return exports.VType;
+    if (t.tag === 'Sort')
+        return exports.VSort(t.sort);
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -341,8 +363,8 @@ const quoteElim = (t, e, k, full) => {
 };
 exports.quote = (v_, k, full) => {
     const v = exports.forceGlue(v_);
-    if (v.tag === 'VType')
-        return syntax_1.Type;
+    if (v.tag === 'VSort')
+        return syntax_1.Sort(v.sort);
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
     if (v.tag === 'VGlued') {
@@ -531,7 +553,7 @@ const matchingBracket = (c) => {
 const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
-const SYM1 = ['\\', ':', '/', '*', '=', '|', ','];
+const SYM1 = ['\\', ':', '/', '*', '#', '=', '|', ','];
 const SYM2 = ['->', '**'];
 const START = 0;
 const NAME = 1;
@@ -690,6 +712,8 @@ const expr = (t) => {
         const x = t.name;
         if (x === '*')
             return [surface_1.Type, false];
+        if (x === '#')
+            return [surface_1.Desc, false];
         if (x.startsWith('_'))
             return [surface_1.Hole(x.slice(1) || null), false];
         if (x[0] === '%') {
@@ -1071,7 +1095,10 @@ exports.primType = void 0;
 const domain_1 = require("./domain");
 const utils_1 = require("./utils/utils");
 const primTypes = {
-    'Desc': () => domain_1.VType,
+    // {a : *} -> {b : a -> *} -> (((x : a) -> b x) -> ((x : a) -> b x)) -> (x : a) -> b x
+    'drec': () => domain_1.VPi(true, 'a', domain_1.VType, a => domain_1.VPi(true, 'b', domain_1.VPi(false, '_', a, _ => domain_1.VType), b => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 'x', a, x => domain_1.vapp(b, false, x)), _ => domain_1.VPi(false, 'x', a, x => domain_1.vapp(b, false, x))), _ => domain_1.VPi(false, 'x', a, x => domain_1.vapp(b, false, x))))),
+    // {a : *} -> {b : a -> *} -> (({x : a} -> b x) -> ({x : a} -> b x)) -> {x : a} -> b x
+    'dreci': () => domain_1.VPi(true, 'a', domain_1.VType, a => domain_1.VPi(true, 'b', domain_1.VPi(false, '_', a, _ => domain_1.VType), b => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(true, 'x', a, x => domain_1.vapp(b, false, x)), _ => domain_1.VPi(true, 'x', a, x => domain_1.vapp(b, false, x))), _ => domain_1.VPi(true, 'x', a, x => domain_1.vapp(b, false, x))))),
     'UnitType': () => domain_1.VType,
     'Unit': () => domain_1.VUnitType,
     // {A : *} -> {B : *} -> A -> B -> *
@@ -1246,7 +1273,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Meta = exports.Hole = exports.Ann = exports.Type = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Desc = exports.Type = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
 exports.PName = (name) => ({ tag: 'PName', name });
 exports.PIndex = (index) => ({ tag: 'PIndex', index });
 exports.PCore = (proj) => ({ tag: 'PCore', proj });
@@ -1262,12 +1289,14 @@ exports.Data = (index, cons) => ({ tag: 'Data', index, cons });
 exports.TCon = (data, arg) => ({ tag: 'TCon', data, arg });
 exports.Con = (index, data, arg) => ({ tag: 'Con', index, data, arg });
 exports.DElim = (data, motive, index, scrut, args) => ({ tag: 'DElim', data, motive, index, scrut, args });
-exports.Type = { tag: 'Type' };
+exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
+exports.Type = exports.Sort('*');
+exports.Desc = exports.Sort('#');
 exports.primNames = [
-    'Desc',
+    'drec', 'dreci',
     'UnitType', 'Unit',
     'HEq', 'ReflHEq', 'elimHEq',
 ];
@@ -1278,8 +1307,8 @@ exports.showTermS = (t) => {
         return t.name;
     if (t.tag === 'Prim')
         return `%${t.name}`;
-    if (t.tag === 'Type')
-        return '*';
+    if (t.tag === 'Sort')
+        return t.sort;
     if (t.tag === 'Meta')
         return `?${t.index}`;
     if (t.tag === 'App')
@@ -1371,8 +1400,8 @@ exports.showTerm = (t) => {
         return t.name;
     if (t.tag === 'Meta')
         return `?${t.index}`;
-    if (t.tag === 'Type')
-        return '*';
+    if (t.tag === 'Sort')
+        return t.sort;
     if (t.tag === 'App') {
         const [f, as] = exports.flattenApp(t);
         return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${as.map(([im, t], i) => im ? `{${exports.showTerm(t)}}` :
@@ -1468,7 +1497,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Meta = exports.Type = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
+exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Desc = exports.Type = exports.Meta = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1488,8 +1517,10 @@ exports.Data = (index, cons) => ({ tag: 'Data', index, cons });
 exports.TCon = (data, arg) => ({ tag: 'TCon', data, arg });
 exports.Con = (index, data, arg) => ({ tag: 'Con', index, data, arg });
 exports.DElim = (data, motive, index, scrut, args) => ({ tag: 'DElim', data, motive, index, scrut, args });
-exports.Type = { tag: 'Type' };
+exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Meta = (index) => ({ tag: 'Meta', index });
+exports.Type = exports.Sort('*');
+exports.Desc = exports.Sort('#');
 exports.showTerm = (t) => {
     if (t.tag === 'Var')
         return `${t.index}`;
@@ -1497,8 +1528,8 @@ exports.showTerm = (t) => {
         return `?${t.index}`;
     if (t.tag === 'Global')
         return t.name;
-    if (t.tag === 'Type')
-        return '*';
+    if (t.tag === 'Sort')
+        return t.sort;
     if (t.tag === 'Prim')
         return `%${t.name}`;
     if (t.tag === 'App')
@@ -1625,8 +1656,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         return S.Var(t.name);
     if (t.tag === 'Prim')
         return S.Prim(t.name);
-    if (t.tag === 'Type')
-        return S.Type;
+    if (t.tag === 'Sort')
+        return S.Sort(t.sort);
     if (t.tag === 'App')
         return S.App(exports.toSurface(t.left, ns), t.plicity, exports.toSurface(t.right, ns));
     if (t.tag === 'Pair')
@@ -1732,8 +1763,8 @@ const inst = (ts, vs, ty_) => {
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     const fty = domain_1.force(ty);
-    if (tm.tag === 'Type' && fty === domain_1.VType)
-        return syntax_1.Type;
+    if (tm.tag === 'Sort' && fty === domain_1.VType)
+        return syntax_1.Sort(tm.sort);
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         if (tm.name) {
@@ -1825,7 +1856,7 @@ const synth = (local, tm) => {
     config_1.log(() => `synth ${S.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Prim')
         return [syntax_1.Prim(tm.name), prims_1.primType(tm.name)];
-    if (tm.tag === 'Type')
+    if (tm.tag === 'Sort')
         return [tm, domain_1.VType];
     if (tm.tag === 'Var') {
         const i = list_1.indexOf(local.namesSurface, tm.name);
@@ -2170,7 +2201,7 @@ exports.unify = (k, a_, b_) => {
     config_1.log(() => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
     if (a === b)
         return;
-    if (a.tag === 'VType' && b.tag === 'VType')
+    if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
@@ -2306,7 +2337,7 @@ const checkSolution = (k, m, is, t) => {
         return t;
     if (t.tag === 'Prim')
         return t;
-    if (t.tag === 'Type')
+    if (t.tag === 'Sort')
         return t;
     if (t.tag === 'Var') {
         const i = k - t.index - 1;
@@ -2624,7 +2655,7 @@ const synth = (local, tm) => {
     config_1.log(() => `synth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Prim')
         return prims_1.primType(tm.name);
-    if (tm.tag === 'Type')
+    if (tm.tag === 'Sort')
         return domain_1.VType;
     if (tm.tag === 'Global') {
         const entry = globalenv_1.globalGet(tm.name);

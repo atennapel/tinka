@@ -68,7 +68,7 @@ const check = (local: Local, tm: Term, ty: Val): void => {
 const synth = (local: Local, tm: Term): Val => {
   log(() => `synth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Prim') return primType(tm.name);
-  if (tm.tag === 'Type') return VType;
+  if (tm.tag === 'Sort') return VType;
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);
     if (!entry) return terr(`global ${tm.name} not found`);

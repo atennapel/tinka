@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Type | Prim | Meta;
+export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Prim | Meta;
 
 export type Prim = { tag: 'Prim', name: S.PrimName };
 export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
@@ -35,16 +35,19 @@ export type Con = { tag: 'Con', index: Ix, data: Term, arg: Term };
 export const Con = (index: Ix, data: Term, arg: Term): Con => ({ tag: 'Con', index, data, arg });
 export type DElim = { tag: 'DElim', data: Term, motive: Term, index: Term, scrut: Term, args: Term[] };
 export const DElim = (data: Term, motive: Term, index: Term, scrut: Term, args: Term[]): DElim => ({ tag: 'DElim', data, motive, index, scrut, args });
-export type Type = { tag: 'Type' };
-export const Type: Type = { tag: 'Type' };
+export type Sort = { tag: 'Sort', sort: S.Sorts };
+export const Sort = (sort: S.Sorts): Sort => ({ tag: 'Sort', sort });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
+
+export const Type: Sort = Sort('*');
+export const Desc: Sort = Sort('#');
 
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Global') return t.name;
-  if (t.tag === 'Type') return '*';
+  if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs') return `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
@@ -122,7 +125,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Meta') return S.Meta(t.index);
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'Prim') return S.Prim(t.name);
-  if (t.tag === 'Type') return S.Type;
+  if (t.tag === 'Sort') return S.Sort(t.sort);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(t.plicity, t.plicity2, toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
   if (t.tag === 'Proj') return S.Proj(S.PCore(t.proj), toSurface(t.term, ns));

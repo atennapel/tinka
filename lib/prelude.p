@@ -1,3 +1,4 @@
+import lib/rec.p
 import lib/combinators.p
 
 import lib/eq.p

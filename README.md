@@ -4,9 +4,8 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add recursive combinators
 - get prelude working
-- make Desc like Type (#)
+- pretty print data
 
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)

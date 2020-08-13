@@ -31,7 +31,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   const b = forceGlue(b_);
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
-  if (a.tag === 'VType' && b.tag === 'VType') return;
+  if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -159,7 +159,7 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Global') return t;
   if (t.tag === 'Prim') return t;
-  if (t.tag === 'Type') return t;
+  if (t.tag === 'Sort') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
     if (contains(is, i))

@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Type | Ann | Hole | Meta | Prim;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -36,8 +36,9 @@ export type Con = { tag: 'Con', index: Ix, data: Term, arg: Term };
 export const Con = (index: Ix, data: Term, arg: Term): Con => ({ tag: 'Con', index, data, arg });
 export type DElim = { tag: 'DElim', data: Term, motive: Term, index: Term, scrut: Term, args: Term[] };
 export const DElim = (data: Term, motive: Term, index: Term, scrut: Term, args: Term[]): DElim => ({ tag: 'DElim', data, motive, index, scrut, args });
-export type Type = { tag: 'Type' };
-export const Type: Type = { tag: 'Type' };
+export type Sorts = '*' | '#';
+export type Sort = { tag: 'Sort', sort: Sorts };
+export const Sort = (sort: Sorts): Sort => ({ tag: 'Sort', sort });
 export type Ann = { tag: 'Ann', term: Term, type: Term };
 export const Ann = (term: Term, type: Term): Ann => ({ tag: 'Ann', term, type });
 export type Hole = { tag: 'Hole', name: Name | null };
@@ -45,12 +46,15 @@ export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 
+export const Type: Sort = Sort('*');
+export const Desc: Sort = Sort('#');
+
 export type PrimName =
-  'Desc' |
+  'drec' | 'dreci' |
   'UnitType' | 'Unit' |
   'HEq' | 'ReflHEq' | 'elimHEq'
 export const primNames = [
-  'Desc',
+  'drec', 'dreci',
   'UnitType', 'Unit',
   'HEq', 'ReflHEq', 'elimHEq',
 ];
@@ -61,7 +65,7 @@ export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Prim') return `%${t.name}`;
-  if (t.tag === 'Type') return '*';
+  if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
@@ -140,7 +144,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
-  if (t.tag === 'Type') return '*';
+  if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
     return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${

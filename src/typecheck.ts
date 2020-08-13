@@ -1,4 +1,4 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con, DElim } from './syntax';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort } from './syntax';
 import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp, VCon } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
@@ -82,7 +82,7 @@ const inst = (ts: EnvT, vs: EnvV, ty_: Val): [Val, List<Term>] => {
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
-  if (tm.tag === 'Type' && fty === VType) return Type;
+  if (tm.tag === 'Sort' && fty === VType) return Sort(tm.sort);
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
     if (tm.name) {
@@ -166,7 +166,7 @@ const freshPi = (ts: EnvT, vs: EnvV, x: Name, impl: Plicity): Val => {
 const synth = (local: Local, tm: S.Term): [Term, Val] => {
   log(() => `synth ${S.showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Prim') return [Prim(tm.name), primType(tm.name)];
-  if (tm.tag === 'Type') return [tm, VType];
+  if (tm.tag === 'Sort') return [tm, VType];
   if (tm.tag === 'Var') {
     const i = indexOf(local.namesSurface, tm.name);
     if (i < 0) {

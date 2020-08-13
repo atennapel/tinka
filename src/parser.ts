@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con, DElim } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con, DElim, Desc } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -22,7 +22,7 @@ const TName = (name: string): Token => ({ tag: 'Name', name });
 const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 
-const SYM1: string[] = ['\\', ':', '/', '*', '=', '|', ','];
+const SYM1: string[] = ['\\', ':', '/', '*', '#', '=', '|', ','];
 const SYM2: string[] = ['->', '**'];
 
 const START = 0;
@@ -155,6 +155,7 @@ const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
+    if (x === '#') return [Desc, false];
     if (x.startsWith('_')) return [Hole(x.slice(1) || null), false];
     if (x[0] === '%') {
       const rest = x.slice(1);

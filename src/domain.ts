@@ -1,9 +1,9 @@
 import { Ix, Name } from './names';
-import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon, Con, DElim } from './syntax';
+import { List, Cons, Nil, listToString, index, foldr, toArray, length } from './utils/list';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
-import { Plicity, PrimName } from './surface';
+import { Plicity, PrimName, Sorts } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
@@ -30,7 +30,7 @@ export type EElim = { tag: 'EElim', args: Val[] };
 export const EElim = (args: Val[]): EElim => ({ tag: 'EElim', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VCon | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VCon | VSort;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -50,15 +50,17 @@ export type VTCon = { tag: 'VTCon', data: Val, arg: Val };
 export const VTCon = (data: Val, arg: Val): VTCon => ({ tag: 'VTCon', data, arg });
 export type VCon = { tag: 'VCon', index: Ix, data: Val, arg: Val };
 export const VCon = (index: Ix, data: Val, arg: Val): VCon => ({ tag: 'VCon', data, index, arg });
-export type VType = { tag: 'VType' };
-export const VType: VType = { tag: 'VType' };
+export type VSort = { tag: 'VSort', sort: Sorts };
+export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
 export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
-export const VDesc = VPrim('Desc');
+export const VType = VSort('*');
+export const VDesc = VSort('#');
+
 export const VHEq = VPrim('HEq');
 export const VReflHEq = VPrim('ReflHEq');
 export const VUnitType = VPrim('UnitType');
@@ -95,16 +97,33 @@ export const forceGlue = (v: Val): Val => {
   return v;
 };
 
-// do the eliminators have to force?
+export const isCanonical = (v: Val): boolean => {
+  if (v.tag !== 'VNe') return true;
+  if (v.head.tag === 'HGlobal') return true;
+  if (v.head.tag === 'HPrim') return true;
+  return false;
+};
 export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VAbs') {
     if (a.plicity !== plicity) {
-      console.log(a, plicity, b);
       return impossible(`plicity mismatch in vapp`);
     }
     return a.body(b);
   }
-  if (a.tag === 'VNe') return VNe(a.head, Cons(EApp(plicity, b), a.args));
+  if (a.tag === 'VNe') {
+    // fix {a} {b} f @ x ~> f (fix {a} {b} f) x
+    if (a.head.tag === 'HPrim' && a.head.name === 'drec' && length(a.args) === 3 && isCanonical(b)) {
+      if (plicity) return impossible(`plicity mismatch in vapp: drec`);
+      const [ta, tb, f] = toArray(a.args, x => (x as EApp).arg).reverse();
+      return vapp(vapp(f, false, vapp(vapp(vapp(VPrim('drec'), true, ta), true, tb), false, f)), false, b);
+    }
+    if (a.head.tag === 'HPrim' && a.head.name === 'dreci' && length(a.args) === 3 && isCanonical(b)) {
+      if (!plicity) return impossible(`plicity mismatch in vapp: dreci`);
+      const [ta, tb, f] = toArray(a.args, x => (x as EApp).arg).reverse();
+      return vapp(vapp(f, false, vapp(vapp(vapp(VPrim('drec'), true, ta), true, tb), false, f)), true, b);
+    }
+    return VNe(a.head, Cons(EApp(plicity, b), a.args));
+  }
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`vapp: ${a.tag}`);
@@ -157,7 +176,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         velimheq([p, A, a, P, q, b])))))));
     return VPrim(t.name);
   }
-  if (t.tag === 'Type') return VType;
+  if (t.tag === 'Sort') return VSort(t.sort);
   if (t.tag === 'Var') {
     const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
     // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -221,7 +240,7 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
 };
 export const quote = (v_: Val, k: Ix, full: boolean): Term => {
   const v = forceGlue(v_);
-  if (v.tag === 'VType') return Type;
+  if (v.tag === 'VSort') return Sort(v.sort);
   if (v.tag === 'VNe')
     return foldr(
       (x, y) => quoteElim(y, x, k, full),
