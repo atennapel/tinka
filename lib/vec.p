@@ -9,8 +9,8 @@ def VecD = \t. data Nat
   (\R. (UnitType, \_ _ E. E Z))
   (\R. ({n : Nat} ** t ** R n, \a _ E. E (S a.fst)))
 def Vec : Nat -> * -> * = \n t. tcon (VecD t) n
-def VNil : {t : *} -> Vec Z t = \{t}. con 0 (VecD t) ()
-def VCons : {t : *} -> {n : Nat} -> t -> Vec n t -> Vec (S n) t = \{t} {n} hd tl. con 1 (VecD t) ({n}, hd, tl)
+def VNil : {t : *} -> Vec Z t = \{t}. con 0 {VecD t} ()
+def VCons : {t : *} -> {n : Nat} -> t -> Vec n t -> Vec (S n) t = \{t} {n} hd tl. con 1 {VecD t} ({n}, hd, tl)
 
 def dcaseVec
   : {t : *}
@@ -18,7 +18,7 @@ def dcaseVec
     -> P Z VNil
     -> ({m : Nat} -> (hd : t) -> (tl : Vec m t) -> P (S m) (VCons hd tl))
     -> {n : Nat} -> (v : Vec n t) -> P n v
-  = \{t} {P} n c {m} v. elim (VecD t) P m v (\_. n) (\p. c {p.fst} p.snd.fst p.snd.snd)
+  = \{t} {P} n c {m} v. elim {VecD t} {P} {m} v (\_. n) (\p. c {p.fst} p.snd.fst p.snd.snd)
 
 def caseVec
   : {n : Nat} -> {t : *} -> {r : *} -> Vec n t -> r -> ({m : Nat} -> t -> Vec m t -> r) -> r

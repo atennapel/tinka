@@ -140,6 +140,8 @@ export const flattenPair = (t: Term): [Plicity, Term][] => {
 
 export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
+export const showTermPS = (t: Term): string =>
+  showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta', t);
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Var') return t.name;
@@ -147,10 +149,10 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
-    return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${
+    return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj' || f.tag === 'Data' || f.tag === 'TCon' || f.tag === 'Con' || f.tag === 'DElim', f)} ${
       as.map(([im, t], i) =>
         im ? `{${showTerm(t)}}` :
-          `${showTermP(t.tag === 'App' || t.tag === 'Ann' ||t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)}`).join(' ')}`;
+          `${showTermP(t.tag === 'App' || t.tag === 'Ann' ||t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'Con', t)}`).join(' ')}`;
   }
   if (t.tag === 'Abs') {
     const [as, b] = flattenAbs(t);
@@ -158,11 +160,11 @@ export const showTerm = (t: Term): string => {
   }
   if (t.tag === 'Pi') {
     const [as, b] = flattenPi(t);
-    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
+    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` : showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${showTermP(b.tag === 'Ann', b)}`;
   }
   if (t.tag === 'Sigma') {
     const [as, b, p] = flattenSigma(t);
-    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` :showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${showTerm(b)}}` : showTermP(b.tag === 'Ann', b)}`
+    return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${showTerm(t)}${im ? '}' : ''}` :showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)) : `${im ? '{' : '('}${x} : ${showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${showTerm(b)}}` : showTermP(b.tag === 'Ann', b)}`
   }
   if (t.tag === 'Pair') {
     const ps = flattenPair(t);
@@ -173,12 +175,14 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Ann')
     return `${showTermP(t.term.tag === 'Ann', t.term)} : ${showTermP(t.term.tag === 'Ann', t.type)}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
-  if (t.tag === 'Proj') return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
-  // TODO
-  if (t.tag === 'Data') return `(data ${showTermS(t.index)}. ${t.cons.map(t => showTermS(t)).join(' ')})`;
-  if (t.tag === 'TCon') return `(tcon ${showTermS(t.data)} ${showTermS(t.arg)})`;
-  if (t.tag === 'Con') return `(con ${t.index} ${showTermS(t.data)} ${showTermS(t.arg)})`;
-  if (t.tag === 'DElim') return `(elim ${showTermS(t.data)} ${showTermS(t.motive)} ${showTermS(t.index)} ${showTermS(t.scrut)} ${t.args.map(t => showTermS(t)).join(' ')})`;
+  if (t.tag === 'Proj') return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermPS(t.term)}`;
+  if (t.tag === 'Data') {
+    const ix = t.index;
+    return `data ${showTermPS(ix)}${t.cons.length === 0 ? '' : ' '}${t.cons.map(t => showTermPS(t)).join(' ')}`;
+  }
+  if (t.tag === 'TCon') return `tcon ${showTermPS(t.data)} ${showTermPS(t.arg)}`;
+  if (t.tag === 'Con') return `con ${t.index} {${showTerm(t.data)}} ${showTermPS(t.arg)}`;
+  if (t.tag === 'DElim') return `elim {${showTerm(t.data)}} {${showTerm(t.motive)}} {${showTerm(t.index)}} ${showTermS(t.scrut)}${t.args.length === 0 ? '' : ' '}${t.args.map(t => showTermPS(t)).join(' ')}`;
   return t;
 };
 

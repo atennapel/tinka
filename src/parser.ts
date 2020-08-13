@@ -289,24 +289,31 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     return TCon(args[0], args[1]);
   }
   if (isName(ts[0], 'con')) {
+    if (ts.length !== 4) return serr(`con needs exactly 3 arguments`);
     const ix = ts[1];
     if (ix.tag !== 'Num') return serr(`first arg to con needs to be number`);
-    const args = ts.slice(2).map(x => {
-      const [t, b] = expr(x);
-      if (b) return serr(`con arg cannot be implicit`);
-      return t;
-    });
-    if (args.length !== 2) return serr(`con needs exactly one arg`);
-    return Con(+ix.num, args[0], args[1]);
+    const [data, datab] = expr(ts[2]);
+    if (!datab) return serr(`data arg to con needs be implicit`);
+    const [arg, argb] = expr(ts[3]);
+    if (argb) return serr(`con arg cannot be implicit`);
+    return Con(+ix.num, data, arg);
   }
   if (isName(ts[0], 'elim')) {
-    const args = ts.slice(1).map(x => {
+    if (ts.length < 4) return serr(`elim needs atleast 4 arguments`);
+    const [data, datab] = expr(ts[1]);
+    if (!datab) return serr(`data arg to elim needs be implicit`);
+    const [motive, motiveb] = expr(ts[2]);
+    if (!motiveb) return serr(`motive arg to elim needs be implicit`);
+    const [index, indexb] = expr(ts[3]);
+    if (!indexb) return serr(`index arg to elim needs be implicit`);
+    const [scrut, scrutb] = expr(ts[4]);
+    if (scrutb) return serr(`scrutinee arg to elim cannot be implicit`);
+    const args = ts.slice(5).map(x => {
       const [t, b] = expr(x);
       if (b) return serr(`elim arg cannot be implicit`);
       return t;
     });
-    if (args.length < 4) return serr(`elim needs atleast 4 args`);
-    return DElim(args[0], args[1], args[2], args[3], args.slice(4));
+    return DElim(data, motive, index, scrut, args);
   }
   if (isName(ts[0], '\\')) {
     const args: [Name, boolean, Term | null][] = [];
@@ -369,7 +376,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
   if (js >= 0) {
     const s = splitTokens(ts, x => isName(x, '**'));
     if (s.length < 2) return serr(`parsing failed with **`);
-    // TODO: erasure in second component
     const args: [Name, boolean, Term][] = s.slice(0, -1)
       .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')] as [Name, boolean, Term]])
       .reduce((x, y) => x.concat(y), []);
@@ -463,6 +469,7 @@ export const parseDef = async (c: Token[], importMap: ImportMap): Promise<Def[]>
 
 export const parseDefs = async (s: string, importMap: ImportMap): Promise<Def[]> => {
   const ts = tokenize(s);
+  if (ts.length === 0) return [];
   if (ts[0].tag !== 'Name' || (ts[0].name !== 'def' && ts[0].name !== 'import'))
     return serr(`def should start with "def" or "import"`);
   const spl = splitTokens(ts, t => t.tag === 'Name' && (t.name === 'def' || t.name === 'import'), true);

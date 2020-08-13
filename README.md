@@ -4,13 +4,12 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- pretty print data
+- fix erasure
+- add fin
 
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)
-- maybe eqElim should not be erased?
 - fix annotated let parser
-- fix parsing empty file
 - allow standalone projection
 - create a CEK machine
 - reset metas before

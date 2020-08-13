@@ -875,29 +875,41 @@ const exprs = (ts, br) => {
         return surface_1.TCon(args[0], args[1]);
     }
     if (isName(ts[0], 'con')) {
+        if (ts.length !== 4)
+            return utils_1.serr(`con needs exactly 3 arguments`);
         const ix = ts[1];
         if (ix.tag !== 'Num')
             return utils_1.serr(`first arg to con needs to be number`);
-        const args = ts.slice(2).map(x => {
-            const [t, b] = expr(x);
-            if (b)
-                return utils_1.serr(`con arg cannot be implicit`);
-            return t;
-        });
-        if (args.length !== 2)
-            return utils_1.serr(`con needs exactly one arg`);
-        return surface_1.Con(+ix.num, args[0], args[1]);
+        const [data, datab] = expr(ts[2]);
+        if (!datab)
+            return utils_1.serr(`data arg to con needs be implicit`);
+        const [arg, argb] = expr(ts[3]);
+        if (argb)
+            return utils_1.serr(`con arg cannot be implicit`);
+        return surface_1.Con(+ix.num, data, arg);
     }
     if (isName(ts[0], 'elim')) {
-        const args = ts.slice(1).map(x => {
+        if (ts.length < 4)
+            return utils_1.serr(`elim needs atleast 4 arguments`);
+        const [data, datab] = expr(ts[1]);
+        if (!datab)
+            return utils_1.serr(`data arg to elim needs be implicit`);
+        const [motive, motiveb] = expr(ts[2]);
+        if (!motiveb)
+            return utils_1.serr(`motive arg to elim needs be implicit`);
+        const [index, indexb] = expr(ts[3]);
+        if (!indexb)
+            return utils_1.serr(`index arg to elim needs be implicit`);
+        const [scrut, scrutb] = expr(ts[4]);
+        if (scrutb)
+            return utils_1.serr(`scrutinee arg to elim cannot be implicit`);
+        const args = ts.slice(5).map(x => {
             const [t, b] = expr(x);
             if (b)
                 return utils_1.serr(`elim arg cannot be implicit`);
             return t;
         });
-        if (args.length < 4)
-            return utils_1.serr(`elim needs atleast 4 args`);
-        return surface_1.DElim(args[0], args[1], args[2], args[3], args.slice(4));
+        return surface_1.DElim(data, motive, index, scrut, args);
     }
     if (isName(ts[0], '\\')) {
         const args = [];
@@ -968,7 +980,6 @@ const exprs = (ts, br) => {
         const s = splitTokens(ts, x => isName(x, '**'));
         if (s.length < 2)
             return utils_1.serr(`parsing failed with **`);
-        // TODO: erasure in second component
         const args = s.slice(0, -1)
             .map(p => p.length === 1 ? piParams(p[0]) : [['_', false, exprs(p, '(')]])
             .reduce((x, y) => x.concat(y), []);
@@ -1081,6 +1092,8 @@ exports.parseDef = async (c, importMap) => {
 };
 exports.parseDefs = async (s, importMap) => {
     const ts = tokenize(s);
+    if (ts.length === 0)
+        return [];
     if (ts[0].tag !== 'Name' || (ts[0].name !== 'def' && ts[0].name !== 'import'))
         return utils_1.serr(`def should start with "def" or "import"`);
     const spl = splitTokens(ts, t => t.tag === 'Name' && (t.name === 'def' || t.name === 'import'), true);
@@ -1273,7 +1286,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Desc = exports.Type = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermPS = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Desc = exports.Type = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
 exports.PName = (name) => ({ tag: 'PName', name });
 exports.PIndex = (index) => ({ tag: 'PIndex', index });
 exports.PCore = (proj) => ({ tag: 'PCore', proj });
@@ -1393,6 +1406,7 @@ exports.flattenPair = (t) => {
     return r;
 };
 exports.showTermP = (b, t) => b ? `(${exports.showTerm(t)})` : exports.showTerm(t);
+exports.showTermPS = (t) => exports.showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta', t);
 exports.showTerm = (t) => {
     if (t.tag === 'Prim')
         return `%${t.name}`;
@@ -1404,8 +1418,8 @@ exports.showTerm = (t) => {
         return t.sort;
     if (t.tag === 'App') {
         const [f, as] = exports.flattenApp(t);
-        return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${as.map(([im, t], i) => im ? `{${exports.showTerm(t)}}` :
-            `${exports.showTermP(t.tag === 'App' || t.tag === 'Ann' || t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)}`).join(' ')}`;
+        return `${exports.showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj' || f.tag === 'Data' || f.tag === 'TCon' || f.tag === 'Con' || f.tag === 'DElim', f)} ${as.map(([im, t], i) => im ? `{${exports.showTerm(t)}}` :
+            `${exports.showTermP(t.tag === 'App' || t.tag === 'Ann' || t.tag === 'Let' || (t.tag === 'Abs' && i < as.length - 1) || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'Con', t)}`).join(' ')}`;
     }
     if (t.tag === 'Abs') {
         const [as, b] = exports.flattenAbs(t);
@@ -1413,11 +1427,11 @@ exports.showTerm = (t) => {
     }
     if (t.tag === 'Pi') {
         const [as, b] = exports.flattenPi(t);
-        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${exports.showTermP(b.tag === 'Ann', b)}`;
+        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' -> ')} -> ${exports.showTermP(b.tag === 'Ann', b)}`;
     }
     if (t.tag === 'Sigma') {
         const [as, b, p] = exports.flattenSigma(t);
-        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${exports.showTerm(b)}}` : exports.showTermP(b.tag === 'Ann', b)}`;
+        return `${as.map(([x, im, t]) => x === '_' ? (im ? `${im ? '{' : ''}${exports.showTerm(t)}${im ? '}' : ''}` : exports.showTermP(t.tag === 'Ann' || t.tag === 'Abs' || t.tag === 'Let' || t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Proj' || t.tag === 'Data' || t.tag === 'TCon' || t.tag === 'Con' || t.tag === 'DElim', t)) : `${im ? '{' : '('}${x} : ${exports.showTermP(t.tag === 'Ann', t)}${im ? '}' : ')'}`).join(' ** ')} ** ${p ? `{${exports.showTerm(b)}}` : exports.showTermP(b.tag === 'Ann', b)}`;
     }
     if (t.tag === 'Pair') {
         const ps = exports.flattenPair(t);
@@ -1430,16 +1444,17 @@ exports.showTerm = (t) => {
     if (t.tag === 'Hole')
         return `_${t.name || ''}`;
     if (t.tag === 'Proj')
-        return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${exports.showTermP(t.term.tag !== 'Var' && t.term.tag !== 'Meta' && t.term.tag !== 'Prim', t.term)}`;
-    // TODO
-    if (t.tag === 'Data')
-        return `(data ${exports.showTermS(t.index)}. ${t.cons.map(t => exports.showTermS(t)).join(' ')})`;
+        return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${exports.showTermPS(t.term)}`;
+    if (t.tag === 'Data') {
+        const ix = t.index;
+        return `data ${exports.showTermPS(ix)}${t.cons.length === 0 ? '' : ' '}${t.cons.map(t => exports.showTermPS(t)).join(' ')}`;
+    }
     if (t.tag === 'TCon')
-        return `(tcon ${exports.showTermS(t.data)} ${exports.showTermS(t.arg)})`;
+        return `tcon ${exports.showTermPS(t.data)} ${exports.showTermPS(t.arg)}`;
     if (t.tag === 'Con')
-        return `(con ${t.index} ${exports.showTermS(t.data)} ${exports.showTermS(t.arg)})`;
+        return `con ${t.index} {${exports.showTerm(t.data)}} ${exports.showTermPS(t.arg)}`;
     if (t.tag === 'DElim')
-        return `(elim ${exports.showTermS(t.data)} ${exports.showTermS(t.motive)} ${exports.showTermS(t.index)} ${exports.showTermS(t.scrut)} ${t.args.map(t => exports.showTermS(t)).join(' ')})`;
+        return `elim {${exports.showTerm(t.data)}} {${exports.showTerm(t.motive)}} {${exports.showTerm(t.index)}} ${exports.showTermS(t.scrut)}${t.args.length === 0 ? '' : ' '}${t.args.map(t => exports.showTermPS(t)).join(' ')}`;
     return t;
 };
 exports.erase = (t) => {

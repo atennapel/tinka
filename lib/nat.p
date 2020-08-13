@@ -7,8 +7,8 @@ def NatD = data UnitType
   (\R. (UnitType, \_ _ E. E ()))
   (\R. (R (), \_ _ E. E ()))
 def Nat = tcon NatD ()
-def Z : Nat = con 0 NatD ()
-def S : Nat -> Nat = \n. con 1 NatD n
+def Z : Nat = con 0 {NatD} ()
+def S : Nat -> Nat = \n. con 1 {NatD} n
 
 def dcaseNat
   : {P : Nat -> *}
@@ -16,7 +16,7 @@ def dcaseNat
     -> P Z
     -> ((m : Nat) -> P (S m))
     -> P n
-  = \{P} n z s. elim NatD (\_. P) () n (\_. z) s
+  = \{P} n z s. elim {NatD} {\_. P} {()} n (\_. z) s
 
 def caseNat
   : {t : *} -> Nat -> t -> (Nat -> t) -> t

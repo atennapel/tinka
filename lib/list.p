@@ -6,8 +6,8 @@ def ListD = \t. data UnitType
   (\R. (UnitType, \_ _ E. E ()))
   (\R. (t ** R (), \_ _ E. E ()))
 def List = \t. tcon (ListD t) ()
-def Nil : {t : *} -> List t = \{t}. con 0 (ListD t) ()
-def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. con 1 (ListD t) (hd, tl)
+def Nil : {t : *} -> List t = \{t}. con 0 {ListD t} ()
+def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. con 1 {ListD t} (hd, tl)
 
 def dcaseList
   : {t : *}
@@ -16,7 +16,7 @@ def dcaseList
     -> P Nil
     -> ((hd : t) -> (tl : List t) -> P (Cons hd tl))
     -> P l
-  = \{t} {P} l n c. elim (ListD t) (\_. P) () l (\_. n) (\p. c p.fst p.snd)
+  = \{t} {P} l n c. elim {ListD t} {\_. P} {()} l (\_. n) (\p. c p.fst p.snd)
 def caseList
   : {t r : *} -> List t -> r -> (t -> List t -> r) -> r
   = \{t} {r} l n c. dcaseList {t} {\_. r} l n c

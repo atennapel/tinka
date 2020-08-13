@@ -5,7 +5,7 @@ def Void = tcon VoidD ()
 
 def indVoid
   : {P : Void -> *} -> (x : Void) -> P x
-  = \{P} x. elim VoidD (\_. P) () x
+  = \{P} x. elim {VoidD} {\_. P} {()} x
 
 def caseVoid
   : {t : *} -> Void -> t

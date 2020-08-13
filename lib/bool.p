@@ -6,15 +6,15 @@ def BoolD = data UnitType
   (\_. (UnitType, \_ _ E. E ()))
   (\_. (UnitType, \_ _ E. E ()))
 def Bool = tcon BoolD ()
-def True : Bool = con 0 BoolD ()
-def False : Bool = con 1 BoolD ()
+def True : Bool = con 0 {BoolD} ()
+def False : Bool = con 1 {BoolD} ()
 
 def indBool
   : {P : Bool -> *}
     -> P True
     -> P False
     -> (b : Bool) -> P b
-  = \{P} t f b. elim BoolD (\_. P) () b (\_. t) (\_. f)
+  = \{P} t f b. elim {BoolD} {\_. P} {()} b (\_. t) (\_. f)
 
 def if
   : {t : *} -> Bool -> t -> t -> t

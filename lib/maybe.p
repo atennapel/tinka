@@ -4,8 +4,8 @@ def MaybeD = \t. data UnitType
   (\_. (UnitType, \_ _ E. E ()))
   (\_. (t, \_ _ E. E ()))
 def Maybe = \t. tcon (MaybeD t) ()
-def Nothing : {t : *} -> Maybe t = \{t}. con 0 (MaybeD t) ()
-def Just : {t : *} -> t -> Maybe t = \{t} v. con 1 (MaybeD t) v
+def Nothing : {t : *} -> Maybe t = \{t}. con 0 {MaybeD t} ()
+def Just : {t : *} -> t -> Maybe t = \{t} v. con 1 {MaybeD t} v
 
 def indMaybe
   : {t : *}
@@ -13,7 +13,7 @@ def indMaybe
     -> P Nothing
     -> ((y : t) -> P (Just y))
     -> (x : Maybe t) -> P x
-  = \{t} {P} n j x. elim (MaybeD t) (\_. P) () x (\_. n) j
+  = \{t} {P} n j x. elim {MaybeD t} {\_. P} {()} x (\_. n) j
 
 def caseMaybe
   : {t r : *} -> Maybe t -> r -> (t -> r) -> r
