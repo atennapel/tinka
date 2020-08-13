@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDesc } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -287,6 +287,26 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
+  }
+  if (tm.tag === 'Data') {
+    const index = check(local, tm.index, VType);
+    const vix = evaluate(index, local.vs);
+    // (I -> *) -> ((A : *) ** ((a : A) -> (X : *) -> (I -> X) -> X))
+    const vcon =
+      VPi(false, '_', VPi(false, '_', vix, _ => VType), _ =>
+      VSigma(false, false, 'A', VType, A =>
+      VPi(false, 'a', A, a =>
+      VPi(false, 'X', VType, X =>
+      VPi(false, '_', VPi(false, '_', vix, _ => X), _ => X)))));
+    const cons = tm.cons.map(x => check(local, x, vcon));
+    return [Data(index, cons), VDesc];
+  }
+  if (tm.tag === 'TCon') {
+    const data = check(local, tm.data, VDesc);
+    const vdata = force(evaluate(data, local.vs));
+    if (vdata.tag !== 'VData') return terr(`not a data type in ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    const arg = check(local, tm.arg, vdata.index);
+    return [TCon(data, arg), VType];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VDesc, VPi, VSigma } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -128,6 +128,27 @@ const synth = (local: Local, tm: Term): Val => {
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in ${tm.proj}: ${showTerm(tm)}: ${showTermS(fty, local.names, local.index)}`);
     if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${showTerm(tm)}`);
     return tm.proj === 'fst' ? fty.type : fty.body(vproj('fst', evaluate(tm.term, local.vs)));
+  }
+  if (tm.tag === 'Data') {
+    check(local, tm.index, VType);
+    const vix = evaluate(tm.index, local.vs);
+    // (I -> *) -> ((A : *) ** ((a : A) -> (X : *) -> (I -> X) -> X))
+    const vcon =
+      VPi(false, '_', VPi(false, '_', vix, _ => VType), _ =>
+      VSigma(false, false, 'A', VType, A =>
+      VPi(false, 'a', A, a =>
+      VPi(false, 'X', VType, X =>
+      VPi(false, '_', VPi(false, '_', vix, _ => X), _ => X)))));
+    for (let i = 0, l = tm.cons.length; i < l; i++)
+      check(local, tm.cons[i], vcon);
+    return VDesc;
+  }
+  if (tm.tag === 'TCon') {
+    check(local, tm.data, VDesc);
+    const vdata = force(evaluate(tm.data, local.vs));
+    if (vdata.tag !== 'VData') return terr(`not a data type in tcon: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    check(local, tm.arg, vdata.index);
+    return VType;
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };

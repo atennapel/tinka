@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -56,6 +56,17 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, a.type, b.type);
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
+  }
+  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+    unify(k, a.index, b.index);
+    for (let i = 0, l = a.cons.length; i < l; i++)
+      unify(k, a.cons[i], b.cons[i]);
+    return;
+  }
+  if (a.tag === 'VTCon' && b.tag === 'VTCon') {
+    unify(k, a.data, b.data);
+    unify(k, a.arg, b.arg);
+    return;
   }
   // eta
   if (a.tag === 'VAbs') {
@@ -189,6 +200,16 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Sigma(t.plicity, t.plicity2, t.name, ty, body);
+  }
+  if (t.tag === 'Data') {
+    const index = checkSolution(k, m, is, t.index);
+    const cons = t.cons.map(x => checkSolution(k, m, is, x));
+    return Data(index, cons);
+  }
+  if (t.tag === 'TCon') {
+    const data = checkSolution(k, m, is, t.data);
+    const arg = checkSolution(k, m, is, t.arg);
+    return TCon(data, arg);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

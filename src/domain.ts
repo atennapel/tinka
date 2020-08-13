@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -32,7 +32,7 @@ export type EIndBool = { tag: 'EIndBool', args: Val[] };
 export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VType;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VType;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -46,6 +46,10 @@ export type VSigma = { tag: 'VSigma', plicity: Plicity, plicity2: Plicity, name:
 export const VSigma = (plicity: Plicity, plicity2: Plicity, name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', plicity, plicity2, name, type, body});
 export type VPair = { tag: 'VPair', plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val };
 export const VPair = (plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', plicity, plicity2, fst, snd, type });
+export type VData = { tag: 'VData', index: Val, cons: Val[] };
+export const VData = (index: Val, cons: Val[]): VData => ({ tag: 'VData', index, cons });
+export type VTCon = { tag: 'VTCon', data: Val, arg: Val };
+export const VTCon = (data: Val, arg: Val): VTCon => ({ tag: 'VTCon', data, arg });
 export type VType = { tag: 'VType' };
 export const VType: VType = { tag: 'VType' };
 
@@ -54,6 +58,7 @@ export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
 export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
+export const VDesc = VPrim('Desc');
 export const VIFix = VPrim('IFix');
 export const VHEq = VPrim('HEq');
 export const VReflHEq = VPrim('ReflHEq');
@@ -222,6 +227,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Pair')
     return VPair(t.plicity, t.plicity2, evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'Proj') return vproj(t.proj, evaluate(t.term, vs));
+  if (t.tag === 'Data') return VData(evaluate(t.index, vs), t.cons.map(x => evaluate(x, vs)));
+  if (t.tag === 'TCon') return VTCon(evaluate(t.data, vs), evaluate(t.arg, vs));
   return t;
 };
 
@@ -281,6 +288,10 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Sigma(v.plicity, v.plicity2, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
     return Pair(v.plicity, v.plicity2, quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
+  if (v.tag === 'VData')
+    return Data(quote(v.index, k, full), v.cons.map(x => quote(x, k, full)));
+  if (v.tag === 'VTCon')
+    return TCon(quote(v.data, k, full), quote(v.arg, k, full));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -346,5 +357,7 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
   if (tm.tag === 'Proj') return Proj(tm.proj, zonk(tm.term, vs, k, full));
+  if (tm.tag === 'Data') return Data(zonk(tm.index, vs, k, full), tm.cons.map(x => zonk(x, vs, k, full)));
+  if (tm.tag === 'TCon') return TCon(zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
   return tm;
 };

@@ -61,6 +61,17 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     const v = VVar(k);
     return conv(k + 1, a.body(v), b.body(v));
   }
+  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
+    conv(k, a.index, b.index);
+    for (let i = 0, l = a.cons.length; i < l; i++)
+      conv(k, a.cons[i], b.cons[i]);
+    return;
+  }
+  if (a.tag === 'VTCon' && b.tag === 'VTCon') {
+    conv(k, a.data, b.data);
+    conv(k, a.arg, b.arg);
+    return;
+  }
   if (a.tag === 'VAbs') {
     const v = VVar(k);
     return conv(k + 1, a.body(v), vapp(b, a.plicity, v));
