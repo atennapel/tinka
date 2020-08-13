@@ -5,8 +5,8 @@ Try it out at https://atennapel.github.io/tinka
 ```
 todo:
 - add recursive combinators
-- remove unnecessary language features
 - get prelude working
+- make Desc like Type (#)
 
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)

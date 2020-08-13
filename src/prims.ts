@@ -1,5 +1,5 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, VIFix, VUnitType, VBool, VTrue, VFalse, vheq } from './domain';
+import { Val, VPrim, VPi, vapp, VType, VUnitType, vheq } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
@@ -7,48 +7,6 @@ const primTypes: { [K in PrimName]: () => Val } = {
 
   'UnitType': () => VType,
   'Unit': () => VUnitType,
-
-  'Bool': () => VType,
-  'True': () => VBool,
-  'False': () => VBool,
-  // indBool : {P : Bool -> *} -> P True -> P False -> (b : Bool) -> P b
-  'indBool': () => VPi(true, 'P', VPi(false, '_', VBool, _ => VType), P => VPi(false, '_', vapp(P, false, VTrue), _ => VPi(false, '_', vapp(P, false, VFalse), _ => VPi(false, 'x', VBool, x => vapp(P, false, x))))),
-
-  'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),
-  'IIn': () =>
-    VPi(true, 'I', VType, I =>
-    VPi(true, 'F', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), F =>
-    VPi(true, 'i', I, i =>
-    VPi(false, '_', vapp(vapp(F, false, vapp(vapp(VIFix, false, I), false, F)), false, i), _ =>
-    vapp(vapp(vapp(VIFix, false, I), false, F), false, i))))),
-  /*
-    genindIFix
-    : {I : *}
-    -> {F : (I -> *) -> (I -> *)}
-    -> {P : (i : I) -> IFix I F i -> P}
-    -> (
-      ({i : I} -> (y : IFix I F i) -> P i y)
-      -> {i : I}
-      -> (z : F (IFix I F) i)
-      -> P i (IIn {I} {F} {i} z)
-    )
-    -> {i : I}
-    -> (x : IFix I F i)
-    -> P i x
-  */
-  'genindIFix': () =>
-    VPi(true, 'I', VType, I =>
-    VPi(true, 'F', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), F =>
-    VPi(true, 'P', VPi(false, 'i', I, i => VPi(false, '_', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), _ => VType)), P =>
-    VPi(false, '_',
-      VPi(false, '_', VPi(true, 'i', I, i => VPi(false, 'y', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), y => vapp(vapp(P, false, i), false, y))), _ =>
-      VPi(true, 'i', I, i =>
-      VPi(false, 'z', vapp(vapp(F, false, vapp(vapp(VIFix, false, I), false, F)), false, i), z =>
-      vapp(vapp(P, false, i), false, vapp(vapp(vapp(vapp(VPrim('IIn'), true, I), true, F), true, i), false, z)))))
-    , _ =>
-    VPi(true, 'i', I, i =>
-    VPi(false, 'x', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), x =>
-    vapp(vapp(P, false, i), false, x))))))),
 
   // {A : *} -> {B : *} -> A -> B -> *
   'HEq': () => VPi(true, 'A', VType, A => VPi(true, 'B', VType, B => VPi(false, '_', A, _ => VPi(false, '_', B, _ => VType)))),

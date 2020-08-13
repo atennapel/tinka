@@ -48,14 +48,10 @@ export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type PrimName =
   'Desc' |
   'UnitType' | 'Unit' |
-  'Bool' | 'True' | 'False' | 'indBool' |
-  'IFix' | 'IIn' | 'genindIFix' |
   'HEq' | 'ReflHEq' | 'elimHEq'
 export const primNames = [
   'Desc',
   'UnitType', 'Unit',
-  'Bool', 'True', 'False', 'indBool',
-  'IFix', 'IIn', 'genindIFix',
   'HEq', 'ReflHEq', 'elimHEq',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
@@ -197,8 +193,6 @@ export const erase = (t: Term): Term => {
   }
   if (t.tag === 'App') {
     const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
-    if (res.tag === 'App' && res.left.tag === 'Prim' && res.left.name === 'IIn')
-      return res.right;
     return res;
   }
   if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));

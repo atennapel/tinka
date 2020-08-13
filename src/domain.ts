@@ -18,18 +18,14 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndBool | EElim;
+export type Elim = EApp | EProj | EElimHEq | EElim;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
 export type EProj = { tag: 'EProj', proj: 'fst' | 'snd' };
 export const EProj = (proj: 'fst' | 'snd'): EProj => ({ tag: 'EProj', proj });
-export type EIFixInd = { tag: 'EIFixInd', args: Val[] };
-export const EIFixInd = (args: Val[]): EIFixInd => ({ tag: 'EIFixInd', args });
 export type EElimHEq = { tag: 'EElimHEq', args: Val[] };
 export const EElimHEq = (args: Val[]): EElimHEq => ({ tag: 'EElimHEq', args });
-export type EIndBool = { tag: 'EIndBool', args: Val[] };
-export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
 export type EElim = { tag: 'EElim', args: Val[] };
 export const EElim = (args: Val[]): EElim => ({ tag: 'EElim', args });
 
@@ -63,14 +59,10 @@ export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
 export const VDesc = VPrim('Desc');
-export const VIFix = VPrim('IFix');
 export const VHEq = VPrim('HEq');
 export const VReflHEq = VPrim('ReflHEq');
 export const VUnitType = VPrim('UnitType');
 export const VUnit = VPrim('Unit');
-export const VBool = VPrim('Bool');
-export const VTrue = VPrim('True');
-export const VFalse = VPrim('False');
 export const vheq = (A: Val, B: Val, a: Val, b: Val) => vapp(vapp(vapp(vapp(VHEq, true, A), true, B), false, a), false, b);
 
 export type EnvV = List<Val>;
@@ -84,9 +76,7 @@ export const force = (v: Val): Val => {
     if (val.tag === 'Unsolved') return v;
     return force(foldr((elim, y) =>
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
-      elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
-      elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
       elim.tag === 'EElim' ? velim([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
@@ -98,9 +88,7 @@ export const forceGlue = (v: Val): Val => {
     if (val.tag === 'Unsolved') return v;
     return forceGlue(foldr((elim, y) =>
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
-      elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
-      elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
       elim.tag === 'EElim' ? velim([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
@@ -128,24 +116,6 @@ export const vproj = (proj: 'fst' | 'snd', v: Val): Val => {
     return VGlued(v.head, Cons(EProj(proj), v.args), mapLazy(v.val, v => vproj(proj, v)));
   return impossible(`vsnd: ${v.tag}`);
 };
-export const vifixind = (args: Val[]): Val => {
-  const v = args[0];
-  const rest = args.slice(1);
-  if (v.tag === 'VNe') {
-    if (v.head.tag === 'HPrim' && v.head.name === 'IIn') {
-      // genindIFix {I} {F} {P} f {i} (IIn {i} x) ~> f (\{i} y. genindIFix {I} {F} {P} f {i} y) {i} x 
-      const [I, F, P, f, i] = rest;
-      const args = v.args as Cons<Elim>;
-      const x = (args.head as EApp).arg;
-      return vapp(vapp(vapp(f, false,
-        VAbs(true, 'i', I, i => VAbs(false, 'y', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), y => vifixind([y, I, F, P, f, i])))), true, i), false, x);
-    }
-    return VNe(v.head, Cons(EIFixInd(rest), v.args));
-  }
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EIFixInd(rest), v.args), mapLazy(v.val, v => vifixind([v].concat(rest))));
-  return impossible(`vifixind: ${v.tag}`);
-};
 export const velimheq = (args: Val[]): Val => {
   const v = args[0];
   const rest = args.slice(1);
@@ -159,24 +129,6 @@ export const velimheq = (args: Val[]): Val => {
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EElimHEq(rest), v.args), mapLazy(v.val, v => velimheq([v].concat(rest))));
   return impossible(`velimheq: ${v.tag}`);
-};
-export const vindbool = (args: Val[]): Val => {
-  const v = args[0];
-  const rest = args.slice(1);
-  if (v.tag === 'VNe') {
-    if (v.head.tag === 'HPrim' && v.head.name === 'True') {
-      // indBool {P} t f True ~> t
-      return rest[1];
-    }
-    if (v.head.tag === 'HPrim' && v.head.name === 'False') {
-      // indBool {P} t f False ~> f
-      return rest[2];
-    }
-    return VNe(v.head, Cons(EIndBool(rest), v.args));
-  }
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EIndBool(rest), v.args), mapLazy(v.val, v => vindbool([v].concat(rest))));
-  return impossible(`vindbool: ${v.tag}`);
 };
 export const velim = (args: Val[]): Val => {
   const v = args[0];
@@ -195,19 +147,6 @@ export const velim = (args: Val[]): Val => {
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
-    if (t.name === 'genindIFix')
-      return VAbs(true, 'I', VType, I =>
-        VAbs(true, 'F', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), F =>
-        VAbs(true, 'P', VPi(false, 'i', I, i => VPi(false, '_', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), _ => VType)), P =>
-        VAbs(false, 'f',
-          VPi(false, '_', VPi(true, 'i', I, i => VPi(false, 'y', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), y => vapp(vapp(P, false, i), false, y))), _ =>
-          VPi(true, 'i', I, i =>
-          VPi(false, 'z', vapp(vapp(F, false, vapp(vapp(VIFix, false, I), false, F)), false, i), z =>
-          vapp(vapp(P, false, i), false, vapp(vapp(vapp(vapp(VPrim('IIn'), true, I), true, F), true, i), false, z)))))
-        , f =>
-        VAbs(true, 'i', I, i =>
-        VAbs(false, 'x', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), x =>
-        vifixind([x, I, F, P, f, i])))))));
     if (t.name === 'elimHEq')
       return VAbs(true, 'A', VType, A =>
         VAbs(true, 'a', A, a =>
@@ -216,8 +155,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         VAbs(true, 'b', A, b =>
         VAbs(false, 'p', vheq(A, A, a, b), p =>
         velimheq([p, A, a, P, q, b])))))));
-    if (t.name === 'indBool')
-      return VAbs(true, 'P', VPi(false, '_', VBool, _ => VType), P => VAbs(false, 't', vapp(P, false, VTrue), t => VAbs(false, 'f', vapp(P, false, VFalse), f => VAbs(false, 'x', VBool, x => vindbool([x, P, t, f])))));
     return VPrim(t.name);
   }
   if (t.tag === 'Type') return VType;
@@ -272,17 +209,9 @@ const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
   if (e.tag === 'EProj') return Proj(e.proj, t);
-  if (e.tag === 'EIFixInd') {
-    const [I, F, P, f, i] = e.args.map(x => quote(x, k, full));
-    return App(App(App(App(App(App(Prim('genindIFix'), true, I), true, F), true, P), false, f), true, i), false, t);
-  }
   if (e.tag === 'EElimHEq') {
     const [A, a, P, q, b] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(App(Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), false, t);
-  }
-  if (e.tag === 'EIndBool') {
-    const [P, pt, pf] = e.args.map(x => quote(x, k, full));
-    return App(App(App(App(Prim('indBool'), true, P), false, pt), false, pf), false, t);
   }
   if (e.tag === 'EElim') {
     const args = e.args.map(x => quote(x, k, full));
@@ -344,9 +273,7 @@ export const showElimQ = (e: Elim, k: number = 0, full: boolean = false): string
 export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boolean = false): string => {
   if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
   if (e.tag === 'EProj') return e.proj;
-  if (e.tag === 'EIFixInd') return `genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
-  if (e.tag === 'EIndBool') return `indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElim') return `elim ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   return e;
 };

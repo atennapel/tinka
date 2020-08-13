@@ -14,17 +14,7 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
-  if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'EElimHEq' && b.tag === 'EElimHEq' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
-  if (a.tag === 'EIndBool' && b.tag === 'EIndBool' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       unify(k, a.args[i], b.args[i]);
     return;
