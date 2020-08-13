@@ -4,11 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add more identities for nat:
-  - eq (add x n) 0 = false (for n > 0)
-  - sub (add x n) m = add x (sub n m) (?)
-- add native Fin
-- does indVoid need elimination?
+- add recursive combinators
+- remove unnecessary language features
+- get prelude working
+
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)
 - maybe eqElim should not be erased?

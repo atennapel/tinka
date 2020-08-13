@@ -33,6 +33,11 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
+  if (a.tag === 'EElim' && b.tag === 'EElim' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      conv(k, a.args[i], b.args[i]);
+    return;
+  }
   return terr(`conv failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const conv = (k: Ix, a_: Val, b_: Val): void => {

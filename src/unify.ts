@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con, DElim } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -25,6 +25,11 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     return;
   }
   if (a.tag === 'EIndBool' && b.tag === 'EIndBool' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
+  if (a.tag === 'EElim' && b.tag === 'EElim' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       unify(k, a.args[i], b.args[i]);
     return;
@@ -220,6 +225,14 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const data = checkSolution(k, m, is, t.data);
     const arg = checkSolution(k, m, is, t.arg);
     return Con(t.index, data, arg);
+  }
+  if (t.tag === 'DElim') {
+    const data = checkSolution(k, m, is, t.data);
+    const motive = checkSolution(k, m, is, t.motive);
+    const index = checkSolution(k, m, is, t.index);
+    const scrut = checkSolution(k, m, is, t.scrut);
+    const args = t.args.map(x => checkSolution(k, m, is, x));
+    return DElim(data, motive, index, scrut, args);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

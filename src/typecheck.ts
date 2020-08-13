@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Type, Proj, Data, TCon, Con, DElim } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, forceGlue, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp, VCon } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -322,6 +322,37 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     // Di.snd a * (\j. tcon D j)
     const varg = evaluate(arg, local.vs);
     return [Con(tm.index, data, arg), vapp(vapp(vapp(vproj('snd', vpair), false, varg), false, VType), false, vtcon)];
+  }
+  if (tm.tag === 'DElim') {
+    /*
+    G |- D : #
+    G |- P : (i : DI) -> tcon D i -> *
+    G |- i : DI
+    G |- x : tcon D i
+    G |- ci : (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+    -------------------------------
+    G |- elim D {P} {i} x c1 ... cn : P i x
+    */
+    const data = check(localInType(local), tm.data, VDesc);
+    const vdata = force(evaluate(data, local.vs));
+    const vdataf = force(vdata);
+    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    if (tm.args.length !== vdataf.cons.length) return terr(`args length mismatch: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
+    const motive = check(localInType(local), tm.motive, VPi(false, 'i', vdataf.index, i => VPi(false, '_', VTCon(vdata, i), _ => VType)));
+    const vmotive = evaluate(motive, local.vs);
+    const index = check(localInType(local), tm.index, vdataf.index);
+    const vindex = evaluate(index, local.vs);
+    const scrut = check(local, tm.scrut, VTCon(vdata, vindex));
+    const vscrut = evaluate(scrut, local.vs);
+    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
+    const args = tm.args.map((arg, i) => {
+      // (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+      const con = vdataf.cons[i];
+      const pair = vapp(con, false, vtcon);
+      return check(local, tm.args[i], VPi(false, 'a', vproj('fst', pair), a =>
+        vapp(vapp(vapp(vproj('snd', pair), false, a), false, VType), false, VAbs(false, 'i', vdataf.index, j => vapp(vapp(vmotive, false, j), false, VCon(i, vdata, a))))));
+    });
+    return [DElim(data, motive, index, scrut, args), vapp(vapp(vmotive, false, vindex), false, vscrut)];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

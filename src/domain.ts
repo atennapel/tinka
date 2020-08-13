@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon, Con } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Type, Data, TCon, Con, DElim } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName } from './surface';
@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndBool;
+export type Elim = EApp | EProj | EIFixInd | EElimHEq | EIndBool | EElim;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -30,6 +30,8 @@ export type EElimHEq = { tag: 'EElimHEq', args: Val[] };
 export const EElimHEq = (args: Val[]): EElimHEq => ({ tag: 'EElimHEq', args });
 export type EIndBool = { tag: 'EIndBool', args: Val[] };
 export const EIndBool = (args: Val[]): EIndBool => ({ tag: 'EIndBool', args });
+export type EElim = { tag: 'EElim', args: Val[] };
+export const EElim = (args: Val[]): EElim => ({ tag: 'EElim', args });
 
 export type Clos = (val: Val) => Val;
 export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VCon | VType;
@@ -85,6 +87,7 @@ export const force = (v: Val): Val => {
       elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
+      elim.tag === 'EElim' ? velim([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -98,6 +101,7 @@ export const forceGlue = (v: Val): Val => {
       elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
       elim.tag === 'EIndBool' ? vindbool([y].concat(elim.args)) :
+      elim.tag === 'EElim' ? velim([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -174,6 +178,20 @@ export const vindbool = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EIndBool(rest), v.args), mapLazy(v.val, v => vindbool([v].concat(rest))));
   return impossible(`vindbool: ${v.tag}`);
 };
+export const velim = (args: Val[]): Val => {
+  const v = args[0];
+  const rest = args.slice(1);
+  if (v.tag === 'VCon') {
+    // elim (con i a) c1...cn ~> ci a
+    const dcase = args[v.index + 4];
+    return vapp(dcase, false, v.arg);
+  }
+  if (v.tag === 'VNe')
+    return VNe(v.head, Cons(EElim(rest), v.args));
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EElim(rest), v.args), mapLazy(v.val, v => velim([v].concat(rest))));
+  return impossible(`velim: ${v.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
@@ -232,6 +250,10 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Data') return VData(evaluate(t.index, vs), t.cons.map(x => evaluate(x, vs)));
   if (t.tag === 'TCon') return VTCon(evaluate(t.data, vs), evaluate(t.arg, vs));
   if (t.tag === 'Con') return VCon(t.index, evaluate(t.data, vs), evaluate(t.arg, vs));
+  if (t.tag === 'DElim') {
+    const args = [t.scrut, t.data, t.motive, t.index].concat(t.args).map(x => evaluate(x, vs));
+    return velim(args);
+  }
   return t;
 };
 
@@ -261,6 +283,10 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EIndBool') {
     const [P, pt, pf] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(Prim('indBool'), true, P), false, pt), false, pf), false, t);
+  }
+  if (e.tag === 'EElim') {
+    const args = e.args.map(x => quote(x, k, full));
+    return DElim(args[0], args[1], args[2], t, args.slice(3));
   }
   return e;
 };
@@ -321,6 +347,7 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EIFixInd') return `genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndBool') return `indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'EElim') return `elim ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   return e;
 };
 
@@ -365,5 +392,7 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
   if (tm.tag === 'Data') return Data(zonk(tm.index, vs, k, full), tm.cons.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'TCon') return TCon(zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
   if (tm.tag === 'Con') return Con(tm.index, zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
+  if (tm.tag === 'DElim')
+    return DElim(zonk(tm.data, vs, k, full), zonk(tm.motive, vs, k, full), zonk(tm.index, vs, k, full), zonk(tm.scrut, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   return tm;
 };
