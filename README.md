@@ -4,8 +4,8 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- fix erasure
-- add fin
+- add bin functions
+- add fin functions
 
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)

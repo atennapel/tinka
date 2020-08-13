@@ -132,7 +132,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Data') return S.Data(toSurface(t.index, ns), t.cons.map(x => toSurface(x, ns)));
   if (t.tag === 'TCon') return S.TCon(toSurface(t.data, ns), toSurface(t.arg, ns));
   if (t.tag === 'Con') return S.Con(t.index, toSurface(t.data, ns), toSurface(t.arg, ns));
-  if (t.tag === 'DElim') return S.DElim(toSurface(t.data), toSurface(t.motive), toSurface(t.index), toSurface(t.scrut), t.args.map(x => toSurface(x)));
+  if (t.tag === 'DElim') return S.DElim(toSurface(t.data, ns), toSurface(t.motive, ns), toSurface(t.index, ns), toSurface(t.scrut, ns), t.args.map(x => toSurface(x, ns)));
   if (t.tag === 'Abs') {
     const x = decideName(t.name, t.body, ns);
     return S.Abs(t.plicity, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));

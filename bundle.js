@@ -1457,6 +1457,7 @@ exports.showTerm = (t) => {
         return `elim {${exports.showTerm(t.data)}} {${exports.showTerm(t.motive)}} {${exports.showTerm(t.index)}} ${exports.showTermS(t.scrut)}${t.args.length === 0 ? '' : ' '}${t.args.map(t => exports.showTermPS(t)).join(' ')}`;
     return t;
 };
+// erase should only be used to call showTerm on
 exports.erase = (t) => {
     if (t.tag === 'Hole')
         return t;
@@ -1464,8 +1465,11 @@ exports.erase = (t) => {
         return t;
     if (t.tag === 'Var')
         return t;
-    if (t.tag === 'Prim')
+    if (t.tag === 'Prim') {
+        if (t.name === 'Unit')
+            return exports.Var('()');
         return t;
+    }
     if (t.tag === 'Ann')
         return exports.erase(t.term);
     if (t.tag === 'Abs')
@@ -1484,21 +1488,21 @@ exports.erase = (t) => {
         return res;
     }
     if (t.tag === 'Pi')
-        return exports.Pi(t.plicity, t.name, exports.erase(t.type), exports.erase(t.body));
+        return exports.Type;
     if (t.tag === 'Sigma')
-        return exports.Sigma(t.plicity, t.plicity2, t.name, exports.erase(t.type), exports.erase(t.body));
+        return exports.Type;
     if (t.tag === 'Let')
         return t.plicity ? exports.erase(t.body) : exports.Let(false, t.name, null, exports.erase(t.val), exports.erase(t.body));
     if (t.tag === 'Proj')
         return exports.Proj(t.proj, exports.erase(t.term));
     if (t.tag === 'Data')
-        return exports.Data(exports.erase(t.index), t.cons.map(exports.erase));
+        return exports.Type;
     if (t.tag === 'TCon')
-        return exports.TCon(exports.erase(t.data), exports.erase(t.arg));
+        return exports.Type;
     if (t.tag === 'Con')
-        return exports.Con(t.index, exports.Type, exports.erase(t.arg));
+        return exports.App(exports.Var(`con ${t.index}`), false, exports.erase(t.arg));
     if (t.tag === 'DElim')
-        return exports.DElim(exports.erase(t.data), exports.erase(t.motive), exports.erase(t.index), exports.erase(t.scrut), t.args.map(x => exports.erase(x)));
+        return t.args.map(x => exports.erase(x)).reduce((x, y) => exports.App(x, false, y), exports.App(exports.Var(`elim`), false, exports.erase(t.scrut)));
     return t;
 };
 exports.DDef = (name, value, plicity) => ({ tag: 'DDef', name, value, plicity });
@@ -1686,7 +1690,7 @@ exports.toSurface = (t, ns = list_1.Nil) => {
     if (t.tag === 'Con')
         return S.Con(t.index, exports.toSurface(t.data, ns), exports.toSurface(t.arg, ns));
     if (t.tag === 'DElim')
-        return S.DElim(exports.toSurface(t.data), exports.toSurface(t.motive), exports.toSurface(t.index), exports.toSurface(t.scrut), t.args.map(x => exports.toSurface(x)));
+        return S.DElim(exports.toSurface(t.data, ns), exports.toSurface(t.motive, ns), exports.toSurface(t.index, ns), exports.toSurface(t.scrut, ns), t.args.map(x => exports.toSurface(x, ns)));
     if (t.tag === 'Abs') {
         const x = decideName(t.name, t.body, ns);
         return S.Abs(t.plicity, x, exports.toSurface(t.type, ns), exports.toSurface(t.body, list_1.Cons(x, ns)));

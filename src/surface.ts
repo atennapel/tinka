@@ -186,11 +186,15 @@ export const showTerm = (t: Term): string => {
   return t;
 };
 
+// erase should only be used to call showTerm on
 export const erase = (t: Term): Term => {
   if (t.tag === 'Hole') return t;
   if (t.tag === 'Meta') return t;
   if (t.tag === 'Var') return t;
-  if (t.tag === 'Prim') return t;
+  if (t.tag === 'Prim') {
+    if (t.name === 'Unit') return Var('()');
+    return t;
+  }
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
   if (t.tag === 'Pair') {
@@ -203,14 +207,14 @@ export const erase = (t: Term): Term => {
     const res = t.plicity ? erase(t.left) : App(erase(t.left), false, erase(t.right));
     return res;
   }
-  if (t.tag === 'Pi') return Pi(t.plicity, t.name, erase(t.type), erase(t.body));
-  if (t.tag === 'Sigma') return Sigma(t.plicity, t.plicity2, t.name, erase(t.type), erase(t.body));
+  if (t.tag === 'Pi') return Type;
+  if (t.tag === 'Sigma') return Type;
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
-  if (t.tag === 'Data') return Data(erase(t.index), t.cons.map(erase));
-  if (t.tag === 'TCon') return TCon(erase(t.data), erase(t.arg));
-  if (t.tag === 'Con') return Con(t.index, Type, erase(t.arg));
-  if (t.tag === 'DElim') return DElim(erase(t.data), erase(t.motive), erase(t.index), erase(t.scrut), t.args.map(x => erase(x)));
+  if (t.tag === 'Data') return Type;
+  if (t.tag === 'TCon') return Type;
+  if (t.tag === 'Con') return App(Var(`con ${t.index}`), false, erase(t.arg));
+  if (t.tag === 'DElim') return t.args.map(x => erase(x)).reduce((x, y) => App(x, false, y), App(Var(`elim`), false, erase(t.scrut)));
   return t;
 };
 

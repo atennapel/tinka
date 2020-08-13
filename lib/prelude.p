@@ -12,6 +12,8 @@ import lib/bool.p
 import lib/sum.p
 
 import lib/nat.p
+import lib/bin.p
 import lib/list.p
 
+import lib/fin.p
 import lib/vec.p
