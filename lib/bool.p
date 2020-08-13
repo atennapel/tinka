@@ -2,17 +2,23 @@ import lib/eq.p
 import lib/unit.p
 import lib/void.p
 
-def Bool = %Bool
-def True : Bool = %True
-def False : Bool = %False
+def BoolD = data UnitType
+  (\_. (UnitType, \_ _ E. E ()))
+  (\_. (UnitType, \_ _ E. E ()))
+def Bool = tcon BoolD ()
+def True : Bool = con 0 BoolD ()
+def False : Bool = con 1 BoolD ()
 
 def indBool
-  : {P : Bool -> *} -> P True -> P False -> (b : Bool) -> P b
-  = %indBool
+  : {P : Bool -> *}
+    -> P True
+    -> P False
+    -> (b : Bool) -> P b
+  = \{P} t f b. elim BoolD (\_. P) () b (\_. t) (\_. f)
 
 def if
-  : {r : *} -> Bool -> r -> r -> r
-  = \{r} b t f. indBool {\_. r} t f b
+  : {t : *} -> Bool -> t -> t -> t
+  = \{t} c a b. indBool {\_. t} a b c
 
 def liftBool : Bool -> * = \b. if b UnitType Void
 

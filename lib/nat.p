@@ -1,13 +1,26 @@
+import lib/rec.p
 import lib/unit.p
-import lib/sum.p
-import lib/fix.p
 import lib/eq.p
 import lib/bool.p
 
-def NatF = \(r : *). Sum UnitType r
-def Nat = Fix NatF
-def Z : Nat = In {NatF} (InL ())
-def S : Nat -> Nat = \n. In {NatF} (InR n)
+def NatD = data UnitType
+  (\R. (UnitType, \_ _ E. E ()))
+  (\R. (R (), \_ _ E. E ()))
+def Nat = tcon NatD ()
+def Z : Nat = con 0 NatD ()
+def S : Nat -> Nat = \n. con 1 NatD n
+
+def dcaseNat
+  : {P : Nat -> *}
+    -> (n : Nat)
+    -> P Z
+    -> ((m : Nat) -> P (S m))
+    -> P n
+  = \{P} n z s. elim NatD (\_. P) () n (\_. z) s
+
+def caseNat
+  : {t : *} -> Nat -> t -> (Nat -> t) -> t
+  = \{t} n z s. dcaseNat {\_. t} n z s
 
 def genindNat
   : {P : Nat -> *}
@@ -15,9 +28,7 @@ def genindNat
     -> (((m : Nat) -> P m) -> (m : Nat) -> P (S m))
     -> (n : Nat)
     -> P n
-  = \{P} z s n. genindFix {NatF} {P}
-    (\rec y. indSum {UnitType} {Nat} {\s. P (In {NatF} s)} (\_. z) (\m. s rec m) y)
-    n
+  = \{P} z s. drec {Nat} {P} \rec n. dcaseNat {P} n z (\m. s rec m)
 
 def indNat
   : {P : Nat -> *}
@@ -27,17 +38,9 @@ def indNat
     -> P n
   = \{P} z s n. genindNat {P} z (\rec m. s {m} (rec m)) n
 
-def dcaseNat
-  : {P : Nat -> *} -> (n : Nat) -> P Z -> ((m : Nat) -> P (S m)) -> P n
-  = \{P} n z s. genindNat {P} z (\_. s) n
-
 def recNat
   : {t : *} -> Nat -> t -> ((Nat -> t) -> Nat -> t) -> t
   = \{t} n z s. genindNat {\_. t} z s n
-
-def caseNat
-  : {t : *} -> Nat -> t -> (Nat -> t) -> t
-  = \n z s. recNat n z (\_. s)
 
 def cataNat
   : {t : *} -> Nat -> t -> (t -> t) -> t
@@ -52,7 +55,7 @@ def add : Nat -> Nat -> Nat = \a b. cataNat a b S
 def mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b)
 
 def pred_eq
-  : {n : Nat} -> {m : Nat} -> Eq n (S m) -> Eq n (S (pred n))
+  : {n m : Nat} -> Eq n (S m) -> Eq n (S (pred n))
   = \{n} {m} p.
     let q = (lift {_} {_} {pred} p : Eq (pred n) m) in
     let sq = symm q in

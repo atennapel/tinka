@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- get prelude working
 - pretty print data
 
 - combine all prim eliminators
