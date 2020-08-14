@@ -236,7 +236,7 @@ exports.vapp = (a, plicity, b) => {
             if (!plicity)
                 return utils_1.impossible(`plicity mismatch in vapp: dreci`);
             const [ta, tb, f] = list_1.toArray(a.args, x => x.arg).reverse();
-            return exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.VPrim('drec'), true, ta), true, tb), false, f)), true, b);
+            return exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.VPrim('dreci'), true, ta), true, tb), false, f)), true, b);
         }
         return exports.VNe(a.head, list_1.Cons(exports.EApp(plicity, b), a.args));
     }

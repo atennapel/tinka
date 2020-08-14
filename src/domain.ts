@@ -120,7 +120,7 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
     if (a.head.tag === 'HPrim' && a.head.name === 'dreci' && length(a.args) === 3 && isCanonical(b)) {
       if (!plicity) return impossible(`plicity mismatch in vapp: dreci`);
       const [ta, tb, f] = toArray(a.args, x => (x as EApp).arg).reverse();
-      return vapp(vapp(f, false, vapp(vapp(vapp(VPrim('drec'), true, ta), true, tb), false, f)), true, b);
+      return vapp(vapp(f, false, vapp(vapp(vapp(VPrim('dreci'), true, ta), true, tb), false, f)), true, b);
     }
     return VNe(a.head, Cons(EApp(plicity, b), a.args));
   }
