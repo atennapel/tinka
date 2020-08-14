@@ -13,7 +13,7 @@ def indMaybe
     -> P Nothing
     -> ((y : t) -> P (Just y))
     -> (x : Maybe t) -> P x
-  = \{t} {P} n j x. elim {MaybeD t} {\_. P} {()} x (\_. n) j
+  = \{t} {P} n j x. elim {MaybeD t} {\_. P} {()} x (\_ _. n) (\_. j)
 
 def caseMaybe
   : {t r : *} -> Maybe t -> r -> (t -> r) -> r

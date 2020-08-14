@@ -329,7 +329,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     G |- P : (i : DI) -> tcon D i -> *
     G |- i : DI
     G |- x : tcon D i
-    G |- ci : (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+    G |- ci : ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
     -------------------------------
     G |- elim D {P} {i} x c1 ... cn : P i x
     */
@@ -346,11 +346,13 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vscrut = evaluate(scrut, local.vs);
     const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
     const args = tm.args.map((arg, i) => {
-      // (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+      // ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
       const con = vdataf.cons[i];
       const pair = vapp(con, false, vtcon);
-      return check(local, tm.args[i], VPi(false, 'a', vproj('fst', pair), a =>
-        vapp(vapp(vapp(vproj('snd', pair), false, a), false, VType), false, VAbs(false, 'i', vdataf.index, j => vapp(vapp(vmotive, false, j), false, VCon(i, vdata, a))))));
+      return check(local, arg,
+        VPi(false, '_', VPi(true, 'i', vdataf.index, i => VPi(false, 'x', VTCon(vdata, i), x => vapp(vapp(vmotive, false, i), false, x))), _ =>
+        VPi(false, 'a', vproj('fst', pair), a =>
+          vapp(vapp(vapp(vproj('snd', pair), false, a), false, VType), false, VAbs(false, 'i', vdataf.index, j => vapp(vapp(vmotive, false, j), false, VCon(i, vdata, a)))))));
     });
     return [DElim(data, motive, index, scrut, args), vapp(vapp(vmotive, false, vindex), false, vscrut)];
   }

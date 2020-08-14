@@ -3,19 +3,6 @@ import { Val, VPrim, VPi, vapp, VType, VUnitType, vheq } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
-  // {a : *} -> {b : a -> *} -> (((x : a) -> b x) -> ((x : a) -> b x)) -> (x : a) -> b x
-  'drec': () =>
-    VPi(true, 'a', VType, a =>
-    VPi(true, 'b', VPi(false, '_', a, _ => VType), b =>
-    VPi(false, '_', VPi(false, '_', VPi(false, 'x', a, x => vapp(b, false, x)), _ => VPi(false, 'x', a, x => vapp(b, false, x))), _ =>
-    VPi(false, 'x', a, x => vapp(b, false, x))))),
-  // {a : *} -> {b : a -> *} -> (({x : a} -> b x) -> ({x : a} -> b x)) -> {x : a} -> b x
-  'dreci': () =>
-    VPi(true, 'a', VType, a =>
-    VPi(true, 'b', VPi(false, '_', a, _ => VType), b =>
-    VPi(false, '_', VPi(false, '_', VPi(true, 'x', a, x => vapp(b, false, x)), _ => VPi(true, 'x', a, x => vapp(b, false, x))), _ =>
-    VPi(true, 'x', a, x => vapp(b, false, x))))),
-
   'UnitType': () => VType,
   'Unit': () => VUnitType,
 

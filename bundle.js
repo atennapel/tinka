@@ -144,7 +144,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.velim = exports.velimheq = exports.vproj = exports.vapp = exports.isCanonical = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.vheq = exports.VUnit = exports.VUnitType = exports.VReflHEq = exports.VHEq = exports.VDesc = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VSort = exports.VCon = exports.VTCon = exports.VData = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.velim = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.vheq = exports.VUnit = exports.VUnitType = exports.VReflHEq = exports.VHEq = exports.VDesc = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VSort = exports.VCon = exports.VTCon = exports.VData = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -208,15 +208,6 @@ exports.forceGlue = (v) => {
     }
     return v;
 };
-exports.isCanonical = (v) => {
-    if (v.tag !== 'VNe')
-        return true;
-    if (v.head.tag === 'HGlobal')
-        return true;
-    if (v.head.tag === 'HPrim')
-        return true;
-    return false;
-};
 exports.vapp = (a, plicity, b) => {
     if (a.tag === 'VAbs') {
         if (a.plicity !== plicity) {
@@ -224,22 +215,8 @@ exports.vapp = (a, plicity, b) => {
         }
         return a.body(b);
     }
-    if (a.tag === 'VNe') {
-        // fix {a} {b} f @ x ~> f (fix {a} {b} f) x
-        if (a.head.tag === 'HPrim' && a.head.name === 'drec' && list_1.length(a.args) === 3 && exports.isCanonical(b)) {
-            if (plicity)
-                return utils_1.impossible(`plicity mismatch in vapp: drec`);
-            const [ta, tb, f] = list_1.toArray(a.args, x => x.arg).reverse();
-            return exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.VPrim('drec'), true, ta), true, tb), false, f)), false, b);
-        }
-        if (a.head.tag === 'HPrim' && a.head.name === 'dreci' && list_1.length(a.args) === 3 && exports.isCanonical(b)) {
-            if (!plicity)
-                return utils_1.impossible(`plicity mismatch in vapp: dreci`);
-            const [ta, tb, f] = list_1.toArray(a.args, x => x.arg).reverse();
-            return exports.vapp(exports.vapp(f, false, exports.vapp(exports.vapp(exports.vapp(exports.VPrim('dreci'), true, ta), true, tb), false, f)), true, b);
-        }
+    if (a.tag === 'VNe')
         return exports.VNe(a.head, list_1.Cons(exports.EApp(plicity, b), a.args));
-    }
     if (a.tag === 'VGlued')
         return exports.VGlued(a.head, list_1.Cons(exports.EApp(plicity, b), a.args), lazy_1.mapLazy(a.val, v => exports.vapp(v, plicity, b)));
     return utils_1.impossible(`vapp: ${a.tag}`);
@@ -271,9 +248,12 @@ exports.velim = (args) => {
     const v = args[0];
     const rest = args.slice(1);
     if (v.tag === 'VCon') {
-        // elim (con i a) c1...cn ~> ci a
+        // elim (con i a) c1...cn ~> ci (\x. elim x c1...cn) a
+        const data = exports.force(rest[0]);
+        if (data.tag !== 'VData')
+            return utils_1.impossible(`velim: not a data type ${data.tag}`);
         const dcase = args[v.index + 4];
-        return exports.vapp(dcase, false, v.arg);
+        return exports.vapp(exports.vapp(dcase, false, exports.VAbs(true, 'i', data.index, i => exports.VAbs(false, 'x', exports.VTCon(rest[0], i), x => exports.velim([x, rest[0], rest[1], i].concat(rest.slice(3)))))), false, v.arg);
     }
     if (v.tag === 'VNe')
         return exports.VNe(v.head, list_1.Cons(exports.EElim(rest), v.args));
@@ -1108,10 +1088,6 @@ exports.primType = void 0;
 const domain_1 = require("./domain");
 const utils_1 = require("./utils/utils");
 const primTypes = {
-    // {a : *} -> {b : a -> *} -> (((x : a) -> b x) -> ((x : a) -> b x)) -> (x : a) -> b x
-    'drec': () => domain_1.VPi(true, 'a', domain_1.VType, a => domain_1.VPi(true, 'b', domain_1.VPi(false, '_', a, _ => domain_1.VType), b => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 'x', a, x => domain_1.vapp(b, false, x)), _ => domain_1.VPi(false, 'x', a, x => domain_1.vapp(b, false, x))), _ => domain_1.VPi(false, 'x', a, x => domain_1.vapp(b, false, x))))),
-    // {a : *} -> {b : a -> *} -> (({x : a} -> b x) -> ({x : a} -> b x)) -> {x : a} -> b x
-    'dreci': () => domain_1.VPi(true, 'a', domain_1.VType, a => domain_1.VPi(true, 'b', domain_1.VPi(false, '_', a, _ => domain_1.VType), b => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(true, 'x', a, x => domain_1.vapp(b, false, x)), _ => domain_1.VPi(true, 'x', a, x => domain_1.vapp(b, false, x))), _ => domain_1.VPi(true, 'x', a, x => domain_1.vapp(b, false, x))))),
     'UnitType': () => domain_1.VType,
     'Unit': () => domain_1.VUnitType,
     // {A : *} -> {B : *} -> A -> B -> *
@@ -1309,7 +1285,6 @@ exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.Type = exports.Sort('*');
 exports.Desc = exports.Sort('#');
 exports.primNames = [
-    'drec', 'dreci',
     'UnitType', 'Unit',
     'HEq', 'ReflHEq', 'elimHEq',
 ];
@@ -2059,7 +2034,7 @@ const synth = (local, tm) => {
         G |- P : (i : DI) -> tcon D i -> *
         G |- i : DI
         G |- x : tcon D i
-        G |- ci : (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+        G |- ci : ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
         -------------------------------
         G |- elim D {P} {i} x c1 ... cn : P i x
         */
@@ -2078,10 +2053,10 @@ const synth = (local, tm) => {
         const vscrut = domain_1.evaluate(scrut, local.vs);
         const vtcon = domain_1.VAbs(false, 'i', vdataf.index, i => domain_1.VTCon(vdata, i));
         const args = tm.args.map((arg, i) => {
-            // (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+            // ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
             const con = vdataf.cons[i];
             const pair = domain_1.vapp(con, false, vtcon);
-            return check(local, tm.args[i], domain_1.VPi(false, 'a', domain_1.vproj('fst', pair), a => domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vproj('snd', pair), false, a), false, domain_1.VType), false, domain_1.VAbs(false, 'i', vdataf.index, j => domain_1.vapp(domain_1.vapp(vmotive, false, j), false, domain_1.VCon(i, vdata, a))))));
+            return check(local, arg, domain_1.VPi(false, '_', domain_1.VPi(true, 'i', vdataf.index, i => domain_1.VPi(false, 'x', domain_1.VTCon(vdata, i), x => domain_1.vapp(domain_1.vapp(vmotive, false, i), false, x))), _ => domain_1.VPi(false, 'a', domain_1.vproj('fst', pair), a => domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vproj('snd', pair), false, a), false, domain_1.VType), false, domain_1.VAbs(false, 'i', vdataf.index, j => domain_1.vapp(domain_1.vapp(vmotive, false, j), false, domain_1.VCon(i, vdata, a)))))));
         });
         return [syntax_1.DElim(data, motive, index, scrut, args), domain_1.vapp(domain_1.vapp(vmotive, false, vindex), false, vscrut)];
     }
@@ -2785,7 +2760,7 @@ const synth = (local, tm) => {
         G |- P : (i : DI) -> tcon D i -> *
         G |- i : DI
         G |- x : tcon D i
-        G |- ci : (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+        G |- ci : ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
         -------------------------------
         G |- elim D {P} {i} x c1 ... cn : P i x
         */
@@ -2804,10 +2779,10 @@ const synth = (local, tm) => {
         const vscrut = domain_1.evaluate(tm.scrut, local.vs);
         const vtcon = domain_1.VAbs(false, 'i', vdataf.index, i => domain_1.VTCon(vdata, i));
         for (let i = 0, l = tm.args.length; i < l; i++) {
-            // (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
+            // ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
             const con = vdataf.cons[i];
             const pair = domain_1.vapp(con, false, vtcon);
-            check(local, tm.args[i], domain_1.VPi(false, 'a', domain_1.vproj('fst', pair), a => domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vproj('snd', pair), false, a), false, domain_1.VType), false, domain_1.VAbs(false, 'i', vdataf.index, j => domain_1.vapp(domain_1.vapp(vmotive, false, j), false, domain_1.VCon(i, vdata, a))))));
+            check(local, tm.args[i], domain_1.VPi(false, '_', domain_1.VPi(true, 'i', vdataf.index, i => domain_1.VPi(false, 'x', domain_1.VTCon(vdata, i), x => domain_1.vapp(domain_1.vapp(vmotive, false, i), false, x))), _ => domain_1.VPi(false, 'a', domain_1.vproj('fst', pair), a => domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vproj('snd', pair), false, a), false, domain_1.VType), false, domain_1.VAbs(false, 'i', vdataf.index, j => domain_1.vapp(domain_1.vapp(vmotive, false, j), false, domain_1.VCon(i, vdata, a)))))));
         }
         return domain_1.vapp(domain_1.vapp(vmotive, false, vindex), false, vscrut);
     }

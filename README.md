@@ -6,6 +6,8 @@ Try it out at https://atennapel.github.io/tinka
 todo:
 - add bin functions
 - add fin functions
+- find way to do recursive-inductive types
+- find way to do inductive-inductive types
 
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)

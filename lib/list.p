@@ -1,6 +1,5 @@
 import lib/unit.p
 import lib/maybe.p
-import lib/rec.p
 
 def ListD = \t. data UnitType
   (\R. (UnitType, \_ _ E. E ()))
@@ -9,18 +8,6 @@ def List = \t. tcon (ListD t) ()
 def Nil : {t : *} -> List t = \{t}. con 0 {ListD t} ()
 def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. con 1 {ListD t} (hd, tl)
 
-def dcaseList
-  : {t : *}
-    -> {P : List t -> *}
-    -> (l : List t)
-    -> P Nil
-    -> ((hd : t) -> (tl : List t) -> P (Cons hd tl))
-    -> P l
-  = \{t} {P} l n c. elim {ListD t} {\_. P} {()} l (\_. n) (\p. c p.fst p.snd)
-def caseList
-  : {t r : *} -> List t -> r -> (t -> List t -> r) -> r
-  = \{t} {r} l n c. dcaseList {t} {\_. r} l n c
-
 def genindList
   : {t : *}
     -> {P : List t -> *}
@@ -28,7 +15,7 @@ def genindList
     -> (((l : List t) -> P l) -> (hd : t) -> (tl : List t) -> P (Cons hd tl))
     -> (l : List t)
     -> P l
-  = \{t} {P} n c. drec {List t} {P} \rec l. dcaseList {t} {P} l n (\hd tl. c rec hd tl)
+  = \{t} {P} n c l. elim {ListD t} {\_. P} {()} l (\_ _. n) (\rec p. c (rec {()}) p.fst p.snd)
 
 def indList
   : {t : *}
@@ -39,9 +26,17 @@ def indList
     -> P l
   = \{t} {P} n c l. genindList {t} {P} n (\rec hd tl. c {tl} hd (rec tl)) l
 
+def dcaseList
+  : {t : *} -> {P : List t -> *} -> (l : List t) -> P Nil -> ((hd : t) -> (tl : List t) -> P (Cons hd tl)) -> P l
+  = \{t} {P} l n c. genindList {t} {P} n (\_. c) l
+
 def recList
   : {t r : *} -> List t -> r -> ((List t -> r) -> t -> List t -> r) -> r
   = \{t} {r} l n c. genindList {t} {\_. r} n c l
+
+def caseList
+  : {t r : *} -> List t -> r -> (t -> List t -> r) -> r
+  = \l n c. recList l n (\rec hd tl. c hd tl)
 
 def cataList
   : {t r : *} -> List t -> r -> (t -> r -> r) -> r

@@ -1,5 +1,5 @@
 import { Ix, Name } from './names';
-import { List, Cons, Nil, listToString, index, foldr, toArray, length } from './utils/list';
+import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
 import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
@@ -97,12 +97,6 @@ export const forceGlue = (v: Val): Val => {
   return v;
 };
 
-export const isCanonical = (v: Val): boolean => {
-  if (v.tag !== 'VNe') return true;
-  if (v.head.tag === 'HGlobal') return true;
-  if (v.head.tag === 'HPrim') return true;
-  return false;
-};
 export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
   if (a.tag === 'VAbs') {
     if (a.plicity !== plicity) {
@@ -110,20 +104,8 @@ export const vapp = (a: Val, plicity: Plicity, b: Val): Val => {
     }
     return a.body(b);
   }
-  if (a.tag === 'VNe') {
-    // fix {a} {b} f @ x ~> f (fix {a} {b} f) x
-    if (a.head.tag === 'HPrim' && a.head.name === 'drec' && length(a.args) === 3 && isCanonical(b)) {
-      if (plicity) return impossible(`plicity mismatch in vapp: drec`);
-      const [ta, tb, f] = toArray(a.args, x => (x as EApp).arg).reverse();
-      return vapp(vapp(f, false, vapp(vapp(vapp(VPrim('drec'), true, ta), true, tb), false, f)), false, b);
-    }
-    if (a.head.tag === 'HPrim' && a.head.name === 'dreci' && length(a.args) === 3 && isCanonical(b)) {
-      if (!plicity) return impossible(`plicity mismatch in vapp: dreci`);
-      const [ta, tb, f] = toArray(a.args, x => (x as EApp).arg).reverse();
-      return vapp(vapp(f, false, vapp(vapp(vapp(VPrim('dreci'), true, ta), true, tb), false, f)), true, b);
-    }
+  if (a.tag === 'VNe')
     return VNe(a.head, Cons(EApp(plicity, b), a.args));
-  }
   if (a.tag === 'VGlued')
     return VGlued(a.head, Cons(EApp(plicity, b), a.args), mapLazy(a.val, v => vapp(v, plicity, b)));
   return impossible(`vapp: ${a.tag}`);
@@ -153,9 +135,11 @@ export const velim = (args: Val[]): Val => {
   const v = args[0];
   const rest = args.slice(1);
   if (v.tag === 'VCon') {
-    // elim (con i a) c1...cn ~> ci a
+    // elim (con i a) c1...cn ~> ci (\x. elim x c1...cn) a
+    const data = force(rest[0]);
+    if (data.tag !== 'VData') return impossible(`velim: not a data type ${data.tag}`);
     const dcase = args[v.index + 4];
-    return vapp(dcase, false, v.arg);
+    return vapp(vapp(dcase, false, VAbs(true, 'i', data.index, i => VAbs(false, 'x', VTCon(rest[0], i), x => velim([x, rest[0], rest[1], i].concat(rest.slice(3)))))), false, v.arg);
   }
   if (v.tag === 'VNe')
     return VNe(v.head, Cons(EElim(rest), v.args));

@@ -50,11 +50,9 @@ export const Type: Sort = Sort('*');
 export const Desc: Sort = Sort('#');
 
 export type PrimName =
-  'drec' | 'dreci' |
   'UnitType' | 'Unit' |
   'HEq' | 'ReflHEq' | 'elimHEq'
 export const primNames = [
-  'drec', 'dreci',
   'UnitType', 'Unit',
   'HEq', 'ReflHEq', 'elimHEq',
 ];

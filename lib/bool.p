@@ -14,7 +14,7 @@ def indBool
     -> P True
     -> P False
     -> (b : Bool) -> P b
-  = \{P} t f b. elim {BoolD} {\_. P} {()} b (\_. t) (\_. f)
+  = \{P} t f b. elim {BoolD} {\_. P} {()} b (\_ _. t) (\_ _. f)
 
 def if
   : {t : *} -> Bool -> t -> t -> t
