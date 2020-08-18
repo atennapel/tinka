@@ -3,7 +3,7 @@ import { showTerm } from './surface';
 import { parse, ImportMap, parseDefs } from './parser';
 import { globalMap, globalDelete, globalGet } from './globalenv';
 import { loadFile } from './utils/utils';
-import { showTermSZ, normalize } from './domain';
+import { showTermSZ, normalize, quoteZ } from './domain';
 import { showSurfaceZ, showTerm as showTermI, Term, showSurfaceZErased } from './syntax';
 import { Nil } from './utils/list';
 import { typecheckDefs, typecheck } from './typecheck';
@@ -119,11 +119,13 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.startsWith(':')) return _cb('invalid command', true);
     let msg = '';
     let tm_: Term;
+    let ty_: Term;
     try {
       const t = parse(_s);
       log(() => showTerm(t));
       const [ztm, vty] = typecheck(t);
       tm_ = ztm;
+      ty_ = quoteZ(vty);
       log(() => showTermSZ(vty));
       log(() => showSurfaceZ(tm_));
       msg += `type: ${showTermSZ(vty)}\nterm: ${showSurfaceZ(tm_)}`;
@@ -136,7 +138,31 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     try {
       const n = normalize(tm_, Nil, 0, true);
       log(() => showSurfaceZErased(n));
-      return _cb(`${msg}${config.showNormalization ? `\nnorm: ${showSurfaceZErased(n)}` : ''}`);
+      let norm: string = '';
+      if (ty_.tag === 'Global' && ty_.name === 'Showable') {
+        let c = n;
+        const arr: string[] = [];
+        while (c.tag !== 'Con' || c.index !== 0) {
+          if (c.tag !== 'Con' || c.index !== 1 || c.arg.tag !== 'Pair') {
+            norm = showSurfaceZErased(n);
+            break;
+          }
+          let m = 0;
+          let num = c.arg.fst;
+          c = c.arg.snd;
+          while (num.tag !== 'Con' || num.index !== 0) {
+            if (num.tag !== 'Con' || num.index !== 1 || num.arg.tag !== 'Con') {
+              norm = showSurfaceZErased(n);
+              break;
+            }
+            m++;
+            num = num.arg;
+          }
+          arr.push(String.fromCodePoint(m));
+        }
+        norm = arr.join('');
+      } else norm = showSurfaceZErased(n);
+      return _cb(`${msg}${config.showNormalization ? `\nnorm: ${norm}` : ''}`);
     } catch (err) {
       log(() => ''+err);
       msg += '\n'+err;

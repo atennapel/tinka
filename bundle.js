@@ -1227,11 +1227,13 @@ exports.runREPL = (_s, _cb) => {
             return _cb('invalid command', true);
         let msg = '';
         let tm_;
+        let ty_;
         try {
             const t = parser_1.parse(_s);
             config_1.log(() => surface_1.showTerm(t));
             const [ztm, vty] = typecheck_1.typecheck(t);
             tm_ = ztm;
+            ty_ = domain_1.quoteZ(vty);
             config_1.log(() => domain_1.showTermSZ(vty));
             config_1.log(() => syntax_1.showSurfaceZ(tm_));
             msg += `type: ${domain_1.showTermSZ(vty)}\nterm: ${syntax_1.showSurfaceZ(tm_)}`;
@@ -1247,7 +1249,33 @@ exports.runREPL = (_s, _cb) => {
         try {
             const n = domain_1.normalize(tm_, list_1.Nil, 0, true);
             config_1.log(() => syntax_1.showSurfaceZErased(n));
-            return _cb(`${msg}${config_1.config.showNormalization ? `\nnorm: ${syntax_1.showSurfaceZErased(n)}` : ''}`);
+            let norm = '';
+            if (ty_.tag === 'Global' && ty_.name === 'Showable') {
+                let c = n;
+                const arr = [];
+                while (c.tag !== 'Con' || c.index !== 0) {
+                    if (c.tag !== 'Con' || c.index !== 1 || c.arg.tag !== 'Pair') {
+                        norm = syntax_1.showSurfaceZErased(n);
+                        break;
+                    }
+                    let m = 0;
+                    let num = c.arg.fst;
+                    c = c.arg.snd;
+                    while (num.tag !== 'Con' || num.index !== 0) {
+                        if (num.tag !== 'Con' || num.index !== 1 || num.arg.tag !== 'Con') {
+                            norm = syntax_1.showSurfaceZErased(n);
+                            break;
+                        }
+                        m++;
+                        num = num.arg;
+                    }
+                    arr.push(String.fromCodePoint(m));
+                }
+                norm = arr.join('');
+            }
+            else
+                norm = syntax_1.showSurfaceZErased(n);
+            return _cb(`${msg}${config_1.config.showNormalization ? `\nnorm: ${norm}` : ''}`);
         }
         catch (err) {
             config_1.log(() => '' + err);

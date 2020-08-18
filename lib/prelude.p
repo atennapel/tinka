@@ -17,7 +17,7 @@ import lib/nat.p
 import lib/bin.p
 import lib/list.p
 
-import lib/str.p
+import lib/show.p
 
 import lib/fin.p
 import lib/vec.p
