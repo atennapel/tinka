@@ -1,6 +1,7 @@
 import lib/unit.p
 import lib/maybe.p
 import lib/functor.p
+import lib/monoid.p
 
 def ListD = \t. data UnitType
   (\R. (UnitType, \_ _ E. E ()))
@@ -68,3 +69,11 @@ def appendList
 def monoidList
   : {t : *} -> Monoid (List t)
   = \{t}. mkMonoid (Nil {t}) (appendList {t})
+
+def fold
+  : {t : *} -> Monoid t -> List t -> t
+  = \{t} m l. cataList l unit_ append_
+
+def foldMap
+  : {a b : *} -> Monoid b -> (a -> b) -> List a -> b
+  = \{a} {b} m f l. fold m (mapList f l)
