@@ -1,4 +1,5 @@
 import lib/unit.p
+import lib/functor.p
 
 def MaybeD = \t. data UnitType
   (\_. (UnitType, \_ _ E. E ()))
@@ -18,3 +19,9 @@ def indMaybe
 def caseMaybe
   : {t r : *} -> Maybe t -> r -> (t -> r) -> r
   = \{t} {r} m n j. indMaybe {t} {\_. r} n j m
+
+def mapMaybe
+  : {a b : *} -> (a -> b) -> Maybe a -> Maybe b
+  = \{a} {b} f m. caseMaybe m (Nothing {b}) (\x. Just (f x))
+
+def functorMaybe : Functor Maybe = mapMaybe

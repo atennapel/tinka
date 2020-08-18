@@ -1,5 +1,6 @@
 import lib/unit.p
 import lib/maybe.p
+import lib/functor.p
 
 def ListD = \t. data UnitType
   (\R. (UnitType, \_ _ E. E ()))
@@ -50,6 +51,8 @@ def mapList
   : {a b : *} -> (a -> b) -> List a -> List b
   = \{a} {b} f l. cataList l (Nil {b}) (\hd tl. Cons (f hd) tl)
 
+def functorList : Functor List = mapList
+
 def headList
   : {t : *} -> List t -> Maybe t
   = \{t} l. caseList l (Nothing {t}) (\hd _. Just hd)
@@ -57,3 +60,11 @@ def headList
 def tailList
   : {t : *} -> List t -> Maybe (List t)
   = \{t} l. caseList l (Nothing {List t}) (\_ tl. Just tl)
+
+def appendList
+  : {t : *} -> List t -> List t -> List t
+  = \{t} a b. cataList a b (\hd tl. Cons hd tl)
+
+def monoidList
+  : {t : *} -> Monoid (List t)
+  = \{t}. mkMonoid (Nil {t}) (appendList {t})

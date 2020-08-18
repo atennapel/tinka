@@ -2,6 +2,7 @@ import lib/combinators.p
 
 import lib/eq.p
 
+import lib/monoid.p
 import lib/functor.p
 
 import lib/sigma.p

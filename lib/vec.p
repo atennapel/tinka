@@ -3,6 +3,7 @@ import lib/unit.p
 import lib/nat.p
 import lib/eq.p
 import lib/maybe.p
+import lib/functor.p
 
 def VecD = \t. data Nat
   (\R. (UnitType, \_ _ E. E Z))
@@ -58,8 +59,10 @@ def paraVec
   = \{t} {r} {n} x fz fs. recVec x fz (\rec {n} hd tl. fs {n} hd tl (rec {n} tl))
 
 def mapVec
-  : {a b : *} -> {n : Nat} -> (a -> b) -> Vec n a -> Vec n b
-  = \{a} {b} f l. indVec {a} {\i _. Vec i b} (VNil {b}) (\hd tl. VCons (f hd) tl) l
+  : {n : Nat} -> {a b : *} -> (a -> b) -> Vec n a -> Vec n b
+  = \{n} {a} {b} f l. indVec {a} {\i _. Vec i b} (VNil {b}) (\hd tl. VCons (f hd) tl) l
+
+def functorVec : {n : Nat} -> Functor (Vec n) = \{n}. mapVec {n}
 
 def unknownHeadVec
   : {t : *} -> {n : Nat} -> Vec n t -> Maybe t

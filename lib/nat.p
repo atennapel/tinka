@@ -1,6 +1,7 @@
 import lib/unit.p
 import lib/eq.p
 import lib/bool.p
+import lib/monoid.p
 
 def NatD = data UnitType
   (\R. (UnitType, \_ _ E. E ()))
@@ -48,6 +49,9 @@ def paraNat
 def pred : Nat -> Nat = \n. caseNat n Z (\n. n)
 def add : Nat -> Nat -> Nat = \a b. cataNat a b S
 def mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b)
+
+def monoidNatAdd : Monoid Nat = mkMonoid Z add
+def monoidNatMul : Monoid Nat = mkMonoid (S Z) mul
 
 def pred_eq
   : {n : Nat} -> {m : Nat} -> Eq n (S m) -> Eq n (S (pred n))

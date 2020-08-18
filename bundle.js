@@ -709,6 +709,8 @@ const expr = (t) => {
                 const rest = spl.slice(1).join('.');
                 return [parseProj(surface_1.Var(v), rest), false];
             }
+            if (x.endsWith('_'))
+                return [surface_1.App(surface_1.Var(x.slice(0, -1)), false, surface_1.Hole('_')), false];
             return [surface_1.Var(x), false];
         }
         return utils_1.serr(`invalid name: ${x}`);
@@ -1745,7 +1747,7 @@ const newMeta = (ts) => {
     return list_1.foldr((x, y) => syntax_1.App(y, false, x), metas_1.freshMeta(), spine);
 };
 const inst = (ts, vs, ty_) => {
-    const ty = domain_1.forceGlue(ty_);
+    const ty = domain_1.force(ty_);
     if (ty.tag === 'VPi' && ty.plicity) {
         const m = newMeta(ts);
         const vm = domain_1.evaluate(m, vs);
@@ -1762,9 +1764,10 @@ const check = (local, tm, ty) => {
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         if (tm.name) {
-            if (holes[tm.name])
-                return utils_1.terr(`named hole used more than once: _${tm.name}`);
-            holes[tm.name] = [domain_1.evaluate(x, local.vs), ty, local];
+            const y = tm.name === '_' ? `_${instanceId++}` : tm.name;
+            if (holes[y])
+                return utils_1.terr(`named hole used more than once: _${y}`);
+            holes[y] = [domain_1.evaluate(x, local.vs), ty, local, y.startsWith('_')];
         }
         return x;
     }
@@ -1831,7 +1834,7 @@ const check = (local, tm, ty) => {
             holesDiscard();
             return list_1.foldl((a, m) => syntax_1.App(a, true, m), term, ms);
         }
-        catch {
+        catch (err) {
             if (!(err instanceof TypeError))
                 throw err;
             metas_1.metaPop();
@@ -1873,9 +1876,10 @@ const synth = (local, tm) => {
         const t = newMeta(local.ts);
         const vt = domain_1.evaluate(newMeta(local.ts), local.vs);
         if (tm.name) {
-            if (holes[tm.name])
-                return utils_1.terr(`named hole used more than once: _${tm.name}`);
-            holes[tm.name] = [domain_1.evaluate(t, local.vs), vt, local];
+            const x = tm.name === '_' ? `_${instanceId++}` : tm.name;
+            if (holes[x])
+                return utils_1.terr(`named hole used more than once: _${x}`);
+            holes[x] = [domain_1.evaluate(t, local.vs), vt, local, x.startsWith('_')];
         }
         return [t, vt];
     }
@@ -2086,6 +2090,77 @@ const synthapp = (local, ty_, plicity, tm, tmall) => {
     }
     return utils_1.terr(`invalid type or plicity mismatch in synthapp in ${S.showTerm(tmall)}: ${domain_1.showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${S.showTerm(tm)}`);
 };
+const tryUnify = (local, ty1, ty2) => {
+    try {
+        metas_1.metaPush();
+        holesPush();
+        unify_1.unify(local.index, ty1, ty2);
+        metas_1.metaDiscard();
+        holesDiscard();
+        return null;
+    }
+    catch (err) {
+        if (!(err instanceof TypeError))
+            throw err;
+        metas_1.metaPop();
+        holesPop();
+        return new TypeError(`failed to unify in ${domain_1.showTermS(ty1, local.names, local.index)} ~ ${domain_1.showTermS(ty2, local.names, local.index)}: ${err.message}`);
+    }
+};
+const searchInstance = (name, tm_, ty_, local) => {
+    config_1.log(() => `searchInstance _${name} = ${domain_1.showTermS(tm_, local.names, local.index)} : ${domain_1.showTermS(ty_, local.names, local.index)}`);
+    const ty = domain_1.force(ty_);
+    const tm = domain_1.force(tm_);
+    if (ty.tag === 'VNe' && ty.head.tag === 'HMeta')
+        return utils_1.terr(`cannot solve instance _${name}, expected type is a meta: ${domain_1.showTermS(ty_, local.names, local.index)}`);
+    if (tm.tag === 'VNe' && tm.head.tag !== 'HMeta')
+        return utils_1.terr(`cannot solve instance _${name}, expected term is not a meta: ${domain_1.showTermS(tm_, local.names, local.index)}`);
+    let c = local.ts;
+    let i = -1;
+    config_1.log(() => `search locals`);
+    while (c.tag === 'Cons') {
+        const entry = c.head;
+        c = c.tail;
+        i++;
+        if (entry.plicity)
+            continue; // TODO: improve this
+        metas_1.metaPush();
+        const [vty, ms] = inst(local.ts, local.vs, entry.type);
+        const result = tryUnify(local, vty, ty_);
+        if (!result) {
+            config_1.log(() => `found local match: ${list_1.index(local.names, i)} (${i})`);
+            const v = domain_1.evaluate(list_1.foldl((a, m) => syntax_1.App(a, true, m), syntax_1.Var(i), ms), local.vs);
+            unify_1.unify(local.index, tm_, v);
+            metas_1.metaDiscard();
+            return;
+        }
+        metas_1.metaPop();
+    }
+    const env = globalenv_1.globalMap();
+    const ns = Object.keys(env).reverse();
+    config_1.log(() => `search globals`);
+    for (let i = 0, l = ns.length; i < l; i++) { // TODO: ensure reverse insertion order
+        const x = ns[i];
+        const entry = globalenv_1.globalGet(x);
+        if (!entry)
+            continue;
+        if (entry.plicity)
+            continue; // TODO: improve this
+        metas_1.metaPush();
+        const [vty, ms] = inst(local.ts, local.vs, entry.type);
+        const result = tryUnify(local, vty, ty_);
+        if (!result) {
+            config_1.log(() => `found global match: ${x}`);
+            const v = domain_1.evaluate(list_1.foldl((a, m) => syntax_1.App(a, true, m), syntax_1.Global(x), ms), local.vs);
+            unify_1.unify(local.index, tm_, v);
+            metas_1.metaDiscard();
+            return;
+        }
+        metas_1.metaPop();
+    }
+    return utils_1.terr(`failed to find instance for _${name} = ${domain_1.showTermS(tm_, local.names, local.index)} : ${domain_1.showTermS(ty_, local.names, local.index)}`);
+};
+let instanceId = 0;
 let holesStack = [];
 let holes = {};
 const holesPush = () => {
@@ -2104,18 +2179,23 @@ const holesPop = () => {
 const holesDiscard = () => { holesStack.pop(); };
 const holesReset = () => { holesStack = []; holes = {}; };
 exports.typecheck = (tm, plicity = false) => {
-    holesDiscard();
     holesReset();
     const [etm, ty] = synth(plicity ? exports.localInType(exports.localEmpty) : exports.localEmpty, tm);
+    const entries = Object.entries(holes);
+    const insts = entries.filter(([_, info]) => info[3]);
+    for (let i = 0, l = insts.length; i < l; i++) {
+        const [x, [t, v, local]] = insts[i];
+        searchInstance(x, t, v, local);
+    }
     const ztm = domain_1.zonk(etm, list_1.Nil, 0);
-    const holeprops = Object.entries(holes);
+    const holeprops = entries.filter(([_, info]) => !info[3]);
     if (holeprops.length > 0) {
         const strtype = domain_1.showTermSZ(ty);
         const strterm = syntax_1.showSurface(ztm);
-        const str = holeprops.map(([x, [t, v, local]]) => {
+        const str = holeprops.map(([x, [t, v, local, inst]]) => {
             const all = list_1.zipWith(([x, v], { bound: def, type: ty, inserted, plicity }) => [x, v, def, ty, inserted, plicity], list_1.zipWith((x, v) => [x, v], local.names, local.vs), local.ts);
             const allstr = list_1.toArray(all, ([x, v, b, t, _, p]) => `${p ? `{${x}}` : x} : ${domain_1.showTermSZ(t, local.names, local.vs, local.index)}${b ? '' : ` = ${domain_1.showTermSZ(v, local.names, local.vs, local.index)}`}`).join('\n');
-            return `\n_${x} : ${domain_1.showTermSZ(v, local.names, local.vs, local.index)} = ${domain_1.showTermSZ(t, local.names, local.vs, local.index)}\nlocal:\n${allstr}\n`;
+            return `\n${inst ? 'inst ' : ''}_${x} : ${domain_1.showTermSZ(v, local.names, local.vs, local.index)} = ${domain_1.showTermSZ(t, local.names, local.vs, local.index)}\nlocal:\n${allstr}\n`;
         }).join('\n');
         return utils_1.terr(`unsolved holes\ntype: ${strtype}\nterm: ${strterm}\n${str}`);
     }
@@ -2299,8 +2379,8 @@ const solve = (k, m, spine, val) => {
         config_1.log(() => `spine ${list_1.listToString(spinex, ([p, s]) => `${p ? '-' : ''}${s}`)}`);
         const solution = list_1.foldl((body, [pl, y]) => {
             if (typeof y === 'string')
-                return syntax_1.Abs(pl, '_', syntax_1.Type, body);
-            return syntax_1.Abs(pl, '_', syntax_1.Type, body);
+                return syntax_1.Abs(pl, `${y}\$`, syntax_1.Type, body);
+            return syntax_1.Abs(pl, '$', syntax_1.Type, body);
         }, body, spinex);
         config_1.log(() => `solution ?${m} := ${syntax_1.showTerm(solution)} | ${syntax_1.showTerm(solution)}`);
         const vsolution = domain_1.evaluate(solution, list_1.Nil);
@@ -2327,8 +2407,6 @@ const checkSpine = (k, spine) => list_1.map(spine, elim => {
     return utils_1.terr(`unexpected elim in meta spine: ${elim.tag}`);
 });
 const checkSolution = (k, m, is, t) => {
-    if (t.tag === 'Global')
-        return t;
     if (t.tag === 'Prim')
         return t;
     if (t.tag === 'Sort')
@@ -2338,6 +2416,11 @@ const checkSolution = (k, m, is, t) => {
         if (list_1.contains(is, i))
             return syntax_1.Var(list_1.indexOf(is, i));
         return utils_1.terr(`scope error ${t.index} (${i})`);
+    }
+    if (t.tag === 'Global') {
+        if (list_1.contains(is, t.name))
+            return syntax_1.Var(list_1.indexOf(is, t.name));
+        return t;
     }
     if (t.tag === 'Meta') {
         if (m === t.index)

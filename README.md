@@ -4,8 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add bin functions
-- add fin functions
+- recursive instance search
 - find way to do recursive-inductive types
 - find way to do inductive-inductive types
 

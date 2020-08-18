@@ -128,8 +128,8 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
     // TODO: I think it might actually matter
     log(() => `spine ${listToString(spinex, ([p, s]) => `${p ? '-' : ''}${s}`)}`);
     const solution = foldl((body, [pl, y]) => {
-      if (typeof y === 'string') return Abs(pl, '_', Type, body);
-      return Abs(pl, '_', Type, body);
+      if (typeof y === 'string') return Abs(pl, `${y}\$`, Type, body);
+      return Abs(pl, '$', Type, body);
     }, body, spinex);
     log(() => `solution ?${m} := ${showTerm(solution)} | ${showTerm(solution)}`);
     const vsolution = evaluate(solution, Nil);
@@ -157,7 +157,6 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
   });
 
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
-  if (t.tag === 'Global') return t;
   if (t.tag === 'Prim') return t;
   if (t.tag === 'Sort') return t;
   if (t.tag === 'Var') {
@@ -165,6 +164,11 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     if (contains(is, i))
       return Var(indexOf(is, i));
     return terr(`scope error ${t.index} (${i})`);
+  }
+  if (t.tag === 'Global') {
+    if (contains(is, t.name))
+      return Var(indexOf(is, t.name));
+    return t;
   }
   if (t.tag === 'Meta') {
     if (m === t.index)

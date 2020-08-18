@@ -169,6 +169,8 @@ const expr = (t: Token): [Term, boolean] => {
         const rest = spl.slice(1).join('.');
         return [parseProj(Var(v), rest), false];
       }
+      if (x.endsWith('_'))
+        return [App(Var(x.slice(0, -1)), false, Hole('_')), false];
       return [Var(x), false];
     }
     return serr(`invalid name: ${x}`);
