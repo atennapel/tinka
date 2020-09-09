@@ -132,9 +132,9 @@ exports.conv = (k, a_, b_) => {
     if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit')
         return;
     // nat extra rules (are they needed?)
-    if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit')
+    if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)
         return exports.conv(k, domain_1.VNe(a.head, a.args.tail), domain_1.VNatLit(b.val - 1n));
-    if (a.tag === 'VNatLit' && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
+    if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
         return exports.conv(k, domain_1.VNatLit(a.val - 1n), domain_1.VNe(b.head, b.args.tail));
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
@@ -2459,9 +2459,9 @@ exports.unify = (k, a_, b_) => {
     if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit')
         return;
     // nat extra rules (are they needed?)
-    if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit')
+    if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)
         return exports.unify(k, domain_1.VNe(a.head, a.args.tail), domain_1.VNatLit(b.val - 1n));
-    if (a.tag === 'VNatLit' && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
+    if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
         return exports.unify(k, domain_1.VNatLit(a.val - 1n), domain_1.VNe(b.head, b.args.tail));
     // neutrals
     if (a.tag === 'VNe' && b.tag === 'VNe' && conv_1.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))

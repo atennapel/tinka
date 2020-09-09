@@ -54,6 +54,9 @@ def monoidNatMul : Monoid Nat = mkMonoid (S Z) mul
 def eqNat : Nat -> Nat -> Bool = \a. recNat a (\b. caseNat b True (\_. False)) (\rec x b. caseNat b False (rec x))
 def eqbNat : Eqb Nat = eqNat
 
+def ltNat : Nat -> Nat -> Bool = \a.
+  recNat a (\b. caseNat b False (\_. True)) (\rec x b. caseNat b False (rec x))
+
 def pred_eq
   : {n : Nat} -> {m : Nat} -> Eq n (S m) -> Eq n (S (pred n))
   = \{n} {m} p.

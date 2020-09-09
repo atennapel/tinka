@@ -98,10 +98,10 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
   if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
 
-    // nat extra rules (are they needed?)
-  if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit')
+  // nat extra rules (are they needed?)
+  if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)
     return conv(k, VNe(a.head, a.args.tail), VNatLit(b.val - 1n));
-  if (a.tag === 'VNatLit' && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
+  if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
     return conv(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
