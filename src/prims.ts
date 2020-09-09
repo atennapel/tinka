@@ -1,5 +1,5 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, VUnitType, vheq } from './domain';
+import { Val, VPrim, VPi, vapp, VType, VUnitType, vheq, VNat, VNatLit, vsucc } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
@@ -19,6 +19,22 @@ const primTypes: { [K in PrimName]: () => Val } = {
     VPi(true, 'b', A, b =>
     VPi(false, 'p', vheq(A, A, a, b), p =>
     vapp(vapp(P, false, b), false, p))))))),
+
+  'Nat': () => VType,
+  'S': () => VPi(false, '_', VNat, _ => VNat),
+  /*
+  {P : Nat -> *}
+    -> P Z
+    -> (((k : Nat) -> P k) -> (m : Nat) -> P (S m))
+    -> (n : Nat)
+    -> P n
+  */
+  'genindNat': () =>
+    VPi(true, 'P', VPi(false, '_', VNat, _ => VType), P =>
+    VPi(false, '_', vapp(P, false, VNatLit(0n)), _ =>
+    VPi(false, '_', VPi(false, '_', VPi(false, 'k', VNat, k => vapp(P, false, k)), _ => VPi(false, 'm', VNat, m => vapp(P, false, vsucc(m)))), _ =>
+    VPi(false, 'n', VNat, n =>
+    vapp(P, false, n))))),
 };
 
 export const primType = (name: PrimName): Val => primTypes[name]() || impossible(`primType: ${name}`);

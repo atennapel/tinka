@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Ann | Hole | Meta | Prim;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Ann | Hole | Meta | Prim | NatLit;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -45,16 +45,20 @@ export type Hole = { tag: 'Hole', name: Name | null };
 export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
+export type NatLit = { tag: 'NatLit', val: bigint };
+export const NatLit = (val: bigint): NatLit => ({ tag: 'NatLit', val });
 
 export const Type: Sort = Sort('*');
 export const Desc: Sort = Sort('#');
 
 export type PrimName =
   'UnitType' | 'Unit' |
-  'HEq' | 'ReflHEq' | 'elimHEq'
+  'HEq' | 'ReflHEq' | 'elimHEq' |
+  'Nat' | 'S' | 'genindNat'
 export const primNames = [
   'UnitType', 'Unit',
   'HEq', 'ReflHEq', 'elimHEq',
+  'Nat', 'S', 'genindNat',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
@@ -65,6 +69,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Meta') return `?${t.index}`;
+  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
@@ -145,6 +150,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Sort') return t.sort;
+  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
     return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj' || f.tag === 'Data' || f.tag === 'TCon' || f.tag === 'Con' || f.tag === 'DElim', f)} ${
@@ -189,6 +195,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Hole') return t;
   if (t.tag === 'Meta') return t;
   if (t.tag === 'Var') return t;
+  if (t.tag === 'NatLit') return t;
   if (t.tag === 'Prim') {
     if (t.name === 'Unit') return Var('()');
     return t;

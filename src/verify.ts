@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VDesc, VPi, VSigma, VAbs, VTCon, vapp, VCon } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VDesc, VPi, VSigma, VAbs, VTCon, vapp, VCon, VNat } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -198,6 +198,7 @@ const synth = (local: Local, tm: Term): Val => {
     }
     return vapp(vapp(vmotive, false, vindex), false, vscrut);
   }
+  if (tm.tag === 'NatLit') return VNat;
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 

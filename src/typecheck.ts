@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp, VCon } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort, NatLit } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp, VCon, VNat } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray, index } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -358,6 +358,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     });
     return [DElim(data, motive, index, scrut, args), vapp(vapp(vmotive, false, vindex), false, vscrut)];
   }
+  if (tm.tag === 'NatLit') return [NatLit(tm.val), VNat];
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };
 

@@ -1,5 +1,5 @@
 import { terr, impossible, hasDuplicates } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj, VNatLit, VNe } from './domain';
 import { forceLazy } from './utils/lazy';
 import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray, map, foldl, Nil } from './utils/list';
 import { Ix, Name } from './names';
@@ -11,6 +11,7 @@ import { eqHead } from './conv';
 
 const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
+  if (a.tag === 'ES' && b.tag === 'ES') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
@@ -24,6 +25,11 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       unify(k, a.args[i], b.args[i]);
     return;
   }
+  if (a.tag === 'EIndNat' && b.tag === 'EIndNat' && a.args.length === b.args.length) {
+    for (let i = 0; i < a.args.length; i ++)
+      unify(k, a.args[i], b.args[i]);
+    return;
+  }
   return terr(`unify elim failed (${k}): ${showTermQ(x, k)} ~ ${showTermQ(y, k)}`);
 };
 export const unify = (k: Ix, a_: Val, b_: Val): void => {
@@ -32,6 +38,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
+  if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.val === b.val) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -87,6 +94,11 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   }
   if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
   if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
+  // nat extra rules (are they needed?)
+  if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit')
+    return unify(k, VNe(a.head, a.args.tail), VNatLit(b.val - 1n));
+  if (a.tag === 'VNatLit' && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
+    return unify(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
   // neutrals
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -159,6 +171,7 @@ const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
 const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
   if (t.tag === 'Prim') return t;
   if (t.tag === 'Sort') return t;
+  if (t.tag === 'NatLit') return t;
   if (t.tag === 'Var') {
     const i = k - t.index - 1;
     if (contains(is, i))

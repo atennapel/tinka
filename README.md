@@ -4,6 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- experiment with primitive Fin
+- experiment with adding primitive Nat operations
+
 - recursive instance search
 - find way to do recursive-inductive types
 - find way to do inductive-inductive types

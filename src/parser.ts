@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con, DElim, Desc } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con, DElim, Desc, NatLit } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -194,12 +194,7 @@ const expr = (t: Token): [Term, boolean] => {
       return [c, false];
     } else if (t.num.endsWith('n')) {
       const tt = t.num.slice(0, -1);
-      const n = +tt;
-      if (isNaN(n)) return serr(`invalid nat number: ${tt}`);
-      const s = Var('S');
-      let c: Term = Var('Z');
-      for (let i = 0; i < n; i++) c = App(s, false, c);
-      return [c, false];
+      return [NatLit(BigInt(tt)), false];
     } else {
       const tt = t.num;
       const n = +tt;

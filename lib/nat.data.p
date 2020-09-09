@@ -4,17 +4,20 @@ import lib/bool.p
 import lib/monoid.p
 import lib/eqb.p
 
-def Nat = %Nat
-def Z : Nat = 0n
-def S : Nat -> Nat = %S
+def NatD = data UnitType
+  (\R. (UnitType, \_ _ E. E ()))
+  (\R. (R (), \_ _ E. E ()))
+def Nat = tcon NatD ()
+def Z : Nat = con 0 {NatD} ()
+def S : Nat -> Nat = \n. con 1 {NatD} n
 
 def genindNat
   : {P : Nat -> *}
     -> P Z
-    -> (((k : Nat) -> P k) -> (m : Nat) -> P (S m))
+    -> (((m : Nat) -> P m) -> (m : Nat) -> P (S m))
     -> (n : Nat)
     -> P n
-  = %genindNat
+  = \{P} z s n. elim {NatD} {\_. P} {()} n (\_ _. z) (\rec m. s (rec {()}) m)
 
 def indNat
   : {P : Nat -> *}

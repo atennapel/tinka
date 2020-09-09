@@ -163,3 +163,9 @@ export const contains = <T>(l: List<T>, v: T): boolean =>
 
 export const max = (l: List<number>): number =>
   foldl((a, b) => b > a ? b : a, Number.MIN_SAFE_INTEGER, l);
+
+export const last = <T>(l: List<T>): T | null => {
+  let c = l;
+  while (c.tag === 'Cons') if (c.tail.tag === 'Nil') return c.head;
+  return null;
+};
