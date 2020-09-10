@@ -44,6 +44,8 @@ const convElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'ES' && b.tag === 'ES')
         return;
+    if (a.tag === 'EFS' && b.tag === 'EFS')
+        return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.conv(k, a.arg, b.arg);
     if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj)
@@ -74,6 +76,8 @@ exports.conv = (k, a_, b_) => {
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.val === b.val)
+        return;
+    if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.index === b.index)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.conv(k, a.type, b.type);
@@ -136,6 +140,7 @@ exports.conv = (k, a_, b_) => {
         return exports.conv(k, domain_1.VNe(a.head, a.args.tail), domain_1.VNatLit(b.val - 1n));
     if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
         return exports.conv(k, domain_1.VNatLit(a.val - 1n), domain_1.VNe(b.head, b.args.tail));
+    // TODO: fin rules
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
     if (a.tag === 'VGlued' && b.tag === 'VGlued' && exports.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args)) {
@@ -158,12 +163,11 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vindnat = exports.vsucc = exports.velim = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VS = exports.VNat = exports.vheq = exports.VUnit = exports.VUnitType = exports.VReflHEq = exports.VHEq = exports.VDesc = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VNatLit = exports.VSort = exports.VCon = exports.VTCon = exports.VData = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIndNat = exports.ES = exports.EElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vindfin = exports.vfsucc = exports.vindnat = exports.vsucc = exports.velim = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VS = exports.VFin = exports.VNat = exports.vheq = exports.VUnit = exports.VUnitType = exports.VReflHEq = exports.VHEq = exports.VDesc = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VFinLit = exports.VNatLit = exports.VSort = exports.VCon = exports.VTCon = exports.VData = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIndFin = exports.EIndNat = exports.EFS = exports.ES = exports.EElim = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
 const lazy_1 = require("./utils/lazy");
-const surface_1 = require("./surface");
 const globalenv_1 = require("./globalenv");
 const metas_1 = require("./metas");
 exports.HVar = (index) => ({ tag: 'HVar', index });
@@ -175,7 +179,9 @@ exports.EProj = (proj) => ({ tag: 'EProj', proj });
 exports.EElimHEq = (args) => ({ tag: 'EElimHEq', args });
 exports.EElim = (args) => ({ tag: 'EElim', args });
 exports.ES = { tag: 'ES' };
+exports.EFS = (type) => ({ tag: 'EFS', type });
 exports.EIndNat = (args) => ({ tag: 'EIndNat', args });
+exports.EIndFin = (args) => ({ tag: 'EIndFin', args });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -187,6 +193,7 @@ exports.VTCon = (data, arg) => ({ tag: 'VTCon', data, arg });
 exports.VCon = (index, data, arg) => ({ tag: 'VCon', data, index, arg });
 exports.VSort = (sort) => ({ tag: 'VSort', sort });
 exports.VNatLit = (val) => ({ tag: 'VNatLit', val });
+exports.VFinLit = (index, cap) => ({ tag: 'VFinLit', index, cap });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
@@ -199,6 +206,7 @@ exports.VUnitType = exports.VPrim('UnitType');
 exports.VUnit = exports.VPrim('Unit');
 exports.vheq = (A, B, a, b) => exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VHEq, true, A), true, B), false, a), false, b);
 exports.VNat = exports.VPrim('Nat');
+exports.VFin = exports.VPrim('Fin');
 exports.VS = exports.VPrim('S');
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
 exports.showEnvV = (l, k = 0, full = false) => list_1.listToString(l, v => syntax_1.showTerm(exports.quote(v, k, full)));
@@ -214,7 +222,9 @@ exports.force = (v) => {
                 elim.tag === 'EElim' ? exports.velim([y].concat(elim.args)) :
                     elim.tag === 'ES' ? exports.vsucc(y) :
                         elim.tag === 'EIndNat' ? exports.vindnat([y].concat(elim.args)) :
-                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                            elim.tag === 'EFS' ? exports.vfsucc(elim.type, y) :
+                                elim.tag === 'EIndFin' ? exports.vindfin([y].concat(elim.args)) :
+                                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -228,7 +238,9 @@ exports.forceGlue = (v) => {
                 elim.tag === 'EElim' ? exports.velim([y].concat(elim.args)) :
                     elim.tag === 'ES' ? exports.vsucc(y) :
                         elim.tag === 'EIndNat' ? exports.vindnat([y].concat(elim.args)) :
-                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                            elim.tag === 'EFS' ? exports.vfsucc(elim.type, y) :
+                                elim.tag === 'EIndFin' ? exports.vindfin([y].concat(elim.args)) :
+                                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -292,7 +304,7 @@ exports.vsucc = (v) => {
         return exports.VNe(v.head, list_1.Cons(exports.ES, v.args));
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.ES, v.args), lazy_1.mapLazy(v.val, v => exports.vsucc(v)));
-    return utils_1.impossible(`vs: ${v.tag}`);
+    return utils_1.impossible(`vsucc: ${v.tag}`);
 };
 exports.vindnat = (args) => {
     const v = args[0];
@@ -300,8 +312,7 @@ exports.vindnat = (args) => {
     if (v.tag === 'VNatLit') {
         if (v.val === 0n)
             return rest[1];
-        else
-            return exports.vapp(exports.vapp(rest[2], false, exports.VAbs(false, 'k', exports.VNat, k => exports.vindnat([k].concat(rest)))), false, exports.VNatLit(v.val - 1n));
+        return exports.vapp(exports.vapp(rest[2], false, exports.VAbs(false, 'k', exports.VNat, k => exports.vindnat([k].concat(rest)))), false, exports.VNatLit(v.val - 1n));
     }
     if (v.tag === 'VNe') {
         if (v.args.tag === 'Cons' && v.args.head.tag === 'ES')
@@ -312,14 +323,50 @@ exports.vindnat = (args) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EIndNat(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vindnat([v].concat(rest))));
     return utils_1.impossible(`vindnat: ${v.tag}`);
 };
+exports.vfsucc = (type, v) => {
+    if (v.tag === 'VFinLit')
+        return exports.VFinLit(v.index + 1n, exports.vsucc(v.cap));
+    if (v.tag === 'VNe')
+        return exports.VNe(v.head, list_1.Cons(exports.EFS(type), v.args));
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EFS(type), v.args), lazy_1.mapLazy(v.val, v => exports.vfsucc(type, v)));
+    return utils_1.impossible(`vfsucc: ${v.tag}`);
+};
+exports.vindfin = (args) => {
+    const v = args[0];
+    const rest = args.slice(1);
+    if (v.tag === 'VFinLit') {
+        // genindFin {P} z s {S k} (0, k) ~> z {k}
+        if (v.index === 0n)
+            return exports.vapp(rest[1], true, v.cap);
+        const rest2 = rest.slice(0, -1);
+        // genindFin {P} z s {S k} (n, k) ~> s (\{m : Nat} (f : Fin m). genindFin {P} z s {m} f) {k} (n - 1, k)
+        return exports.vapp(exports.vapp(exports.vapp(rest[2], false, exports.VAbs(true, 'm', exports.VNat, m => exports.VAbs(false, 'f', exports.vapp(exports.VFin, false, m), f => exports.vindfin([f].concat(rest2).concat([m]))))), true, v.cap), false, exports.VFinLit(v.index - 1n, v.cap));
+    }
+    if (v.tag === 'VNe') {
+        if (v.args.tag === 'Cons' && v.args.head.tag === 'EFS') {
+            const rest2 = rest.slice(0, -1);
+            // genindFin {P} z s {S k} (FS {k} x) ~> s (\{m : Nat} (f : Fin m). genindFin {P} z s {m} f) {k} x
+            return exports.vapp(exports.vapp(exports.vapp(rest[2], false, exports.VAbs(true, 'm', exports.VNat, m => exports.VAbs(false, 'f', exports.vapp(exports.VFin, false, m), f => exports.vindfin([f].concat(rest2).concat([m]))))), true, v.args.head.type), false, exports.VNe(v.head, v.args.tail));
+        }
+        return exports.VNe(v.head, list_1.Cons(exports.EIndFin(rest), v.args));
+    }
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EIndFin(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vindfin([v].concat(rest))));
+    return utils_1.impossible(`vindnat: ${v.tag}`);
+};
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'elimHEq')
             return exports.VAbs(true, 'A', exports.VType, A => exports.VAbs(true, 'a', A, a => exports.VAbs(true, 'P', exports.VPi(false, 'b', A, b => exports.VPi(false, '_', exports.vheq(A, A, a, b), _ => exports.VType)), P => exports.VAbs(false, 'q', exports.vapp(exports.vapp(P, false, a), false, exports.vapp(exports.vapp(exports.VPrim('ReflHEq'), true, A), true, a)), q => exports.VAbs(true, 'b', A, b => exports.VAbs(false, 'p', exports.vheq(A, A, a, b), p => exports.velimheq([p, A, a, P, q, b])))))));
         if (t.name === 'S')
             return exports.VAbs(false, 'n', exports.VNat, n => exports.vsucc(n));
+        if (t.name === 'FS')
+            return exports.VAbs(true, 'n', exports.VNat, n => exports.VAbs(false, 'f', exports.vapp(exports.VFin, false, n), f => exports.vfsucc(n, f)));
         if (t.name === 'genindNat')
             return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VNat, _ => exports.VType), P => exports.VAbs(false, 'z', exports.vapp(P, false, exports.VNatLit(0n)), z => exports.VAbs(false, 's', exports.VPi(false, '_', exports.VPi(false, 'k', exports.VNat, k => exports.vapp(P, false, k)), _ => exports.VPi(false, 'm', exports.VNat, m => exports.vapp(P, false, exports.vsucc(m)))), s => exports.VAbs(false, 'n', exports.VNat, n => exports.vindnat([n, P, z, s])))));
+        if (t.name === 'genindFin')
+            return exports.VAbs(true, 'P', exports.VPi(false, 'i', exports.VNat, i => exports.VPi(false, '_', exports.vapp(exports.VFin, false, i), _ => exports.VType)), P => exports.VAbs(false, 'z', exports.VPi(true, 'n', exports.VNat, n => exports.vapp(exports.vapp(P, false, exports.vsucc(n)), false, exports.VFinLit(0n, n))), z => exports.VAbs(false, 's', exports.VPi(false, '_', exports.VPi(true, 'i', exports.VNat, i => exports.VPi(false, 'x', exports.vapp(exports.VFin, false, i), x => exports.vapp(exports.vapp(P, false, i), false, x))), _ => exports.VPi(true, 'n', exports.VNat, n => exports.VPi(false, 'y', exports.vapp(exports.VFin, false, n), y => exports.vapp(exports.vapp(P, false, exports.vsucc(n)), false, exports.vfsucc(n, y))))), s => exports.VAbs(true, 'n', exports.VNat, n => exports.VAbs(false, 'x', exports.vapp(exports.VFin, false, n), x => exports.vindfin([x, P, z, s, n]))))));
         return exports.VPrim(t.name);
     }
     if (t.tag === 'Sort')
@@ -363,6 +410,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     }
     if (t.tag === 'NatLit')
         return exports.VNatLit(t.val);
+    if (t.tag === 'FinLit')
+        return exports.VFinLit(t.index, exports.evaluate(t.cap, vs));
     return t;
 };
 const quoteHead = (h, k) => {
@@ -398,9 +447,15 @@ const quoteElim = (t, e, k, full) => {
     }
     if (e.tag === 'ES')
         return syntax_1.App(syntax_1.Prim('S'), false, t);
+    if (e.tag === 'EFS')
+        return syntax_1.App(syntax_1.App(syntax_1.Prim('FS'), true, exports.quote(e.type, k, full)), false, t);
     if (e.tag === 'EIndNat') {
         const args = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('genindNat'), true, args[0]), false, args[1]), false, args[2]), false, t);
+    }
+    if (e.tag === 'EIndFin') {
+        const args = e.args.map(x => exports.quote(x, k, full));
+        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('genindFin'), true, args[0]), false, args[1]), false, args[2]), true, args[3]), false, t);
     }
     return e;
 };
@@ -409,7 +464,9 @@ exports.quote = (v_, k, full) => {
     if (v.tag === 'VSort')
         return syntax_1.Sort(v.sort);
     if (v.tag === 'VNatLit')
-        return surface_1.NatLit(v.val);
+        return syntax_1.NatLit(v.val);
+    if (v.tag === 'VFinLit')
+        return syntax_1.FinLit(v.index, exports.quote(v.cap, k, full));
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k), v.args);
     if (v.tag === 'VGlued') {
@@ -458,8 +515,12 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return `elim ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'ES')
         return 'succ';
+    if (e.tag === 'EFS')
+        return `fsucc {${exports.showTermS(e.type, ns, k, full)}}`;
     if (e.tag === 'EIndNat')
         return `genindnat ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+    if (e.tag === 'EIndFin')
+        return `genindfin ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     return e;
 };
 const zonkSpine = (tm, vs, k, full) => {
@@ -509,10 +570,12 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
         return syntax_1.Con(tm.index, exports.zonk(tm.data, vs, k, full), exports.zonk(tm.arg, vs, k, full));
     if (tm.tag === 'DElim')
         return syntax_1.DElim(exports.zonk(tm.data, vs, k, full), exports.zonk(tm.motive, vs, k, full), exports.zonk(tm.index, vs, k, full), exports.zonk(tm.scrut, vs, k, full), tm.args.map(x => exports.zonk(x, vs, k, full)));
+    if (tm.tag === 'FinLit')
+        return syntax_1.FinLit(tm.index, exports.zonk(tm.cap, vs, k, full));
     return tm;
 };
 
-},{"./globalenv":4,"./metas":5,"./surface":10,"./syntax":11,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],4:[function(require,module,exports){
+},{"./globalenv":4,"./metas":5,"./syntax":11,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.globalDelete = exports.globalSet = exports.globalGet = exports.globalMap = exports.globalReset = void 0;
@@ -809,10 +872,6 @@ const expr = (t) => {
         }
         else if (t.num.endsWith('n')) {
             const tt = t.num.slice(0, -1);
-            return [surface_1.NatLit(BigInt(tt)), false];
-        }
-        else {
-            const tt = t.num;
             const n = +tt;
             if (isNaN(n))
                 return utils_1.serr(`invalid nat number: ${tt}`);
@@ -821,6 +880,10 @@ const expr = (t) => {
             for (let i = 0; i < n; i++)
                 c = surface_1.App(s, false, c);
             return [c, false];
+        }
+        else {
+            const tt = t.num;
+            return [surface_1.NatLit(BigInt(tt)), false];
         }
     }
     return t;
@@ -1170,6 +1233,20 @@ const primTypes = {
       -> P n
     */
     'genindNat': () => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.VNat, _ => domain_1.VType), P => domain_1.VPi(false, '_', domain_1.vapp(P, false, domain_1.VNatLit(0n)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 'k', domain_1.VNat, k => domain_1.vapp(P, false, k)), _ => domain_1.VPi(false, 'm', domain_1.VNat, m => domain_1.vapp(P, false, domain_1.vsucc(m)))), _ => domain_1.VPi(false, 'n', domain_1.VNat, n => domain_1.vapp(P, false, n))))),
+    // Fin : Nat -> *
+    'Fin': () => domain_1.VPi(false, '_', domain_1.VNat, _ => domain_1.VType),
+    // FS : {n : Nat} -> Fin n -> Fin (S n)
+    'FS': () => domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.VPi(false, '_', domain_1.vapp(domain_1.VFin, false, n), _ => domain_1.vapp(domain_1.VFin, false, domain_1.vsucc(n)))),
+    /*
+    genindFin :
+      {P : (i : Nat) -> Fin i -> *}
+      -> ({n : Nat} -> P (S n) (FZ {n}))
+      -> (({i : Nat} -> (x : Fin i) -> P i x) -> {n : Nat} -> (y : Fin n) -> P (S n) (FS {n} y))
+      -> {n : Nat}
+      -> (x : Fin n)
+      -> P n x
+    */
+    'genindFin': () => domain_1.VPi(true, 'P', domain_1.VPi(false, 'i', domain_1.VNat, i => domain_1.VPi(false, '_', domain_1.vapp(domain_1.VFin, false, i), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.vapp(domain_1.vapp(P, false, domain_1.vsucc(n)), false, domain_1.VFinLit(0n, n))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(true, 'i', domain_1.VNat, i => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.VFin, false, i), x => domain_1.vapp(domain_1.vapp(P, false, i), false, x))), _ => domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.VPi(false, 'y', domain_1.vapp(domain_1.VFin, false, n), y => domain_1.vapp(domain_1.vapp(P, false, domain_1.vsucc(n)), false, domain_1.vfsucc(n, y))))), _ => domain_1.VPi(true, 'n', domain_1.VNat, n => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.VFin, false, n), x => domain_1.vapp(domain_1.vapp(P, false, n), false, x)))))),
 };
 exports.primType = (name) => primTypes[name]() || utils_1.impossible(`primType: ${name}`);
 
@@ -1364,7 +1441,7 @@ exports.runREPL = (_s, _cb) => {
 },{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermPS = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Desc = exports.Type = exports.NatLit = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
+exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermPS = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Desc = exports.Type = exports.FinLit = exports.NatLit = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
 exports.PName = (name) => ({ tag: 'PName', name });
 exports.PIndex = (index) => ({ tag: 'PIndex', index });
 exports.PCore = (proj) => ({ tag: 'PCore', proj });
@@ -1385,12 +1462,14 @@ exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.Hole = (name = null) => ({ tag: 'Hole', name });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.NatLit = (val) => ({ tag: 'NatLit', val });
+exports.FinLit = (index, cap) => ({ tag: 'FinLit', index, cap });
 exports.Type = exports.Sort('*');
 exports.Desc = exports.Sort('#');
 exports.primNames = [
     'UnitType', 'Unit',
     'HEq', 'ReflHEq', 'elimHEq',
     'Nat', 'S', 'genindNat',
+    'Fin', 'FS', 'genindFin',
 ];
 exports.isPrimName = (x) => exports.primNames.includes(x);
 exports.Prim = (name) => ({ tag: 'Prim', name });
@@ -1431,6 +1510,8 @@ exports.showTermS = (t) => {
         return `(con ${t.index} ${exports.showTermS(t.data)} ${exports.showTermS(t.arg)})`;
     if (t.tag === 'DElim')
         return `(elim ${exports.showTermS(t.data)} ${exports.showTermS(t.motive)} ${exports.showTermS(t.index)} ${exports.showTermS(t.scrut)} ${t.args.map(t => exports.showTermS(t)).join(' ')})`;
+    if (t.tag === 'FinLit')
+        return `%(${t.index}, ${exports.showTermS(t.cap)})`;
     return t;
 };
 exports.flattenApp = (t) => {
@@ -1538,6 +1619,8 @@ exports.showTerm = (t) => {
         return `con ${t.index} {${exports.showTerm(t.data)}} ${exports.showTermPS(t.arg)}`;
     if (t.tag === 'DElim')
         return `elim {${exports.showTerm(t.data)}} {${exports.showTerm(t.motive)}} {${exports.showTerm(t.index)}} ${exports.showTermS(t.scrut)}${t.args.length === 0 ? '' : ' '}${t.args.map(t => exports.showTermPS(t)).join(' ')}`;
+    if (t.tag === 'FinLit')
+        return `%(${t.index}, ${exports.showTerm(t.cap)})`;
     return t;
 };
 // erase should only be used to call showTerm on
@@ -1588,6 +1671,8 @@ exports.erase = (t) => {
         return exports.App(exports.Var(`con ${t.index}`), false, exports.erase(t.arg));
     if (t.tag === 'DElim')
         return t.args.map(x => exports.erase(x)).reduce((x, y) => exports.App(x, false, y), exports.App(exports.Var(`elim`), false, exports.erase(t.scrut)));
+    if (t.tag === 'FinLit')
+        return exports.NatLit(t.index);
     return t;
 };
 exports.DDef = (name, value, plicity) => ({ tag: 'DDef', name, value, plicity });
@@ -1601,7 +1686,7 @@ exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 },{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Desc = exports.Type = exports.NatLit = exports.Meta = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
+exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Desc = exports.Type = exports.FinLit = exports.NatLit = exports.Meta = exports.Sort = exports.DElim = exports.Con = exports.TCon = exports.Data = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
 const S = require("./surface");
@@ -1624,6 +1709,7 @@ exports.DElim = (data, motive, index, scrut, args) => ({ tag: 'DElim', data, mot
 exports.Sort = (sort) => ({ tag: 'Sort', sort });
 exports.Meta = (index) => ({ tag: 'Meta', index });
 exports.NatLit = (val) => ({ tag: 'NatLit', val });
+exports.FinLit = (index, cap) => ({ tag: 'FinLit', index, cap });
 exports.Type = exports.Sort('*');
 exports.Desc = exports.Sort('#');
 exports.showTerm = (t) => {
@@ -1661,6 +1747,8 @@ exports.showTerm = (t) => {
         return `(con ${t.index} ${exports.showTerm(t.data)} ${exports.showTerm(t.arg)})`;
     if (t.tag === 'DElim')
         return `(elim ${exports.showTerm(t.data)} ${exports.showTerm(t.motive)} ${exports.showTerm(t.index)} ${exports.showTerm(t.scrut)} ${t.args.map(t => exports.showTerm(t)).join(' ')})`;
+    if (t.tag === 'FinLit')
+        return `%(${t.index}, ${exports.showTerm(t.cap)})`;
     return t;
 };
 exports.globalUsed = (k, t) => {
@@ -1688,6 +1776,8 @@ exports.globalUsed = (k, t) => {
         return exports.globalUsed(k, t.data) || exports.globalUsed(k, t.arg);
     if (t.tag === 'DElim')
         return exports.globalUsed(k, t.data) || exports.globalUsed(k, t.motive) || exports.globalUsed(k, t.index) || exports.globalUsed(k, t.scrut) || t.args.some(x => exports.globalUsed(k, x));
+    if (t.tag === 'FinLit')
+        return exports.globalUsed(k, t.cap);
     return false;
 };
 exports.indexUsed = (k, t) => {
@@ -1715,6 +1805,8 @@ exports.indexUsed = (k, t) => {
         return exports.indexUsed(k, t.data) || exports.indexUsed(k, t.arg);
     if (t.tag === 'DElim')
         return exports.indexUsed(k, t.data) || exports.indexUsed(k, t.motive) || exports.indexUsed(k, t.index) || exports.indexUsed(k, t.scrut) || t.args.some(x => exports.indexUsed(k, x));
+    if (t.tag === 'FinLit')
+        return exports.indexUsed(k, t.cap);
     return false;
 };
 exports.isUnsolved = (t) => {
@@ -1742,6 +1834,8 @@ exports.isUnsolved = (t) => {
         return exports.isUnsolved(t.data) || exports.isUnsolved(t.arg);
     if (t.tag === 'DElim')
         return exports.isUnsolved(t.data) || exports.isUnsolved(t.motive) || exports.isUnsolved(t.index) || exports.isUnsolved(t.scrut) || t.args.some(x => exports.isUnsolved(x));
+    if (t.tag === 'FinLit')
+        return exports.isUnsolved(t.cap);
     return false;
 };
 const decideNameMany = (x, t, ns) => {
@@ -1797,6 +1891,8 @@ exports.toSurface = (t, ns = list_1.Nil) => {
         const x = decideName(t.name, t.body, ns);
         return S.Sigma(t.plicity, t.plicity2, x, exports.toSurface(t.type, ns), exports.toSurface(t.body, list_1.Cons(x, ns)));
     }
+    if (t.tag === 'FinLit')
+        return S.FinLit(t.index, exports.toSurface(t.cap, ns));
     return t;
 };
 exports.showSurface = (t, ns = list_1.Nil) => S.showTerm(exports.toSurface(t, ns));
@@ -1872,6 +1968,20 @@ const inst = (ts, vs, ty_) => {
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     const fty = domain_1.force(ty);
+    if (tm.tag === 'NatLit' && fty.tag === 'VNe' && fty.head.tag === 'HPrim' && fty.head.name === 'Fin') {
+        const n = tm.val;
+        const k = domain_1.force(fty.args.head.arg);
+        if (k.tag === 'VNatLit') {
+            if (n < k.val)
+                return syntax_1.FinLit(n, syntax_1.NatLit(k.val - 1n));
+        }
+        else if (k.tag === 'VNe') {
+            const s = list_1.length(list_1.takeWhile(k.args, e => e.tag === 'ES'));
+            if (n < s)
+                return syntax_1.FinLit(n, domain_1.quote(domain_1.VNe(k.head, list_1.dropWhile(k.args, e => e.tag === 'ES')), local.index, false));
+        }
+        return utils_1.terr(`failed to check fin ${S.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
+    }
     if (tm.tag === 'Sort' && fty === domain_1.VType)
         return syntax_1.Sort(tm.sort);
     if (tm.tag === 'Hole') {
@@ -2179,6 +2289,10 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'NatLit')
         return [syntax_1.NatLit(tm.val), domain_1.VNat];
+    if (tm.tag === 'FinLit') {
+        const cap = check(local, tm.cap, domain_1.VNat);
+        return [syntax_1.FinLit(tm.index, cap), domain_1.vapp(domain_1.VFin, false, domain_1.vsucc(domain_1.evaluate(cap, local.vs)))];
+    }
     return utils_1.terr(`cannot synth ${S.showTerm(tm)}`);
 };
 const synthapp = (local, ty_, plicity, tm, tmall) => {
@@ -2370,6 +2484,8 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'ES' && b.tag === 'ES')
         return;
+    if (a.tag === 'EFS' && b.tag === 'EFS')
+        return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
         return exports.unify(k, a.arg, b.arg);
     if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj)
@@ -2400,6 +2516,8 @@ exports.unify = (k, a_, b_) => {
     if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort)
         return;
     if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.val === b.val)
+        return;
+    if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.index === b.index)
         return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
         exports.unify(k, a.type, b.type);
@@ -2463,6 +2581,7 @@ exports.unify = (k, a_, b_) => {
         return exports.unify(k, domain_1.VNe(a.head, a.args.tail), domain_1.VNatLit(b.val - 1n));
     if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
         return exports.unify(k, domain_1.VNatLit(a.val - 1n), domain_1.VNe(b.head, b.args.tail));
+    // TODO: fin rules
     // neutrals
     if (a.tag === 'VNe' && b.tag === 'VNe' && conv_1.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -2611,6 +2730,10 @@ const checkSolution = (k, m, is, t) => {
         const args = t.args.map(x => checkSolution(k, m, is, x));
         return syntax_1.DElim(data, motive, index, scrut, args);
     }
+    if (t.tag === 'FinLit') {
+        const cap = checkSolution(k, m, is, t.cap);
+        return syntax_1.FinLit(t.index, cap);
+    }
     return utils_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };
 
@@ -2633,7 +2756,7 @@ exports.mapLazy = (lazy, fn) => exports.Lazy(() => fn(exports.forceLazy(lazy)));
 },{}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.last = exports.max = exports.contains = exports.range = exports.and = exports.zipWithR_ = exports.zipWith_ = exports.zipWith = exports.foldlprim = exports.foldrprim = exports.foldl = exports.foldr = exports.lookup = exports.extend = exports.indecesOf = exports.indexOf = exports.index = exports.mapIndex = exports.map = exports.consAll = exports.append = exports.toArrayFilter = exports.toArray = exports.reverse = exports.isEmpty = exports.length = exports.each = exports.first = exports.filter = exports.listToString = exports.list = exports.listFrom = exports.Cons = exports.Nil = void 0;
+exports.last = exports.max = exports.contains = exports.range = exports.and = exports.zipWithR_ = exports.zipWith_ = exports.zipWith = exports.foldlprim = exports.foldrprim = exports.foldl = exports.foldr = exports.lookup = exports.extend = exports.indecesOf = exports.dropWhile = exports.takeWhile = exports.indexOf = exports.index = exports.mapIndex = exports.map = exports.consAll = exports.append = exports.toArrayFilter = exports.toArray = exports.reverse = exports.isEmpty = exports.length = exports.each = exports.first = exports.filter = exports.listToString = exports.list = exports.listFrom = exports.Cons = exports.Nil = void 0;
 exports.Nil = { tag: 'Nil' };
 exports.Cons = (head, tail) => ({ tag: 'Cons', head, tail });
 exports.listFrom = (a) => a.reduceRight((x, y) => exports.Cons(y, x), exports.Nil);
@@ -2715,6 +2838,8 @@ exports.indexOf = (l, x) => {
     }
     return -1;
 };
+exports.takeWhile = (l, fn) => l.tag === 'Cons' && fn(l.head) ? exports.Cons(l.head, exports.takeWhile(l.tail, fn)) : exports.Nil;
+exports.dropWhile = (l, fn) => l.tag === 'Cons' && fn(l.head) ? exports.dropWhile(l.tail, fn) : l;
 exports.indecesOf = (l, val) => {
     const a = [];
     let i = 0;
@@ -3009,6 +3134,10 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'NatLit')
         return domain_1.VNat;
+    if (tm.tag === 'FinLit') {
+        check(local, tm.cap, domain_1.VNat);
+        return domain_1.vapp(domain_1.VFin, false, domain_1.vsucc(domain_1.evaluate(tm.cap, local.vs)));
+    }
     return utils_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };
 const synthapp = (local, ty_, plicity, tm, tmall) => {

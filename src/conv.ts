@@ -16,6 +16,7 @@ export const eqHead = (a: Head, b: Head): boolean => {
 const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
   if (a.tag === 'ES' && b.tag === 'ES') return;
+  if (a.tag === 'EFS' && b.tag === 'EFS') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return conv(k, a.arg, b.arg);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
@@ -43,6 +44,7 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.val === b.val) return;
+  if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.index === b.index) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -103,6 +105,8 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     return conv(k, VNe(a.head, a.args.tail), VNatLit(b.val - 1n));
   if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
     return conv(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
+
+  // TODO: fin rules
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);

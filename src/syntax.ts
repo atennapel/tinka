@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Prim | Meta | NatLit;
+export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Prim | Meta | NatLit | FinLit;
 
 export type Prim = { tag: 'Prim', name: S.PrimName };
 export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
@@ -41,6 +41,8 @@ export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type NatLit = { tag: 'NatLit', val: bigint };
 export const NatLit = (val: bigint): NatLit => ({ tag: 'NatLit', val });
+export type FinLit = { tag: 'FinLit', index: bigint, cap: Term };
+export const FinLit = (index: bigint, cap: Term): FinLit => ({ tag: 'FinLit', index, cap });
 
 export const Type: Sort = Sort('*');
 export const Desc: Sort = Sort('#');
@@ -63,6 +65,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'TCon') return `(tcon ${showTerm(t.data)} ${showTerm(t.arg)})`;
   if (t.tag === 'Con') return `(con ${t.index} ${showTerm(t.data)} ${showTerm(t.arg)})`;
   if (t.tag === 'DElim') return `(elim ${showTerm(t.data)} ${showTerm(t.motive)} ${showTerm(t.index)} ${showTerm(t.scrut)} ${t.args.map(t => showTerm(t)).join(' ')})`;
+  if (t.tag === 'FinLit') return `%(${t.index}, ${showTerm(t.cap)})`;
   return t;
 };
 
@@ -79,6 +82,7 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'TCon') return globalUsed(k, t.data) || globalUsed(k, t.arg);
   if (t.tag === 'Con') return globalUsed(k, t.data) || globalUsed(k, t.arg);
   if (t.tag === 'DElim') return globalUsed(k, t.data) || globalUsed(k, t.motive) || globalUsed(k, t.index) || globalUsed(k, t.scrut) || t.args.some(x => globalUsed(k, x));
+  if (t.tag === 'FinLit') return globalUsed(k, t.cap);
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -94,6 +98,7 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'TCon') return indexUsed(k, t.data) || indexUsed(k, t.arg);
   if (t.tag === 'Con') return indexUsed(k, t.data) || indexUsed(k, t.arg);
   if (t.tag === 'DElim') return indexUsed(k, t.data) || indexUsed(k, t.motive) || indexUsed(k, t.index) || indexUsed(k, t.scrut) || t.args.some(x => indexUsed(k, x));
+  if (t.tag === 'FinLit') return indexUsed(k, t.cap);
   return false;
 };
 
@@ -110,6 +115,7 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'TCon') return isUnsolved(t.data) || isUnsolved(t.arg);
   if (t.tag === 'Con') return isUnsolved(t.data) || isUnsolved(t.arg);
   if (t.tag === 'DElim') return isUnsolved(t.data) || isUnsolved(t.motive) || isUnsolved(t.index) || isUnsolved(t.scrut) || t.args.some(x => isUnsolved(x));
+  if (t.tag === 'FinLit') return isUnsolved(t.cap);
   return false;
 };
 
@@ -153,6 +159,7 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     const x = decideName(t.name, t.body, ns);
     return S.Sigma(t.plicity, t.plicity2, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
   }
+  if (t.tag === 'FinLit') return S.FinLit(t.index, toSurface(t.cap, ns));
   return t;
 };
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));

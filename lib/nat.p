@@ -5,7 +5,7 @@ import lib/monoid.p
 import lib/eqb.p
 
 def Nat = %Nat
-def Z : Nat = 0n
+def Z : Nat = 0
 def S : Nat -> Nat = %S
 
 def genindNat

@@ -106,6 +106,11 @@ export const indexOf = <T>(l: List<T>, x: T): number => {
   return -1;
 };
 
+export const takeWhile = <T>(l: List<T>, fn: (val: T) => boolean): List<T> =>
+  l.tag === 'Cons' && fn(l.head) ? Cons(l.head, takeWhile(l.tail, fn)) : Nil;
+export const dropWhile = <T>(l: List<T>, fn: (val: T) => boolean): List<T> =>
+  l.tag === 'Cons' && fn(l.head) ? dropWhile(l.tail, fn) : l;
+
 export const indecesOf = <T>(l: List<T>, val: T): number[] => {
   const a: number[] = [];
   let i = 0;

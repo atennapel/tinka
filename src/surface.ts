@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Ann | Hole | Meta | Prim | NatLit;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Data | TCon | Con | DElim | Sort | Ann | Hole | Meta | Prim | NatLit | FinLit;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -47,6 +47,8 @@ export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
 export type NatLit = { tag: 'NatLit', val: bigint };
 export const NatLit = (val: bigint): NatLit => ({ tag: 'NatLit', val });
+export type FinLit = { tag: 'FinLit', index: bigint, cap: Term };
+export const FinLit = (index: bigint, cap: Term): FinLit => ({ tag: 'FinLit', index, cap });
 
 export const Type: Sort = Sort('*');
 export const Desc: Sort = Sort('#');
@@ -54,11 +56,13 @@ export const Desc: Sort = Sort('#');
 export type PrimName =
   'UnitType' | 'Unit' |
   'HEq' | 'ReflHEq' | 'elimHEq' |
-  'Nat' | 'S' | 'genindNat'
+  'Nat' | 'S' | 'genindNat' |
+  'Fin' | 'FS' | 'genindFin';
 export const primNames = [
   'UnitType', 'Unit',
   'HEq', 'ReflHEq', 'elimHEq',
   'Nat', 'S', 'genindNat',
+  'Fin', 'FS', 'genindFin',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };
@@ -84,6 +88,7 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'TCon') return `(tcon ${showTermS(t.data)} ${showTermS(t.arg)})`;
   if (t.tag === 'Con') return `(con ${t.index} ${showTermS(t.data)} ${showTermS(t.arg)})`;
   if (t.tag === 'DElim') return `(elim ${showTermS(t.data)} ${showTermS(t.motive)} ${showTermS(t.index)} ${showTermS(t.scrut)} ${t.args.map(t => showTermS(t)).join(' ')})`;
+  if (t.tag === 'FinLit') return `%(${t.index}, ${showTermS(t.cap)})`;
   return t;
 };
 
@@ -187,6 +192,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'TCon') return `tcon ${showTermPS(t.data)} ${showTermPS(t.arg)}`;
   if (t.tag === 'Con') return `con ${t.index} {${showTerm(t.data)}} ${showTermPS(t.arg)}`;
   if (t.tag === 'DElim') return `elim {${showTerm(t.data)}} {${showTerm(t.motive)}} {${showTerm(t.index)}} ${showTermS(t.scrut)}${t.args.length === 0 ? '' : ' '}${t.args.map(t => showTermPS(t)).join(' ')}`;
+  if (t.tag === 'FinLit') return `%(${t.index}, ${showTerm(t.cap)})`;
   return t;
 };
 
@@ -220,6 +226,7 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'TCon') return Type;
   if (t.tag === 'Con') return App(Var(`con ${t.index}`), false, erase(t.arg));
   if (t.tag === 'DElim') return t.args.map(x => erase(x)).reduce((x, y) => App(x, false, y), App(Var(`elim`), false, erase(t.scrut)));
+  if (t.tag === 'FinLit') return NatLit(t.index);
   return t;
 };
 

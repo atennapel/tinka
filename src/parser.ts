@@ -194,15 +194,15 @@ const expr = (t: Token): [Term, boolean] => {
       return [c, false];
     } else if (t.num.endsWith('n')) {
       const tt = t.num.slice(0, -1);
-      return [NatLit(BigInt(tt)), false];
-    } else {
-      const tt = t.num;
       const n = +tt;
       if (isNaN(n)) return serr(`invalid nat number: ${tt}`);
       const s = Var('S');
       let c: Term = Var('Z');
       for (let i = 0; i < n; i++) c = App(s, false, c);
       return [c, false];
+    } else {
+      const tt = t.num;
+      return [NatLit(BigInt(tt)), false];
     }
   }
   return t;

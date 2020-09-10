@@ -5,13 +5,14 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con, DElim } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con, DElim, FinLit } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
 const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
   if (a.tag === 'ES' && b.tag === 'ES') return;
+  if (a.tag === 'EFS' && b.tag === 'EFS') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return unify(k, a.arg, b.arg);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
@@ -39,6 +40,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
   if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.val === b.val) return;
+  if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.index === b.index) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     unify(k, a.type, b.type);
     const v = VVar(k);
@@ -94,11 +96,15 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
   }
   if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
   if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
+
   // nat extra rules (are they needed?)
   if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)
     return unify(k, VNe(a.head, a.args.tail), VNatLit(b.val - 1n));
   if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
     return unify(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
+
+  // TODO: fin rules
+
   // neutrals
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -240,6 +246,10 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const scrut = checkSolution(k, m, is, t.scrut);
     const args = t.args.map(x => checkSolution(k, m, is, x));
     return DElim(data, motive, index, scrut, args);
+  }
+  if (t.tag === 'FinLit') {
+    const cap = checkSolution(k, m, is, t.cap);
+    return FinLit(t.index, cap);
   }
   return impossible(`checkSolution ?${m}: non-normal term: ${showTerm(t)}`);
 };

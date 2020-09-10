@@ -1,9 +1,12 @@
-import lib/void.p
+import lib/unit.p
 import lib/nat.p
 
-def Fin : Nat -> * = %Fin
-def FZ : {n : Nat} -> Fin (S n) = \{n}. 0
-def FS : {n : Nat} -> Fin n -> Fin (S n) = %FS
+def FinD = data Nat
+  (\R. ({n : Nat} ** UnitType, \a _ E. E (S a.fst)))
+  (\R. ({n : Nat} ** R n, \a _ E. E (S a.fst)))
+def Fin : Nat -> * = \n. tcon FinD n
+def FZ : {n : Nat} -> Fin (S n) = \{n}. con 0 {FinD} ({n}, ())
+def FS : {n : Nat} -> Fin n -> Fin (S n) = \{n} f. con 1 {FinD} ({n}, f)
 
 def genindFin
   : {P : (i : Nat) -> Fin i -> *}
@@ -12,7 +15,7 @@ def genindFin
     -> {n : Nat}
     -> (x : Fin n)
     -> P n x
-  = %genindFin
+  = \{P} fz fs {n} x. elim {FinD} {P} {n} x (\_ p. fz {p.fst}) (\rec p. fs rec {p.fst} p.snd)
 
 def indFin
   : {P : (i : Nat) -> Fin i -> *}
