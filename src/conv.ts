@@ -25,11 +25,6 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EElim' && b.tag === 'EElim' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      conv(k, a.args[i], b.args[i]);
-    return;
-  }
   if (a.tag === 'EIndNat' && b.tag === 'EIndNat' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       conv(k, a.args[i], b.args[i]);
@@ -65,22 +60,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     const v = VVar(k);
     return conv(k + 1, a.body(v), b.body(v));
   }
-  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
-    conv(k, a.index, b.index);
-    for (let i = 0, l = a.cons.length; i < l; i++)
-      conv(k, a.cons[i], b.cons[i]);
-    return;
-  }
-  if (a.tag === 'VTCon' && b.tag === 'VTCon') {
-    conv(k, a.data, b.data);
-    conv(k, a.arg, b.arg);
-    return;
-  }
-  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index) {
-    conv(k, a.data, b.data);
-    conv(k, a.arg, b.arg);
-    return;
-  }
   if (a.tag === 'VAbs') {
     const v = VVar(k);
     return conv(k + 1, a.body(v), vapp(b, a.plicity, v));
@@ -97,8 +76,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     conv(k, vproj('fst', a), b.fst);
     return conv(k, vproj('snd', a), b.snd);
   }
-  if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
-  if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
 
   // nat extra rules (are they needed?)
   if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)

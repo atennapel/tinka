@@ -1,5 +1,5 @@
 import { serr, loadFile } from './utils/utils';
-import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, Data, TCon, Con, DElim, Desc, NatLit } from './surface';
+import { Term, Var, App, Type, Abs, Pi, Let, Ann, Hole, Sigma, Pair, isPrimName, Prim, Proj, PCore, PIndex, PName, NatLit } from './surface';
 import { Name } from './names';
 import { Def, DDef } from './surface';
 import { log } from './config';
@@ -155,7 +155,6 @@ const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
-    if (x === '#') return [Desc, false];
     if (x.startsWith('_')) return [Hole(x.slice(1) || null), false];
     if (x[0] === '%') {
       const rest = x.slice(1);
@@ -266,51 +265,6 @@ const exprs = (ts: Token[], br: BracketO): Term => {
     const a = ts.slice(0, i);
     const b = ts.slice(i + 1);
     return Ann(exprs(a, '('), exprs(b, '('));
-  }
-  if (isName(ts[0], 'data')) {
-    const args = ts.slice(1).map(x => {
-      const [t, b] = expr(x);
-      if (b) return serr(`data arg cannot be implicit`);
-      return t;
-    });
-    if (args.length === 0) return Data(Type, []);
-    return Data(args[0], args.slice(1));
-  }
-  if (isName(ts[0], 'tcon')) {
-    const args = ts.slice(1).map(x => {
-      const [t, b] = expr(x);
-      if (b) return serr(`tcon arg cannot be implicit`);
-      return t;
-    });
-    if (args.length !== 2) return serr(`tcon needs exactly one arg`);
-    return TCon(args[0], args[1]);
-  }
-  if (isName(ts[0], 'con')) {
-    if (ts.length !== 4) return serr(`con needs exactly 3 arguments`);
-    const ix = ts[1];
-    if (ix.tag !== 'Num') return serr(`first arg to con needs to be number`);
-    const [data, datab] = expr(ts[2]);
-    if (!datab) return serr(`data arg to con needs be implicit`);
-    const [arg, argb] = expr(ts[3]);
-    if (argb) return serr(`con arg cannot be implicit`);
-    return Con(+ix.num, data, arg);
-  }
-  if (isName(ts[0], 'elim')) {
-    if (ts.length < 4) return serr(`elim needs atleast 4 arguments`);
-    const [data, datab] = expr(ts[1]);
-    if (!datab) return serr(`data arg to elim needs be implicit`);
-    const [motive, motiveb] = expr(ts[2]);
-    if (!motiveb) return serr(`motive arg to elim needs be implicit`);
-    const [index, indexb] = expr(ts[3]);
-    if (!indexb) return serr(`index arg to elim needs be implicit`);
-    const [scrut, scrutb] = expr(ts[4]);
-    if (scrutb) return serr(`scrutinee arg to elim cannot be implicit`);
-    const args = ts.slice(5).map(x => {
-      const [t, b] = expr(x);
-      if (b) return serr(`elim arg cannot be implicit`);
-      return t;
-    });
-    return DElim(data, motive, index, scrut, args);
   }
   if (isName(ts[0], '\\')) {
     const args: [Name, boolean, Term | null][] = [];

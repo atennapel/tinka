@@ -1,5 +1,5 @@
 import { Term, Pi, showTerm } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, VDesc, VPi, VSigma, VAbs, VTCon, vapp, VCon, VNat, VFin, vsucc } from './domain';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, vproj, vapp, VNat, VFin, vsucc } from './domain';
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -128,76 +128,7 @@ const synth = (local: Local, tm: Term): Val => {
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in ${tm.proj}: ${showTerm(tm)}: ${showTermS(fty, local.names, local.index)}`);
     if (tm.proj === 'fst' && fty.plicity && !local.inType) return terr(`cannot call fst on erased sigma: ${showTerm(tm)}`);
     return tm.proj === 'fst' ? fty.type : fty.body(vproj('fst', evaluate(tm.term, local.vs)));
-  }
-  if (tm.tag === 'Data') {
-    check(local, tm.index, VType);
-    const vix = evaluate(tm.index, local.vs);
-    // (I -> *) -> ((A : *) ** ((a : A) -> (X : *) -> (I -> X) -> X))
-    const vcon =
-      VPi(false, '_', VPi(false, '_', vix, _ => VType), _ =>
-      VSigma(false, false, 'A', VType, A =>
-      VPi(false, 'a', A, a =>
-      VPi(false, 'X', VType, X =>
-      VPi(false, '_', VPi(false, '_', vix, _ => X), _ => X)))));
-    for (let i = 0, l = tm.cons.length; i < l; i++)
-      check(localInType(local), tm.cons[i], vcon);
-    return VDesc;
-  }
-  if (tm.tag === 'TCon') {
-    check(local, tm.data, VDesc);
-    const vdata = force(evaluate(tm.data, local.vs));
-    if (vdata.tag !== 'VData') return terr(`not a data type in tcon: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    check(local, tm.arg, vdata.index);
-    return VType;
-  }
-  if (tm.tag === 'Con') {
-    check(localInType(local), tm.data, VDesc);
-    const vdata = force(evaluate(tm.data, local.vs));
-    const vdataf = force(vdata);
-    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    if (tm.index < 0 || tm.index >= vdataf.cons.length) return terr(`invalid index ${tm.index} for data type: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    const vcon = vdataf.cons[tm.index];
-    // arg : fst (Di (\i. tcon D i))
-    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
-    const vpair = vapp(vcon, false, vtcon);
-    check(local, tm.arg, vproj('fst', vpair));
-    // Di.snd a * (\j. tcon D j)
-    const varg = evaluate(tm.arg, local.vs);
-    return vapp(vapp(vapp(vproj('snd', vpair), false, varg), false, VType), false, vtcon);
-  }
-  if (tm.tag === 'DElim') {
-    /*
-    G |- D : #
-    G |- P : (i : DI) -> tcon D i -> *
-    G |- i : DI
-    G |- x : tcon D i
-    G |- ci : ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
-    -------------------------------
-    G |- elim D {P} {i} x c1 ... cn : P i x
-    */
-    check(localInType(local), tm.data, VDesc);
-    const vdata = force(evaluate(tm.data, local.vs));
-    const vdataf = force(vdata);
-    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    if (tm.args.length !== vdataf.cons.length) return terr(`args length mismatch: ${showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    check(localInType(local), tm.motive, VPi(false, 'i', vdataf.index, i => VPi(false, '_', VTCon(vdata, i), _ => VType)));
-    const vmotive = evaluate(tm.motive, local.vs);
-    check(localInType(local), tm.index, vdataf.index);
-    const vindex = evaluate(tm.index, local.vs);
-    check(local, tm.scrut, VTCon(vdata, vindex));
-    const vscrut = evaluate(tm.scrut, local.vs);
-    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
-    for (let i = 0, l = tm.args.length; i < l; i++) {
-      // ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
-      const con = vdataf.cons[i];
-      const pair = vapp(con, false, vtcon);
-      check(local, tm.args[i],
-        VPi(false, '_', VPi(true, 'i', vdataf.index, i => VPi(false, 'x', VTCon(vdata, i), x => vapp(vapp(vmotive, false, i), false, x))), _ =>
-        VPi(false, 'a', vproj('fst', pair), a =>
-        vapp(vapp(vapp(vproj('snd', pair), false, a), false, VType), false, VAbs(false, 'i', vdataf.index, j => vapp(vapp(vmotive, false, j), false, VCon(i, vdata, a)))))));
-    }
-    return vapp(vapp(vmotive, false, vindex), false, vscrut);
-  }
+  }  
   if (tm.tag === 'NatLit') return VNat;
   if (tm.tag === 'FinLit') {
     check(local, tm.cap, VNat);

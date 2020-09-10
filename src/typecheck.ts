@@ -1,5 +1,5 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort, NatLit, FinLit } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, VSigma, vproj, showTermSZ, VDesc, VAbs, VTCon, vapp, VCon, VNat, VFin, EApp, Elim, vsucc } from './domain';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Sort, NatLit, FinLit } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, VSigma, vproj, showTermSZ, vapp, VNat, VFin, EApp, Elim, vsucc } from './domain';
 import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray, index, takeWhile, length, dropWhile } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
@@ -300,74 +300,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
-  }
-  if (tm.tag === 'Data') {
-    const index = check(local, tm.index, VType);
-    const vix = evaluate(index, local.vs);
-    // (I -> *) -> ((A : *) ** ((a : A) -> (X : *) -> (I -> X) -> X))
-    const vcon =
-      VPi(false, '_', VPi(false, '_', vix, _ => VType), _ =>
-      VSigma(false, false, 'A', VType, A =>
-      VPi(false, 'a', A, a =>
-      VPi(false, 'X', VType, X =>
-      VPi(false, '_', VPi(false, '_', vix, _ => X), _ => X)))));
-    const cons = tm.cons.map(x => check(localInType(local), x, vcon));
-    return [Data(index, cons), VDesc];
-  }
-  if (tm.tag === 'TCon') {
-    const data = check(local, tm.data, VDesc);
-    const vdata = force(evaluate(data, local.vs));
-    if (vdata.tag !== 'VData') return terr(`not a data type in ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    const arg = check(local, tm.arg, vdata.index);
-    return [TCon(data, arg), VType];
-  }
-  if (tm.tag === 'Con') {
-    const data = check(localInType(local), tm.data, VDesc);
-    const vdata = force(evaluate(data, local.vs));
-    const vdataf = force(vdata);
-    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    if (tm.index < 0 || tm.index >= vdataf.cons.length) return terr(`invalid index ${tm.index} for data type: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    const vcon = vdataf.cons[tm.index];
-    // arg : fst (Di (\i. tcon D i))
-    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
-    const vpair = vapp(vcon, false, vtcon);
-    const arg = check(local, tm.arg, vproj('fst', vpair));
-    // Di.snd a * (\j. tcon D j)
-    const varg = evaluate(arg, local.vs);
-    return [Con(tm.index, data, arg), vapp(vapp(vapp(vproj('snd', vpair), false, varg), false, VType), false, vtcon)];
-  }
-  if (tm.tag === 'DElim') {
-    /*
-    G |- D : #
-    G |- P : (i : DI) -> tcon D i -> *
-    G |- i : DI
-    G |- x : tcon D i
-    G |- ci : ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
-    -------------------------------
-    G |- elim D {P} {i} x c1 ... cn : P i x
-    */
-    const data = check(localInType(local), tm.data, VDesc);
-    const vdata = force(evaluate(data, local.vs));
-    const vdataf = force(vdata);
-    if (vdataf.tag !== 'VData') return terr(`not a data type in tcon: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    if (tm.args.length !== vdataf.cons.length) return terr(`args length mismatch: ${S.showTerm(tm)}: ${showTermS(vdata, local.names, local.index)}`);
-    const motive = check(localInType(local), tm.motive, VPi(false, 'i', vdataf.index, i => VPi(false, '_', VTCon(vdata, i), _ => VType)));
-    const vmotive = evaluate(motive, local.vs);
-    const index = check(localInType(local), tm.index, vdataf.index);
-    const vindex = evaluate(index, local.vs);
-    const scrut = check(local, tm.scrut, VTCon(vdata, vindex));
-    const vscrut = evaluate(scrut, local.vs);
-    const vtcon = VAbs(false, 'i', vdataf.index, i => VTCon(vdata, i));
-    const args = tm.args.map((arg, i) => {
-      // ({i : DI} -> (x : tcon D i) -> P i x) -> (a : Di.fst (\j. tcon D j)) -> Di.snd {\j. tcon D j} a {*} (\i. P i (con D i a))
-      const con = vdataf.cons[i];
-      const pair = vapp(con, false, vtcon);
-      return check(local, arg,
-        VPi(false, '_', VPi(true, 'i', vdataf.index, i => VPi(false, 'x', VTCon(vdata, i), x => vapp(vapp(vmotive, false, i), false, x))), _ =>
-        VPi(false, 'a', vproj('fst', pair), a =>
-          vapp(vapp(vapp(vproj('snd', pair), false, a), false, VType), false, VAbs(false, 'i', vdataf.index, j => vapp(vapp(vmotive, false, j), false, VCon(i, vdata, a)))))));
-    });
-    return [DElim(data, motive, index, scrut, args), vapp(vapp(vmotive, false, vindex), false, vscrut)];
   }
   if (tm.tag === 'NatLit') return [NatLit(tm.val), VNat];
   if (tm.tag === 'FinLit') {

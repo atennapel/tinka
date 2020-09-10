@@ -4,8 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add back IFix
-- remove data
+- implement Showable
 - experiment with adding primitive Nat and Fin operations
 
 - recursive instance search

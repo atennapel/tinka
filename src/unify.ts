@@ -5,7 +5,7 @@ import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
-import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, Data, TCon, Con, DElim, FinLit } from './syntax';
+import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj, FinLit } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
 
@@ -17,11 +17,6 @@ const unifyElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
     return unify(k, a.arg, b.arg);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
   if (a.tag === 'EElimHEq' && b.tag === 'EElimHEq' && a.args.length === b.args.length) {
-    for (let i = 0; i < a.args.length; i ++)
-      unify(k, a.args[i], b.args[i]);
-    return;
-  }
-  if (a.tag === 'EElim' && b.tag === 'EElim' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       unify(k, a.args[i], b.args[i]);
     return;
@@ -61,22 +56,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     const v = VVar(k);
     return unify(k + 1, a.body(v), b.body(v));
   }
-  if (a.tag === 'VData' && b.tag === 'VData' && a.cons.length === b.cons.length) {
-    unify(k, a.index, b.index);
-    for (let i = 0, l = a.cons.length; i < l; i++)
-      unify(k, a.cons[i], b.cons[i]);
-    return;
-  }
-  if (a.tag === 'VTCon' && b.tag === 'VTCon') {
-    unify(k, a.data, b.data);
-    unify(k, a.arg, b.arg);
-    return;
-  }
-  if (a.tag === 'VCon' && b.tag === 'VCon' && a.index === b.index) {
-    unify(k, a.data, b.data);
-    unify(k, a.arg, b.arg);
-    return;
-  }
   // eta
   if (a.tag === 'VAbs') {
     const v = VVar(k);
@@ -94,8 +73,6 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     unify(k, vproj('fst', a), b.fst);
     return unify(k, vproj('snd', a), b.snd);
   }
-  if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
-  if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
 
   // nat extra rules (are they needed?)
   if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)
@@ -225,29 +202,6 @@ const checkSolution = (k: Ix, m: Ix, is: List<Ix | Name>, t: Term): Term => {
     const ty = checkSolution(k, m, is, t.type);
     const body = checkSolution(k + 1, m, Cons(k, is), t.body);
     return Sigma(t.plicity, t.plicity2, t.name, ty, body);
-  }
-  if (t.tag === 'Data') {
-    const index = checkSolution(k, m, is, t.index);
-    const cons = t.cons.map(x => checkSolution(k, m, is, x));
-    return Data(index, cons);
-  }
-  if (t.tag === 'TCon') {
-    const data = checkSolution(k, m, is, t.data);
-    const arg = checkSolution(k, m, is, t.arg);
-    return TCon(data, arg);
-  }
-  if (t.tag === 'Con') {
-    const data = checkSolution(k, m, is, t.data);
-    const arg = checkSolution(k, m, is, t.arg);
-    return Con(t.index, data, arg);
-  }
-  if (t.tag === 'DElim') {
-    const data = checkSolution(k, m, is, t.data);
-    const motive = checkSolution(k, m, is, t.motive);
-    const index = checkSolution(k, m, is, t.index);
-    const scrut = checkSolution(k, m, is, t.scrut);
-    const args = t.args.map(x => checkSolution(k, m, is, x));
-    return DElim(data, motive, index, scrut, args);
   }
   if (t.tag === 'FinLit') {
     const cap = checkSolution(k, m, is, t.cap);

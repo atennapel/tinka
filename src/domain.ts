@@ -1,6 +1,6 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Data, TCon, Con, DElim, Sort, NatLit, FinLit } from './syntax';
+import { Term, showTerm, Var, App, Abs, Pi, Global, showSurface, Meta, Let, Sigma, Pair, Prim, Proj, Sort, NatLit, FinLit } from './syntax';
 import { impossible } from './utils/utils';
 import { Lazy, mapLazy, forceLazy, lazyOf } from './utils/lazy';
 import { Plicity, PrimName, Sorts } from './surface';
@@ -18,7 +18,7 @@ export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EProj | EElimHEq | EElim | ES | EFS | EIndNat | EIndFin;
+export type Elim = EApp | EProj | EElimHEq | ES | EFS | EIndNat | EIndFin | EIFixInd;
 
 export type EApp = { tag: 'EApp', plicity: Plicity, arg: Val };
 export const EApp = (plicity: Plicity, arg: Val): EApp => ({ tag: 'EApp', plicity, arg });
@@ -26,8 +26,6 @@ export type EProj = { tag: 'EProj', proj: 'fst' | 'snd' };
 export const EProj = (proj: 'fst' | 'snd'): EProj => ({ tag: 'EProj', proj });
 export type EElimHEq = { tag: 'EElimHEq', args: Val[] };
 export const EElimHEq = (args: Val[]): EElimHEq => ({ tag: 'EElimHEq', args });
-export type EElim = { tag: 'EElim', args: Val[] };
-export const EElim = (args: Val[]): EElim => ({ tag: 'EElim', args });
 export type ES = { tag: 'ES' };
 export const ES: ES = { tag: 'ES' };
 export type EFS = { tag: 'EFS', type: Val };
@@ -36,9 +34,11 @@ export type EIndNat = { tag: 'EIndNat', args: Val[] };
 export const EIndNat = (args: Val[]): EIndNat => ({ tag: 'EIndNat', args });
 export type EIndFin = { tag: 'EIndFin', args: Val[] };
 export const EIndFin = (args: Val[]): EIndFin => ({ tag: 'EIndFin', args });
+export type EIFixInd = { tag: 'EIFixInd', args: Val[] };
+export const EIFixInd = (args: Val[]): EIFixInd => ({ tag: 'EIFixInd', args });
 
 export type Clos = (val: Val) => Val;
-export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VData | VTCon | VCon | VSort | VNatLit | VFinLit;
+export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VSort | VNatLit | VFinLit;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
@@ -52,12 +52,6 @@ export type VSigma = { tag: 'VSigma', plicity: Plicity, plicity2: Plicity, name:
 export const VSigma = (plicity: Plicity, plicity2: Plicity, name: Name, type: Val, body: Clos): VSigma => ({ tag: 'VSigma', plicity, plicity2, name, type, body});
 export type VPair = { tag: 'VPair', plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val };
 export const VPair = (plicity: Plicity, plicity2: Plicity, fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', plicity, plicity2, fst, snd, type });
-export type VData = { tag: 'VData', index: Val, cons: Val[] };
-export const VData = (index: Val, cons: Val[]): VData => ({ tag: 'VData', index, cons });
-export type VTCon = { tag: 'VTCon', data: Val, arg: Val };
-export const VTCon = (data: Val, arg: Val): VTCon => ({ tag: 'VTCon', data, arg });
-export type VCon = { tag: 'VCon', index: Ix, data: Val, arg: Val };
-export const VCon = (index: Ix, data: Val, arg: Val): VCon => ({ tag: 'VCon', data, index, arg });
 export type VSort = { tag: 'VSort', sort: Sorts };
 export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
 export type VNatLit = { tag: 'VNatLit', val: bigint };
@@ -71,12 +65,10 @@ export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
 export const VType = VSort('*');
-export const VDesc = VSort('#');
 
 export const VHEq = VPrim('HEq');
+export const VIFix = VPrim('IFix');
 export const VReflHEq = VPrim('ReflHEq');
-export const VUnitType = VPrim('UnitType');
-export const VUnit = VPrim('Unit');
 export const vheq = (A: Val, B: Val, a: Val, b: Val) => vapp(vapp(vapp(vapp(VHEq, true, A), true, B), false, a), false, b);
 export const VNat = VPrim('Nat');
 export const VFin = VPrim('Fin');
@@ -94,11 +86,11 @@ export const force = (v: Val): Val => {
     return force(foldr((elim, y) =>
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
-      elim.tag === 'EElim' ? velim([y].concat(elim.args)) :
       elim.tag === 'ES' ? vsucc(y) :
       elim.tag === 'EIndNat' ? vindnat([y].concat(elim.args)) :
       elim.tag === 'EFS' ? vfsucc(elim.type, y) :
       elim.tag === 'EIndFin' ? vindfin([y].concat(elim.args)) :
+      elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -110,11 +102,11 @@ export const forceGlue = (v: Val): Val => {
     return forceGlue(foldr((elim, y) =>
       elim.tag === 'EProj' ? vproj(elim.proj, y) :
       elim.tag === 'EElimHEq' ? velimheq([y].concat(elim.args)) :
-      elim.tag === 'EElim' ? velim([y].concat(elim.args)) :
       elim.tag === 'ES' ? vsucc(y) :
       elim.tag === 'EIndNat' ? vindnat([y].concat(elim.args)) :
       elim.tag === 'EFS' ? vfsucc(elim.type, y) :
       elim.tag === 'EIndFin' ? vindfin([y].concat(elim.args)) :
+      elim.tag === 'EIFixInd' ? vifixind([y].concat(elim.args)) :
       vapp(y, elim.plicity, elim.arg), val.val, v.args));
   }
   return v;
@@ -153,22 +145,6 @@ export const velimheq = (args: Val[]): Val => {
   if (v.tag === 'VGlued')
     return VGlued(v.head, Cons(EElimHEq(rest), v.args), mapLazy(v.val, v => velimheq([v].concat(rest))));
   return impossible(`velimheq: ${v.tag}`);
-};
-export const velim = (args: Val[]): Val => {
-  const v = args[0];
-  const rest = args.slice(1);
-  if (v.tag === 'VCon') {
-    // elim (con i a) c1...cn ~> ci (\x. elim x c1...cn) a
-    const data = force(rest[0]);
-    if (data.tag !== 'VData') return impossible(`velim: not a data type ${data.tag}`);
-    const dcase = args[v.index + 4];
-    return vapp(vapp(dcase, false, VAbs(true, 'i', data.index, i => VAbs(false, 'x', VTCon(rest[0], i), x => velim([x, rest[0], rest[1], i].concat(rest.slice(3)))))), false, v.arg);
-  }
-  if (v.tag === 'VNe')
-    return VNe(v.head, Cons(EElim(rest), v.args));
-  if (v.tag === 'VGlued')
-    return VGlued(v.head, Cons(EElim(rest), v.args), mapLazy(v.val, v => velim([v].concat(rest))));
-  return impossible(`velim: ${v.tag}`);
 };
 export const vsucc = (v: Val): Val => {
   if (v.tag === 'VNatLit') return VNatLit(v.val + 1n);
@@ -225,6 +201,24 @@ export const vindfin = (args: Val[]): Val => {
     return VGlued(v.head, Cons(EIndFin(rest), v.args), mapLazy(v.val, v => vindfin([v].concat(rest))));
   return impossible(`vindnat: ${v.tag}`);
 };
+export const vifixind = (args: Val[]): Val => {
+  const v = args[0];
+  const rest = args.slice(1);
+  if (v.tag === 'VNe') {
+    if (v.head.tag === 'HPrim' && v.head.name === 'IIn') {
+      // genindIFix {I} {F} {P} f {i} (IIn {i} x) ~> f (\{i} y. genindIFix {I} {F} {P} f {i} y) {i} x 
+      const [I, F, P, f, i] = rest;
+      const args = v.args as Cons<Elim>;
+      const x = (args.head as EApp).arg;
+      return vapp(vapp(vapp(f, false,
+        VAbs(true, 'i', I, i => VAbs(false, 'y', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), y => vifixind([y, I, F, P, f, i])))), true, i), false, x);
+    }
+    return VNe(v.head, Cons(EIFixInd(rest), v.args));
+  }
+  if (v.tag === 'VGlued')
+    return VGlued(v.head, Cons(EIFixInd(rest), v.args), mapLazy(v.val, v => vifixind([v].concat(rest))));
+  return impossible(`vifixind: ${v.tag}`);
+};
 
 export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
@@ -255,6 +249,19 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         VAbs(true, 'n', VNat, n =>
         VAbs(false, 'x', vapp(VFin, false, n), x =>
         vindfin([x, P, z, s, n]))))));
+    if (t.name === 'genindIFix')
+      return VAbs(true, 'I', VType, I =>
+        VAbs(true, 'F', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), F =>
+        VAbs(true, 'P', VPi(false, 'i', I, i => VPi(false, '_', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), _ => VType)), P =>
+        VAbs(false, 'f',
+          VPi(false, '_', VPi(true, 'i', I, i => VPi(false, 'y', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), y => vapp(vapp(P, false, i), false, y))), _ =>
+          VPi(true, 'i', I, i =>
+          VPi(false, 'z', vapp(vapp(F, false, vapp(vapp(VIFix, false, I), false, F)), false, i), z =>
+          vapp(vapp(P, false, i), false, vapp(vapp(vapp(vapp(VPrim('IIn'), true, I), true, F), true, i), false, z)))))
+        , f =>
+        VAbs(true, 'i', I, i =>
+        VAbs(false, 'x', vapp(vapp(vapp(VIFix, false, I), false, F), false, i), x =>
+        vifixind([x, I, F, P, f, i])))))));
     return VPrim(t.name);
   }
   if (t.tag === 'Sort') return VSort(t.sort);
@@ -284,13 +291,6 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Pair')
     return VPair(t.plicity, t.plicity2, evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'Proj') return vproj(t.proj, evaluate(t.term, vs));
-  if (t.tag === 'Data') return VData(evaluate(t.index, vs), t.cons.map(x => evaluate(x, vs)));
-  if (t.tag === 'TCon') return VTCon(evaluate(t.data, vs), evaluate(t.arg, vs));
-  if (t.tag === 'Con') return VCon(t.index, evaluate(t.data, vs), evaluate(t.arg, vs));
-  if (t.tag === 'DElim') {
-    const args = [t.scrut, t.data, t.motive, t.index].concat(t.args).map(x => evaluate(x, vs));
-    return velim(args);
-  }
   if (t.tag === 'NatLit') return VNatLit(t.val);
   if (t.tag === 'FinLit') return VFinLit(t.index, evaluate(t.cap, vs));
   return t;
@@ -315,10 +315,6 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
     const [A, a, P, q, b] = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(App(Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), false, t);
   }
-  if (e.tag === 'EElim') {
-    const args = e.args.map(x => quote(x, k, full));
-    return DElim(args[0], args[1], args[2], t, args.slice(3));
-  }
   if (e.tag === 'ES') return App(Prim('S'), false, t);
   if (e.tag === 'EFS') return App(App(Prim('FS'), true, quote(e.type, k, full)), false, t);
   if (e.tag === 'EIndNat') {
@@ -328,6 +324,10 @@ const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EIndFin') {
     const args = e.args.map(x => quote(x, k, full));
     return App(App(App(App(App(Prim('genindFin'), true, args[0]), false, args[1]), false, args[2]), true, args[3]), false, t);
+  }
+  if (e.tag === 'EIFixInd') {
+    const [I, F, P, f, i] = e.args.map(x => quote(x, k, full));
+    return App(App(App(App(App(App(Prim('genindIFix'), true, I), true, F), true, P), false, f), true, i), false, t);
   }
   return e;
 };
@@ -360,12 +360,6 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     return Sigma(v.plicity, v.plicity2, v.name, quote(v.type, k, full), quote(v.body(VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
     return Pair(v.plicity, v.plicity2, quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
-  if (v.tag === 'VData')
-    return Data(quote(v.index, k, full), v.cons.map(x => quote(x, k, full)));
-  if (v.tag === 'VTCon')
-    return TCon(quote(v.data, k, full), quote(v.arg, k, full));
-  if (v.tag === 'VCon')
-    return Con(v.index, quote(v.data, k, full), quote(v.arg, k, full));
   return v;
 };
 export const quoteZ = (v: Val, vs: EnvV = Nil, k: Ix = 0, full: boolean = false): Term =>
@@ -388,11 +382,11 @@ export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boo
   if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
   if (e.tag === 'EProj') return e.proj;
   if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
-  if (e.tag === 'EElim') return `elim ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'ES') return 'succ';
   if (e.tag === 'EFS') return `fsucc {${showTermS(e.type, ns, k, full)}}`;
   if (e.tag === 'EIndNat') return `genindnat ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   if (e.tag === 'EIndFin') return `genindfin ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'EIFixInd') return `genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
   return e;
 };
 
@@ -434,11 +428,6 @@ export const zonk = (tm: Term, vs: EnvV = Nil, k: Ix = 0, full: boolean = false)
       quote(vapp(spine[1], tm.plicity, evaluate(tm.right, vs)), k, full);
   }
   if (tm.tag === 'Proj') return Proj(tm.proj, zonk(tm.term, vs, k, full));
-  if (tm.tag === 'Data') return Data(zonk(tm.index, vs, k, full), tm.cons.map(x => zonk(x, vs, k, full)));
-  if (tm.tag === 'TCon') return TCon(zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
-  if (tm.tag === 'Con') return Con(tm.index, zonk(tm.data, vs, k, full), zonk(tm.arg, vs, k, full));
-  if (tm.tag === 'DElim')
-    return DElim(zonk(tm.data, vs, k, full), zonk(tm.motive, vs, k, full), zonk(tm.index, vs, k, full), zonk(tm.scrut, vs, k, full), tm.args.map(x => zonk(x, vs, k, full)));
   if (tm.tag === 'FinLit')
     return FinLit(tm.index, zonk(tm.cap, vs, k, full));
   return tm;

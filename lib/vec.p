@@ -1,16 +1,18 @@
 import lib/void.p
 import lib/unit.p
+import lib/sum.p
+import lib/ifix.p
 import lib/nat.p
 import lib/eq.p
 import lib/maybe.p
-import lib/functor.p
+import lib/nat.extra.p
 
-def VecD = \t. data Nat
-  (\R. (UnitType, \_ _ E. E Z))
-  (\R. ({n : Nat} ** t ** R n, \a _ E. E (S a.fst)))
-def Vec : Nat -> * -> * = \n t. tcon (VecD t) n
-def VNil : {t : *} -> Vec Z t = \{t}. con 0 {VecD t} ()
-def VCons : {t : *} -> {n : Nat} -> t -> Vec n t -> Vec (S n) t = \{t} {n} hd tl. con 1 {VecD t} ({n}, hd, tl)
+def VecF = \(t : *) (r : Nat -> *) (i : Nat). Sum (Eq {Nat} Z i) ({m : Nat} ** t ** r m ** Eq {Nat} (S m) i)
+def Vec = \(n : Nat) (t : *). IFix Nat (VecF t) n
+def VNil : {t : *} -> Vec Z t = \{t}. IIn {Nat} {VecF t} {Z} (InL (Refl {Nat} {Z}))
+def VCons
+  : {t : *} -> {n : Nat} -> t -> Vec n t -> Vec (S n) t
+  = \{t} {n} hd tl. IIn {Nat} {VecF t} {S n} (InR {_} {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) (S n)} ({n}, hd, tl, Refl {Nat} {S n}))
 
 def genindVec
   : {t : *}
@@ -20,7 +22,21 @@ def genindVec
     -> {n : Nat}
     -> (x : Vec n t)
     -> P n x
-  = \{t} {P} fz fs {n} x. elim {VecD t} {P} {n} x (\_ _. fz) (\rec p. fs rec {p.fst} p.snd.fst p.snd.snd)
+  = \{t} {P} fz fs {n} x. genindIFix {Nat} {VecF t} {P}
+      (\rec {i} z.
+        indSum
+        {Eq {Nat} Z i}
+        {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) i}
+        {\s. P i (IIn {Nat} {VecF t} {i} s)}
+        (\q. elimEq {_} {_} {\z e. P z (IIn {Nat} {VecF t} {z} (InL e))} fz q)
+        (\p.
+          let {mm} = p.0 in
+          let hd = p.1 in
+          let tl = p.2 in
+          let q = p.snd.snd.snd in
+          elimEq {_} {_} {\j e. P j (IIn {Nat} {VecF t} {j} (InR {_} {{m : Nat} ** t ** Vec m t ** Eq {Nat} (S m) j} ({mm}, hd, tl, e)))} (fs rec {mm} hd tl) q)
+        z)
+      {n} x
 
 def indVec
   : {t : *}
@@ -59,10 +75,8 @@ def paraVec
   = \{t} {r} {n} x fz fs. recVec x fz (\rec {n} hd tl. fs {n} hd tl (rec {n} tl))
 
 def mapVec
-  : {n : Nat} -> {a b : *} -> (a -> b) -> Vec n a -> Vec n b
-  = \{n} {a} {b} f l. indVec {a} {\i _. Vec i b} (VNil {b}) (\hd tl. VCons (f hd) tl) l
-
-def functorVec : {n : Nat} -> Functor (Vec n) = \{n}. mapVec {n}
+  : {a b : *} -> {n : Nat} -> (a -> b) -> Vec n a -> Vec n b
+  = \{a} {b} f l. indVec {a} {\i _. Vec i b} (VNil {b}) (\hd tl. VCons (f hd) tl) l
 
 def unknownHeadVec
   : {t : *} -> {n : Nat} -> Vec n t -> Maybe t

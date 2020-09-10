@@ -1,14 +1,13 @@
 import lib/unit.p
+import lib/sum.p
+import lib/fix.p
 import lib/maybe.p
-import lib/functor.p
 import lib/monoid.p
 
-def ListD = \t. data UnitType
-  (\R. (UnitType, \_ _ E. E ()))
-  (\R. (t ** R (), \_ _ E. E ()))
-def List = \t. tcon (ListD t) ()
-def Nil : {t : *} -> List t = \{t}. con 0 {ListD t} ()
-def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. con 1 {ListD t} (hd, tl)
+def ListF = \(t r : *). Sum UnitType (t ** r)
+def List = \(t : *). Fix (ListF t)
+def Nil : {t : *} -> List t = \{t}. In {ListF t} (InL ())
+def Cons : {t : *} -> t -> List t -> List t = \{t} hd tl. In {ListF t} (InR (hd, tl))
 
 def genindList
   : {t : *}
@@ -17,7 +16,12 @@ def genindList
     -> (((l : List t) -> P l) -> (hd : t) -> (tl : List t) -> P (Cons hd tl))
     -> (l : List t)
     -> P l
-  = \{t} {P} n c l. elim {ListD t} {\_. P} {()} l (\_ _. n) (\rec p. c (rec {()}) p.fst p.snd)
+  = \{t} {P} n c l. genindFix {ListF t} {P}
+    (\rec y. indSum {UnitType} {t ** List t} {\s. P (In {ListF t} s)}
+      (\_. n)
+      (\p. c rec p.fst p.snd)
+      y)
+    l
 
 def indList
   : {t : *}
@@ -51,8 +55,6 @@ def paraList
 def mapList
   : {a b : *} -> (a -> b) -> List a -> List b
   = \{a} {b} f l. cataList l (Nil {b}) (\hd tl. Cons (f hd) tl)
-
-def functorList : Functor List = mapList
 
 def headList
   : {t : *} -> List t -> Maybe t
