@@ -5,7 +5,6 @@ Try it out at https://atennapel.github.io/tinka
 ```
 todo:
 - add back IFix
-- implement void, unit, bool using Fin
 - remove data
 - experiment with adding primitive Nat and Fin operations
 

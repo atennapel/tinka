@@ -2582,6 +2582,10 @@ exports.unify = (k, a_, b_) => {
     if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
         return exports.unify(k, domain_1.VNatLit(a.val - 1n), domain_1.VNe(b.head, b.args.tail));
     // TODO: fin rules
+    if (a.tag === 'VFinLit' && a.index === 0n && a.cap.tag === 'VNatLit' && a.cap.val === 0n)
+        return;
+    if (b.tag === 'VFinLit' && b.index === 0n && b.cap.tag === 'VNatLit' && b.cap.val === 0n)
+        return;
     // neutrals
     if (a.tag === 'VNe' && b.tag === 'VNe' && conv_1.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);

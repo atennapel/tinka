@@ -1,11 +1,10 @@
-import lib/unit.p
+import lib/fin.p
 
-def VoidD = data UnitType
-def Void = tcon VoidD ()
+def Void = Fin 0
 
 def indVoid
   : {P : Void -> *} -> (x : Void) -> P x
-  = \{P} x. elim {VoidD} {\_. P} {()} x
+  = \{P} x. caseNFin {0} x {P}
 
 def caseVoid
   : {t : *} -> Void -> t

@@ -14,10 +14,13 @@ import lib/sum.p
 import lib/eqb.p
 
 import lib/nat.p
+import lib/fin.p
+import lib/nat.extra.p
+import lib/fin.extra.p
+
 import lib/bin.p
 import lib/list.p
 
 import lib/show.p
 
-import lib/fin.p
 import lib/vec.p

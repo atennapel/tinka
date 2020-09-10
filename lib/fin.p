@@ -1,4 +1,3 @@
-import lib/void.p
 import lib/nat.p
 
 def Fin : Nat -> * = %Fin
@@ -52,6 +51,13 @@ def finToNat
   : {n : Nat} -> Fin n -> Nat
   = \x. cataFin x Z S
 
-def finZVoid
-  : Fin Z -> Void
-  = \x. (indFin {\i _. Eq Z i -> Void} z_neq_S (\_. z_neq_S) x) (Refl {_} {Z})
+def finCaseResult
+  : (n : Nat) -> Fin n -> *
+  = \n. dcaseNat {\n. Fin n -> *} n
+      (\x. {P : Fin 0 -> *} -> P x)
+      (\m x. {P : Fin (S m) -> *} -> P (FZ {m}) -> ((y : Fin m) -> P (FS {m} y)) -> P x)
+
+def caseNFin
+  : {n : Nat} -> (f : Fin n) -> finCaseResult n f
+  = \{n} f.
+    dcaseFin {finCaseResult} (\{m} {P} z s. z) (\{m} y {P} z s. s y) {n} f 

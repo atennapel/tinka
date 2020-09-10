@@ -104,6 +104,8 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return unify(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
 
   // TODO: fin rules
+  if (a.tag === 'VFinLit' && a.index === 0n && a.cap.tag === 'VNatLit' && a.cap.val === 0n) return;
+  if (b.tag === 'VFinLit' && b.index === 0n && b.cap.tag === 'VNatLit' && b.cap.val === 0n) return;
 
   // neutrals
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
