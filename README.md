@@ -4,8 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- experiment with primitive Fin
-- experiment with adding primitive Nat operations
+- add back IFix
+- implement void, unit, bool using Fin
+- remove data
+- experiment with adding primitive Nat and Fin operations
 
 - recursive instance search
 - find way to do recursive-inductive types
