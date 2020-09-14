@@ -1,10 +1,10 @@
 import { log, setConfig, config } from './config';
-import { showTerm } from './surface';
+import { showTerm, erase, Pair, NatLit } from './surface';
 import { parse, ImportMap, parseDefs } from './parser';
 import { globalMap, globalDelete, globalGet } from './globalenv';
 import { loadFile } from './utils/utils';
-import { showTermSZ, normalize } from './domain';
-import { showSurfaceZ, showTerm as showTermI, Term, showSurfaceZErased } from './syntax';
+import { showTermSZ, normalize, quoteZ } from './domain';
+import { showSurfaceZ, showTerm as showTermI, Term, showSurfaceZErased, toSurface } from './syntax';
 import { Nil } from './utils/list';
 import { typecheckDefs, typecheck } from './typecheck';
 import { verify } from './verify';
@@ -119,11 +119,13 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.startsWith(':')) return _cb('invalid command', true);
     let msg = '';
     let tm_: Term;
+    let ty_: Term;
     try {
       const t = parse(_s);
       log(() => showTerm(t));
       const [ztm, vty] = typecheck(t);
       tm_ = ztm;
+      ty_ = quoteZ(vty);
       log(() => showTermSZ(vty));
       log(() => showSurfaceZ(tm_));
       msg += `type: ${showTermSZ(vty)}\nterm: ${showSurfaceZ(tm_)}`;
@@ -137,7 +139,17 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       const n = normalize(tm_, Nil, 0, true);
       log(() => showSurfaceZErased(n));
       let norm: string = '';
-      norm = showSurfaceZErased(n);
+      if (ty_.tag === 'Global' && ty_.name === 'Showable') {
+        let c = erase(toSurface(n));
+        const r: number[] = [];
+        while (c.tag === 'Pair' && c.fst.tag === 'NatLit' && c.fst.val === 0n) {
+          const rest = c.snd as Pair;
+          const chr = (rest.fst as NatLit).val;
+          r.push(Number(chr));
+          c = rest.snd;
+        }
+        norm = String.fromCodePoint.apply(null, r);
+      } else norm = showSurfaceZErased(n);
       return _cb(`${msg}${config.showNormalization ? `\nnorm: ${norm}` : ''}`);
     } catch (err) {
       log(() => ''+err);

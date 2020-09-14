@@ -1279,11 +1279,13 @@ exports.runREPL = (_s, _cb) => {
             return _cb('invalid command', true);
         let msg = '';
         let tm_;
+        let ty_;
         try {
             const t = parser_1.parse(_s);
             config_1.log(() => surface_1.showTerm(t));
             const [ztm, vty] = typecheck_1.typecheck(t);
             tm_ = ztm;
+            ty_ = domain_1.quoteZ(vty);
             config_1.log(() => domain_1.showTermSZ(vty));
             config_1.log(() => syntax_1.showSurfaceZ(tm_));
             msg += `type: ${domain_1.showTermSZ(vty)}\nterm: ${syntax_1.showSurfaceZ(tm_)}`;
@@ -1300,7 +1302,19 @@ exports.runREPL = (_s, _cb) => {
             const n = domain_1.normalize(tm_, list_1.Nil, 0, true);
             config_1.log(() => syntax_1.showSurfaceZErased(n));
             let norm = '';
-            norm = syntax_1.showSurfaceZErased(n);
+            if (ty_.tag === 'Global' && ty_.name === 'Showable') {
+                let c = surface_1.erase(syntax_1.toSurface(n));
+                const r = [];
+                while (c.tag === 'Pair' && c.fst.tag === 'NatLit' && c.fst.val === 0n) {
+                    const rest = c.snd;
+                    const chr = rest.fst.val;
+                    r.push(Number(chr));
+                    c = rest.snd;
+                }
+                norm = String.fromCodePoint.apply(null, r);
+            }
+            else
+                norm = syntax_1.showSurfaceZErased(n);
             return _cb(`${msg}${config_1.config.showNormalization ? `\nnorm: ${norm}` : ''}`);
         }
         catch (err) {
