@@ -17,10 +17,12 @@ const matchingBracket = (c: Bracket): Bracket => {
 type Token
   = { tag: 'Name', name: string }
   | { tag: 'Num', num: string }
-  | { tag: 'List', list: Token[], bracket: BracketO };
+  | { tag: 'List', list: Token[], bracket: BracketO }
+  | { tag: 'Str', str: string };
 const TName = (name: string): Token => ({ tag: 'Name', name });
 const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
+const TStr = (str: string): Token => ({ tag: 'Str', str });
 
 const SYM1: string[] = ['\\', ':', '/', '*', '#', '=', '|', ','];
 const SYM2: string[] = ['->', '**'];
@@ -29,6 +31,7 @@ const START = 0;
 const NAME = 1;
 const COMMENT = 2;
 const NUMBER = 3;
+const STRING = 4;
 const tokenize = (sc: string): Token[] => {
   let state = START;
   let r: Token[] = [];
@@ -41,6 +44,7 @@ const tokenize = (sc: string): Token[] => {
     if (state === START) {
       if (SYM2.indexOf(c + next) >= 0) r.push(TName(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(TName(c));
+      else if (c === '"') state = STRING;
       else if (c === '.' && !/[\.\%\_a-z]/i.test(next)) r.push(TName('.'));
       else if (c + next === '--') i++, state = COMMENT;
       else if (/[\.\?\@\#\%\_a-z]/i.test(c)) t += c, state = NAME;
@@ -68,6 +72,13 @@ const tokenize = (sc: string): Token[] => {
       } else t += c;
     } else if (state === COMMENT) {
       if (c === '\n') state = START;
+    } else if (state === STRING) {
+      if (c === '\\') esc = true;
+      else if (esc) t += c, esc = false;
+      else if (c === '"') {
+        r.push(TStr(t));
+        t = '', state = START;
+      } else t += c;
     }
   }
   if (b.length > 0) return serr(`unclosed brackets: ${b.join(' ')}`);
@@ -149,9 +160,32 @@ const parseProj = (t: Term, xx: string): Term => {
   return c;
 };
 
+const codepoints = (s: string): number[] => {
+  const chars: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const c1 = s.charCodeAt(i);
+    if (c1 >= 0xD800 && c1 < 0xDC00 && i + 1 < s.length) {
+      const c2 = s.charCodeAt(i + 1);
+      if (c2 >= 0xDC00 && c2 < 0xE000) {
+        chars.push(0x10000 + ((c1 - 0xD800) << 10) + (c2 - 0xDC00));
+        i++;
+        continue;
+      }
+    }
+    chars.push(c1);
+  }
+  return chars;
+};
+
 const expr = (t: Token): [Term, boolean] => {
   if (t.tag === 'List')
     return [exprs(t.list, '('), t.bracket === '{'];
+  if (t.tag === 'Str') {
+    const s = codepoints(t.str).reverse();
+    const Cons = Var('Cons');
+    const Nil = Var('Nil');
+    return [s.reduce((t, n) => App(App(Cons, false, NatLit(BigInt(n))), false, t), Nil as Term), false];
+  }
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];

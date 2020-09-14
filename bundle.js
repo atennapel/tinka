@@ -613,12 +613,14 @@ const matchingBracket = (c) => {
 const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
+const TStr = (str) => ({ tag: 'Str', str });
 const SYM1 = ['\\', ':', '/', '*', '#', '=', '|', ','];
 const SYM2 = ['->', '**'];
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
 const NUMBER = 3;
+const STRING = 4;
 const tokenize = (sc) => {
     let state = START;
     let r = [];
@@ -633,6 +635,8 @@ const tokenize = (sc) => {
                 r.push(TName(c + next)), i++;
             else if (SYM1.indexOf(c) >= 0)
                 r.push(TName(c));
+            else if (c === '"')
+                state = STRING;
             else if (c === '.' && !/[\.\%\_a-z]/i.test(next))
                 r.push(TName('.'));
             else if (c + next === '--')
@@ -677,6 +681,18 @@ const tokenize = (sc) => {
         else if (state === COMMENT) {
             if (c === '\n')
                 state = START;
+        }
+        else if (state === STRING) {
+            if (c === '\\')
+                esc = true;
+            else if (esc)
+                t += c, esc = false;
+            else if (c === '"') {
+                r.push(TStr(t));
+                t = '', state = START;
+            }
+            else
+                t += c;
         }
     }
     if (b.length > 0)
@@ -765,9 +781,31 @@ const parseProj = (t, xx) => {
     }
     return c;
 };
+const codepoints = (s) => {
+    const chars = [];
+    for (let i = 0; i < s.length; i++) {
+        const c1 = s.charCodeAt(i);
+        if (c1 >= 0xD800 && c1 < 0xDC00 && i + 1 < s.length) {
+            const c2 = s.charCodeAt(i + 1);
+            if (c2 >= 0xDC00 && c2 < 0xE000) {
+                chars.push(0x10000 + ((c1 - 0xD800) << 10) + (c2 - 0xDC00));
+                i++;
+                continue;
+            }
+        }
+        chars.push(c1);
+    }
+    return chars;
+};
 const expr = (t) => {
     if (t.tag === 'List')
         return [exprs(t.list, '('), t.bracket === '{'];
+    if (t.tag === 'Str') {
+        const s = codepoints(t.str).reverse();
+        const Cons = surface_1.Var('Cons');
+        const Nil = surface_1.Var('Nil');
+        return [s.reduce((t, n) => surface_1.App(surface_1.App(Cons, false, surface_1.NatLit(BigInt(n))), false, t), Nil), false];
+    }
     if (t.tag === 'Name') {
         const x = t.name;
         if (x === '*')

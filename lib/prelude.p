@@ -26,5 +26,5 @@ import lib/fix.p
 import lib/list.p
 import lib/vec.p
 
-import lib/show.p
+import lib/string.p
 
