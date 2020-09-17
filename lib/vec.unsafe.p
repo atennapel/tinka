@@ -7,6 +7,7 @@ import lib/eq.p
 import lib/eq.unsafe.p
 import lib/maybe.p
 import lib/nat.extra.p
+import lib/vec.module.p
 
 def VecF = \(t : *) (r : Nat -> *) (i : Nat). Sum (UnitType ** {Eq {Nat} Z i}) ({m : Nat} ** t ** r m ** {Eq {Nat} (S m) i})
 def Vec = \(n : Nat) (t : *). IFix Nat (VecF t) n
@@ -38,6 +39,8 @@ def genindVec
           unsafeElimEq {_} {_} {\j e. P j (IIn {Nat} {VecF t} {j} (InR {_} {{m : Nat} ** t ** Vec m t ** {Eq {Nat} (S m) j}} ({mm}, hd, tl, {e})))} (fs rec {mm} hd tl) {i} {q})
         z)
       {n} x
+
+def vecModule : VecModule = ({Vec}, VNil, VCons, genindVec, ())
 
 def indVec
   : {t : *}
