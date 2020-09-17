@@ -5,6 +5,8 @@ import lib/eq.p
 import lib/monoid.p
 import lib/functor.p
 
+import lib/singleton.p
+
 import lib/sigma.p
 
 import lib/eqb.p

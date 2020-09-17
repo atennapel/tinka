@@ -7,7 +7,7 @@ const primTypes: { [K in PrimName]: () => Val } = {
   'HEq': () => VPi(true, 'A', VType, A => VPi(true, 'B', VType, B => VPi(false, '_', A, _ => VPi(false, '_', B, _ => VType)))),
   // {A : *} -> {a : A} -> HEq {A} {A} a a
   'ReflHEq': () => VPi(true, 'A', VType, A => VPi(true, 'a', A, a => vheq(A, A, a, a))),
-  // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> (q : HEq {A} {A} a b) -> P b q
+  // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> (p : HEq {A} {A} a b) -> P b p
   'elimHEq': () =>
     VPi(true, 'A', VType, A =>
     VPi(true, 'a', A, a =>
@@ -15,6 +15,15 @@ const primTypes: { [K in PrimName]: () => Val } = {
     VPi(false, '_', vapp(vapp(P, false, a), false, vapp(vapp(VPrim('ReflHEq'), true, A), true, a)), _ =>
     VPi(true, 'b', A, b =>
     VPi(false, 'p', vheq(A, A, a, b), p =>
+    vapp(vapp(P, false, b), false, p))))))),
+  // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> {p : HEq {A} {A} a b} -> P b p
+  'unsafeElimHEq': () =>
+    VPi(true, 'A', VType, A =>
+    VPi(true, 'a', A, a =>
+    VPi(true, 'P', VPi(false, 'b', A, b => VPi(false, '_', vheq(A, A, a, b), _ => VType)), P =>
+    VPi(false, '_', vapp(vapp(P, false, a), false, vapp(vapp(VPrim('ReflHEq'), true, A), true, a)), _ =>
+    VPi(true, 'b', A, b =>
+    VPi(true, 'p', vheq(A, A, a, b), p =>
     vapp(vapp(P, false, b), false, p))))))),
 
   'Nat': () => VType,

@@ -1,6 +1,7 @@
 import lib/unit.p
 import lib/sum.p
 import lib/eq.p
+import lib/functor.p
 
 def Maybe = \(t : *). Sum UnitType t
 def Nothing : {t : *} -> Maybe t = \{t}. InL ()

@@ -138,7 +138,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vindfin = exports.vfsucc = exports.vindnat = exports.vsucc = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VS = exports.VFin = exports.VNat = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VFinLit = exports.VNatLit = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EIndFin = exports.EIndNat = exports.EFS = exports.ES = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vindfin = exports.vfsucc = exports.vindnat = exports.vsucc = exports.velimhequnsafe = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VS = exports.VFin = exports.VNat = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VFinLit = exports.VNatLit = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EIndFin = exports.EIndNat = exports.EFS = exports.ES = exports.EElimHEqUnsafe = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -152,6 +152,7 @@ exports.HPrim = (name) => ({ tag: 'HPrim', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
 exports.EProj = (proj) => ({ tag: 'EProj', proj });
 exports.EElimHEq = (args) => ({ tag: 'EElimHEq', args });
+exports.EElimHEqUnsafe = (args) => ({ tag: 'EElimHEqUnsafe', args });
 exports.ES = { tag: 'ES' };
 exports.EFS = (type) => ({ tag: 'EFS', type });
 exports.EIndNat = (args) => ({ tag: 'EIndNat', args });
@@ -189,12 +190,13 @@ exports.force = (v) => {
             return v;
         return exports.force(list_1.foldr((elim, y) => elim.tag === 'EProj' ? exports.vproj(elim.proj, y) :
             elim.tag === 'EElimHEq' ? exports.velimheq([y].concat(elim.args)) :
-                elim.tag === 'ES' ? exports.vsucc(y) :
-                    elim.tag === 'EIndNat' ? exports.vindnat([y].concat(elim.args)) :
-                        elim.tag === 'EFS' ? exports.vfsucc(elim.type, y) :
-                            elim.tag === 'EIndFin' ? exports.vindfin([y].concat(elim.args)) :
-                                elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
-                                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                elim.tag === 'EElimHEqUnsafe' ? exports.velimhequnsafe([y].concat(elim.args)) :
+                    elim.tag === 'ES' ? exports.vsucc(y) :
+                        elim.tag === 'EIndNat' ? exports.vindnat([y].concat(elim.args)) :
+                            elim.tag === 'EFS' ? exports.vfsucc(elim.type, y) :
+                                elim.tag === 'EIndFin' ? exports.vindfin([y].concat(elim.args)) :
+                                    elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
+                                        exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -205,12 +207,13 @@ exports.forceGlue = (v) => {
             return v;
         return exports.forceGlue(list_1.foldr((elim, y) => elim.tag === 'EProj' ? exports.vproj(elim.proj, y) :
             elim.tag === 'EElimHEq' ? exports.velimheq([y].concat(elim.args)) :
-                elim.tag === 'ES' ? exports.vsucc(y) :
-                    elim.tag === 'EIndNat' ? exports.vindnat([y].concat(elim.args)) :
-                        elim.tag === 'EFS' ? exports.vfsucc(elim.type, y) :
-                            elim.tag === 'EIndFin' ? exports.vindfin([y].concat(elim.args)) :
-                                elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
-                                    exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                elim.tag === 'EElimHEqUnsafe' ? exports.velimhequnsafe([y].concat(elim.args)) :
+                    elim.tag === 'ES' ? exports.vsucc(y) :
+                        elim.tag === 'EIndNat' ? exports.vindnat([y].concat(elim.args)) :
+                            elim.tag === 'EFS' ? exports.vfsucc(elim.type, y) :
+                                elim.tag === 'EIndFin' ? exports.vindfin([y].concat(elim.args)) :
+                                    elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
+                                        exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -249,6 +252,20 @@ exports.velimheq = (args) => {
     if (v.tag === 'VGlued')
         return exports.VGlued(v.head, list_1.Cons(exports.EElimHEq(rest), v.args), lazy_1.mapLazy(v.val, v => exports.velimheq([v].concat(rest))));
     return utils_1.impossible(`velimheq: ${v.tag}`);
+};
+exports.velimhequnsafe = (args) => {
+    const v = args[0];
+    const rest = args.slice(1);
+    if (v.tag === 'VNe') {
+        if (v.head.tag === 'HPrim' && v.head.name === 'ReflHEq') {
+            // elimHEq {A} {a} {P} q {b} {ReflHEq {A} {a}} ~> q 
+            return rest[3];
+        }
+        return exports.VNe(v.head, list_1.Cons(exports.EElimHEqUnsafe(rest), v.args));
+    }
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EElimHEqUnsafe(rest), v.args), lazy_1.mapLazy(v.val, v => exports.velimhequnsafe([v].concat(rest))));
+    return utils_1.impossible(`velimhequnsafe: ${v.tag}`);
 };
 exports.vsucc = (v) => {
     if (v.tag === 'VNatLit')
@@ -329,6 +346,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'elimHEq')
             return exports.VAbs(true, 'A', exports.VType, A => exports.VAbs(true, 'a', A, a => exports.VAbs(true, 'P', exports.VPi(false, 'b', A, b => exports.VPi(false, '_', exports.vheq(A, A, a, b), _ => exports.VType)), P => exports.VAbs(false, 'q', exports.vapp(exports.vapp(P, false, a), false, exports.vapp(exports.vapp(exports.VPrim('ReflHEq'), true, A), true, a)), q => exports.VAbs(true, 'b', A, b => exports.VAbs(false, 'p', exports.vheq(A, A, a, b), p => exports.velimheq([p, A, a, P, q, b])))))));
+        if (t.name === 'unsafeElimHEq')
+            return exports.VAbs(true, 'A', exports.VType, A => exports.VAbs(true, 'a', A, a => exports.VAbs(true, 'P', exports.VPi(false, 'b', A, b => exports.VPi(false, '_', exports.vheq(A, A, a, b), _ => exports.VType)), P => exports.VAbs(false, 'q', exports.vapp(exports.vapp(P, false, a), false, exports.vapp(exports.vapp(exports.VPrim('ReflHEq'), true, A), true, a)), q => exports.VAbs(true, 'b', A, b => exports.VAbs(true, 'p', exports.vheq(A, A, a, b), p => exports.velimheq([p, A, a, P, q, b])))))));
         if (t.name === 'S')
             return exports.VAbs(false, 'n', exports.VNat, n => exports.vsucc(n));
         if (t.name === 'FS')
@@ -403,6 +422,10 @@ const quoteElim = (t, e, k, full) => {
         const [A, a, P, q, b] = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), false, t);
     }
+    if (e.tag === 'EElimHEqUnsafe') {
+        const [A, a, P, q, b] = e.args.map(x => exports.quote(x, k, full));
+        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('elimHEq'), true, A), true, a), true, P), false, q), true, b), true, t);
+    }
     if (e.tag === 'ES')
         return syntax_1.App(syntax_1.Prim('S'), false, t);
     if (e.tag === 'EFS')
@@ -467,6 +490,8 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return e.proj;
     if (e.tag === 'EElimHEq')
         return `elimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+    if (e.tag === 'EElimHEqUnsafe')
+        return `unsafeElimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
     if (e.tag === 'ES')
         return 'succ';
     if (e.tag === 'EFS')
@@ -1144,8 +1169,10 @@ const primTypes = {
     'HEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'B', domain_1.VType, B => domain_1.VPi(false, '_', A, _ => domain_1.VPi(false, '_', B, _ => domain_1.VType)))),
     // {A : *} -> {a : A} -> HEq {A} {A} a a
     'ReflHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.vheq(A, A, a, a))),
-    // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> (q : HEq {A} {A} a b) -> P b q
+    // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> (p : HEq {A} {A} a b) -> P b p
     'elimHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.VPi(true, 'P', domain_1.VPi(false, 'b', A, b => domain_1.VPi(false, '_', domain_1.vheq(A, A, a, b), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(P, false, a), false, domain_1.vapp(domain_1.vapp(domain_1.VPrim('ReflHEq'), true, A), true, a)), _ => domain_1.VPi(true, 'b', A, b => domain_1.VPi(false, 'p', domain_1.vheq(A, A, a, b), p => domain_1.vapp(domain_1.vapp(P, false, b), false, p))))))),
+    // {A : *} -> {a : A} -> {P : (b : A) -> HEq {A} {A} a b -> *} -> P a (ReflHEq {A} {a}) -> {b : A} -> {p : HEq {A} {A} a b} -> P b p
+    'unsafeElimHEq': () => domain_1.VPi(true, 'A', domain_1.VType, A => domain_1.VPi(true, 'a', A, a => domain_1.VPi(true, 'P', domain_1.VPi(false, 'b', A, b => domain_1.VPi(false, '_', domain_1.vheq(A, A, a, b), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(P, false, a), false, domain_1.vapp(domain_1.vapp(domain_1.VPrim('ReflHEq'), true, A), true, a)), _ => domain_1.VPi(true, 'b', A, b => domain_1.VPi(true, 'p', domain_1.vheq(A, A, a, b), p => domain_1.vapp(domain_1.vapp(P, false, b), false, p))))))),
     'Nat': () => domain_1.VType,
     'S': () => domain_1.VPi(false, '_', domain_1.VNat, _ => domain_1.VNat),
     /*
@@ -1390,7 +1417,7 @@ exports.NatLit = (val) => ({ tag: 'NatLit', val });
 exports.FinLit = (index, cap) => ({ tag: 'FinLit', index, cap });
 exports.Type = exports.Sort('*');
 exports.primNames = [
-    'HEq', 'ReflHEq', 'elimHEq',
+    'HEq', 'ReflHEq', 'elimHEq', 'unsafeElimHEq',
     'Nat', 'S', 'genindNat',
     'Fin', 'FS', 'genindFin',
     'IFix', 'IIn', 'genindIFix',

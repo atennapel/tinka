@@ -45,12 +45,12 @@ export const FinLit = (index: bigint, cap: Term): FinLit => ({ tag: 'FinLit', in
 export const Type: Sort = Sort('*');
 
 export type PrimName =
-  'HEq' | 'ReflHEq' | 'elimHEq' |
+  'HEq' | 'ReflHEq' | 'elimHEq' | 'unsafeElimHEq' |
   'Nat' | 'S' | 'genindNat' |
   'Fin' | 'FS' | 'genindFin' |
   'IFix' | 'IIn' | 'genindIFix';
 export const primNames = [
-  'HEq', 'ReflHEq', 'elimHEq',
+  'HEq', 'ReflHEq', 'elimHEq', 'unsafeElimHEq',
   'Nat', 'S', 'genindNat',
   'Fin', 'FS', 'genindFin',
   'IFix', 'IIn', 'genindIFix',

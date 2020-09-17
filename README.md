@@ -4,8 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- implement Showable
+- implement typed erasure to untyped lambda calculus
 - experiment with adding primitive Nat and Fin operations
+- consider going back to a simpler enum type
 
 - recursive instance search
 - find way to do recursive-inductive types
