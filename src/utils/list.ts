@@ -122,6 +122,9 @@ export const indecesOf = <T>(l: List<T>, val: T): number[] => {
   return a;
 };
 
+export const take = <T>(l: List<T>, n: number): List<T> =>
+  n <= 0 || l.tag === 'Nil' ? Nil : Cons(l.head, take(l.tail, n - 1));
+
 export const extend = <K, T>(name: K, val: T, rest: List<[K, T]>): List<[K, T]> =>
   Cons([name, val] as [K, T], rest);
 export const lookup = <K, T>(l: List<[K, T]>, name: K, eq: (a: K, b: K) => boolean = (x, y) => x === y): T | null => {

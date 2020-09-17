@@ -8,6 +8,7 @@ import { showSurfaceZ, showTerm as showTermI, Term, showSurfaceZErased, toSurfac
 import { Nil } from './utils/list';
 import { typecheckDefs, typecheck } from './typecheck';
 import { verify } from './verify';
+import * as E from './erased';
 
 const help = `
 COMMANDS
@@ -120,6 +121,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     let msg = '';
     let tm_: Term;
     let ty_: Term;
+    let er_: E.Term | null = null;
     try {
       const t = parse(_s);
       log(() => showTerm(t));
@@ -129,7 +131,10 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       log(() => showTermSZ(vty));
       log(() => showSurfaceZ(tm_));
       msg += `type: ${showTermSZ(vty)}\nterm: ${showSurfaceZ(tm_)}`;
-      if (config.verify || verifyOnce) verify(ztm);
+      if (config.verify || verifyOnce) {
+        er_ = verify(ztm)[1];
+        msg += `\neras: ${E.showTerm(er_)}`;
+      }
       if (typeOnly) return _cb(msg);
     } catch (err) {
       log(() => ''+err);

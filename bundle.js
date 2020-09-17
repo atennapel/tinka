@@ -135,7 +135,7 @@ exports.conv = (k, a_, b_) => {
     return utils_1.terr(`conv failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 
-},{"./config":1,"./domain":3,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],3:[function(require,module,exports){
+},{"./config":1,"./domain":3,"./utils/lazy":15,"./utils/list":16,"./utils/utils":17}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vindfin = exports.vfsucc = exports.vindnat = exports.vsucc = exports.velimhequnsafe = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VS = exports.VFin = exports.VNat = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VFinLit = exports.VNatLit = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EIndFin = exports.EIndNat = exports.EFS = exports.ES = exports.EElimHEqUnsafe = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
@@ -548,7 +548,106 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
     return tm;
 };
 
-},{"./globalenv":4,"./metas":5,"./syntax":11,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],4:[function(require,module,exports){
+},{"./globalenv":5,"./metas":6,"./syntax":12,"./utils/lazy":15,"./utils/list":16,"./utils/utils":17}],4:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.showTerm = exports.isSimple = exports.showTermP = exports.flattenPair = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.NatLit = exports.Type = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
+const names_1 = require("./names");
+const list_1 = require("./utils/list");
+exports.Prim = (name) => ({ tag: 'Prim', name });
+exports.Var = (index) => ({ tag: 'Var', index });
+exports.Global = (name) => ({ tag: 'Global', name });
+exports.App = (left, right) => ({ tag: 'App', left, right });
+exports.Abs = (name, body) => ({ tag: 'Abs', name, body });
+exports.Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
+exports.Proj = (proj, term) => ({ tag: 'Proj', proj, term });
+exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
+exports.Type = { tag: 'Type' };
+exports.NatLit = (val) => ({ tag: 'NatLit', val });
+exports.showTermS = (t) => {
+    if (t.tag === 'Var')
+        return `${t.index}`;
+    if (t.tag === 'Type')
+        return `*`;
+    if (t.tag === 'Global')
+        return t.name;
+    if (t.tag === 'Prim')
+        return `%${t.name}`;
+    if (t.tag === 'NatLit')
+        return `${t.val}`;
+    if (t.tag === 'App')
+        return `(${exports.showTermS(t.left)} ${exports.showTermS(t.right)})`;
+    if (t.tag === 'Abs')
+        return `(\\${t.name}. ${exports.showTermS(t.body)})`;
+    if (t.tag === 'Pair')
+        return `(${exports.showTermS(t.fst)}, ${exports.showTermS(t.snd)})`;
+    if (t.tag === 'Let')
+        return `(let ${t.name} = ${exports.showTermS(t.val)} in ${exports.showTermS(t.body)})`;
+    if (t.tag === 'Proj')
+        return `(${t.proj} ${exports.showTermS(t.term)})`;
+    return t;
+};
+exports.flattenApp = (t) => {
+    const r = [];
+    while (t.tag === 'App') {
+        r.push(t.right);
+        t = t.left;
+    }
+    return [t, r.reverse()];
+};
+exports.flattenAbs = (t) => {
+    const r = [];
+    while (t.tag === 'Abs') {
+        r.push(t.name);
+        t = t.body;
+    }
+    return [r, t];
+};
+exports.flattenPair = (t) => {
+    const r = [];
+    while (t.tag === 'Pair') {
+        r.push(t.fst);
+        t = t.snd;
+    }
+    r.push(t);
+    return r;
+};
+exports.showTermP = (b, t, ns) => b ? `(${exports.showTerm(t, ns)})` : exports.showTerm(t, ns);
+exports.isSimple = (t) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit';
+const chooseName = (x, ns) => list_1.contains(ns, x) ? chooseName(names_1.nextName(x), ns) : x;
+exports.showTerm = (t, ns = list_1.Nil) => {
+    if (t.tag === 'Var')
+        return list_1.index(ns, t.index) || `$${t.index}`;
+    if (t.tag === 'Type')
+        return `*`;
+    if (t.tag === 'Global')
+        return t.name;
+    if (t.tag === 'Prim')
+        return `%${t.name}`;
+    if (t.tag === 'NatLit')
+        return `${t.val}`;
+    if (t.tag === 'App') {
+        const [f, as] = exports.flattenApp(t);
+        return `${exports.showTermP(!exports.isSimple(f) && f.tag !== 'Proj', f, ns)} ${as.map((t, i) => exports.showTermP(!exports.isSimple(t) && !(t.tag !== 'Abs' && i === as.length - 1), t, ns)).join(' ')}`;
+    }
+    if (t.tag === 'Abs') {
+        const [xs, b] = exports.flattenAbs(t);
+        const newns = xs.reduce((ys, x) => list_1.Cons(chooseName(x, ys), ys), ns);
+        const ys = list_1.toArray(list_1.take(newns, xs.length), x => x).reverse();
+        return `\\${ys.join(' ')}. ${exports.showTerm(b, newns)}`;
+    }
+    if (t.tag === 'Pair') {
+        const ps = exports.flattenPair(t);
+        return `(${ps.map(t => exports.showTerm(t, ns)).join(', ')})`;
+    }
+    if (t.tag === 'Let')
+        return `let ${t.name} = ${exports.showTermP(t.val.tag === 'Let', t.val, ns)} in ${exports.showTerm(t.body, list_1.Cons(chooseName(t.name, ns), ns))}`;
+    if (t.tag === 'Proj')
+        return `.${t.proj} ${exports.showTermP(exports.isSimple(t.term), t.term, ns)}`;
+    return t;
+};
+
+},{"./names":7,"./utils/list":16}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.globalDelete = exports.globalSet = exports.globalGet = exports.globalMap = exports.globalReset = void 0;
@@ -565,7 +664,7 @@ exports.globalDelete = (name) => {
     delete env[name];
 };
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.metaDiscard = exports.metaPop = exports.metaPush = exports.freshMeta = exports.freshMetaId = exports.metaSet = exports.metaGet = exports.metaReset = void 0;
@@ -603,7 +702,7 @@ exports.metaPop = () => {
 };
 exports.metaDiscard = () => { stack.pop(); };
 
-},{"./syntax":11,"./utils/utils":16}],6:[function(require,module,exports){
+},{"./syntax":12,"./utils/utils":17}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextName = void 0;
@@ -616,7 +715,7 @@ exports.nextName = (x) => {
     return `${x}\$0`;
 };
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseDefs = exports.parseDef = exports.parse = void 0;
@@ -1158,7 +1257,7 @@ exports.parseDefs = async (s, importMap) => {
     return ds.reduce((x, y) => x.concat(y), []);
 };
 
-},{"./config":1,"./surface":10,"./utils/utils":16}],8:[function(require,module,exports){
+},{"./config":1,"./surface":11,"./utils/utils":17}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.primType = void 0;
@@ -1218,7 +1317,7 @@ const primTypes = {
 };
 exports.primType = (name) => primTypes[name]() || utils_1.impossible(`primType: ${name}`);
 
-},{"./domain":3,"./utils/utils":16}],9:[function(require,module,exports){
+},{"./domain":3,"./utils/utils":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -1232,6 +1331,7 @@ const syntax_1 = require("./syntax");
 const list_1 = require("./utils/list");
 const typecheck_1 = require("./typecheck");
 const verify_1 = require("./verify");
+const E = require("./erased");
 const help = `
 COMMANDS
 [:help or :h] this help message
@@ -1345,6 +1445,7 @@ exports.runREPL = (_s, _cb) => {
         let msg = '';
         let tm_;
         let ty_;
+        let er_ = null;
         try {
             const t = parser_1.parse(_s);
             config_1.log(() => surface_1.showTerm(t));
@@ -1354,8 +1455,10 @@ exports.runREPL = (_s, _cb) => {
             config_1.log(() => domain_1.showTermSZ(vty));
             config_1.log(() => syntax_1.showSurfaceZ(tm_));
             msg += `type: ${domain_1.showTermSZ(vty)}\nterm: ${syntax_1.showSurfaceZ(tm_)}`;
-            if (config_1.config.verify || verifyOnce)
-                verify_1.verify(ztm);
+            if (config_1.config.verify || verifyOnce) {
+                er_ = verify_1.verify(ztm)[1];
+                msg += `\neras: ${E.showTerm(er_)}`;
+            }
             if (typeOnly)
                 return _cb(msg);
         }
@@ -1394,7 +1497,7 @@ exports.runREPL = (_s, _cb) => {
     }
 };
 
-},{"./config":1,"./domain":3,"./globalenv":4,"./parser":7,"./surface":10,"./syntax":11,"./typecheck":12,"./utils/list":15,"./utils/utils":16,"./verify":17}],10:[function(require,module,exports){
+},{"./config":1,"./domain":3,"./erased":4,"./globalenv":5,"./parser":8,"./surface":11,"./syntax":12,"./typecheck":13,"./utils/list":16,"./utils/utils":17,"./verify":18}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showDefs = exports.showDef = exports.DDef = exports.erase = exports.showTerm = exports.showTermPS = exports.showTermP = exports.flattenPair = exports.flattenSigma = exports.flattenPi = exports.flattenAbs = exports.flattenApp = exports.showTermS = exports.Prim = exports.isPrimName = exports.primNames = exports.Type = exports.FinLit = exports.NatLit = exports.Meta = exports.Hole = exports.Ann = exports.Sort = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Var = exports.PCore = exports.PIndex = exports.PName = void 0;
@@ -1607,7 +1710,7 @@ exports.showDef = (d) => {
 };
 exports.showDefs = (ds) => ds.map(exports.showDef).join('\n');
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showSurfaceZErased = exports.showSurfaceZ = exports.showSurface = exports.toSurface = exports.isUnsolved = exports.indexUsed = exports.globalUsed = exports.showTerm = exports.Type = exports.FinLit = exports.NatLit = exports.Meta = exports.Sort = exports.Sigma = exports.Pi = exports.Let = exports.Proj = exports.Pair = exports.Abs = exports.App = exports.Global = exports.Var = exports.Prim = void 0;
@@ -1778,7 +1881,7 @@ exports.showSurface = (t, ns = list_1.Nil) => S.showTerm(exports.toSurface(t, ns
 exports.showSurfaceZ = (t, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = false) => S.showTerm(exports.toSurface(domain_1.zonk(t, vs, k, full), ns));
 exports.showSurfaceZErased = (t, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = false) => S.showTerm(S.erase(exports.toSurface(domain_1.zonk(t, vs, k, full), ns)));
 
-},{"./domain":3,"./names":6,"./surface":10,"./utils/list":15,"./utils/utils":16}],12:[function(require,module,exports){
+},{"./domain":3,"./names":7,"./surface":11,"./utils/list":16,"./utils/utils":17}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.typecheckDefs = exports.typecheck = exports.showLocal = exports.localInType = exports.extend = exports.localEmpty = void 0;
@@ -2281,7 +2384,7 @@ exports.typecheckDefs = (ds, allowRedefinition = false) => {
     return xs;
 };
 
-},{"./config":1,"./domain":3,"./globalenv":4,"./metas":5,"./prims":8,"./surface":10,"./syntax":11,"./unify":13,"./utils/list":15,"./utils/utils":16,"./verify":17}],13:[function(require,module,exports){
+},{"./config":1,"./domain":3,"./globalenv":5,"./metas":6,"./prims":9,"./surface":11,"./syntax":12,"./unify":14,"./utils/list":16,"./utils/utils":17,"./verify":18}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.unify = void 0;
@@ -2507,7 +2610,7 @@ const checkSolution = (k, m, is, t) => {
     return utils_1.impossible(`checkSolution ?${m}: non-normal term: ${syntax_1.showTerm(t)}`);
 };
 
-},{"./config":1,"./conv":2,"./domain":3,"./metas":5,"./syntax":11,"./utils/lazy":14,"./utils/list":15,"./utils/utils":16}],14:[function(require,module,exports){
+},{"./config":1,"./conv":2,"./domain":3,"./metas":6,"./syntax":12,"./utils/lazy":15,"./utils/list":16,"./utils/utils":17}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mapLazy = exports.forceLazy = exports.lazyOf = exports.Lazy = void 0;
@@ -2523,10 +2626,10 @@ exports.forceLazy = (lazy) => {
 };
 exports.mapLazy = (lazy, fn) => exports.Lazy(() => fn(exports.forceLazy(lazy)));
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.last = exports.max = exports.contains = exports.range = exports.and = exports.zipWithR_ = exports.zipWith_ = exports.zipWith = exports.foldlprim = exports.foldrprim = exports.foldl = exports.foldr = exports.lookup = exports.extend = exports.indecesOf = exports.dropWhile = exports.takeWhile = exports.indexOf = exports.index = exports.mapIndex = exports.map = exports.consAll = exports.append = exports.toArrayFilter = exports.toArray = exports.reverse = exports.isEmpty = exports.length = exports.each = exports.first = exports.filter = exports.listToString = exports.list = exports.listFrom = exports.Cons = exports.Nil = void 0;
+exports.last = exports.max = exports.contains = exports.range = exports.and = exports.zipWithR_ = exports.zipWith_ = exports.zipWith = exports.foldlprim = exports.foldrprim = exports.foldl = exports.foldr = exports.lookup = exports.extend = exports.take = exports.indecesOf = exports.dropWhile = exports.takeWhile = exports.indexOf = exports.index = exports.mapIndex = exports.map = exports.consAll = exports.append = exports.toArrayFilter = exports.toArray = exports.reverse = exports.isEmpty = exports.length = exports.each = exports.first = exports.filter = exports.listToString = exports.list = exports.listFrom = exports.Cons = exports.Nil = void 0;
 exports.Nil = { tag: 'Nil' };
 exports.Cons = (head, tail) => ({ tag: 'Cons', head, tail });
 exports.listFrom = (a) => a.reduceRight((x, y) => exports.Cons(y, x), exports.Nil);
@@ -2621,6 +2724,7 @@ exports.indecesOf = (l, val) => {
     }
     return a;
 };
+exports.take = (l, n) => n <= 0 || l.tag === 'Nil' ? exports.Nil : exports.Cons(l.head, exports.take(l.tail, n - 1));
 exports.extend = (name, val, rest) => exports.Cons([name, val], rest);
 exports.lookup = (l, name, eq = (x, y) => x === y) => {
     while (l.tag === 'Cons') {
@@ -2661,7 +2765,7 @@ exports.last = (l) => {
     return null;
 };
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.hasDuplicates = exports.range = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
@@ -2705,7 +2809,7 @@ exports.hasDuplicates = (x) => {
     return false;
 };
 
-},{"fs":19}],17:[function(require,module,exports){
+},{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verify = exports.showLocal = exports.localInType = exports.extend = exports.localEmpty = void 0;
@@ -2717,14 +2821,18 @@ const config_1 = require("./config");
 const globalenv_1 = require("./globalenv");
 const conv_1 = require("./conv");
 const prims_1 = require("./prims");
+const E = require("./erased");
 const extendT = (ts, val, bound, plicity) => list_1.Cons({ type: val, bound, plicity }, ts);
 const showEnvT = (ts, k = 0, full = false) => list_1.listToString(ts, entry => `${entry.bound ? '' : 'd '}${entry.plicity ? 'e ' : ''}${domain_1.showTermQ(entry.type, k, full)}`);
 const indexT = (ts, ix) => {
     let l = ts;
     let i = 0;
+    let plicities = 0;
     while (l.tag === 'Cons') {
         if (ix === 0)
-            return [l.head, i];
+            return [l.head, i, plicities];
+        if (l.head.plicity)
+            plicities++;
         i++;
         ix--;
         l = l.tail;
@@ -2749,11 +2857,11 @@ exports.localInType = (l, inType = true) => ({
 exports.showLocal = (l, full = false) => `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${domain_1.showEnvV(l.vs, l.index, full)}, ${list_1.listToString(l.names)})`;
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${syntax_1.showTerm(tm)} : ${domain_1.showTermS(ty, local.names, local.index)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
-    const ty2 = synth(local, tm);
+    const [ty2, term] = synth(local, tm);
     try {
         config_1.log(() => `conv ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}`);
         conv_1.conv(local.index, ty2, ty);
-        return;
+        return term;
     }
     catch (err) {
         if (!(err instanceof TypeError))
@@ -2764,52 +2872,54 @@ const check = (local, tm, ty) => {
 const synth = (local, tm) => {
     config_1.log(() => `synth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Prim')
-        return prims_1.primType(tm.name);
+        return [prims_1.primType(tm.name), E.Prim(tm.name)];
     if (tm.tag === 'Sort')
-        return domain_1.VType;
+        return [domain_1.VType, E.Type];
     if (tm.tag === 'Global') {
         const entry = globalenv_1.globalGet(tm.name);
         if (!entry)
             return utils_1.terr(`global ${tm.name} not found`);
         if (entry.plicity && !local.inType)
             return utils_1.terr(`erased global ${syntax_1.showTerm(tm)} used`);
-        return entry.type;
+        return [entry.type, E.Global(tm.name)];
     }
     if (tm.tag === 'Var') {
         const i = tm.index;
-        const [entry] = indexT(local.ts, i) || utils_1.terr(`var out of scope ${syntax_1.showTerm(tm)}`);
+        const fullentry = indexT(local.ts, i) || utils_1.terr(`var out of scope ${syntax_1.showTerm(tm)}`);
+        const entry = fullentry[0];
+        const plicities = fullentry[2];
         if (entry.plicity && !local.inType)
             return utils_1.terr(`erased parameter ${syntax_1.showTerm(tm)} used`);
-        return entry.type;
+        return [entry.type, E.Var(i - plicities)];
     }
     if (tm.tag === 'App') {
-        const ty = synth(local, tm.left);
-        const rty = synthapp(local, ty, tm.plicity, tm.right, tm);
-        return rty;
+        const [ty, left] = synth(local, tm.left);
+        const [rty, right] = synthapp(local, ty, tm.plicity, tm.right, tm);
+        return [rty, tm.plicity ? left : E.App(left, right)];
     }
     if (tm.tag === 'Abs') {
         check(exports.localInType(local), tm.type, domain_1.VType);
         const vtype = domain_1.evaluate(tm.type, local.vs);
-        const rt = synth(exports.extend(local, tm.name, vtype, true, tm.plicity, domain_1.VVar(local.index)), tm.body);
+        const [rt, body] = synth(exports.extend(local, tm.name, vtype, true, tm.plicity, domain_1.VVar(local.index)), tm.body);
         const pi = domain_1.evaluate(syntax_1.Pi(tm.plicity, tm.name, tm.type, domain_1.quote(rt, local.index + 1, false)), local.vs);
-        return pi;
+        return [pi, tm.plicity ? body : E.Abs(tm.name, body)];
     }
     if (tm.tag === 'Let') {
         check(exports.localInType(local), tm.type, domain_1.VType);
         const vty = domain_1.evaluate(tm.type, local.vs);
-        check(local, tm.val, vty);
-        const rt = synth(exports.extend(local, tm.name, vty, false, tm.plicity, domain_1.evaluate(tm.val, local.vs)), tm.body);
-        return rt;
+        const val = check(local, tm.val, vty);
+        const [rt, body] = synth(exports.extend(local, tm.name, vty, false, tm.plicity, domain_1.evaluate(tm.val, local.vs)), tm.body);
+        return [rt, E.Let(tm.name, val, body)];
     }
     if (tm.tag === 'Pi') {
         check(exports.localInType(local), tm.type, domain_1.VType);
         check(exports.extend(local, tm.name, domain_1.evaluate(tm.type, local.vs), true, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
-        return domain_1.VType;
+        return [domain_1.VType, E.Type];
     }
     if (tm.tag === 'Sigma') {
         check(exports.localInType(local), tm.type, domain_1.VType);
         check(exports.extend(local, tm.name, domain_1.evaluate(tm.type, local.vs), true, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
-        return domain_1.VType;
+        return [domain_1.VType, E.Type];
     }
     if (tm.tag === 'Pair') {
         check(exports.localInType(local), tm.type, domain_1.VType);
@@ -2823,24 +2933,24 @@ const synth = (local, tm) => {
             return utils_1.terr(`Pair with mismatched plicity (snd): ${syntax_1.showTerm(tm)} : ${domain_1.showTermS(vtf, local.names, local.index)}`);
         if (tm.plicity && tm.plicity2)
             return utils_1.terr(`Pair cannot be erased in both element: ${syntax_1.showTerm(tm)} : ${domain_1.showTermS(vtf, local.names, local.index)}`);
-        check(vtf.plicity ? exports.localInType(local) : local, tm.fst, vtf.type);
-        check(vtf.plicity2 ? exports.localInType(local) : local, tm.snd, vtf.body(domain_1.evaluate(tm.fst, local.vs)));
-        return vt;
+        const fst = check(vtf.plicity ? exports.localInType(local) : local, tm.fst, vtf.type);
+        const snd = check(vtf.plicity2 ? exports.localInType(local) : local, tm.snd, vtf.body(domain_1.evaluate(tm.fst, local.vs)));
+        return [vt, vtf.plicity ? snd : vtf.plicity2 ? fst : E.Pair(fst, snd)];
     }
     if (tm.tag === 'Proj') {
-        const ty = synth(local, tm.term);
+        const [ty, term] = synth(local, tm.term);
         const fty = domain_1.force(ty);
         if (fty.tag !== 'VSigma')
             return utils_1.terr(`not a sigma type in ${tm.proj}: ${syntax_1.showTerm(tm)}: ${domain_1.showTermS(fty, local.names, local.index)}`);
         if (tm.proj === 'fst' && fty.plicity && !local.inType)
             return utils_1.terr(`cannot call fst on erased sigma: ${syntax_1.showTerm(tm)}`);
-        return tm.proj === 'fst' ? fty.type : fty.body(domain_1.vproj('fst', domain_1.evaluate(tm.term, local.vs)));
+        return [tm.proj === 'fst' ? fty.type : fty.body(domain_1.vproj('fst', domain_1.evaluate(tm.term, local.vs))), fty.plicity || fty.plicity2 ? term : E.Proj(tm.proj, term)];
     }
     if (tm.tag === 'NatLit')
-        return domain_1.VNat;
+        return [domain_1.VNat, E.NatLit(tm.val)];
     if (tm.tag === 'FinLit') {
         check(local, tm.cap, domain_1.VNat);
-        return domain_1.vapp(domain_1.VFin, false, domain_1.vsucc(domain_1.evaluate(tm.cap, local.vs)));
+        return [domain_1.vapp(domain_1.VFin, false, domain_1.vsucc(domain_1.evaluate(tm.cap, local.vs))), E.NatLit(tm.index)];
     }
     return utils_1.terr(`cannot synth ${syntax_1.showTerm(tm)}`);
 };
@@ -2848,9 +2958,9 @@ const synthapp = (local, ty_, plicity, tm, tmall) => {
     config_1.log(() => `synthapp ${domain_1.showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     const ty = domain_1.force(ty_);
     if (ty.tag === 'VPi' && ty.plicity === plicity) {
-        check(plicity ? exports.localInType(local) : local, tm, ty.type);
+        const term = check(plicity ? exports.localInType(local) : local, tm, ty.type);
         const rt = ty.body(domain_1.evaluate(tm, local.vs));
-        return rt;
+        return [rt, term];
     }
     return utils_1.terr(`invalid type or plicity mismatch in synthapp in ${syntax_1.showTerm(tmall)}: ${domain_1.showTermQ(ty, local.index)} ${plicity ? '-' : ''}@ ${syntax_1.showTerm(tm)}`);
 };
@@ -2859,7 +2969,7 @@ exports.verify = (tm) => {
     return ty;
 };
 
-},{"./config":1,"./conv":2,"./domain":3,"./globalenv":4,"./prims":8,"./syntax":11,"./utils/list":15,"./utils/utils":16}],18:[function(require,module,exports){
+},{"./config":1,"./conv":2,"./domain":3,"./erased":4,"./globalenv":5,"./prims":9,"./syntax":12,"./utils/list":16,"./utils/utils":17}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2915,6 +3025,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":9}],19:[function(require,module,exports){
+},{"./repl":10}],20:[function(require,module,exports){
 
-},{}]},{},[18]);
+},{}]},{},[19]);
