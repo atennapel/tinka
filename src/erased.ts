@@ -65,8 +65,8 @@ export const flattenPair = (t: Term): Term[] => {
   return r;
 };
 
-export const showTermP = (b: boolean, t: Term, ns: List<Name>) => b ? `(${showTerm(t, ns)})` : showTerm(t, ns);
-export const isSimple = (t: Term) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit';
+const showTermP = (b: boolean, t: Term, ns: List<Name>) => b ? `(${showTerm(t, ns)})` : showTerm(t, ns);
+const isSimple = (t: Term) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit';
 const chooseName = (x: Name, ns: List<Name>): Name =>
   contains(ns, x) ? chooseName(nextName(x), ns) : x;
 export const showTerm = (t: Term, ns: List<Name> = Nil): string => {
@@ -77,7 +77,7 @@ export const showTerm = (t: Term, ns: List<Name> = Nil): string => {
   if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
-    return `${showTermP(!isSimple(f) && f.tag !== 'Proj', f, ns)} ${as.map((t, i) => showTermP(!isSimple(t) && !(t.tag !== 'Abs' && i === as.length - 1), t, ns)).join(' ')}`;
+    return `${showTermP(!isSimple(f) && f.tag !== 'Proj', f, ns)} ${as.map((t, i) => showTermP(!isSimple(t) && !(t.tag === 'Abs' && i === as.length - 1), t, ns)).join(' ')}`;
   }
   if (t.tag === 'Abs') {
     const [xs, b] = flattenAbs(t);
@@ -91,6 +91,6 @@ export const showTerm = (t: Term, ns: List<Name> = Nil): string => {
   }
   if (t.tag === 'Let')
     return `let ${t.name} = ${showTermP(t.val.tag === 'Let', t.val, ns)} in ${showTerm(t.body, Cons(chooseName(t.name, ns), ns))}`;
-  if (t.tag === 'Proj') return `.${t.proj} ${showTermP(isSimple(t.term), t.term, ns)}`;
+  if (t.tag === 'Proj') return `.${t.proj} ${showTermP(!isSimple(t.term), t.term, ns)}`;
   return t;
 };

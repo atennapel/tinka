@@ -4,9 +4,10 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- implement typed erasure to untyped lambda calculus
+- CEK machine for erased terms
 - experiment with adding primitive Nat and Fin operations
 - consider going back to a simpler enum type
+- induction on types
 
 - recursive instance search
 - find way to do recursive-inductive types

@@ -1,14 +1,15 @@
 import { log, setConfig, config } from './config';
-import { showTerm, erase, Pair, NatLit } from './surface';
+import { showTerm } from './surface';
 import { parse, ImportMap, parseDefs } from './parser';
 import { globalMap, globalDelete, globalGet } from './globalenv';
 import { loadFile } from './utils/utils';
-import { showTermSZ, normalize, quoteZ } from './domain';
-import { showSurfaceZ, showTerm as showTermI, Term, showSurfaceZErased, toSurface } from './syntax';
+import { showTermSZ, quoteZ } from './domain';
+import { showSurfaceZ, showTerm as showTermI, Term } from './syntax';
 import { Nil } from './utils/list';
 import { typecheckDefs, typecheck } from './typecheck';
 import { verify } from './verify';
 import * as E from './erased';
+import * as ED from './domainErased';
 
 const help = `
 COMMANDS
@@ -16,7 +17,6 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showEnvs or :showenvs] toggle showing environments in debug log messages
 [:showNorm or :shownorm] toggle showing normalization
-[:alwaysVerify] toggle verification of elaborated output
 [:def definitions] define names
 [:defs] show all defs
 [:del name] delete a name
@@ -26,6 +26,8 @@ COMMANDS
 [:gelab name] view the elaborated term of a name
 [:gterm name] view the term of a name
 [:gnorm name] view the fully normalized term of a name
+[:geras name] view erased term of a name
+[:genor name] view normalized erased term of a name
 [:t term] or [:type term] show the type of an expressions
 [:verify term] verify elaborated output
 `.trim();
@@ -52,10 +54,6 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     if (_s.toLowerCase() === ':shownorm') {
       setConfig({ showNormalization: !config.showNormalization });
       return _cb(`showNormalization: ${config.showNormalization}`);
-    }
-    if (_s.toLowerCase() === ':alwaysverify') {
-      setConfig({ verify: !config.verify });
-      return _cb(`verify: ${config.verify}`);
     }
     if (_s === ':defs') {
       const e = globalMap();
@@ -107,21 +105,31 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       if (!res) return _cb(`undefined global: ${name}`, true);
       return _cb(showTermSZ(res.val, Nil, Nil, 0, true));
     }
+    if (_s.startsWith(':geras')) {
+      const name = _s.slice(6).trim();
+      const res = globalGet(name);
+      if (!res) return _cb(`undefined global: ${name}`, true);
+      log(() => E.showTerm(res.erased));
+      return _cb(E.showTerm(res.erased));
+    }
+    if (_s.startsWith(':genor')) {
+      const name = _s.slice(6).trim();
+      const res = globalGet(name);
+      if (!res) return _cb(`undefined global: ${name}`, true);
+      const nor = ED.normalize(res.erased);
+      log(() => E.showTerm(nor));
+      return _cb(E.showTerm(nor));
+    }
     let typeOnly = false;
-    let verifyOnce = false;
     if (_s.startsWith(':t')) {
       _s = _s.slice(_s.startsWith(':type') ? 5 : 2);
       typeOnly = true;
-    }
-    if (_s.startsWith(':verify')) {
-      _s = _s.slice(7);
-      verifyOnce = true;
     }
     if (_s.startsWith(':')) return _cb('invalid command', true);
     let msg = '';
     let tm_: Term;
     let ty_: Term;
-    let er_: E.Term | null = null;
+    let er_: E.Term;
     try {
       const t = parse(_s);
       log(() => showTerm(t));
@@ -131,30 +139,28 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       log(() => showTermSZ(vty));
       log(() => showSurfaceZ(tm_));
       msg += `type: ${showTermSZ(vty)}\nterm: ${showSurfaceZ(tm_)}`;
-      if (config.verify || verifyOnce) {
-        er_ = verify(ztm)[1];
-        msg += `\neras: ${E.showTerm(er_)}`;
-      }
+      er_ = verify(ztm)[1];
+      msg += `\neras: ${E.showTerm(er_)}`;
       if (typeOnly) return _cb(msg);
     } catch (err) {
       log(() => ''+err);
       return _cb(''+err, true);
     }
     try {
-      const n = normalize(tm_, Nil, 0, true);
-      log(() => showSurfaceZErased(n));
+      const n = ED.normalize(er_);
+      log(() => E.showTerm(n));
       let norm: string = '';
       if (ty_.tag === 'Global' && ty_.name === 'Showable') {
-        let c = erase(toSurface(n));
+        let c = n;
         const r: number[] = [];
         while (c.tag === 'Pair' && c.fst.tag === 'NatLit' && c.fst.val === 0n) {
-          const rest = c.snd as Pair;
-          const chr = (rest.fst as NatLit).val;
+          const rest = c.snd as E.Pair;
+          const chr = (rest.fst as E.NatLit).val;
           r.push(Number(chr));
           c = rest.snd;
         }
         norm = String.fromCodePoint.apply(null, r);
-      } else norm = showSurfaceZErased(n);
+      } else norm = E.showTerm(n);
       return _cb(`${msg}${config.showNormalization ? `\nnorm: ${norm}` : ''}`);
     } catch (err) {
       log(() => ''+err);

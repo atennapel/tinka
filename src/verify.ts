@@ -56,7 +56,7 @@ export const showLocal = (l: Local, full: boolean = false): string =>
   `Local(${l.index}, ${l.inType}, ${showEnvT(l.ts, l.index, full)}, ${showEnvV(l.vs, l.index, full)}, ${listToString(l.names)})`;
 
 const check = (local: Local, tm: Term, ty: Val): E.Term => {
-  log(() => `check ${showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  log(() => `vcheck ${showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const [ty2, term] = synth(local, tm);
   try {
     log(() => `conv ${showTermS(ty2, local.names, local.index)} ~ ${showTermS(ty, local.names, local.index)}`);
@@ -69,7 +69,7 @@ const check = (local: Local, tm: Term, ty: Val): E.Term => {
 };
 
 const synth = (local: Local, tm: Term): [Val, E.Term] => {
-  log(() => `synth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  log(() => `vsynth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   if (tm.tag === 'Prim') return [primType(tm.name), E.Prim(tm.name)];
   if (tm.tag === 'Sort') return [VType, E.Type];
   if (tm.tag === 'Global') {
@@ -101,9 +101,9 @@ const synth = (local: Local, tm: Term): [Val, E.Term] => {
   if (tm.tag === 'Let') {
     check(localInType(local), tm.type, VType);
     const vty = evaluate(tm.type, local.vs);
-    const val = check(local, tm.val, vty);
+    const val = check(tm.plicity ? localInType(local) : local, tm.val, vty);
     const [rt, body] = synth(extend(local, tm.name, vty, false, tm.plicity, evaluate(tm.val, local.vs)), tm.body);
-    return [rt, E.Let(tm.name, val, body)];
+    return [rt, tm.plicity ? body : E.Let(tm.name, val, body)];
   }
   if (tm.tag === 'Pi') {
     check(localInType(local), tm.type, VType);
@@ -136,14 +136,14 @@ const synth = (local: Local, tm: Term): [Val, E.Term] => {
   }
   if (tm.tag === 'NatLit') return [VNat, E.NatLit(tm.val)];
   if (tm.tag === 'FinLit') {
-    check(local, tm.cap, VNat);
+    check(localInType(local), tm.cap, VNat);
     return [vapp(VFin, false, vsucc(evaluate(tm.cap, local.vs))), E.NatLit(tm.index)];
   }
   return terr(`cannot synth ${showTerm(tm)}`);
 };
 
 const synthapp = (local: Local, ty_: Val, plicity: Plicity, tm: Term, tmall: Term): [Val, E.Term] => {
-  log(() => `synthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
+  log(() => `vsynthapp ${showTermS(ty_, local.names, local.index)} ${plicity ? '-' : ''}@ ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.plicity === plicity) {
     const term = check(plicity ? localInType(local) : local, tm, ty.type);

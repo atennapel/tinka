@@ -11,7 +11,6 @@ if (process.argv[2]) {
   const option = process.argv[3] || '';
   if (option.includes('d')) setConfig({ debug: true });
   if (option.includes('e')) setConfig({ showEnvs: true });
-  if (option.includes('v')) setConfig({ verify: true });
   try {
     globalReset();
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');

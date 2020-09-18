@@ -84,6 +84,8 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     return conv(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
 
   // TODO: fin rules
+  if (a.tag === 'VFinLit' && a.index === 0n && a.cap.tag === 'VNatLit' && a.cap.val === 0n) return;
+  if (b.tag === 'VFinLit' && b.index === 0n && b.cap.tag === 'VNatLit' && b.cap.val === 0n) return;
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);

@@ -1,3 +1,6 @@
+-- this is a more efficient implementation of Vec
+-- where the proofs are erased
+-- as long as the Vectors are only created using VNil and VCons it is safe
 import lib/void.p
 import lib/unit.p
 import lib/sum.p

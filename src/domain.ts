@@ -255,7 +255,7 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
         VAbs(false, 'q', vapp(vapp(P, false, a), false, vapp(vapp(VPrim('ReflHEq'), true, A), true, a)), q =>
         VAbs(true, 'b', A, b =>
         VAbs(true, 'p', vheq(A, A, a, b), p =>
-        velimheq([p, A, a, P, q, b])))))));
+        velimhequnsafe([p, A, a, P, q, b])))))));
     if (t.name === 'S') return VAbs(false, 'n', VNat, n => vsucc(n));
     if (t.name === 'FS') return VAbs(true, 'n', VNat, n => VAbs(false, 'f', vapp(VFin, false, n), f => vfsucc(n, f)));
     if (t.name === 'genindNat')

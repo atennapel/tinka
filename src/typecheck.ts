@@ -11,6 +11,7 @@ import { globalGet, globalSet, globalMap } from './globalenv';
 import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
 import { verify } from './verify';
 import { primType } from './prims';
+import * as E from './erased';
 
 type EntryT = { type: Val, bound: boolean, plicity: Plicity, inserted: boolean };
 type EnvT = List<EntryT>;
@@ -303,7 +304,7 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
   }
   if (tm.tag === 'NatLit') return [NatLit(tm.val), VNat];
   if (tm.tag === 'FinLit') {
-    const cap = check(local, tm.cap, VNat);
+    const cap = check(localInType(local), tm.cap, VNat);
     return [FinLit(tm.index, cap), vapp(VFin, false, vsucc(evaluate(cap, local.vs)))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
@@ -417,7 +418,7 @@ const holesPop = (): void => {
 const holesDiscard = (): void => { holesStack.pop() };
 const holesReset = (): void => { holesStack = []; holes = {} };
 
-export const typecheck = (tm: S.Term, plicity: Plicity = false): [Term, Val] => {
+export const typecheck = (tm: S.Term, plicity: Plicity = false): [Term, Val, E.Term] => {
   holesReset();
   const [etm, ty] = synth(plicity ? localInType(localEmpty) : localEmpty, tm);
   const entries = Object.entries(holes);
@@ -445,9 +446,9 @@ export const typecheck = (tm: S.Term, plicity: Plicity = false): [Term, Val] => 
   if (isUnsolved(ztm)) // do I have to check types as well? Or maybe only metas?
     return terr(`elaborated term was unsolved: ${showSurfaceZ(ztm)}`);
 
-  if (config.verify) verify(ztm);
+  const erased = verify(ztm);
 
-  return [ztm, ty];
+  return [ztm, ty, erased[1]];
 };
 
 export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): Name[] => {
@@ -465,10 +466,10 @@ export const typecheckDefs = (ds: S.Def[], allowRedefinition: boolean = false): 
     log(() => `typecheckDefs ${S.showDef(d)}`);
     if (d.tag === 'DDef') {
       try {
-        const [tm_, ty] = typecheck(d.value, d.plicity);
+        const [tm_, ty, er] = typecheck(d.value, d.plicity);
         const tm = zonk(tm_);
         log(() => `set ${d.name} = ${showTerm(tm)}`);
-        globalSet(d.name, tm, evaluate(tm, Nil), ty, d.plicity);
+        globalSet(d.name, tm, evaluate(tm, Nil), ty, d.plicity, er);
 
         const i = xs.indexOf(d.name);
         if (i >= 0) xs.splice(i, 1);
