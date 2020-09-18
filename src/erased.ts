@@ -1,11 +1,15 @@
 import { Name, Ix, nextName } from './names';
-import * as S from './surface';
 import { List, index, Cons, contains, take, toArray, Nil } from './utils/list';
+
+export type PrimName =
+  'ReflHEq' | 'elimHEq' |
+  'S' | 'genindNat' |
+  'IIn' | 'genindIFix';
 
 export type Term = Var | Global | App | Abs | Pair | Proj | Let | Prim | NatLit | Type;
 
-export type Prim = { tag: 'Prim', name: S.PrimName };
-export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
+export type Prim = { tag: 'Prim', name: PrimName };
+export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
 export type Var = { tag: 'Var', index: Ix };
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
 export type Global = { tag: 'Global', name: Name };

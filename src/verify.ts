@@ -3,7 +3,7 @@ import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, sho
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
-import { Plicity } from './surface';
+import { Plicity, PrimName } from './surface';
 import { log, config } from './config';
 import { globalGet } from './globalenv';
 import { conv } from './conv';
@@ -68,9 +68,28 @@ const check = (local: Local, tm: Term, ty: Val): E.Term => {
   }
 };
 
+const erasePrim = (prim: PrimName): E.Term => {
+  if (prim === 'Fin') return E.Type;
+  if (prim === 'Nat') return E.Type;
+  if (prim === 'IFix') return E.Type;
+  if (prim === 'HEq') return E.Type;
+
+  if (prim === 'FS') return E.Prim('S');
+  if (prim === 'S') return E.Prim('S');
+  if (prim === 'genindNat') return E.Prim('genindNat');
+  if (prim === 'genindFin') return E.Prim('genindNat');
+  if (prim === 'ReflHEq') return E.Prim('ReflHEq');
+  if (prim === 'elimHEq') return E.Prim('elimHEq');
+  if (prim === 'IIn') return E.Prim('IIn');
+  if (prim === 'genindIFix') return E.Prim('genindIFix');
+
+  if (prim === 'unsafeElimHEq') return E.Abs('x', E.Var(0));
+  return prim;
+};
+
 const synth = (local: Local, tm: Term): [Val, E.Term] => {
   log(() => `vsynth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Prim') return [primType(tm.name), E.Prim(tm.name)];
+  if (tm.tag === 'Prim') return [primType(tm.name), erasePrim(tm.name)];
   if (tm.tag === 'Sort') return [VType, E.Type];
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);

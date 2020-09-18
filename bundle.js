@@ -554,7 +554,7 @@ exports.zonk = (tm, vs = list_1.Nil, k = 0, full = false) => {
 },{"./globalenv":6,"./metas":7,"./syntax":13,"./utils/lazy":16,"./utils/list":17,"./utils/utils":18}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showElim = exports.showElimQ = exports.showTermS = exports.showTermQ = exports.normalize = exports.quote = exports.evaluate = exports.vifixind = exports.vindnat = exports.vsucc = exports.velimheq = exports.vproj = exports.vapp = exports.showEnvV = exports.extendV = exports.VS = exports.VFin = exports.VNat = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VPrim = exports.VVar = exports.VType = exports.VNatLit = exports.VPair = exports.VAbs = exports.VNe = exports.EIFixInd = exports.EIndNat = exports.ES = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.showElim = exports.showElimQ = exports.showTermS = exports.showTermQ = exports.normalize = exports.quote = exports.evaluate = exports.vifixind = exports.vindnat = exports.vsucc = exports.velimheq = exports.vproj = exports.vapp = exports.showEnvV = exports.extendV = exports.VPrim = exports.VVar = exports.VType = exports.VNatLit = exports.VPair = exports.VAbs = exports.VNe = exports.EIFixInd = exports.EIndNat = exports.ES = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const erased_1 = require("./erased");
 const utils_1 = require("./utils/utils");
@@ -574,13 +574,6 @@ exports.VNatLit = (val) => ({ tag: 'VNatLit', val });
 exports.VType = { tag: 'VType' };
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
-exports.VHEq = exports.VPrim('HEq');
-exports.VIFix = exports.VPrim('IFix');
-exports.VReflHEq = exports.VPrim('ReflHEq');
-exports.vheq = (A, B, a, b) => exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VHEq, A), B), a), b);
-exports.VNat = exports.VPrim('Nat');
-exports.VFin = exports.VPrim('Fin');
-exports.VS = exports.VPrim('S');
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
 exports.showEnvV = (l, k = 0) => list_1.listToString(l, v => erased_1.showTerm(exports.quote(v, k)));
 exports.vapp = (a, b) => {
@@ -646,15 +639,9 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'elimHEq')
             return exports.VAbs('q', q => exports.VAbs('p', p => exports.velimheq(p, q)));
-        if (t.name === 'unsafeElimHEq')
-            return exports.VAbs('q', q => q);
         if (t.name === 'S')
             return exports.VAbs('n', n => exports.vsucc(n));
-        if (t.name === 'FS')
-            return exports.VAbs('n', n => exports.vsucc(n));
         if (t.name === 'genindNat')
-            return exports.VAbs('z', z => exports.VAbs('s', s => exports.VAbs('n', n => exports.vindnat([n, z, s]))));
-        if (t.name === 'genindFin')
             return exports.VAbs('z', z => exports.VAbs('s', s => exports.VAbs('n', n => exports.vindnat([n, z, s]))));
         if (t.name === 'genindIFix')
             return exports.VAbs('f', f => exports.VAbs('x', x => exports.vifixind(x, f)));
@@ -3078,10 +3065,39 @@ const check = (local, tm, ty) => {
         return utils_1.terr(`failed to conv ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
     }
 };
+const erasePrim = (prim) => {
+    if (prim === 'Fin')
+        return E.Type;
+    if (prim === 'Nat')
+        return E.Type;
+    if (prim === 'IFix')
+        return E.Type;
+    if (prim === 'HEq')
+        return E.Type;
+    if (prim === 'FS')
+        return E.Prim('S');
+    if (prim === 'S')
+        return E.Prim('S');
+    if (prim === 'genindNat')
+        return E.Prim('genindNat');
+    if (prim === 'genindFin')
+        return E.Prim('genindNat');
+    if (prim === 'ReflHEq')
+        return E.Prim('ReflHEq');
+    if (prim === 'elimHEq')
+        return E.Prim('elimHEq');
+    if (prim === 'IIn')
+        return E.Prim('IIn');
+    if (prim === 'genindIFix')
+        return E.Prim('genindIFix');
+    if (prim === 'unsafeElimHEq')
+        return E.Abs('x', E.Var(0));
+    return prim;
+};
 const synth = (local, tm) => {
     config_1.log(() => `vsynth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Prim')
-        return [prims_1.primType(tm.name), E.Prim(tm.name)];
+        return [prims_1.primType(tm.name), erasePrim(tm.name)];
     if (tm.tag === 'Sort')
         return [domain_1.VType, E.Type];
     if (tm.tag === 'Global') {

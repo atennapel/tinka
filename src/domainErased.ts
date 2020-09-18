@@ -1,9 +1,8 @@
 import { Ix, Name } from './names';
 import { List, Cons, Nil, listToString, index, foldr } from './utils/list';
-import { Term, showTerm, Var, App, Abs, Pair, Prim, Proj, NatLit, Type } from './erased';
+import { Term, showTerm, Var, App, Abs, Pair, Prim, Proj, NatLit, Type, PrimName } from './erased';
 import { impossible } from './utils/utils';
 import { globalGet } from './globalenv';
-import { PrimName } from './surface';
 
 export type Head = HVar | HPrim;
 
@@ -43,14 +42,6 @@ export const VType: VType = { tag: 'VType' };
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
-
-export const VHEq = VPrim('HEq');
-export const VIFix = VPrim('IFix');
-export const VReflHEq = VPrim('ReflHEq');
-export const vheq = (A: Val, B: Val, a: Val, b: Val) => vapp(vapp(vapp(vapp(VHEq, A), B), a), b);
-export const VNat = VPrim('Nat');
-export const VFin = VPrim('Fin');
-export const VS = VPrim('S');
 
 export type EnvV = List<Val>;
 export const extendV = (vs: EnvV, val: Val): EnvV => Cons(val, vs);
@@ -116,13 +107,8 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
   if (t.tag === 'Prim') {
     if (t.name === 'elimHEq')
       return VAbs('q', q => VAbs('p', p => velimheq(p, q)));
-    if (t.name === 'unsafeElimHEq')
-      return VAbs('q', q => q);
     if (t.name === 'S') return VAbs('n', n => vsucc(n));
-    if (t.name === 'FS') return VAbs('n', n => vsucc(n));
     if (t.name === 'genindNat')
-      return VAbs('z', z => VAbs('s', s => VAbs('n', n => vindnat([n, z, s]))));
-    if (t.name === 'genindFin')
       return VAbs('z', z => VAbs('s', s => VAbs('n', n => vindnat([n, z, s]))));
     if (t.name === 'genindIFix')
       return VAbs('f', f => VAbs('x', x => vifixind(x, f)));
