@@ -3,6 +3,7 @@ import lib/sum.p
 import lib/fix.p
 import lib/maybe.p
 import lib/monoid.p
+import lib/functor.p
 
 def ListF = \(t r : *). Sum UnitType (t ** r)
 def List = \(t : *). Fix (ListF t)
@@ -55,6 +56,8 @@ def paraList
 def mapList
   : {a b : *} -> (a -> b) -> List a -> List b
   = \{a} {b} f l. cataList l (Nil {b}) (\hd tl. Cons (f hd) tl)
+
+def functorList : Functor List = mapList 
 
 def headList
   : {t : *} -> List t -> Maybe t

@@ -4,6 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- Fix instance search involving %Nat
 - Find way to get rid of IIn and genindIFix in erased terms
 - CEK machine for erased terms
 - experiment with adding primitive Nat and Fin operations
