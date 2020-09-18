@@ -70,7 +70,7 @@ export const flattenPair = (t: Term): Term[] => {
 };
 
 const showTermP = (b: boolean, t: Term, ns: List<Name>) => b ? `(${showTerm(t, ns)})` : showTerm(t, ns);
-const isSimple = (t: Term) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit';
+const isSimple = (t: Term) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit' || t.tag === 'Pair';
 const chooseName = (x: Name, ns: List<Name>): Name =>
   contains(ns, x) ? chooseName(nextName(x), ns) : x;
 export const showTerm = (t: Term, ns: List<Name> = Nil): string => {

@@ -802,7 +802,7 @@ exports.flattenPair = (t) => {
     return r;
 };
 const showTermP = (b, t, ns) => b ? `(${exports.showTerm(t, ns)})` : exports.showTerm(t, ns);
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit';
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit' || t.tag === 'Pair';
 const chooseName = (x, ns) => list_1.contains(ns, x) ? chooseName(names_1.nextName(x), ns) : x;
 exports.showTerm = (t, ns = list_1.Nil) => {
     if (t.tag === 'Var')
@@ -1811,7 +1811,7 @@ exports.flattenPair = (t) => {
     return r;
 };
 exports.showTermP = (b, t) => b ? `(${exports.showTerm(t)})` : exports.showTerm(t);
-exports.showTermPS = (t) => exports.showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta', t);
+exports.showTermPS = (t) => exports.showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta' && t.tag !== 'FinLit' && t.tag !== 'NatLit' && t.tag !== 'Pair', t);
 exports.showTerm = (t) => {
     if (t.tag === 'Prim')
         return `%${t.name}`;

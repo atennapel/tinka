@@ -136,7 +136,7 @@ export const flattenPair = (t: Term): [Plicity, Term][] => {
 export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
 export const showTermPS = (t: Term): string =>
-  showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta', t);
+  showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta' && t.tag !== 'FinLit' && t.tag !== 'NatLit' && t.tag !== 'Pair', t);
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Var') return t.name;
