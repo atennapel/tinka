@@ -1469,21 +1469,24 @@ exports.runREPL = (_s, _cb) => {
             if (ty_.tag === 'Global' && ty_.name === 'Showable') {
                 throw new Error('unimplemented Showable');
                 /*
+                let nn = ED.normalize(
+                  E.App(n, E.Abs('rec', E.Abs('p', E.App(E.App(E.Proj('fst', E.Var(0)), E.idTerm), E.Pair()))))
+                );
+        
+        
                 let c = n;
                 const r: number[] = [];
                 while (c.tag === 'App' && c.left.tag === 'Prim' && c.left.name === 'IIn') {
                   const p = c.right as E.Pair;
                   if (p.fst.tag === 'Prim' && p.fst.name === 'True') break;
                   const d = p.snd as E.Pair;
-                  let m = d.fst;
-                  let i = 0;
-                  while(m.tag === 'App' && m.left.tag === 'Prim' && m.left.name === 'IIn') {
-                    const inner = m.right as E.Pair;
-                    if (inner.fst.tag === 'Prim' && inner.fst.name === 'True') break;
-                    i++;
-                    m = inner.snd;
+                  let natr = ED.normalize(E.App(n, E.Abs('rec', E.Abs('p', E.App(E.App(E.Proj('fst', E.Var(0)), E.idTerm), E.Pair(E.idTerm, E.App(E.Var(1), E.Proj('snd', E.Var(0)))))))));
+                  let nat = 0;
+                  while (natr.tag === 'Pair') {
+                    natr = (natr as E.Pair).snd;
+                    nat++;
                   }
-                  r.push(i);
+                  r.push(nat);
                   c = d.snd;
                 }
                 norm = String.fromCodePoint.apply(null, r);*/
@@ -2225,6 +2228,14 @@ const searchInstance = (name, tm_, ty_, local) => {
         if (entry.plicity)
             continue; // TODO: improve this
         metas_1.metaPush();
+        const result1 = tryUnify(local, entry.type, ty_);
+        if (!result1) {
+            config_1.log(() => `found local match: ${list_1.index(local.names, i)} (${i})`);
+            const v = domain_1.evaluate(syntax_1.Var(i), local.vs);
+            unify_1.unify(local.index, tm_, v);
+            metas_1.metaDiscard();
+            return;
+        }
         const [vty, ms] = inst(local.ts, local.vs, entry.type);
         const result = tryUnify(local, vty, ty_);
         if (!result) {
@@ -2244,9 +2255,18 @@ const searchInstance = (name, tm_, ty_, local) => {
         const entry = globalenv_1.globalGet(x);
         if (!entry)
             continue;
+        config_1.log(() => `try ${x}`);
         if (entry.plicity)
             continue; // TODO: improve this
         metas_1.metaPush();
+        const result1 = tryUnify(local, entry.type, ty_);
+        if (!result1) {
+            config_1.log(() => `found global match: ${x}`);
+            const v = domain_1.evaluate(syntax_1.Global(x), local.vs);
+            unify_1.unify(local.index, tm_, v);
+            metas_1.metaDiscard();
+            return;
+        }
         const [vty, ms] = inst(local.ts, local.vs, entry.type);
         const result = tryUnify(local, vty, ty_);
         if (!result) {

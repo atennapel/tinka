@@ -350,6 +350,14 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
     i++;
     if (entry.plicity) continue; // TODO: improve this
     metaPush();
+    const result1 = tryUnify(local, entry.type, ty_);
+    if (!result1) {
+      log(() => `found local match: ${index(local.names, i)} (${i})`);
+      const v = evaluate(Var(i), local.vs);
+      unify(local.index, tm_, v);
+      metaDiscard();
+      return;
+    }
     const [vty, ms] = inst(local.ts, local.vs, entry.type);
     const result = tryUnify(local, vty, ty_);
     if (!result) {
@@ -368,8 +376,17 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
     const x = ns[i];
     const entry = globalGet(x);
     if (!entry) continue;
+    log(() => `try ${x}`);
     if (entry.plicity) continue; // TODO: improve this
     metaPush();
+    const result1 = tryUnify(local, entry.type, ty_);
+    if (!result1) {
+      log(() => `found global match: ${x}`);
+      const v = evaluate(Global(x), local.vs);
+      unify(local.index, tm_, v);
+      metaDiscard();
+      return;
+    }
     const [vty, ms] = inst(local.ts, local.vs, entry.type);
     const result = tryUnify(local, vty, ty_);
     if (!result) {

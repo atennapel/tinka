@@ -156,21 +156,24 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       if (ty_.tag === 'Global' && ty_.name === 'Showable') {
         throw new Error('unimplemented Showable');
         /*
+        let nn = ED.normalize(
+          E.App(n, E.Abs('rec', E.Abs('p', E.App(E.App(E.Proj('fst', E.Var(0)), E.idTerm), E.Pair()))))
+        );
+
+
         let c = n;
         const r: number[] = [];
         while (c.tag === 'App' && c.left.tag === 'Prim' && c.left.name === 'IIn') {
           const p = c.right as E.Pair;
           if (p.fst.tag === 'Prim' && p.fst.name === 'True') break;
           const d = p.snd as E.Pair;
-          let m = d.fst;
-          let i = 0;
-          while(m.tag === 'App' && m.left.tag === 'Prim' && m.left.name === 'IIn') {
-            const inner = m.right as E.Pair;
-            if (inner.fst.tag === 'Prim' && inner.fst.name === 'True') break;
-            i++;
-            m = inner.snd;
+          let natr = ED.normalize(E.App(n, E.Abs('rec', E.Abs('p', E.App(E.App(E.Proj('fst', E.Var(0)), E.idTerm), E.Pair(E.idTerm, E.App(E.Var(1), E.Proj('snd', E.Var(0)))))))));
+          let nat = 0;
+          while (natr.tag === 'Pair') {
+            natr = (natr as E.Pair).snd;
+            nat++;
           }
-          r.push(i);
+          r.push(nat);
           c = d.snd;
         }
         norm = String.fromCodePoint.apply(null, r);*/

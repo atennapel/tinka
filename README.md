@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- Fix instance search involving prims: map_ S (Nothing {Nat})
 - CEK machine for erased terms
 - induction on types
 - fix Showable
