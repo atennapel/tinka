@@ -460,18 +460,12 @@ const erased_1 = require("./erased");
 const utils_1 = require("./utils/utils");
 const globalenv_1 = require("./globalenv");
 exports.HVar = (index) => ({ tag: 'HVar', index });
-exports.HPrim = (name) => ({ tag: 'HPrim', name });
 exports.EApp = (arg) => ({ tag: 'EApp', arg });
 exports.EProj = (proj) => ({ tag: 'EProj', proj });
-exports.EElimHEq = (arg) => ({ tag: 'EElimHEq', arg });
-exports.EIndBool = (t, f) => ({ tag: 'EIndBool', t, f });
-exports.EIFixInd = (arg) => ({ tag: 'EIFixInd', arg });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VAbs = (name, body) => ({ tag: 'VAbs', name, body });
 exports.VPair = (fst, snd) => ({ tag: 'VPair', fst, snd });
-exports.VType = { tag: 'VType' };
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
-exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
 exports.extendV = (vs, val) => list_1.Cons(val, vs);
 exports.showEnvV = (l, k = 0) => list_1.listToString(l, v => erased_1.showTerm(exports.quote(v, k)));
 exports.vapp = (a, b) => {
@@ -489,50 +483,7 @@ exports.vproj = (proj, v) => {
         return exports.VNe(v.head, list_1.Cons(exports.EProj(proj), v.args));
     return utils_1.impossible(`vsnd: ${v.tag}`);
 };
-exports.velimheq = (v, w) => {
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim' && v.head.name === 'ReflHEq') {
-            // elimHEq {A} {a} {P} q {b} (ReflHEq {A} {a}) ~> q 
-            return w;
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EElimHEq(w), v.args));
-    }
-    return utils_1.impossible(`velimheq: ${v.tag}`);
-};
-exports.vindbool = (v, t, f) => {
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim') {
-            if (v.head.name === 'True')
-                return t;
-            if (v.head.name === 'False')
-                return f;
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EIndBool(t, f), v.args));
-    }
-    return utils_1.impossible(`vindbool: ${v.tag}`);
-};
-exports.vifixind = (v, f) => {
-    if (v.tag === 'VNe') {
-        if (v.head.tag === 'HPrim' && v.head.name === 'IIn') {
-            // genindIFix {I} {F} {P} f {i} (IIn {i} x) ~> f (\{i} y. genindIFix {I} {F} {P} f {i} y) {i} x 
-            const args = v.args;
-            const x = args.head.arg;
-            return exports.vapp(exports.vapp(f, exports.VAbs('y', y => exports.vifixind(y, f))), x);
-        }
-        return exports.VNe(v.head, list_1.Cons(exports.EIFixInd(f), v.args));
-    }
-    return utils_1.impossible(`vifixind: ${v.tag}`);
-};
 exports.evaluate = (t, vs = list_1.Nil) => {
-    if (t.tag === 'Prim') {
-        if (t.name === 'elimHEq')
-            return exports.VAbs('q', q => exports.VAbs('p', p => exports.velimheq(p, q)));
-        if (t.name === 'indBool')
-            return exports.VAbs('t', t => exports.VAbs('f', f => exports.VAbs('b', b => exports.vindbool(b, t, f))));
-        if (t.name === 'genindIFix')
-            return exports.VAbs('f', f => exports.VAbs('x', x => exports.vifixind(x, f)));
-        return exports.VPrim(t.name);
-    }
     if (t.tag === 'Var') {
         const val = list_1.index(vs, t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
@@ -552,38 +503,21 @@ exports.evaluate = (t, vs = list_1.Nil) => {
         return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs));
     if (t.tag === 'Proj')
         return exports.vproj(t.proj, exports.evaluate(t.term, vs));
-    if (t.tag === 'Type')
-        return exports.VType;
     return t;
 };
 const quoteHead = (h, k) => {
     if (h.tag === 'HVar')
         return erased_1.Var(k - (h.index + 1));
-    if (h.tag === 'HPrim')
-        return erased_1.Prim(h.name);
-    return h;
+    return h.tag;
 };
 const quoteElim = (t, e, k) => {
     if (e.tag === 'EApp')
         return erased_1.App(t, exports.quote(e.arg, k));
     if (e.tag === 'EProj')
         return erased_1.Proj(e.proj, t);
-    if (e.tag === 'EElimHEq') {
-        const q = exports.quote(e.arg, k);
-        return erased_1.App(erased_1.App(erased_1.Prim('elimHEq'), q), t);
-    }
-    if (e.tag === 'EIndBool') {
-        return erased_1.App(erased_1.App(erased_1.App(erased_1.Prim('indBool'), exports.quote(e.t, k)), exports.quote(e.f, k)), t);
-    }
-    if (e.tag === 'EIFixInd') {
-        const f = exports.quote(e.arg, k);
-        return erased_1.App(erased_1.App(erased_1.Prim('genindIFix'), f), t);
-    }
     return e;
 };
 exports.quote = (v, k) => {
-    if (v.tag === 'VType')
-        return erased_1.Type;
     if (v.tag === 'VNe')
         return list_1.foldr((x, y) => quoteElim(y, x, k), quoteHead(v.head, k), v.args);
     if (v.tag === 'VAbs')
@@ -605,12 +539,6 @@ exports.showElim = (e, ns = list_1.Nil, k = 0) => {
         return `${exports.showTermS(e.arg, ns, k)}`;
     if (e.tag === 'EProj')
         return e.proj;
-    if (e.tag === 'EElimHEq')
-        return `elimheq ${exports.showTermS(e.arg, ns, k)}`;
-    if (e.tag === 'EIndBool')
-        return `indbool ${exports.showTermS(e.t, ns, k)} ${exports.showTermS(e.f, ns, k)}`;
-    if (e.tag === 'EIFixInd')
-        return `genindifix ${exports.showTermS(e.arg, ns, k)}`;
     return e;
 };
 
@@ -619,7 +547,6 @@ exports.showElim = (e, ns = list_1.Nil, k = 0) => {
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
 const list_1 = require("./utils/list");
-exports.Prim = (name) => ({ tag: 'Prim', name });
 exports.Var = (index) => ({ tag: 'Var', index });
 exports.Global = (name) => ({ tag: 'Global', name });
 exports.App = (left, right) => ({ tag: 'App', left, right });
@@ -627,16 +554,11 @@ exports.Abs = (name, body) => ({ tag: 'Abs', name, body });
 exports.Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
 exports.Proj = (proj, term) => ({ tag: 'Proj', proj, term });
 exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
-exports.Type = { tag: 'Type' };
 exports.showTermS = (t) => {
     if (t.tag === 'Var')
         return `${t.index}`;
-    if (t.tag === 'Type')
-        return `*`;
     if (t.tag === 'Global')
         return t.name;
-    if (t.tag === 'Prim')
-        return `%${t.name}`;
     if (t.tag === 'App')
         return `(${exports.showTermS(t.left)} ${exports.showTermS(t.right)})`;
     if (t.tag === 'Abs')
@@ -675,17 +597,13 @@ exports.flattenPair = (t) => {
     return r;
 };
 const showTermP = (b, t, ns) => b ? `(${exports.showTerm(t, ns)})` : exports.showTerm(t, ns);
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Pair';
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Pair';
 const chooseName = (x, ns) => list_1.contains(ns, x) ? chooseName(names_1.nextName(x), ns) : x;
 exports.showTerm = (t, ns = list_1.Nil) => {
     if (t.tag === 'Var')
         return list_1.index(ns, t.index) || `$${t.index}`;
-    if (t.tag === 'Type')
-        return `*`;
     if (t.tag === 'Global')
         return t.name;
-    if (t.tag === 'Prim')
-        return `%${t.name}`;
     if (t.tag === 'App') {
         const [f, as] = exports.flattenApp(t);
         return `${showTermP(!isSimple(f) && f.tag !== 'Proj', f, ns)} ${as.map((t, i) => showTermP(!isSimple(t) && !(t.tag === 'Abs' && i === as.length - 1), t, ns)).join(' ')}`;
@@ -705,6 +623,36 @@ exports.showTerm = (t, ns = list_1.Nil) => {
     if (t.tag === 'Proj')
         return `.${t.proj} ${showTermP(!isSimple(t.term), t.term, ns)}`;
     return t;
+};
+exports.idTerm = exports.Abs('x', exports.Var(0));
+exports.erasePrim = (prim) => {
+    if (prim === 'UnitType')
+        return exports.idTerm;
+    if (prim === 'Bool')
+        return exports.idTerm;
+    if (prim === 'IFix')
+        return exports.idTerm;
+    if (prim === 'HEq')
+        return exports.idTerm;
+    if (prim === 'unsafeElimHEq')
+        return exports.idTerm;
+    if (prim === 'Unit')
+        return exports.idTerm;
+    if (prim === 'True')
+        return exports.Abs('x', exports.Abs('y', exports.Var(1)));
+    if (prim === 'False')
+        return exports.Abs('x', exports.Abs('y', exports.Var(0)));
+    if (prim === 'indBool')
+        return exports.Abs('t', exports.Abs('f', exports.Abs('b', exports.App(exports.App(exports.Var(0), exports.Var(2)), exports.Var(1))))); // \t f b. b t f
+    if (prim === 'ReflHEq')
+        return exports.idTerm;
+    if (prim === 'IIn')
+        return exports.Abs('x', exports.Abs('f', exports.App(exports.App(exports.Var(0), exports.Abs('y', exports.App(exports.Var(0), exports.Var(1)))), exports.Var(1)))); // \x f. f (\x. x f) x
+    if (prim === 'elimHEq')
+        return exports.Abs('x', exports.Abs('y', exports.App(exports.Var(0), exports.Var(1)))); // \x p. p x
+    if (prim === 'genindIFix')
+        return exports.Abs('x', exports.Abs('y', exports.App(exports.Var(0), exports.Var(1)))); // \f x. x f
+    return prim;
 };
 
 },{"./names":8,"./utils/list":17}],6:[function(require,module,exports){
@@ -1370,6 +1318,7 @@ const typecheck_1 = require("./typecheck");
 const verify_1 = require("./verify");
 const E = require("./erased");
 const ED = require("./domainErased");
+const S = require("./surface");
 const help = `
 COMMANDS
 [:help or :h] this help message
@@ -1501,6 +1450,7 @@ exports.runREPL = (_s, _cb) => {
             ty_ = domain_1.quoteZ(vty);
             config_1.log(() => domain_1.showTermSZ(vty));
             config_1.log(() => syntax_1.showSurfaceZ(tm_));
+            config_1.log(() => S.showTerm(S.erase(syntax_1.toSurface(domain_1.normalize(tm_, list_1.Nil, 0, true)))));
             msg += `type: ${domain_1.showTermSZ(vty)}\nterm: ${syntax_1.showSurfaceZ(tm_)}`;
             er_ = verify_1.verify(ztm)[1];
             msg += `\neras: ${E.showTerm(er_)}`;
@@ -1513,29 +1463,30 @@ exports.runREPL = (_s, _cb) => {
         }
         try {
             const n = ED.normalize(er_);
+            config_1.log(() => E.showTermS(n));
             config_1.log(() => E.showTerm(n));
             let norm = '';
             if (ty_.tag === 'Global' && ty_.name === 'Showable') {
+                throw new Error('unimplemented Showable');
+                /*
                 let c = n;
-                const r = [];
+                const r: number[] = [];
                 while (c.tag === 'App' && c.left.tag === 'Prim' && c.left.name === 'IIn') {
-                    const p = c.right;
-                    if (p.fst.tag === 'Prim' && p.fst.name === 'True')
-                        break;
-                    const d = p.snd;
-                    let m = d.fst;
-                    let i = 0;
-                    while (m.tag === 'App' && m.left.tag === 'Prim' && m.left.name === 'IIn') {
-                        const inner = m.right;
-                        if (inner.fst.tag === 'Prim' && inner.fst.name === 'True')
-                            break;
-                        i++;
-                        m = inner.snd;
-                    }
-                    r.push(i);
-                    c = d.snd;
+                  const p = c.right as E.Pair;
+                  if (p.fst.tag === 'Prim' && p.fst.name === 'True') break;
+                  const d = p.snd as E.Pair;
+                  let m = d.fst;
+                  let i = 0;
+                  while(m.tag === 'App' && m.left.tag === 'Prim' && m.left.name === 'IIn') {
+                    const inner = m.right as E.Pair;
+                    if (inner.fst.tag === 'Prim' && inner.fst.name === 'True') break;
+                    i++;
+                    m = inner.snd;
+                  }
+                  r.push(i);
+                  c = d.snd;
                 }
-                norm = String.fromCodePoint.apply(null, r);
+                norm = String.fromCodePoint.apply(null, r);*/
             }
             else
                 norm = E.showTerm(n);
@@ -2846,41 +2797,12 @@ const check = (local, tm, ty) => {
         return utils_1.terr(`failed to conv ${domain_1.showTermS(ty2, local.names, local.index)} ~ ${domain_1.showTermS(ty, local.names, local.index)}: ${err.message}`);
     }
 };
-const erasePrim = (prim) => {
-    if (prim === 'UnitType')
-        return E.Type;
-    if (prim === 'Bool')
-        return E.Type;
-    if (prim === 'IFix')
-        return E.Type;
-    if (prim === 'HEq')
-        return E.Type;
-    if (prim === 'Unit')
-        return E.Prim('Unit');
-    if (prim === 'True')
-        return E.Prim('True');
-    if (prim === 'False')
-        return E.Prim('False');
-    if (prim === 'indBool')
-        return E.Prim('indBool');
-    if (prim === 'ReflHEq')
-        return E.Prim('ReflHEq');
-    if (prim === 'elimHEq')
-        return E.Prim('elimHEq');
-    if (prim === 'IIn')
-        return E.Prim('IIn');
-    if (prim === 'genindIFix')
-        return E.Prim('genindIFix');
-    if (prim === 'unsafeElimHEq')
-        return E.Abs('x', E.Var(0));
-    return prim;
-};
 const synth = (local, tm) => {
     config_1.log(() => `vsynth ${syntax_1.showTerm(tm)}${config_1.config.showEnvs ? ` in ${exports.showLocal(local)}` : ''}`);
     if (tm.tag === 'Prim')
-        return [prims_1.primType(tm.name), erasePrim(tm.name)];
+        return [prims_1.primType(tm.name), E.erasePrim(tm.name)];
     if (tm.tag === 'Sort')
-        return [domain_1.VType, E.Type];
+        return [domain_1.VType, E.idTerm];
     if (tm.tag === 'Global') {
         const entry = globalenv_1.globalGet(tm.name);
         if (!entry)
@@ -2920,12 +2842,12 @@ const synth = (local, tm) => {
     if (tm.tag === 'Pi') {
         check(exports.localInType(local), tm.type, domain_1.VType);
         check(exports.extend(local, tm.name, domain_1.evaluate(tm.type, local.vs), true, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
-        return [domain_1.VType, E.Type];
+        return [domain_1.VType, E.idTerm];
     }
     if (tm.tag === 'Sigma') {
         check(exports.localInType(local), tm.type, domain_1.VType);
         check(exports.extend(local, tm.name, domain_1.evaluate(tm.type, local.vs), true, false, domain_1.VVar(local.index)), tm.body, domain_1.VType);
-        return [domain_1.VType, E.Type];
+        return [domain_1.VType, E.idTerm];
     }
     if (tm.tag === 'Pair') {
         check(exports.localInType(local), tm.type, domain_1.VType);

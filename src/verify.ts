@@ -3,7 +3,7 @@ import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, sho
 import { Nil, List, Cons, listToString } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
-import { Plicity, PrimName } from './surface';
+import { Plicity } from './surface';
 import { log, config } from './config';
 import { globalGet } from './globalenv';
 import { conv } from './conv';
@@ -68,29 +68,10 @@ const check = (local: Local, tm: Term, ty: Val): E.Term => {
   }
 };
 
-const erasePrim = (prim: PrimName): E.Term => {
-  if (prim === 'UnitType') return E.Type;
-  if (prim === 'Bool') return E.Type;
-  if (prim === 'IFix') return E.Type;
-  if (prim === 'HEq') return E.Type;
-
-  if (prim === 'Unit') return E.Prim('Unit');
-  if (prim === 'True') return E.Prim('True');
-  if (prim === 'False') return E.Prim('False');
-  if (prim === 'indBool') return E.Prim('indBool');
-  if (prim === 'ReflHEq') return E.Prim('ReflHEq');
-  if (prim === 'elimHEq') return E.Prim('elimHEq');
-  if (prim === 'IIn') return E.Prim('IIn');
-  if (prim === 'genindIFix') return E.Prim('genindIFix');
-
-  if (prim === 'unsafeElimHEq') return E.Abs('x', E.Var(0));
-  return prim;
-};
-
 const synth = (local: Local, tm: Term): [Val, E.Term] => {
   log(() => `vsynth ${showTerm(tm)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  if (tm.tag === 'Prim') return [primType(tm.name), erasePrim(tm.name)];
-  if (tm.tag === 'Sort') return [VType, E.Type];
+  if (tm.tag === 'Prim') return [primType(tm.name), E.erasePrim(tm.name)];
+  if (tm.tag === 'Sort') return [VType, E.idTerm];
   if (tm.tag === 'Global') {
     const entry = globalGet(tm.name);
     if (!entry) return terr(`global ${tm.name} not found`);
@@ -127,12 +108,12 @@ const synth = (local: Local, tm: Term): [Val, E.Term] => {
   if (tm.tag === 'Pi') {
     check(localInType(local), tm.type, VType);
     check(extend(local, tm.name, evaluate(tm.type, local.vs), true, false, VVar(local.index)), tm.body, VType);
-    return [VType, E.Type];
+    return [VType, E.idTerm];
   }
   if (tm.tag === 'Sigma') {
     check(localInType(local), tm.type, VType);
     check(extend(local, tm.name, evaluate(tm.type, local.vs), true, false, VVar(local.index)), tm.body, VType);
-    return [VType, E.Type];
+    return [VType, E.idTerm];
   }
   if (tm.tag === 'Pair') {
     check(localInType(local), tm.type, VType);

@@ -3,13 +3,14 @@ import { showTerm } from './surface';
 import { parse, ImportMap, parseDefs } from './parser';
 import { globalMap, globalDelete, globalGet } from './globalenv';
 import { loadFile } from './utils/utils';
-import { showTermSZ, quoteZ } from './domain';
-import { showSurfaceZ, showTerm as showTermI, Term } from './syntax';
+import { showTermSZ, quoteZ, normalize } from './domain';
+import { showSurfaceZ, showTerm as showTermI, Term, toSurface } from './syntax';
 import { Nil } from './utils/list';
 import { typecheckDefs, typecheck } from './typecheck';
 import { verify } from './verify';
 import * as E from './erased';
 import * as ED from './domainErased';
+import * as S from './surface';
 
 const help = `
 COMMANDS
@@ -138,6 +139,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       ty_ = quoteZ(vty);
       log(() => showTermSZ(vty));
       log(() => showSurfaceZ(tm_));
+      log(() => S.showTerm(S.erase(toSurface(normalize(tm_, Nil, 0, true)))));
       msg += `type: ${showTermSZ(vty)}\nterm: ${showSurfaceZ(tm_)}`;
       er_ = verify(ztm)[1];
       msg += `\neras: ${E.showTerm(er_)}`;
@@ -148,9 +150,12 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
     }
     try {
       const n = ED.normalize(er_);
+      log(() => E.showTermS(n));
       log(() => E.showTerm(n));
       let norm: string = '';
       if (ty_.tag === 'Global' && ty_.name === 'Showable') {
+        throw new Error('unimplemented Showable');
+        /*
         let c = n;
         const r: number[] = [];
         while (c.tag === 'App' && c.left.tag === 'Prim' && c.left.name === 'IIn') {
@@ -168,7 +173,7 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
           r.push(i);
           c = d.snd;
         }
-        norm = String.fromCodePoint.apply(null, r);
+        norm = String.fromCodePoint.apply(null, r);*/
       } else norm = E.showTerm(n);
       return _cb(`${msg}${config.showNormalization ? `\nnorm: ${norm}` : ''}`);
     } catch (err) {

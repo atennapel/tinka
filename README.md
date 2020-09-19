@@ -5,9 +5,9 @@ Try it out at https://atennapel.github.io/tinka
 ```
 todo:
 - Fix instance search involving prims: map_ S (Nothing {Nat})
-- Find way to get rid of IIn and genindIFix in erased terms
 - CEK machine for erased terms
 - induction on types
+- fix Showable
 
 - recursive instance search
 - find way to do recursive-inductive types
