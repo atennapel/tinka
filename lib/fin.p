@@ -1,8 +1,20 @@
+import lib/void.p
+import lib/unit.p
+import lib/sum.p
+import lib/ifix.p
 import lib/nat.p
+import lib/eq.p
 
-def Fin : Nat -> * = %Fin
-def FZ : {n : Nat} -> Fin (S n) = \{n}. 0
-def FS : {n : Nat} -> Fin n -> Fin (S n) = %FS
+def FinF = \(r : Nat -> *) (n : Nat). Sum ({m : Nat} ** Eq {Nat} (S m) n) ({m : Nat} ** r m ** Eq {Nat} (S m) n)
+def Fin = IFix Nat FinF
+def FZ
+  : {n : Nat} -> Fin (S n)
+  = \{n}. IIn {Nat} {FinF} {S n}
+      (InL {{m : Nat} ** Eq {Nat} (S m) (S n)} {_} ({n}, Refl {Nat} {S n}))
+def FS
+  : {n : Nat} -> Fin n -> Fin (S n)
+  = \{n} f. IIn {Nat} {FinF} {S n}
+      (InR {_} {{m : Nat} ** Fin m ** Eq {Nat} (S m) (S n)} ({n}, f, Refl {Nat} {S n}))
 
 def genindFin
   : {P : (i : Nat) -> Fin i -> *}
@@ -11,7 +23,22 @@ def genindFin
     -> {n : Nat}
     -> (x : Fin n)
     -> P n x
-  = %genindFin
+  = \{P} fz fs {n} x. genindIFix {Nat} {FinF} {P}
+      (\rec {i} z.
+        indSum
+        {{m : Nat} ** Eq {Nat} (S m) i}
+        {{m : Nat} ** Fin m ** Eq {Nat} (S m) i}
+        {\s. P i (IIn {Nat} {FinF} {i} s)}
+        (\p.
+          let {pm} = p.fst in
+          elimEq {_} {_} {\mm e. P mm (IIn {Nat} {FinF} {mm} (InL {{m : Nat} ** Eq {Nat} (S m) mm} {_} ({pm}, e)))} (fz {pm}) p.snd)
+        (\p.
+          let {pm} = p.0 in
+          let rr = p.1 in
+          let q = p.snd.snd in
+          elimEq {_} {_} {\mm e. P mm (IIn {Nat} {FinF} {mm} (InR {_} {{m : Nat} ** Fin m ** Eq {Nat} (S m) mm} ({pm}, rr, e)))} (fs rec {pm} rr) q)
+        z)
+      {n} x
 
 def indFin
   : {P : (i : Nat) -> Fin i -> *}

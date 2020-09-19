@@ -153,11 +153,20 @@ export const runREPL = (_s: string, _cb: (msg: string, err?: boolean) => void) =
       if (ty_.tag === 'Global' && ty_.name === 'Showable') {
         let c = n;
         const r: number[] = [];
-        while (c.tag === 'Pair' && c.fst.tag === 'NatLit' && c.fst.val === 0n) {
-          const rest = c.snd as E.Pair;
-          const chr = (rest.fst as E.NatLit).val;
-          r.push(Number(chr));
-          c = rest.snd;
+        while (c.tag === 'App' && c.left.tag === 'Prim' && c.left.name === 'IIn') {
+          const p = c.right as E.Pair;
+          if (p.fst.tag === 'Prim' && p.fst.name === 'True') break;
+          const d = p.snd as E.Pair;
+          let m = d.fst;
+          let i = 0;
+          while(m.tag === 'App' && m.left.tag === 'Prim' && m.left.name === 'IIn') {
+            const inner = m.right as E.Pair;
+            if (inner.fst.tag === 'Prim' && inner.fst.name === 'True') break;
+            i++;
+            m = inner.snd;
+          }
+          r.push(i);
+          c = d.snd;
         }
         norm = String.fromCodePoint.apply(null, r);
       } else norm = E.showTerm(n);

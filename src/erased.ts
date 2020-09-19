@@ -3,10 +3,11 @@ import { List, index, Cons, contains, take, toArray, Nil } from './utils/list';
 
 export type PrimName =
   'ReflHEq' | 'elimHEq' |
-  'S' | 'genindNat' |
+  'Unit' |
+  'True' | 'False' | 'indBool' |
   'IIn' | 'genindIFix';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | Let | Prim | NatLit | Type;
+export type Term = Var | Global | App | Abs | Pair | Proj | Let | Prim | Type;
 
 export type Prim = { tag: 'Prim', name: PrimName };
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
@@ -26,15 +27,12 @@ export type Let = { tag: 'Let', name: Name, val: Term, body: Term };
 export const Let = (name: Name, val: Term, body: Term): Let => ({ tag: 'Let', name, val, body });
 export type Type = { tag: 'Type' };
 export const Type : Type = { tag: 'Type' };
-export type NatLit = { tag: 'NatLit', val: bigint };
-export const NatLit = (val: bigint): NatLit => ({ tag: 'NatLit', val });
 
 export const showTermS = (t: Term): string => {
   if (t.tag === 'Var') return `${t.index}`;
   if (t.tag === 'Type') return `*`;
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'Prim') return `%${t.name}`;
-  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${showTermS(t.right)})`;
   if (t.tag === 'Abs') return `(\\${t.name}. ${showTermS(t.body)})`;
   if (t.tag === 'Pair') return `(${showTermS(t.fst)}, ${showTermS(t.snd)})`;
@@ -70,7 +68,7 @@ export const flattenPair = (t: Term): Term[] => {
 };
 
 const showTermP = (b: boolean, t: Term, ns: List<Name>) => b ? `(${showTerm(t, ns)})` : showTerm(t, ns);
-const isSimple = (t: Term) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'NatLit' || t.tag === 'Pair';
+const isSimple = (t: Term) => t.tag === 'Var' || t.tag === 'Type' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Pair';
 const chooseName = (x: Name, ns: List<Name>): Name =>
   contains(ns, x) ? chooseName(nextName(x), ns) : x;
 export const showTerm = (t: Term, ns: List<Name> = Nil): string => {
@@ -78,7 +76,6 @@ export const showTerm = (t: Term, ns: List<Name> = Nil): string => {
   if (t.tag === 'Type') return `*`;
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'Prim') return `%${t.name}`;
-  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
     return `${showTermP(!isSimple(f) && f.tag !== 'Proj', f, ns)} ${as.map((t, i) => showTermP(!isSimple(t) && !(t.tag === 'Abs' && i === as.length - 1), t, ns)).join(' ')}`;

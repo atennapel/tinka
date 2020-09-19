@@ -10,7 +10,7 @@ export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 export type PCore = { tag: 'PCore', proj: 'fst' | 'snd' };
 export const PCore = (proj: 'fst' | 'snd'): PCore => ({ tag: 'PCore', proj });
 
-export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Sort | Ann | Hole | Meta | Prim | NatLit | FinLit;
+export type Term = Var | App | Abs | Pair | Proj | Let | Pi | Sigma | Sort | Ann | Hole | Meta | Prim;
 
 export type Var = { tag: 'Var', name: Name };
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -37,22 +37,18 @@ export type Hole = { tag: 'Hole', name: Name | null };
 export const Hole = (name: Name | null = null): Hole => ({ tag: 'Hole', name });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
-export type NatLit = { tag: 'NatLit', val: bigint };
-export const NatLit = (val: bigint): NatLit => ({ tag: 'NatLit', val });
-export type FinLit = { tag: 'FinLit', index: bigint, cap: Term };
-export const FinLit = (index: bigint, cap: Term): FinLit => ({ tag: 'FinLit', index, cap });
 
 export const Type: Sort = Sort('*');
 
 export type PrimName =
   'HEq' | 'ReflHEq' | 'elimHEq' | 'unsafeElimHEq' |
-  'Nat' | 'S' | 'genindNat' |
-  'Fin' | 'FS' | 'genindFin' |
+  'UnitType' | 'Unit' |
+  'Bool' | 'True' | 'False' | 'indBool' |
   'IFix' | 'IIn' | 'genindIFix';
 export const primNames = [
   'HEq', 'ReflHEq', 'elimHEq', 'unsafeElimHEq',
-  'Nat', 'S', 'genindNat',
-  'Fin', 'FS', 'genindFin',
+  'UnitType', 'Unit',
+  'Bool', 'True', 'False', 'indBool',
   'IFix', 'IIn', 'genindIFix',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
@@ -64,7 +60,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Meta') return `?${t.index}`;
-  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') return `(${showTermS(t.left)} ${t.plicity ? '-' : ''}${showTermS(t.right)})`;
   if (t.tag === 'Abs')
     return t.type ? `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTermS(t.type)}). ${showTermS(t.body)})` : `(\\${t.plicity ? '-' : ''}${t.name}. ${showTermS(t.body)})`;
@@ -75,7 +70,6 @@ export const showTermS = (t: Term): string => {
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Pair') return `(${t.plicity ? '{' : ''}${showTermS(t.fst)}${t.plicity ? '}' : ''}, ${t.plicity ? '{' : ''}${showTermS(t.snd)}${t.plicity ? '}' : ''})`;
   if (t.tag === 'Proj') return `(.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermS(t.term)})`;
-  if (t.tag === 'FinLit') return `%(${t.index}, ${showTermS(t.cap)})`;
   return t;
 };
 
@@ -136,13 +130,12 @@ export const flattenPair = (t: Term): [Plicity, Term][] => {
 export const showTermP = (b: boolean, t: Term): string =>
   b ? `(${showTerm(t)})` : showTerm(t);
 export const showTermPS = (t: Term): string =>
-  showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta' && t.tag !== 'FinLit' && t.tag !== 'NatLit' && t.tag !== 'Pair', t);
+  showTermP(t.tag !== 'Var' && t.tag !== 'Sort' && t.tag !== 'Hole' && t.tag !== 'Meta' && t.tag !== 'Pair', t);
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Prim') return `%${t.name}`;
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Meta') return `?${t.index}`;
   if (t.tag === 'Sort') return t.sort;
-  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') {
     const [f, as] = flattenApp(t);
     return `${showTermP(f.tag === 'Abs' || f.tag === 'Pi' || f.tag === 'Sigma' || f.tag === 'App' || f.tag === 'Let' || f.tag === 'Ann' || f.tag === 'Proj', f)} ${
@@ -172,7 +165,6 @@ export const showTerm = (t: Term): string => {
     return `${showTermP(t.term.tag === 'Ann', t.term)} : ${showTermP(t.term.tag === 'Ann', t.type)}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Proj') return `.${t.proj.tag === 'PName' ? t.proj.name : t.proj.tag === 'PIndex' ? t.proj.index : t.proj.proj} ${showTermPS(t.term)}`;
-  if (t.tag === 'FinLit') return `%(${t.index}, ${showTerm(t.cap)})`;
   return t;
 };
 
@@ -181,7 +173,6 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Hole') return t;
   if (t.tag === 'Meta') return t;
   if (t.tag === 'Var') return t;
-  if (t.tag === 'NatLit') return t;
   if (t.tag === 'Prim') return t;
   if (t.tag === 'Ann') return erase(t.term);
   if (t.tag === 'Abs') return t.plicity ? erase(t.body) : Abs(false, t.name, null, erase(t.body));
@@ -201,7 +192,6 @@ export const erase = (t: Term): Term => {
   if (t.tag === 'Sigma') return Type;
   if (t.tag === 'Let') return t.plicity ? erase(t.body) : Let(false, t.name, null, erase(t.val), erase(t.body));
   if (t.tag === 'Proj') return Proj(t.proj, erase(t.term));
-  if (t.tag === 'FinLit') return NatLit(t.index);
   return t;
 };
 

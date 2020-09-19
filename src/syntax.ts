@@ -5,7 +5,7 @@ import * as S from './surface';
 import { impossible } from './utils/utils';
 import { zonk, EnvV } from './domain';
 
-export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Sort | Prim | Meta | NatLit | FinLit;
+export type Term = Var | Global | App | Abs | Pair | Proj | Let | Pi | Sigma | Sort | Prim | Meta;
 
 export type Prim = { tag: 'Prim', name: S.PrimName };
 export const Prim = (name: S.PrimName): Prim => ({ tag: 'Prim', name });
@@ -31,10 +31,6 @@ export type Sort = { tag: 'Sort', sort: S.Sorts };
 export const Sort = (sort: S.Sorts): Sort => ({ tag: 'Sort', sort });
 export type Meta = { tag: 'Meta', index: Ix };
 export const Meta = (index: Ix): Meta => ({ tag: 'Meta', index });
-export type NatLit = { tag: 'NatLit', val: bigint };
-export const NatLit = (val: bigint): NatLit => ({ tag: 'NatLit', val });
-export type FinLit = { tag: 'FinLit', index: bigint, cap: Term };
-export const FinLit = (index: bigint, cap: Term): FinLit => ({ tag: 'FinLit', index, cap });
 
 export const Type: Sort = Sort('*');
 
@@ -44,7 +40,6 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Global') return t.name;
   if (t.tag === 'Sort') return t.sort;
   if (t.tag === 'Prim') return `%${t.name}`;
-  if (t.tag === 'NatLit') return `${t.val}`;
   if (t.tag === 'App') return `(${showTerm(t.left)} ${t.plicity ? '-' : ''}${showTerm(t.right)})`;
   if (t.tag === 'Abs') return `(\\(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Pair') return `(${t.plicity ? '{' : ''}${showTerm(t.fst)}${t.plicity ? '}' : ''}, ${t.plicity ? '{' : ''}${showTerm(t.snd)}${t.plicity ? '}' : ''} : ${showTerm(t.type)})`;
@@ -52,7 +47,6 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Pi') return `(/(${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}). ${showTerm(t.body)})`;
   if (t.tag === 'Sigma') return `((${t.plicity ? '-' : ''}${t.name} : ${showTerm(t.type)}) ** ${t.plicity ? '-' : ''}${showTerm(t.body)})`;
   if (t.tag === 'Proj') return `(${t.proj} ${showTerm(t.term)})`;
-  if (t.tag === 'FinLit') return `%(${t.index}, ${showTerm(t.cap)})`;
   return t;
 };
 
@@ -65,7 +59,6 @@ export const globalUsed = (k: Name, t: Term): boolean => {
   if (t.tag === 'Let') return globalUsed(k, t.type) || globalUsed(k, t.val) || globalUsed(k, t.body);
   if (t.tag === 'Pi') return globalUsed(k, t.type) || globalUsed(k, t.body);
   if (t.tag === 'Sigma') return globalUsed(k, t.type) || globalUsed(k, t.body);
-  if (t.tag === 'FinLit') return globalUsed(k, t.cap);
   return false;
 };
 export const indexUsed = (k: Ix, t: Term): boolean => {
@@ -77,7 +70,6 @@ export const indexUsed = (k: Ix, t: Term): boolean => {
   if (t.tag === 'Pi') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Sigma') return indexUsed(k, t.type) || indexUsed(k + 1, t.body);
   if (t.tag === 'Proj') return indexUsed(k, t.term);
-  if (t.tag === 'FinLit') return indexUsed(k, t.cap);
   return false;
 };
 
@@ -90,7 +82,6 @@ export const isUnsolved = (t: Term): boolean => {
   if (t.tag === 'Pi') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Sigma') return isUnsolved(t.type) || isUnsolved(t.body);
   if (t.tag === 'Proj') return isUnsolved(t.term);
-  if (t.tag === 'FinLit') return isUnsolved(t.cap);
   return false;
 };
 
@@ -110,7 +101,6 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
   if (t.tag === 'Global') return S.Var(t.name);
   if (t.tag === 'Prim') return S.Prim(t.name);
   if (t.tag === 'Sort') return S.Sort(t.sort);
-  if (t.tag === 'NatLit') return S.NatLit(t.val);
   if (t.tag === 'App') return S.App(toSurface(t.left, ns), t.plicity, toSurface(t.right, ns));
   if (t.tag === 'Pair') return S.Ann(S.Pair(t.plicity, t.plicity2, toSurface(t.fst, ns), toSurface(t.snd, ns)), toSurface(t.type, ns));
   if (t.tag === 'Proj') return S.Proj(S.PCore(t.proj), toSurface(t.term, ns));
@@ -130,7 +120,6 @@ export const toSurface = (t: Term, ns: List<Name> = Nil): S.Term => {
     const x = decideName(t.name, t.body, ns);
     return S.Sigma(t.plicity, t.plicity2, x, toSurface(t.type, ns), toSurface(t.body, Cons(x, ns)));
   }
-  if (t.tag === 'FinLit') return S.FinLit(t.index, toSurface(t.cap, ns));
   return t;
 };
 export const showSurface = (t: Term, ns: List<Name> = Nil): string => S.showTerm(toSurface(t, ns));

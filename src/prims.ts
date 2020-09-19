@@ -1,5 +1,5 @@
 import { PrimName } from './surface';
-import { Val, VPrim, VPi, vapp, VType, vheq, VNat, VNatLit, vsucc, VFin, VFinLit, vfsucc, VIFix } from './domain';
+import { Val, VPrim, VPi, vapp, VType, vheq, VIFix, VUnitType, VBool, VFalse, VTrue } from './domain';
 import { impossible } from './utils/utils';
 
 const primTypes: { [K in PrimName]: () => Val } = {
@@ -26,46 +26,20 @@ const primTypes: { [K in PrimName]: () => Val } = {
     VPi(true, 'p', vheq(A, A, a, b), p =>
     vapp(vapp(P, false, b), false, p))))))),
 
-  'Nat': () => VType,
-  'S': () => VPi(false, '_', VNat, _ => VNat),
-  /*
-  {P : Nat -> *}
-    -> P Z
-    -> (((k : Nat) -> P k) -> (m : Nat) -> P (S m))
-    -> (n : Nat)
-    -> P n
-  */
-  'genindNat': () =>
-    VPi(true, 'P', VPi(false, '_', VNat, _ => VType), P =>
-    VPi(false, '_', vapp(P, false, VNatLit(0n)), _ =>
-    VPi(false, '_', VPi(false, '_', VPi(false, 'k', VNat, k => vapp(P, false, k)), _ => VPi(false, 'm', VNat, m => vapp(P, false, vsucc(m)))), _ =>
-    VPi(false, 'n', VNat, n =>
-    vapp(P, false, n))))),
+  'UnitType': () => VType,
+  'Unit': () => VUnitType,
 
-  // Fin : Nat -> *
-  'Fin': () => VPi(false, '_', VNat, _ => VType),
-  // FS : {n : Nat} -> Fin n -> Fin (S n)
-  'FS': () => VPi(true, 'n', VNat, n => VPi(false, '_', vapp(VFin, false, n), _ => vapp(VFin, false, vsucc(n)))),
-  /*
-  genindFin :
-    {P : (i : Nat) -> Fin i -> *}
-    -> ({n : Nat} -> P (S n) (FZ {n}))
-    -> (({i : Nat} -> (x : Fin i) -> P i x) -> {n : Nat} -> (y : Fin n) -> P (S n) (FS {n} y))
-    -> {n : Nat}
-    -> (x : Fin n)
-    -> P n x
-  */
-  'genindFin': () =>
-    VPi(true, 'P', VPi(false, 'i', VNat, i => VPi(false, '_', vapp(VFin, false, i), _ => VType)), P =>
-    VPi(false, '_', VPi(true, 'n', VNat, n => vapp(vapp(P, false, vsucc(n)), false, VFinLit(0n, n))), _ =>
-    VPi(false, '_',
-      VPi(false, '_', VPi(true, 'i', VNat, i => VPi(false, 'x', vapp(VFin, false, i), x => vapp(vapp(P, false, i), false, x))), _ =>
-      VPi(true, 'n', VNat, n =>
-      VPi(false, 'y', vapp(VFin, false, n), y =>
-      vapp(vapp(P, false, vsucc(n)), false, vfsucc(n, y))))), _ =>
-    VPi(true, 'n', VNat, n =>
-    VPi(false, 'x', vapp(VFin, false, n), x =>
-    vapp(vapp(P, false, n), false, x)))))),
+  'Bool': () => VType,
+  'True': () => VBool,
+  'False': () => VBool,
+  // {P : Bool -> *} -> P True -> P False -> (b : Bool) -> P b
+  'indBool': () =>
+    VPi(true, 'P', VPi(false, '_', VBool, _ => VType), P =>
+    VPi(false, '_', vapp(P, false, VTrue), _ =>
+    VPi(false, '_', vapp(P, false, VFalse), _ =>
+    VPi(false, 'b', VBool, b =>
+    vapp(P, false, b))))),
+
 
   'IFix': () => VPi(false, 'I', VType, I => VPi(false, '_', VPi(false, '_', VPi(false, '_', I, _ => VType), _ => VPi(false, '_', I, _ => VType)), _ => VPi(false, '_', I, _ => VType))),
   'IIn': () =>

@@ -1,7 +1,5 @@
-import lib/fin.p
-
-def UnitType = Fin 1
-def Unit : UnitType = 0
+def UnitType = %UnitType
+def Unit : UnitType = %Unit
 
 def indUnitE
   : {P : UnitType -> *} -> P Unit -> {u : UnitType} -> P u

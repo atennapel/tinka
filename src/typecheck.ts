@@ -1,6 +1,6 @@
-import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Sort, NatLit, FinLit } from './syntax';
-import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, VSigma, vproj, showTermSZ, vapp, VNat, VFin, EApp, Elim, vsucc } from './domain';
-import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray, index, takeWhile, length, dropWhile } from './utils/list';
+import { Term, Pi, Let, Abs, App, Global, Var, showTerm, showSurface, isUnsolved, showSurfaceZ, Sigma, Pair, Prim, Proj, Sort } from './syntax';
+import { EnvV, Val, showTermQ, VType, force, evaluate, extendV, VVar, quote, showEnvV, showTermS, zonk, VPi, VNe, HMeta, VSigma, vproj, showTermSZ } from './domain';
+import { Nil, List, Cons, listToString, indexOf, mapIndex, filter, foldr, foldl, zipWith, toArray, index } from './utils/list';
 import { Ix, Name } from './names';
 import { terr } from './utils/utils';
 import { unify } from './unify';
@@ -83,17 +83,6 @@ const inst = (ts: EnvT, vs: EnvV, ty_: Val): [Val, List<Term>] => {
 const check = (local: Local, tm: S.Term, ty: Val): Term => {
   log(() => `check ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
   const fty = force(ty);
-  if (tm.tag === 'NatLit' && fty.tag === 'VNe' && fty.head.tag === 'HPrim' && fty.head.name === 'Fin') {
-    const n = tm.val;
-    const k = force(((fty.args as Cons<Elim>).head as EApp).arg);
-    if (k.tag === 'VNatLit') {
-      if (n < k.val) return FinLit(n, NatLit(k.val - 1n));
-    } else if (k.tag === 'VNe') {
-      const s = length(takeWhile(k.args, e => e.tag === 'ES'));
-      if (n < s) return FinLit(n, quote(VNe(k.head, dropWhile(k.args, e => e.tag === 'ES')), local.index, false));
-    }
-    return terr(`failed to check fin ${S.showTerm(tm)} : ${showTermS(ty, local.names, local.index)}${config.showEnvs ? ` in ${showLocal(local)}` : ''}`);
-  }
   if (tm.tag === 'Sort' && fty === VType) return Sort(tm.sort);
   if (tm.tag === 'Hole') {
     const x = newMeta(local.ts);
@@ -301,11 +290,6 @@ const synth = (local: Local, tm: S.Term): [Term, Val] => {
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
-  }
-  if (tm.tag === 'NatLit') return [NatLit(tm.val), VNat];
-  if (tm.tag === 'FinLit') {
-    const cap = check(localInType(local), tm.cap, VNat);
-    return [FinLit(tm.index, cap), vapp(VFin, false, vsucc(evaluate(cap, local.vs)))];
   }
   return terr(`cannot synth ${S.showTerm(tm)}`);
 };

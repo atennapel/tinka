@@ -1,14 +1,23 @@
-def Nat = %Nat
-def Z : Nat = 0
-def S : Nat -> Nat = %S
+import lib/unit.p
+import lib/sum.p
+import lib/fix.p
+import lib/eq.p
+import lib/bool.p
+
+def NatF = \(r : *). Sum UnitType r
+def Nat = Fix NatF
+def Z : Nat = In {NatF} (InL ())
+def S : Nat -> Nat = \n. In {NatF} (InR n)
 
 def genindNat
   : {P : Nat -> *}
     -> P Z
-    -> (((k : Nat) -> P k) -> (m : Nat) -> P (S m))
+    -> (((m : Nat) -> P m) -> (m : Nat) -> P (S m))
     -> (n : Nat)
     -> P n
-  = %genindNat
+  = \{P} z s n. genindFix {NatF} {P}
+    (\rec y. indSum {UnitType} {Nat} {\s. P (In {NatF} s)} (\_. z) (\m. s rec m) y)
+    n
 
 def indNat
   : {P : Nat -> *}

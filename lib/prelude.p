@@ -26,6 +26,7 @@ import lib/ifix.p
 import lib/fix.p
 
 import lib/list.p
+import lib/vec.module.p
 import lib/vec.p
 
 import lib/string.p

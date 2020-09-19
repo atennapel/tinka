@@ -1,18 +1,17 @@
 import lib/eq.p
 import lib/unit.p
 import lib/void.p
-import lib/fin.p
 
-def Bool = Fin 2
-def True : Bool = 1
-def False : Bool = 0
+def Bool = %Bool
+def True : Bool = %True
+def False : Bool = %False
 
 def indBool
   : {P : Bool -> *}
     -> P True
     -> P False
     -> (b : Bool) -> P b
-  = \{P} t f b. caseNFin {2} b {P} f (indUnit {\y. P (FS y)} t)
+  = %indBool
 
 def if
   : {t : *} -> Bool -> t -> t -> t

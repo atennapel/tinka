@@ -1,5 +1,5 @@
 import { terr } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, Head, forceGlue, vproj, VNe, VNatLit } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, Head, forceGlue, vproj } from './domain';
 import { forceLazy } from './utils/lazy';
 import { zipWithR_, length } from './utils/list';
 import { Ix } from './names';
@@ -15,8 +15,6 @@ export const eqHead = (a: Head, b: Head): boolean => {
 };
 const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
-  if (a.tag === 'ES' && b.tag === 'ES') return;
-  if (a.tag === 'EFS' && b.tag === 'EFS') return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && a.plicity === b.plicity)
     return conv(k, a.arg, b.arg);
   if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
@@ -25,7 +23,7 @@ const convElim = (k: Ix, a: Elim, b: Elim, x: Val, y: Val): void => {
       conv(k, a.args[i], b.args[i]);
     return;
   }
-  if (a.tag === 'EIndNat' && b.tag === 'EIndNat' && a.args.length === b.args.length) {
+  if (a.tag === 'EIndBool' && b.tag === 'EIndBool' && a.args.length === b.args.length) {
     for (let i = 0; i < a.args.length; i ++)
       conv(k, a.args[i], b.args[i]);
     return;
@@ -38,8 +36,6 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
   log(() => `conv(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VSort' && b.tag === 'VSort' && a.sort === b.sort) return;
-  if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.val === b.val) return;
-  if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.index === b.index) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.plicity === b.plicity) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -77,15 +73,8 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
     return conv(k, vproj('snd', a), b.snd);
   }
 
-  // nat extra rules (are they needed?)
-  if (a.tag === 'VNe' && a.args.tag === 'Cons' && a.args.head.tag === 'ES' && b.tag === 'VNatLit' && b.val > 0)
-    return conv(k, VNe(a.head, a.args.tail), VNatLit(b.val - 1n));
-  if (a.tag === 'VNatLit' && a.val > 0 && b.tag === 'VNe' && b.args.tag === 'Cons' && b.args.head.tag === 'ES')
-    return conv(k, VNatLit(a.val - 1n), VNe(b.head, b.args.tail));
-
-  // TODO: fin rules
-  if (a.tag === 'VFinLit' && a.index === 0n && a.cap.tag === 'VNatLit' && a.cap.val === 0n) return;
-  if (b.tag === 'VFinLit' && b.index === 0n && b.cap.tag === 'VNatLit' && b.cap.val === 0n) return;
+  if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'Unit') return;
+  if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit') return;
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
