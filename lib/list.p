@@ -57,7 +57,7 @@ def mapList
   : {a b : *} -> (a -> b) -> List a -> List b
   = \{a} {b} f l. cataList l (Nil {b}) (\hd tl. Cons (f hd) tl)
 
-def functorList : Functor List = mapList 
+def instanceFunctorList : Functor List = mapList 
 
 def headList
   : {t : *} -> List t -> Maybe t
@@ -71,14 +71,14 @@ def appendList
   : {t : *} -> List t -> List t -> List t
   = \{t} a b. cataList a b (\hd tl. Cons hd tl)
 
-def monoidList
+def instanceMonoidList
   : {t : *} -> Monoid (List t)
   = \{t}. mkMonoid (Nil {t}) (appendList {t})
 
 def fold
   : {t : *} -> Monoid t -> List t -> t
-  = \{t} m l. cataList l unit_ append_
+  = \{t} instanceM l. cataList l unit_ append_
 
 def foldMap
   : {a b : *} -> Monoid b -> (a -> b) -> List a -> b
-  = \{a} {b} m f l. fold m (mapList f l)
+  = \{a} {b} instanceM f l. fold_ (mapList f l)

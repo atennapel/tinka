@@ -82,7 +82,7 @@ def mapVec
   : {n : Nat} -> {a b : *} -> (a -> b) -> Vec n a -> Vec n b
   = \{n} {a} {b} f l. indVec {a} {\i _. Vec i b} (VNil {b}) (\hd tl. VCons (f hd) tl) l
 
-def functorVec : {n : Nat} -> Functor (Vec n) = \{n}. mapVec {n}
+def instanceFunctorVec : {n : Nat} -> Functor (Vec n) = \{n}. mapVec {n}
 
 def unknownHeadVec
   : {t : *} -> {n : Nat} -> Vec n t -> Maybe t

@@ -20,10 +20,10 @@ def mapMaybe
   : {a b : *} -> (a -> b) -> Maybe a -> Maybe b
   = \{a} {b} f m. caseMaybe m (Nothing {b}) (\x. Just (f x))
 
-def functorMaybe : Functor Maybe = mapMaybe
+def instanceFunctorMaybe : Functor Maybe = mapMaybe
 
 def bindMaybe
   : {a b : *} -> (a -> Maybe b) -> Maybe a -> Maybe b
   = \{a} {b} f x. caseMaybe x (Nothing {b}) f
 
-def monadMaybe : Monad Maybe = MkMonad functorMaybe Just bindMaybe
+def instanceMonadMaybe : Monad Maybe = MkMonad instanceFunctorMaybe Just bindMaybe

@@ -2,7 +2,7 @@ import lib/combinators.p
 
 def Functor = \(f : * -> *). {a b : *} -> (a -> b) -> f a -> f b
 
-def functorFun
+def instanceFunctorFun
   : {a : *} -> Functor (\b. a -> b)
   = compose
 

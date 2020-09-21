@@ -399,8 +399,6 @@ const searchSingleInstance = (name: Name, ctm: Term, wtm: Val, local: Local, cty
   return new TypeError(`no match found`);
 };
 
-const invalidInstances: string[] = ['id', 'indVoid', 'caseVoid'];
-
 const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
   log(() => `searchInstance _${name} = ${showTermSZ(tm_, local.names, local.vs, local.index, false)} : ${showTermSZ(ty_, local.names, local.vs, local.index, false)}`);
   const ty = force(ty_);
@@ -415,7 +413,9 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
     c = c.tail;
     i++;
     if (entry.plicity) continue; // TODO: improve this
-    const res = searchSingleInstance(index(local.names, i) || `$${i}`, Var(i), tm_, local, entry.type, ty_);
+    const x = index(local.names, i) || `$${i}`;
+    if (!x.startsWith('instance')) continue;
+    const res = searchSingleInstance(x, Var(i), tm_, local, entry.type, ty_);
     if (!res) return;
   }
   const env = globalMap();
@@ -423,7 +423,7 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
   log(() => `search globals`);
   for (let i = 0, l = ns.length; i < l; i++) { // TODO: ensure reverse insertion order
     const x = ns[i];
-    if (invalidInstances.includes(x)) continue; // TODO!
+    if (!x.startsWith('instance')) continue;
     const entry = globalGet(x);
     if (!entry) continue;
     log(() => `try ${x}`);

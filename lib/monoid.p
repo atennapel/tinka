@@ -7,3 +7,7 @@ def mkMonoid
 
 def unit : {t : *} -> Monoid t -> t = \m. m.unit
 def append : {t : *} -> Monoid t -> t -> t -> t = \m. m.append
+
+def instanceMonoidFun
+  : {t : *} -> Monoid (t -> t)
+  = \{t}. mkMonoid {t -> t} (\x. x) (\f g x. f (g x))

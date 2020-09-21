@@ -2286,7 +2286,6 @@ const searchSingleInstance = (name, ctm, wtm, local, cty, wty) => {
     metas_1.metaPop();
     return new TypeError(`no match found`);
 };
-const invalidInstances = ['id', 'indVoid', 'caseVoid'];
 const searchInstance = (name, tm_, ty_, local) => {
     config_1.log(() => `searchInstance _${name} = ${domain_1.showTermSZ(tm_, local.names, local.vs, local.index, false)} : ${domain_1.showTermSZ(ty_, local.names, local.vs, local.index, false)}`);
     const ty = domain_1.force(ty_);
@@ -2304,7 +2303,10 @@ const searchInstance = (name, tm_, ty_, local) => {
         i++;
         if (entry.plicity)
             continue; // TODO: improve this
-        const res = searchSingleInstance(list_1.index(local.names, i) || `$${i}`, syntax_1.Var(i), tm_, local, entry.type, ty_);
+        const x = list_1.index(local.names, i) || `$${i}`;
+        if (!x.startsWith('instance'))
+            continue;
+        const res = searchSingleInstance(x, syntax_1.Var(i), tm_, local, entry.type, ty_);
         if (!res)
             return;
     }
@@ -2313,8 +2315,8 @@ const searchInstance = (name, tm_, ty_, local) => {
     config_1.log(() => `search globals`);
     for (let i = 0, l = ns.length; i < l; i++) { // TODO: ensure reverse insertion order
         const x = ns[i];
-        if (invalidInstances.includes(x))
-            continue; // TODO!
+        if (!x.startsWith('instance'))
+            continue;
         const entry = globalenv_1.globalGet(x);
         if (!entry)
             continue;

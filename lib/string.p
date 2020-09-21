@@ -11,10 +11,10 @@ def Showable = String
 def Show = \t. t -> Showable
 def show : {t : *} -> Show t -> t -> Showable = \x. x
 
-def showString : Show String = \s. s
-def showNatUnary : Show Nat = \n. cataNat n (Nil {Nat}) (Cons 49)
-def showUnit : Show UnitType = \_. "()"
-def showBool : Show Bool = \b. if b "True" "False"
-def showList
+def instanceShowString : Show String = \s. s
+def instanceShowNatUnary : Show Nat = \n. cataNat n (Nil {Nat}) (Cons 49)
+def instanceShowUnit : Show UnitType = \_. "()"
+def instanceShowBool : Show Bool = \b. if b "True" "False"
+def instanceShowList
   : {t : *} -> Show t -> Show (List t)
-  = \{t} show l. cataList l "()" (\h r. appendList (show h) (appendList " :: " r))
+  = \{t} instanceShow l. cataList l "()" (\h r. appendList (instanceShow h) (appendList " :: " r))
