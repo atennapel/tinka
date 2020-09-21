@@ -335,6 +335,8 @@ const tryUnify = (local: Local, ty1: Val, ty2: Val): TypeError | null => {
   }
 };
 
+let recInstanceCounter = 0;
+
 const searchSingleInstance = (name: Name, ctm: Term, wtm: Val, local: Local, cty: Val, wty: Val): TypeError | null => {
   // try equality
   metaPush();
@@ -363,17 +365,33 @@ const searchSingleInstance = (name: Name, ctm: Term, wtm: Val, local: Local, cty
 
   // try recursive
   metaPush();
-  const fvty = force(vty);
+  const [vty2, ms2] = inst(local.ts, local.vs, cty);
+  const fvty = force(vty2);
   if (fvty.tag === 'VPi' && !fvty.plicity) {
     const exlocal = extend(local, fvty.name, fvty.type, true, false, false, VVar(local.index));
     const res = tryUnify(exlocal, fvty.body(VVar(local.index)), wty);
     if (!res) {
-      metaPop();
-
+      log(() => `found potential recursive match ${name}`);
       metaPush();
+      const rname = `rec${recInstanceCounter++}`;
+      const mtm = newMeta(local.ts);
+      const vmtm = evaluate(mtm, local.vs);
 
-      return terr(`potential recursive instance: ${name}`);
-      //searchInstance()
+      try {
+        searchInstance(rname, vmtm, fvty.type, local);
+        const res = tryUnify(local, fvty.body(vmtm), wty);
+        if (!res) {
+          log(() => `found recursive match ${name}`);
+          const v = evaluate(App(foldl((a, m) => App(a, true, m), ctm, ms2), false, mtm), local.vs);
+          unify(local.index, wtm, v);
+          metaDiscard();
+          return null;
+        } else throw res;
+      } catch (err) {
+        if (!(err instanceof TypeError)) throw err;
+        metaPop();
+        return err;
+      }
     }
   }
   metaPop();

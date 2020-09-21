@@ -4,6 +4,7 @@ import lib/eq.p
 
 import lib/monoid.p
 import lib/functor.p
+import lib/monad.p
 
 import lib/singleton.p
 

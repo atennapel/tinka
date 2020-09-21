@@ -4,11 +4,11 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- fix recursive instances
 - CEK machine for erased terms
 - induction on types
 - fix Showable
 
-- recursive instance search
 - find way to do recursive-inductive types
 - find way to do inductive-inductive types
 
