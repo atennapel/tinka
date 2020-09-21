@@ -335,6 +335,52 @@ const tryUnify = (local: Local, ty1: Val, ty2: Val): TypeError | null => {
   }
 };
 
+const searchSingleInstance = (name: Name, ctm: Term, wtm: Val, local: Local, cty: Val, wty: Val): TypeError | null => {
+  // try equality
+  metaPush();
+  const result1 = tryUnify(local, cty, wty);
+  if (!result1) {
+    log(() => `found match ${name}`);
+    const v = evaluate(ctm, local.vs);
+    unify(local.index, wtm, v);
+    metaDiscard();
+    return null;
+  }
+  metaPop();
+
+  // try equality with instantiation
+  metaPush();
+  const [vty, ms] = inst(local.ts, local.vs, cty);
+  const result2 = tryUnify(local, vty, wty);
+  if (!result2) {
+    log(() => `found instantiated match ${name}`);
+    const v = evaluate(foldl((a, m) => App(a, true, m), ctm, ms), local.vs);
+    unify(local.index, wtm, v);
+    metaDiscard();
+    return null;
+  }
+  metaPop();
+
+  // try recursive
+  metaPush();
+  const fvty = force(vty);
+  if (fvty.tag === 'VPi' && !fvty.plicity) {
+    const exlocal = extend(local, fvty.name, fvty.type, true, false, false, VVar(local.index));
+    const res = tryUnify(exlocal, fvty.body(VVar(local.index)), wty);
+    if (!res) {
+      metaPop();
+
+      metaPush();
+
+      return terr(`potential recursive instance: ${name}`);
+      //searchInstance()
+    }
+  }
+  metaPop();
+
+  return new TypeError(`no match found`);
+};
+
 const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
   log(() => `searchInstance _${name} = ${showTermS(tm_, local.names, local.index)} : ${showTermS(ty_, local.names, local.index)}`);
   const ty = force(ty_);
@@ -349,25 +395,8 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
     c = c.tail;
     i++;
     if (entry.plicity) continue; // TODO: improve this
-    metaPush();
-    const result1 = tryUnify(local, entry.type, ty_);
-    if (!result1) {
-      log(() => `found local match: ${index(local.names, i)} (${i})`);
-      const v = evaluate(Var(i), local.vs);
-      unify(local.index, tm_, v);
-      metaDiscard();
-      return;
-    }
-    const [vty, ms] = inst(local.ts, local.vs, entry.type);
-    const result = tryUnify(local, vty, ty_);
-    if (!result) {
-      log(() => `found local match: ${index(local.names, i)} (${i})`);
-      const v = evaluate(foldl((a, m) => App(a, true, m), Var(i) as Term, ms), local.vs);
-      unify(local.index, tm_, v);
-      metaDiscard();
-      return;
-    }
-    metaPop();
+    const res = searchSingleInstance(index(local.names, i) || `$${i}`, Var(i), tm_, local, entry.type, ty_);
+    if (!res) return;
   }
   const env = globalMap();
   const ns = Object.keys(env).reverse();
@@ -378,25 +407,8 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
     if (!entry) continue;
     log(() => `try ${x}`);
     if (entry.plicity) continue; // TODO: improve this
-    metaPush();
-    const result1 = tryUnify(local, entry.type, ty_);
-    if (!result1) {
-      log(() => `found global match: ${x}`);
-      const v = evaluate(Global(x), local.vs);
-      unify(local.index, tm_, v);
-      metaDiscard();
-      return;
-    }
-    const [vty, ms] = inst(local.ts, local.vs, entry.type);
-    const result = tryUnify(local, vty, ty_);
-    if (!result) {
-      log(() => `found global match: ${x}`);
-      const v = evaluate(foldl((a, m) => App(a, true, m), Global(x) as Term, ms), local.vs);
-      unify(local.index, tm_, v);
-      metaDiscard();
-      return;
-    }
-    metaPop();
+    const res = searchSingleInstance(x, Global(x), tm_, local, entry.type, ty_);
+    if (!res) return;
   }
   return terr(`failed to find instance for _${name} = ${showTermS(tm_, local.names, local.index)} : ${showTermS(ty_, local.names, local.index)}`);
 };

@@ -15,3 +15,6 @@ def showString : Show String = \s. s
 def showNatUnary : Show Nat = \n. cataNat n (Nil {Nat}) (Cons 49)
 def showUnit : Show UnitType = \_. "()"
 def showBool : Show Bool = \b. if b "True" "False"
+def showList
+  : {t : *} -> Show t -> Show (List t)
+  = \{t} show l. cataList l "()" (\h r. appendList (show h) (appendList " :: " r))
