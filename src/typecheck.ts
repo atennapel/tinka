@@ -399,8 +399,10 @@ const searchSingleInstance = (name: Name, ctm: Term, wtm: Val, local: Local, cty
   return new TypeError(`no match found`);
 };
 
+const invalidInstances: string[] = ['id', 'indVoid', 'caseVoid'];
+
 const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
-  log(() => `searchInstance _${name} = ${showTermS(tm_, local.names, local.index)} : ${showTermS(ty_, local.names, local.index)}`);
+  log(() => `searchInstance _${name} = ${showTermSZ(tm_, local.names, local.vs, local.index, false)} : ${showTermSZ(ty_, local.names, local.vs, local.index, false)}`);
   const ty = force(ty_);
   const tm = force(tm_);
   if (ty.tag === 'VNe' && ty.head.tag === 'HMeta') return terr(`cannot solve instance _${name}, expected type is a meta: ${showTermS(ty_, local.names, local.index)}`);
@@ -421,6 +423,7 @@ const searchInstance = (name: Name, tm_: Val, ty_: Val, local: Local): void => {
   log(() => `search globals`);
   for (let i = 0, l = ns.length; i < l; i++) { // TODO: ensure reverse insertion order
     const x = ns[i];
+    if (invalidInstances.includes(x)) continue; // TODO!
     const entry = globalGet(x);
     if (!entry) continue;
     log(() => `try ${x}`);

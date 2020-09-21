@@ -2286,8 +2286,9 @@ const searchSingleInstance = (name, ctm, wtm, local, cty, wty) => {
     metas_1.metaPop();
     return new TypeError(`no match found`);
 };
+const invalidInstances = ['id', 'indVoid', 'caseVoid'];
 const searchInstance = (name, tm_, ty_, local) => {
-    config_1.log(() => `searchInstance _${name} = ${domain_1.showTermS(tm_, local.names, local.index)} : ${domain_1.showTermS(ty_, local.names, local.index)}`);
+    config_1.log(() => `searchInstance _${name} = ${domain_1.showTermSZ(tm_, local.names, local.vs, local.index, false)} : ${domain_1.showTermSZ(ty_, local.names, local.vs, local.index, false)}`);
     const ty = domain_1.force(ty_);
     const tm = domain_1.force(tm_);
     if (ty.tag === 'VNe' && ty.head.tag === 'HMeta')
@@ -2312,6 +2313,8 @@ const searchInstance = (name, tm_, ty_, local) => {
     config_1.log(() => `search globals`);
     for (let i = 0, l = ns.length; i < l; i++) { // TODO: ensure reverse insertion order
         const x = ns[i];
+        if (invalidInstances.includes(x))
+            continue; // TODO!
         const entry = globalenv_1.globalGet(x);
         if (!entry)
             continue;
