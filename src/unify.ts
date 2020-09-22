@@ -102,15 +102,16 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
 };
 
 const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
-  log(() => `solve (${length(spine)}) ?${m} ${listToString(spine, e => showElimQ(e, k))} := ${showTermQ(val, k)} (${k})`);
+  const l = length(spine);
+  log(() => `solve (${l}) ?${m} ${listToString(spine, e => showElimQ(e, k))} := ${showTermQ(val, k)} (${k})`);
   try {
     // check inversion on indBool
     if (!isEmpty(spine) && spine.head.tag === 'EIndBool') {
       // ?1 es (indBool P a b) := v
       //
-      // a := v && ?1 es := True
+      // a ~ v && ?1 es := True
       // OR
-      // b := v && ?1 es := False
+      // b ~ v && ?1 es := False
       try {
         metaPush();
         unify(k, spine.head.args[1], val);
@@ -120,7 +121,6 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
         if (!(err instanceof TypeError)) throw err;
         metaPop();
       }
-
       try {
         metaPush();
         unify(k, spine.head.args[2], val);
@@ -130,6 +130,40 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
         if (!(err instanceof TypeError)) throw err;
         metaPop();
         throw err;
+      }
+    }
+    // inversion for indbool followed by application (for sigma encoded sums)
+    if (l > 1) {
+      const app = (spine as Cons<Elim>).head;
+      if (app.tag === 'EApp') {
+        const indbool = ((spine as Cons<Elim>).tail as Cons<Elim>).head;
+        const rest = ((spine as Cons<Elim>).tail as Cons<Elim>).tail;
+        if (indbool.tag === 'EIndBool') {
+          // ?1 es (indBool P a b) arg := v
+          //
+          // a arg ~ v && ?1 es := True
+          // OR
+          // b arg ~ v && ?1 es := False
+          try {
+            metaPush();
+            unify(k, vapp(indbool.args[1], app.plicity, app.arg), val);
+            metaDiscard();
+            return solve(k, m, rest, VTrue);
+          } catch (err) {
+            if (!(err instanceof TypeError)) throw err;
+            metaPop();
+          }
+          try {
+            metaPush();
+            unify(k, vapp(indbool.args[2], app.plicity, app.arg), val);
+            metaDiscard();
+            return solve(k, m, rest, VFalse);
+          } catch (err) {
+            if (!(err instanceof TypeError)) throw err;
+            metaPop();
+            throw err;
+          }
+        }
       }
     }
 

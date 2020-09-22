@@ -153,7 +153,7 @@ exports.VPair = (plicity, plicity2, fst, snd, type) => ({ tag: 'VPair', plicity,
 exports.VSort = (sort) => ({ tag: 'VSort', sort });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
 exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
-exports.VMeta = (index) => exports.VNe(exports.HMeta(index), list_1.Nil);
+exports.VMeta = (index, args = list_1.Nil) => exports.VNe(exports.HMeta(index), args);
 exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
 exports.VType = exports.VSort('*');
 exports.VHEq = exports.VPrim('HEq');
@@ -2528,15 +2528,16 @@ exports.unify = (k, a_, b_) => {
     return utils_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 const solve = (k, m, spine, val) => {
-    config_1.log(() => `solve (${list_1.length(spine)}) ?${m} ${list_1.listToString(spine, e => domain_1.showElimQ(e, k))} := ${domain_1.showTermQ(val, k)} (${k})`);
+    const l = list_1.length(spine);
+    config_1.log(() => `solve (${l}) ?${m} ${list_1.listToString(spine, e => domain_1.showElimQ(e, k))} := ${domain_1.showTermQ(val, k)} (${k})`);
     try {
         // check inversion on indBool
         if (!list_1.isEmpty(spine) && spine.head.tag === 'EIndBool') {
             // ?1 es (indBool P a b) := v
             //
-            // a := v && ?1 es := True
+            // a ~ v && ?1 es := True
             // OR
-            // b := v && ?1 es := False
+            // b ~ v && ?1 es := False
             try {
                 metas_1.metaPush();
                 exports.unify(k, spine.head.args[1], val);
@@ -2559,6 +2560,44 @@ const solve = (k, m, spine, val) => {
                     throw err;
                 metas_1.metaPop();
                 throw err;
+            }
+        }
+        // inversion for indbool followed by application (for sigma encoded sums)
+        if (l > 1) {
+            const app = spine.head;
+            if (app.tag === 'EApp') {
+                const indbool = spine.tail.head;
+                const rest = spine.tail.tail;
+                if (indbool.tag === 'EIndBool') {
+                    // ?1 es (indBool P a b) arg := v
+                    //
+                    // a arg ~ v && ?1 es := True
+                    // OR
+                    // b arg ~ v && ?1 es := False
+                    try {
+                        metas_1.metaPush();
+                        exports.unify(k, domain_1.vapp(indbool.args[1], app.plicity, app.arg), val);
+                        metas_1.metaDiscard();
+                        return solve(k, m, rest, domain_1.VTrue);
+                    }
+                    catch (err) {
+                        if (!(err instanceof TypeError))
+                            throw err;
+                        metas_1.metaPop();
+                    }
+                    try {
+                        metas_1.metaPush();
+                        exports.unify(k, domain_1.vapp(indbool.args[2], app.plicity, app.arg), val);
+                        metas_1.metaDiscard();
+                        return solve(k, m, rest, domain_1.VFalse);
+                    }
+                    catch (err) {
+                        if (!(err instanceof TypeError))
+                            throw err;
+                        metas_1.metaPop();
+                        throw err;
+                    }
+                }
             }
         }
         const spinex = checkSpine(k, spine);

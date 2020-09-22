@@ -53,7 +53,7 @@ export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
 export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
-export const VMeta = (index: Ix): VNe => VNe(HMeta(index), Nil);
+export const VMeta = (index: Ix, args: List<Elim> = Nil): VNe => VNe(HMeta(index), args);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
 export const VType = VSort('*');
