@@ -328,16 +328,21 @@ export const showTermS = (v: Val, ns: List<Name> = Nil, k: number = 0, full: boo
 export const showTermSZ = (v: Val, ns: List<Name> = Nil, vs: EnvV = Nil, k: number = 0, full: boolean = false): string =>
   showSurface(quoteZ(v, vs, k, full), ns);
 export const showElimQ = (e: Elim, k: number = 0, full: boolean = false): string => {
-  if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermQ(e.arg, k, full)}${e.plicity ? '}' : ''}`;
-  return e.tag;
+  if (e.tag === 'EApp') return `${e.plicity ? '{' : '('}${showTermQ(e.arg, k, full)}${e.plicity ? '}' : ')'}`;
+  if (e.tag === 'EProj') return e.proj;
+  if (e.tag === 'EElimHEq') return `(elimheq ${e.args.map(x => showTermQ(x, k, full)).join(' ')})`;
+  if (e.tag === 'EElimHEqUnsafe') return `(unsafeElimheq ${e.args.map(x => showTermQ(x, k, full)).join(' ')})`;
+  if (e.tag === 'EIndBool') return `(indbool ${e.args.map(x => showTermQ(x, k, full)).join(' ')})`;
+  if (e.tag === 'EIFixInd') return `(genindifix ${e.args.map(x => showTermQ(x, k, full)).join(' ')})`;
+  return e;
 };
 export const showElim = (e: Elim, ns: List<Name> = Nil, k: number = 0, full: boolean = false): string => {
-  if (e.tag === 'EApp') return `${e.plicity ? '{' : ''}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
+  if (e.tag === 'EApp') return `${e.plicity ? '{' : '('}${showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ')'}`;
   if (e.tag === 'EProj') return e.proj;
-  if (e.tag === 'EElimHEq') return `elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
-  if (e.tag === 'EElimHEqUnsafe') return `unsafeElimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
-  if (e.tag === 'EIndBool') return `indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
-  if (e.tag === 'EIFixInd') return `genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')}`;
+  if (e.tag === 'EElimHEq') return `(elimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')})`;
+  if (e.tag === 'EElimHEqUnsafe') return `(unsafeElimheq ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')})`;
+  if (e.tag === 'EIndBool') return `(indbool ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')})`;
+  if (e.tag === 'EIFixInd') return `(genindifix ${e.args.map(x => showTermS(x, ns, k, full)).join(' ')})`;
   return e;
 };
 

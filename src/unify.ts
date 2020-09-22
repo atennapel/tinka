@@ -1,7 +1,7 @@
 import { terr, impossible, hasDuplicates } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj, VTrue, VFalse } from './domain';
 import { forceLazy } from './utils/lazy';
-import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray, map, foldl, Nil } from './utils/list';
+import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray, map, foldl, Nil, isEmpty } from './utils/list';
 import { Ix, Name } from './names';
 import { log } from './config';
 import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
@@ -102,8 +102,37 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
 };
 
 const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
-  log(() => `solve ?${m} ${listToString(spine, e => showElimQ(e, k))} := ${showTermQ(val, k)} (${k})`);
+  log(() => `solve (${length(spine)}) ?${m} ${listToString(spine, e => showElimQ(e, k))} := ${showTermQ(val, k)} (${k})`);
   try {
+    // check inversion on indBool
+    if (!isEmpty(spine) && spine.head.tag === 'EIndBool') {
+      // ?1 es (indBool P a b) := v
+      //
+      // a := v && ?1 es := True
+      // OR
+      // b := v && ?1 es := False
+      try {
+        metaPush();
+        unify(k, spine.head.args[1], val);
+        metaDiscard();
+        return solve(k, m, spine.tail, VTrue);
+      } catch (err) {
+        if (!(err instanceof TypeError)) throw err;
+        metaPop();
+      }
+
+      try {
+        metaPush();
+        unify(k, spine.head.args[2], val);
+        metaDiscard();
+        return solve(k, m, spine.tail, VFalse);
+      } catch (err) {
+        if (!(err instanceof TypeError)) throw err;
+        metaPop();
+        throw err;
+      }
+    }
+
     const spinex = checkSpine(k, spine);
     if (hasDuplicates(toArray(spinex, x => x)))
       return terr(`meta spine contains duplicates`);

@@ -395,22 +395,32 @@ exports.showTermS = (v, ns = list_1.Nil, k = 0, full = false) => syntax_1.showSu
 exports.showTermSZ = (v, ns = list_1.Nil, vs = list_1.Nil, k = 0, full = false) => syntax_1.showSurface(exports.quoteZ(v, vs, k, full), ns);
 exports.showElimQ = (e, k = 0, full = false) => {
     if (e.tag === 'EApp')
-        return `${e.plicity ? '{' : ''}${exports.showTermQ(e.arg, k, full)}${e.plicity ? '}' : ''}`;
-    return e.tag;
-};
-exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
-    if (e.tag === 'EApp')
-        return `${e.plicity ? '{' : ''}${exports.showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ''}`;
+        return `${e.plicity ? '{' : '('}${exports.showTermQ(e.arg, k, full)}${e.plicity ? '}' : ')'}`;
     if (e.tag === 'EProj')
         return e.proj;
     if (e.tag === 'EElimHEq')
-        return `elimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+        return `(elimheq ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
     if (e.tag === 'EElimHEqUnsafe')
-        return `unsafeElimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+        return `(unsafeElimheq ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
     if (e.tag === 'EIndBool')
-        return `indbool ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+        return `(indbool ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
     if (e.tag === 'EIFixInd')
-        return `genindifix ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')}`;
+        return `(genindifix ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
+    return e;
+};
+exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
+    if (e.tag === 'EApp')
+        return `${e.plicity ? '{' : '('}${exports.showTermS(e.arg, ns, k, full)}${e.plicity ? '}' : ')'}`;
+    if (e.tag === 'EProj')
+        return e.proj;
+    if (e.tag === 'EElimHEq')
+        return `(elimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
+    if (e.tag === 'EElimHEqUnsafe')
+        return `(unsafeElimheq ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
+    if (e.tag === 'EIndBool')
+        return `(indbool ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
+    if (e.tag === 'EIFixInd')
+        return `(genindifix ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
     return e;
 };
 const zonkSpine = (tm, vs, k, full) => {
@@ -2518,8 +2528,39 @@ exports.unify = (k, a_, b_) => {
     return utils_1.terr(`unify failed (${k}): ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`);
 };
 const solve = (k, m, spine, val) => {
-    config_1.log(() => `solve ?${m} ${list_1.listToString(spine, e => domain_1.showElimQ(e, k))} := ${domain_1.showTermQ(val, k)} (${k})`);
+    config_1.log(() => `solve (${list_1.length(spine)}) ?${m} ${list_1.listToString(spine, e => domain_1.showElimQ(e, k))} := ${domain_1.showTermQ(val, k)} (${k})`);
     try {
+        // check inversion on indBool
+        if (!list_1.isEmpty(spine) && spine.head.tag === 'EIndBool') {
+            // ?1 es (indBool P a b) := v
+            //
+            // a := v && ?1 es := True
+            // OR
+            // b := v && ?1 es := False
+            try {
+                metas_1.metaPush();
+                exports.unify(k, spine.head.args[1], val);
+                metas_1.metaDiscard();
+                return solve(k, m, spine.tail, domain_1.VTrue);
+            }
+            catch (err) {
+                if (!(err instanceof TypeError))
+                    throw err;
+                metas_1.metaPop();
+            }
+            try {
+                metas_1.metaPush();
+                exports.unify(k, spine.head.args[2], val);
+                metas_1.metaDiscard();
+                return solve(k, m, spine.tail, domain_1.VFalse);
+            }
+            catch (err) {
+                if (!(err instanceof TypeError))
+                    throw err;
+                metas_1.metaPop();
+                throw err;
+            }
+        }
         const spinex = checkSpine(k, spine);
         if (utils_1.hasDuplicates(list_1.toArray(spinex, x => x)))
             return utils_1.terr(`meta spine contains duplicates`);
