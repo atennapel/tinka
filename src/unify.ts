@@ -1,10 +1,10 @@
 import { terr, impossible, hasDuplicates } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj, VTrue, VFalse, force } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj, VTrue, VFalse, force, VMeta } from './domain';
 import { forceLazy } from './utils/lazy';
 import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray, map, foldl, Nil, isEmpty } from './utils/list';
 import { Ix, Name } from './names';
 import { log } from './config';
-import { metaPop, metaDiscard, metaPush, metaSet } from './metas';
+import { metaPop, metaDiscard, metaPush, metaSet, tryPostponedForMeta, postpone } from './metas';
 import { Term, Var, showTerm, Pi, Abs, App, Type, Sigma, Pair, Proj } from './syntax';
 import { Plicity } from './surface';
 import { eqHead } from './conv';
@@ -129,7 +129,8 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
       } catch (err) {
         if (!(err instanceof TypeError)) throw err;
         metaPop();
-        throw err;
+        postpone(m, k, VMeta(m, spine), val);
+        return;
       }
     }
     // inversion for indbool followed by application (for sigma encoded sums)
@@ -161,13 +162,22 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
           } catch (err) {
             if (!(err instanceof TypeError)) throw err;
             metaPop();
-            throw err;
+            postpone(m, k, VMeta(m, spine), val);
+            return;
           }
         }
       }
     }
 
-    const spinex = checkSpine(k, spine);
+    let spinex: List<[Plicity, Ix]>;
+    try {
+      spinex = checkSpine(k, spine);
+    } catch (err) {
+      if (!(err instanceof TypeError)) throw err;
+      postpone(m, k, VMeta(m, spine), val);
+      return;
+    }
+
     if (hasDuplicates(toArray(spinex, x => x)))
       return terr(`meta spine contains duplicates`);
     const rhs = quote(val, k, false);
@@ -185,6 +195,7 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
     const a = toArray(spine, e => showElimQ(e, k));
     return terr(`failed to solve meta (?${m}${a.length > 0 ? ' ': ''}${a.join(' ')}) := ${showTermQ(val, k)}: ${err.message}`);
   }
+  tryPostponedForMeta(m);
 };
 
 const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix]> =>

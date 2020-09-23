@@ -8,7 +8,7 @@ import { Plicity } from './surface';
 import * as S from './surface';
 import { log, config } from './config';
 import { globalGet, globalSet, globalMap } from './globalenv';
-import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop } from './metas';
+import { freshMeta, freshMetaId, metaPush, metaDiscard, metaPop, tryAllPostponed, getAllPostPonedFlattened, postponeReset } from './metas';
 import { verify } from './verify';
 import { primType } from './prims';
 import * as E from './erased';
@@ -454,14 +454,23 @@ const holesReset = (): void => { holesStack = []; holes = {} };
 
 export const typecheck = (tm: S.Term, plicity: Plicity = false): [Term, Val, E.Term] => {
   holesReset();
+  postponeReset();
   const [etm, ty] = synth(plicity ? localInType(localEmpty) : localEmpty, tm);
-  const entries = Object.entries(holes);
 
+  tryAllPostponed();
+
+  const entries = Object.entries(holes);
   const insts = entries.filter(([_, info]) => info[3]);
   for (let i = 0, l = insts.length; i < l; i++) {
     const [x, [t, v, local]] = insts[i];
     searchInstance(x, t, v, local);
   }
+
+  tryAllPostponed();
+
+  const postponed = getAllPostPonedFlattened();
+  if (postponed.length > 0)
+    return terr(`postponed problems failed to solve (${postponed.length}):\n` + postponed.map(([k, a, b]) => `unify(${k}) ${showTermQ(a, k)} ~ ${showTermQ(b, k)}`).join('\n'));
 
   const ztm = zonk(etm, Nil, 0);
 

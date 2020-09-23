@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- add simple postponing
 - fix recursive instances
 - CEK machine for erased terms
 - induction on types
@@ -13,6 +12,7 @@ todo:
 - find way to do recursive-inductive types
 - find way to do inductive-inductive types
 
+- improve error message of postponed problems (where do these problem originate from?)
 - combine all prim eliminators
 - add functions for vec (head, tail, index, S-is-cons)
 - fix annotated let parser

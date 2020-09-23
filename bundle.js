@@ -671,14 +671,18 @@ exports.globalDelete = (name) => {
 },{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.metaDiscard = exports.metaPop = exports.metaPush = exports.freshMeta = exports.freshMetaId = exports.metaSet = exports.metaGet = exports.metaReset = void 0;
+exports.metaDiscard = exports.metaPop = exports.metaPush = exports.tryAllPostponed = exports.tryPostponedForMeta = exports.getAllPostPonedFlattened = exports.getAllPostPones = exports.getPostpones = exports.postpone = exports.freshMeta = exports.freshMetaId = exports.metaSet = exports.metaGet = exports.postponeReset = exports.metaReset = void 0;
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
+const unify_1 = require("./unify");
 const Unsolved = { tag: 'Unsolved' };
 const Solved = (val) => ({ tag: 'Solved', val });
 let metas = [];
-const stack = [];
-exports.metaReset = () => { metas = []; };
+let stack = [];
+let postponed = {};
+let postponedStack = [];
+exports.metaReset = () => { metas = []; stack = []; };
+exports.postponeReset = () => { postponed = {}; postponedStack = []; };
 exports.metaGet = (id) => {
     const s = metas[id] || null;
     if (!s)
@@ -694,19 +698,63 @@ exports.freshMetaId = () => {
     return id;
 };
 exports.freshMeta = () => syntax_1.Meta(exports.freshMetaId());
+exports.postpone = (m, k, val1, val2) => {
+    postponed[m] = postponed[m] || [];
+    postponed[m].push([k, val1, val2]);
+};
+exports.getPostpones = (m) => {
+    return postponed[m] || [];
+};
+exports.getAllPostPones = () => postponed;
+exports.getAllPostPonedFlattened = () => {
+    const r = [];
+    const m = exports.getAllPostPones();
+    for (const k in m) {
+        const c = m[k];
+        for (let i = 0, l = c.length; i < l; i++)
+            r.push(c[i]);
+    }
+    return r;
+};
+exports.tryPostponedForMeta = (m) => {
+    const all = exports.getPostpones(m);
+    postponed[m] = [];
+    for (let i = 0, l = all.length; i < l; i++) {
+        const c = all[i];
+        unify_1.unify(c[0], c[1], c[2]);
+    }
+};
+exports.tryAllPostponed = () => {
+    const all = exports.getAllPostPonedFlattened();
+    postponed = {};
+    for (let i = 0, l = all.length; i < l; i++) {
+        const c = all[i];
+        unify_1.unify(c[0], c[1], c[2]);
+    }
+};
+const clonePostponedMap = (obj) => {
+    const n = {};
+    for (const k in obj)
+        n[k] = obj[k];
+    return n;
+};
 exports.metaPush = () => {
     stack.push(metas);
+    postponedStack.push(postponed);
     metas = metas.slice();
+    postponed = clonePostponedMap(postponed);
 };
 exports.metaPop = () => {
     const x = stack.pop();
-    if (!x)
+    const y = postponedStack.pop();
+    if (!x || !y)
         return;
     metas = x;
+    postponed = y;
 };
-exports.metaDiscard = () => { stack.pop(); };
+exports.metaDiscard = () => { stack.pop(); postponedStack.pop(); };
 
-},{"./syntax":13,"./utils/utils":18}],8:[function(require,module,exports){
+},{"./syntax":13,"./unify":15,"./utils/utils":18}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextName = void 0;
@@ -2340,13 +2388,19 @@ const holesDiscard = () => { holesStack.pop(); };
 const holesReset = () => { holesStack = []; holes = {}; };
 exports.typecheck = (tm, plicity = false) => {
     holesReset();
+    metas_1.postponeReset();
     const [etm, ty] = synth(plicity ? exports.localInType(exports.localEmpty) : exports.localEmpty, tm);
+    metas_1.tryAllPostponed();
     const entries = Object.entries(holes);
     const insts = entries.filter(([_, info]) => info[3]);
     for (let i = 0, l = insts.length; i < l; i++) {
         const [x, [t, v, local]] = insts[i];
         searchInstance(x, t, v, local);
     }
+    metas_1.tryAllPostponed();
+    const postponed = metas_1.getAllPostPonedFlattened();
+    if (postponed.length > 0)
+        return utils_1.terr(`postponed problems failed to solve (${postponed.length}):\n` + postponed.map(([k, a, b]) => `unify(${k}) ${domain_1.showTermQ(a, k)} ~ ${domain_1.showTermQ(b, k)}`).join('\n'));
     const ztm = domain_1.zonk(etm, list_1.Nil, 0);
     const holeprops = entries.filter(([_, info]) => !info[3]);
     if (holeprops.length > 0) {
@@ -2540,7 +2594,8 @@ const solve = (k, m, spine, val) => {
                 if (!(err instanceof TypeError))
                     throw err;
                 metas_1.metaPop();
-                throw err;
+                metas_1.postpone(m, k, domain_1.VMeta(m, spine), val);
+                return;
             }
         }
         // inversion for indbool followed by application (for sigma encoded sums)
@@ -2576,12 +2631,22 @@ const solve = (k, m, spine, val) => {
                         if (!(err instanceof TypeError))
                             throw err;
                         metas_1.metaPop();
-                        throw err;
+                        metas_1.postpone(m, k, domain_1.VMeta(m, spine), val);
+                        return;
                     }
                 }
             }
         }
-        const spinex = checkSpine(k, spine);
+        let spinex;
+        try {
+            spinex = checkSpine(k, spine);
+        }
+        catch (err) {
+            if (!(err instanceof TypeError))
+                throw err;
+            metas_1.postpone(m, k, domain_1.VMeta(m, spine), val);
+            return;
+        }
         if (utils_1.hasDuplicates(list_1.toArray(spinex, x => x)))
             return utils_1.terr(`meta spine contains duplicates`);
         const rhs = domain_1.quote(val, k, false);
@@ -2601,6 +2666,7 @@ const solve = (k, m, spine, val) => {
         const a = list_1.toArray(spine, e => domain_1.showElimQ(e, k));
         return utils_1.terr(`failed to solve meta (?${m}${a.length > 0 ? ' ' : ''}${a.join(' ')}) := ${domain_1.showTermQ(val, k)}: ${err.message}`);
     }
+    metas_1.tryPostponedForMeta(m);
 };
 const checkSpine = (k, spine) => list_1.map(spine, elim => {
     if (elim.tag === 'EApp') {
