@@ -8,7 +8,6 @@ import { log } from './config';
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.index === b.index;
-  if (a.tag === 'HGlobal') return b.tag === 'HGlobal' && a.name === b.name;
   if (a.tag === 'HMeta') return b.tag === 'HMeta' && a.index === b.index;
   if (a.tag === 'HPrim') return b.tag === 'HPrim' && a.name === b.name;
   return a;
@@ -78,7 +77,7 @@ export const conv = (k: Ix, a_: Val, b_: Val): void => {
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head) && length(a.args) === length(b.args))
     return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
-  if (a.tag === 'VGlued' && b.tag === 'VGlued' && eqHead(a.head, b.head) && length(a.args) === length(b.args)) {
+  if (a.tag === 'VGlued' && b.tag === 'VGlued' && a.head === b.head && length(a.args) === length(b.args)) {
     try {
       return zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
     } catch(err) {

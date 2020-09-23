@@ -4,6 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- add simple postponing
 - fix recursive instances
 - CEK machine for erased terms
 - induction on types

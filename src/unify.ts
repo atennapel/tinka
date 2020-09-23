@@ -1,5 +1,5 @@
 import { terr, impossible, hasDuplicates } from './utils/utils';
-import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj, VTrue, VFalse } from './domain';
+import { showTermQ, VVar, vapp, Val, Elim, showElimQ, forceGlue, quote, evaluate, vproj, VTrue, VFalse, force } from './domain';
 import { forceLazy } from './utils/lazy';
 import { zipWithR_, length, List, listToString, contains, indexOf, Cons, toArray, map, foldl, Nil, isEmpty } from './utils/list';
 import { Ix, Name } from './names';
@@ -84,7 +84,7 @@ export const unify = (k: Ix, a_: Val, b_: Val): void => {
     return solve(k, a.head.index, a.args, b);
   if (b.tag === 'VNe' && b.head.tag === 'HMeta')
     return solve(k, b.head.index, b.args, a);
-  if (a.tag === 'VGlued' && b.tag === 'VGlued' && eqHead(a.head, b.head) && length(a.args) === length(b.args)) {
+  if (a.tag === 'VGlued' && b.tag === 'VGlued' && a.head === b.head && length(a.args) === length(b.args)) {
     try {
       metaPush();
       zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -176,10 +176,7 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
     // Note: I'm solving with an abstraction that has * as type for all the parameters
     // TODO: I think it might actually matter
     log(() => `spine ${listToString(spinex, ([p, s]) => `${p ? '-' : ''}${s}`)}`);
-    const solution = foldl((body, [pl, y]) => {
-      if (typeof y === 'string') return Abs(pl, `${y}\$`, Type, body);
-      return Abs(pl, '$', Type, body);
-    }, body, spinex);
+    const solution = foldl((body, [pl, y]) => Abs(pl, `$${y}`, Type, body), body, spinex);
     log(() => `solution ?${m} := ${showTerm(solution)} | ${showTerm(solution)}`);
     const vsolution = evaluate(solution, Nil);
     metaSet(m, vsolution);
@@ -190,16 +187,12 @@ const solve = (k: Ix, m: Ix, spine: List<Elim>, val: Val): void => {
   }
 };
 
-const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix | Name]> =>
+const checkSpine = (k: Ix, spine: List<Elim>): List<[Plicity, Ix]> =>
   map(spine, elim => {
     if (elim.tag === 'EApp') {
-      const v = forceGlue(elim.arg);
-      if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && length(v.args) === 0)
+      const v = force(elim.arg);
+      if (v.tag === 'VNe' && v.head.tag === 'HVar' && isEmpty(v.args))
         return [elim.plicity, v.head.index];
-      if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HGlobal' && length(v.args) === 0)
-        return [elim.plicity, v.head.name];
-      if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HPrim' && length(v.args) === 0)
-        return [elim.plicity, v.head.name];
       return terr(`not a var in spine: ${showTermQ(v, k)}`);
     }
     return terr(`unexpected elim in meta spine: ${elim.tag}`);

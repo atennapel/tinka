@@ -7,12 +7,10 @@ import { Plicity, PrimName, Sorts } from './surface';
 import { globalGet } from './globalenv';
 import { metaGet } from './metas';
 
-export type Head = HVar | HGlobal | HMeta | HPrim;
+export type Head = HVar | HMeta | HPrim;
 
 export type HVar = { tag: 'HVar', index: Ix };
 export const HVar = (index: Ix): HVar => ({ tag: 'HVar', index });
-export type HGlobal = { tag: 'HGlobal', name: Name };
-export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 export type HMeta = { tag: 'HMeta', index: Ix };
 export const HMeta = (index: Ix): HMeta => ({ tag: 'HMeta', index });
 export type HPrim = { tag: 'HPrim', name: PrimName };
@@ -38,8 +36,8 @@ export type Val = VNe | VGlued | VAbs | VPi | VSigma | VPair | VSort;
 
 export type VNe = { tag: 'VNe', head: Head, args: List<Elim> };
 export const VNe = (head: Head, args: List<Elim>): VNe => ({ tag: 'VNe', head, args });
-export type VGlued = { tag: 'VGlued', head: Head, args: List<Elim>, val: Lazy<Val> };
-export const VGlued = (head: Head, args: List<Elim>, val: Lazy<Val>): VGlued => ({ tag: 'VGlued', head, args, val });
+export type VGlued = { tag: 'VGlued', head: Name, args: List<Elim>, val: Lazy<Val> };
+export const VGlued = (head: Name, args: List<Elim>, val: Lazy<Val>): VGlued => ({ tag: 'VGlued', head, args, val });
 export type VAbs = { tag: 'VAbs', plicity: Plicity, name: Name, type: Val, body: Clos };
 export const VAbs = (plicity: Plicity, name: Name, type: Val, body: Clos): VAbs => ({ tag: 'VAbs', plicity, name, type, body});
 export type VPi = { tag: 'VPi', plicity: Plicity, name: Name, type: Val, body: Clos };
@@ -52,7 +50,6 @@ export type VSort = { tag: 'VSort', sort: Sorts };
 export const VSort = (sort: Sorts): VSort => ({ tag: 'VSort', sort });
 
 export const VVar = (index: Ix): VNe => VNe(HVar(index), Nil);
-export const VGlobal = (name: Name): VNe => VNe(HGlobal(name), Nil);
 export const VMeta = (index: Ix, args: List<Elim> = Nil): VNe => VNe(HMeta(index), args);
 export const VPrim = (name: PrimName): VNe => VNe(HPrim(name), Nil);
 
@@ -224,18 +221,15 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
     return VPrim(t.name);
   }
   if (t.tag === 'Sort') return VSort(t.sort);
-  if (t.tag === 'Var') {
-    const val = index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
-    // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
-    return val;
-  }
+  if (t.tag === 'Var')
+    return index(vs, t.index) || impossible(`evaluate: var ${t.index} has no value`);
   if (t.tag === 'Meta') {
     const s = metaGet(t.index);
     return s.tag === 'Solved' ? s.val : VMeta(t.index);
   }
   if (t.tag === 'Global') {
     const entry = globalGet(t.name) || impossible(`evaluate: global ${t.name} has no value`);
-    return VGlued(HGlobal(t.name), Nil, lazyOf(entry.val));
+    return VGlued(t.name, Nil, lazyOf(entry.val));
   }
   if (t.tag === 'App')
     return vapp(evaluate(t.left, vs), t.plicity, evaluate(t.right, vs));
@@ -255,15 +249,9 @@ export const evaluate = (t: Term, vs: EnvV = Nil): Val => {
 
 const quoteHead = (h: Head, k: Ix): Term => {
   if (h.tag === 'HVar') return Var(k - (h.index + 1));
-  if (h.tag === 'HGlobal') return Global(h.name);
   if (h.tag === 'HMeta') return Meta(h.index);
   if (h.tag === 'HPrim') return Prim(h.name);
   return h;
-};
-const quoteHeadGlued = (h: Head, k: Ix): Term | null => {
-  if (h.tag === 'HGlobal') return Global(h.name);
-  if (h.tag === 'HMeta') return Meta(h.index);
-  return null;
 };
 const quoteElim = (t: Term, e: Elim, k: Ix, full: boolean): Term => {
   if (e.tag === 'EApp') return App(t, e.plicity, quote(e.arg, k, full));
@@ -297,11 +285,9 @@ export const quote = (v_: Val, k: Ix, full: boolean): Term => {
     );
   if (v.tag === 'VGlued') {
     if (full) return quote(forceLazy(v.val), k, full);
-    const head = quoteHeadGlued(v.head, k);
-    if (!head) return quote(forceLazy(v.val), k, full);
     return foldr(
       (x, y) => quoteElim(y, x, k, full),
-      head,
+      Global(v.head) as Term,
       v.args,
     );
   }

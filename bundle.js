@@ -30,8 +30,6 @@ exports.eqHead = (a, b) => {
         return true;
     if (a.tag === 'HVar')
         return b.tag === 'HVar' && a.index === b.index;
-    if (a.tag === 'HGlobal')
-        return b.tag === 'HGlobal' && a.name === b.name;
     if (a.tag === 'HMeta')
         return b.tag === 'HMeta' && a.index === b.index;
     if (a.tag === 'HPrim')
@@ -107,7 +105,7 @@ exports.conv = (k, a_, b_) => {
         return;
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
-    if (a.tag === 'VGlued' && b.tag === 'VGlued' && exports.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args)) {
+    if (a.tag === 'VGlued' && b.tag === 'VGlued' && a.head === b.head && list_1.length(a.args) === list_1.length(b.args)) {
         try {
             return list_1.zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
         }
@@ -127,7 +125,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":16,"./utils/list":17,"./utils/utils":18}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vindbool = exports.velimhequnsafe = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VGlobal = exports.VVar = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EIndBool = exports.EElimHEqUnsafe = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HGlobal = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vindbool = exports.velimhequnsafe = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EIndBool = exports.EElimHEqUnsafe = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -135,7 +133,6 @@ const lazy_1 = require("./utils/lazy");
 const globalenv_1 = require("./globalenv");
 const metas_1 = require("./metas");
 exports.HVar = (index) => ({ tag: 'HVar', index });
-exports.HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HMeta = (index) => ({ tag: 'HMeta', index });
 exports.HPrim = (name) => ({ tag: 'HPrim', name });
 exports.EApp = (plicity, arg) => ({ tag: 'EApp', plicity, arg });
@@ -152,7 +149,6 @@ exports.VSigma = (plicity, plicity2, name, type, body) => ({ tag: 'VSigma', plic
 exports.VPair = (plicity, plicity2, fst, snd, type) => ({ tag: 'VPair', plicity, plicity2, fst, snd, type });
 exports.VSort = (sort) => ({ tag: 'VSort', sort });
 exports.VVar = (index) => exports.VNe(exports.HVar(index), list_1.Nil);
-exports.VGlobal = (name) => exports.VNe(exports.HGlobal(name), list_1.Nil);
 exports.VMeta = (index, args = list_1.Nil) => exports.VNe(exports.HMeta(index), args);
 exports.VPrim = (name) => exports.VNe(exports.HPrim(name), list_1.Nil);
 exports.VType = exports.VSort('*');
@@ -293,18 +289,15 @@ exports.evaluate = (t, vs = list_1.Nil) => {
     }
     if (t.tag === 'Sort')
         return exports.VSort(t.sort);
-    if (t.tag === 'Var') {
-        const val = list_1.index(vs, t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
-        // TODO: return VGlued(HVar(length(vs) - t.index - 1), Nil, lazyOf(val));
-        return val;
-    }
+    if (t.tag === 'Var')
+        return list_1.index(vs, t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
     if (t.tag === 'Meta') {
         const s = metas_1.metaGet(t.index);
         return s.tag === 'Solved' ? s.val : exports.VMeta(t.index);
     }
     if (t.tag === 'Global') {
         const entry = globalenv_1.globalGet(t.name) || utils_1.impossible(`evaluate: global ${t.name} has no value`);
-        return exports.VGlued(exports.HGlobal(t.name), list_1.Nil, lazy_1.lazyOf(entry.val));
+        return exports.VGlued(t.name, list_1.Nil, lazy_1.lazyOf(entry.val));
     }
     if (t.tag === 'App')
         return exports.vapp(exports.evaluate(t.left, vs), t.plicity, exports.evaluate(t.right, vs));
@@ -325,20 +318,11 @@ exports.evaluate = (t, vs = list_1.Nil) => {
 const quoteHead = (h, k) => {
     if (h.tag === 'HVar')
         return syntax_1.Var(k - (h.index + 1));
-    if (h.tag === 'HGlobal')
-        return syntax_1.Global(h.name);
     if (h.tag === 'HMeta')
         return syntax_1.Meta(h.index);
     if (h.tag === 'HPrim')
         return syntax_1.Prim(h.name);
     return h;
-};
-const quoteHeadGlued = (h, k) => {
-    if (h.tag === 'HGlobal')
-        return syntax_1.Global(h.name);
-    if (h.tag === 'HMeta')
-        return syntax_1.Meta(h.index);
-    return null;
 };
 const quoteElim = (t, e, k, full) => {
     if (e.tag === 'EApp')
@@ -372,10 +356,7 @@ exports.quote = (v_, k, full) => {
     if (v.tag === 'VGlued') {
         if (full)
             return exports.quote(lazy_1.forceLazy(v.val), k, full);
-        const head = quoteHeadGlued(v.head, k);
-        if (!head)
-            return exports.quote(lazy_1.forceLazy(v.val), k, full);
-        return list_1.foldr((x, y) => quoteElim(y, x, k, full), head, v.args);
+        return list_1.foldr((x, y) => quoteElim(y, x, k, full), syntax_1.Global(v.head), v.args);
     }
     if (v.tag === 'VAbs')
         return syntax_1.Abs(v.plicity, v.name, exports.quote(v.type, k, full), exports.quote(v.body(exports.VVar(k)), k + 1, full));
@@ -2507,7 +2488,7 @@ exports.unify = (k, a_, b_) => {
         return solve(k, a.head.index, a.args, b);
     if (b.tag === 'VNe' && b.head.tag === 'HMeta')
         return solve(k, b.head.index, b.args, a);
-    if (a.tag === 'VGlued' && b.tag === 'VGlued' && conv_1.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args)) {
+    if (a.tag === 'VGlued' && b.tag === 'VGlued' && a.head === b.head && list_1.length(a.args) === list_1.length(b.args)) {
         try {
             metas_1.metaPush();
             list_1.zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -2609,11 +2590,7 @@ const solve = (k, m, spine, val) => {
         // Note: I'm solving with an abstraction that has * as type for all the parameters
         // TODO: I think it might actually matter
         config_1.log(() => `spine ${list_1.listToString(spinex, ([p, s]) => `${p ? '-' : ''}${s}`)}`);
-        const solution = list_1.foldl((body, [pl, y]) => {
-            if (typeof y === 'string')
-                return syntax_1.Abs(pl, `${y}\$`, syntax_1.Type, body);
-            return syntax_1.Abs(pl, '$', syntax_1.Type, body);
-        }, body, spinex);
+        const solution = list_1.foldl((body, [pl, y]) => syntax_1.Abs(pl, `$${y}`, syntax_1.Type, body), body, spinex);
         config_1.log(() => `solution ?${m} := ${syntax_1.showTerm(solution)} | ${syntax_1.showTerm(solution)}`);
         const vsolution = domain_1.evaluate(solution, list_1.Nil);
         metas_1.metaSet(m, vsolution);
@@ -2627,13 +2604,9 @@ const solve = (k, m, spine, val) => {
 };
 const checkSpine = (k, spine) => list_1.map(spine, elim => {
     if (elim.tag === 'EApp') {
-        const v = domain_1.forceGlue(elim.arg);
-        if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HVar' && list_1.length(v.args) === 0)
+        const v = domain_1.force(elim.arg);
+        if (v.tag === 'VNe' && v.head.tag === 'HVar' && list_1.isEmpty(v.args))
             return [elim.plicity, v.head.index];
-        if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HGlobal' && list_1.length(v.args) === 0)
-            return [elim.plicity, v.head.name];
-        if ((v.tag === 'VNe' || v.tag === 'VGlued') && v.head.tag === 'HPrim' && list_1.length(v.args) === 0)
-            return [elim.plicity, v.head.name];
         return utils_1.terr(`not a var in spine: ${domain_1.showTermQ(v, k)}`);
     }
     return utils_1.terr(`unexpected elim in meta spine: ${elim.tag}`);
