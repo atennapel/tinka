@@ -15,6 +15,8 @@ import lib/eqb.p
 import lib/nat.p
 import lib/fin.p
 
+import lib/type.p
+
 import lib/void.p
 import lib/unit.p
 import lib/bool.p

@@ -44,12 +44,14 @@ export type PrimName =
   'HEq' | 'ReflHEq' | 'elimHEq' | 'unsafeElimHEq' |
   'UnitType' | 'Unit' |
   'Bool' | 'True' | 'False' | 'indBool' |
-  'IFix' | 'IIn' | 'genindIFix';
+  'IFix' | 'IIn' | 'genindIFix' |
+  'genindType';
 export const primNames = [
   'HEq', 'ReflHEq', 'elimHEq', 'unsafeElimHEq',
   'UnitType', 'Unit',
   'Bool', 'True', 'False', 'indBool',
   'IFix', 'IIn', 'genindIFix',
+  'genindType',
 ];
 export const isPrimName = (x: string): x is PrimName => primNames.includes(x);
 export type Prim = { tag: 'Prim', name: PrimName };

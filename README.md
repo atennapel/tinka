@@ -4,9 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
+- fix erasure of types and induction on types
 - fix recursive instances
 - CEK machine for erased terms
-- induction on types
 - fix Showable
 
 - find way to do recursive-inductive types

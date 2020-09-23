@@ -53,6 +53,21 @@ const convElim = (k, a, b, x, y) => {
             exports.conv(k, a.args[i], b.args[i]);
         return;
     }
+    if (a.tag === 'EElimHEqUnsafe' && b.tag === 'EElimHEqUnsafe' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.conv(k, a.args[i], b.args[i]);
+        return;
+    }
+    if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.conv(k, a.args[i], b.args[i]);
+        return;
+    }
+    if (a.tag === 'EIndType' && b.tag === 'EIndType' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.conv(k, a.args[i], b.args[i]);
+        return;
+    }
     return utils_1.terr(`conv failed (${k}): ${domain_1.showTermQ(x, k)} ~ ${domain_1.showTermQ(y, k)}`);
 };
 exports.conv = (k, a_, b_) => {
@@ -125,7 +140,7 @@ exports.conv = (k, a_, b_) => {
 },{"./config":1,"./domain":3,"./utils/lazy":16,"./utils/list":17,"./utils/utils":18}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vifixind = exports.vindbool = exports.velimhequnsafe = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIFixInd = exports.EIndBool = exports.EElimHEqUnsafe = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HVar = void 0;
+exports.zonk = exports.showElim = exports.showElimQ = exports.showTermSZ = exports.showTermS = exports.showTermQZ = exports.showTermQ = exports.normalize = exports.quoteZ = exports.quote = exports.evaluate = exports.vindtype = exports.vifixind = exports.vindbool = exports.velimhequnsafe = exports.velimheq = exports.vproj = exports.vapp = exports.forceGlue = exports.force = exports.showEnvV = exports.extendV = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.vheq = exports.VReflHEq = exports.VIFix = exports.VHEq = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.VSort = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlued = exports.VNe = exports.EIndType = exports.EIFixInd = exports.EIndBool = exports.EElimHEqUnsafe = exports.EElimHEq = exports.EProj = exports.EApp = exports.HPrim = exports.HMeta = exports.HVar = void 0;
 const list_1 = require("./utils/list");
 const syntax_1 = require("./syntax");
 const utils_1 = require("./utils/utils");
@@ -141,6 +156,7 @@ exports.EElimHEq = (args) => ({ tag: 'EElimHEq', args });
 exports.EElimHEqUnsafe = (args) => ({ tag: 'EElimHEqUnsafe', args });
 exports.EIndBool = (args) => ({ tag: 'EIndBool', args });
 exports.EIFixInd = (args) => ({ tag: 'EIFixInd', args });
+exports.EIndType = (args) => ({ tag: 'EIndType', args });
 exports.VNe = (head, args) => ({ tag: 'VNe', head, args });
 exports.VGlued = (head, args, val) => ({ tag: 'VGlued', head, args, val });
 exports.VAbs = (plicity, name, type, body) => ({ tag: 'VAbs', plicity, name, type, body });
@@ -174,7 +190,8 @@ exports.force = (v) => {
                 elim.tag === 'EElimHEqUnsafe' ? exports.velimhequnsafe([y].concat(elim.args)) :
                     elim.tag === 'EIndBool' ? exports.vindbool([y].concat(elim.args)) :
                         elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
-                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                            elim.tag === 'EIndType' ? exports.vindtype([y].concat(elim.args)) :
+                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -188,7 +205,8 @@ exports.forceGlue = (v) => {
                 elim.tag === 'EElimHEqUnsafe' ? exports.velimhequnsafe([y].concat(elim.args)) :
                     elim.tag === 'EIndBool' ? exports.vindbool([y].concat(elim.args)) :
                         elim.tag === 'EIFixInd' ? exports.vifixind([y].concat(elim.args)) :
-                            exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
+                            elim.tag === 'EIndType' ? exports.vindtype([y].concat(elim.args)) :
+                                exports.vapp(y, elim.plicity, elim.arg), val.val, v.args));
     }
     return v;
 };
@@ -275,6 +293,42 @@ exports.vifixind = (args) => {
         return exports.VGlued(v.head, list_1.Cons(exports.EIFixInd(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vifixind([v].concat(rest))));
     return utils_1.impossible(`vifixind: ${v.tag}`);
 };
+exports.vindtype = (args) => {
+    const v = args[0];
+    const rest = args.slice(1);
+    // P, pt, pp1, pp2, ps1, ps2, ps3, pu, pb, pf, pe
+    const rec = () => exports.VAbs(false, 't', exports.VType, t => exports.vindtype([t].concat(rest)));
+    if (v.tag === 'VSort' && v.sort === '*')
+        return exports.vapp(rest[1], false, rec());
+    if (v.tag === 'VPi' && !v.plicity)
+        return exports.vapp(exports.vapp(exports.vapp(rest[2], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VPi' && v.plicity)
+        return exports.vapp(exports.vapp(exports.vapp(rest[3], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VSigma' && !v.plicity && !v.plicity2)
+        return exports.vapp(exports.vapp(exports.vapp(rest[4], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VSigma' && v.plicity && !v.plicity2)
+        return exports.vapp(exports.vapp(exports.vapp(rest[5], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VSigma' && !v.plicity && v.plicity2)
+        return exports.vapp(exports.vapp(exports.vapp(rest[6], false, rec()), false, v.type), false, exports.VAbs(false, 'x', v.type, x => v.body(x)));
+    if (v.tag === 'VNe') {
+        if (v.head.tag === 'HPrim' && v.head.name === 'UnitType')
+            return exports.vapp(rest[7], false, rec());
+        if (v.head.tag === 'HPrim' && v.head.name === 'Bool')
+            return exports.vapp(rest[8], false, rec());
+        if (v.head.tag === 'HPrim' && v.head.name === 'IFix') {
+            const args = list_1.toArray(v.args, x => x.arg).reverse();
+            return exports.vapp(exports.vapp(exports.vapp(exports.vapp(rest[9], false, rec()), false, args[0]), false, args[1]), false, args[2]);
+        }
+        if (v.head.tag === 'HPrim' && v.head.name === 'HEq') {
+            const args = list_1.toArray(v.args, x => x.arg).reverse();
+            return exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.vapp(rest[10], false, rec()), false, args[0]), false, args[1]), false, args[2]), false, args[3]);
+        }
+        return exports.VNe(v.head, list_1.Cons(exports.EIndType(rest), v.args));
+    }
+    if (v.tag === 'VGlued')
+        return exports.VGlued(v.head, list_1.Cons(exports.EIndType(rest), v.args), lazy_1.mapLazy(v.val, v => exports.vindtype([v].concat(rest))));
+    return utils_1.impossible(`vindtype: ${v.tag}`);
+};
 exports.evaluate = (t, vs = list_1.Nil) => {
     if (t.tag === 'Prim') {
         if (t.name === 'elimHEq')
@@ -285,6 +339,8 @@ exports.evaluate = (t, vs = list_1.Nil) => {
             return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VBool, _ => exports.VType), P => exports.VAbs(false, 't', exports.vapp(P, false, exports.VTrue), t => exports.VAbs(false, 'f', exports.vapp(P, false, exports.VFalse), f => exports.VAbs(false, 'b', exports.VBool, b => exports.vindbool([b, P, t, f])))));
         if (t.name === 'genindIFix')
             return exports.VAbs(true, 'I', exports.VType, I => exports.VAbs(true, 'F', exports.VPi(false, '_', exports.VPi(false, '_', I, _ => exports.VType), _ => exports.VPi(false, '_', I, _ => exports.VType)), F => exports.VAbs(true, 'P', exports.VPi(false, 'i', I, i => exports.VPi(false, '_', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), _ => exports.VType)), P => exports.VAbs(false, 'f', exports.VPi(false, '_', exports.VPi(true, 'i', I, i => exports.VPi(false, 'y', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), y => exports.vapp(exports.vapp(P, false, i), false, y))), _ => exports.VPi(true, 'i', I, i => exports.VPi(false, 'z', exports.vapp(exports.vapp(F, false, exports.vapp(exports.vapp(exports.VIFix, false, I), false, F)), false, i), z => exports.vapp(exports.vapp(P, false, i), false, exports.vapp(exports.vapp(exports.vapp(exports.vapp(exports.VPrim('IIn'), true, I), true, F), true, i), false, z))))), f => exports.VAbs(true, 'i', I, i => exports.VAbs(false, 'x', exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i), x => exports.vifixind([x, I, F, P, f, i])))))));
+        if (t.name === 'genindType')
+            return exports.VAbs(true, 'P', exports.VPi(false, '_', exports.VType, _ => exports.VType), P => exports.VAbs(false, 'pt', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VType)), pt => exports.VAbs(false, 'pp1', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VPi(false, 'x', A, x => exports.vapp(B, false, x)))))), pp1 => exports.VAbs(false, 'pp2', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VPi(true, 'x', A, x => exports.vapp(B, false, x)))))), pp2 => exports.VAbs(false, 'ps1', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VSigma(false, false, 'x', A, x => exports.vapp(B, false, x)))))), ps1 => exports.VAbs(false, 'ps2', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VSigma(true, false, 'x', A, x => exports.vapp(B, false, x)))))), ps2 => exports.VAbs(false, 'ps3', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VPi(false, '_', A, _ => exports.VType), B => exports.vapp(P, false, exports.VSigma(false, true, 'x', A, x => exports.vapp(B, false, x)))))), ps3 => exports.VAbs(false, 'pu', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VUnitType)), pu => exports.VAbs(false, 'pb', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.vapp(P, false, exports.VBool)), pb => exports.VAbs(false, 'pf', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'I', exports.VType, I => exports.VPi(false, 'F', exports.VPi(false, '_', exports.VPi(false, '_', I, _ => exports.VType), _ => exports.VPi(false, '_', I, _ => exports.VType)), F => exports.VPi(false, 'i', I, i => exports.vapp(P, false, exports.vapp(exports.vapp(exports.vapp(exports.VIFix, false, I), false, F), false, i)))))), pf => exports.VAbs(false, 'pe', exports.VPi(false, '_', exports.VPi(false, 't', exports.VType, t => exports.vapp(P, false, t)), _ => exports.VPi(false, 'A', exports.VType, A => exports.VPi(false, 'B', exports.VType, B => exports.VPi(false, 'a', A, a => exports.VPi(false, 'b', B, b => exports.vapp(P, false, exports.vheq(A, B, a, b))))))), pe => exports.VAbs(false, 't', exports.VType, t => exports.vindtype([t, P, pt, pp1, pp2, ps1, ps2, ps3, pu, pb, pf, pe])))))))))))));
         return exports.VPrim(t.name);
     }
     if (t.tag === 'Sort')
@@ -345,6 +401,10 @@ const quoteElim = (t, e, k, full) => {
         const [I, F, P, f, i] = e.args.map(x => exports.quote(x, k, full));
         return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('genindIFix'), true, I), true, F), true, P), false, f), true, i), false, t);
     }
+    if (e.tag === 'EIndType') {
+        const [P, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10] = e.args.map(x => exports.quote(x, k, full));
+        return syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.App(syntax_1.Prim('genindType'), true, P), false, p1), false, p2), false, p3), false, p4), false, p5), false, p6), false, p7), false, p8), false, p9), false, p10), false, t);
+    }
     return e;
 };
 exports.quote = (v_, k, full) => {
@@ -387,6 +447,8 @@ exports.showElimQ = (e, k = 0, full = false) => {
         return `(indbool ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
     if (e.tag === 'EIFixInd')
         return `(genindifix ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
+    if (e.tag === 'EIndType')
+        return `(genindtype ${e.args.map(x => exports.showTermQ(x, k, full)).join(' ')})`;
     return e;
 };
 exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
@@ -402,6 +464,8 @@ exports.showElim = (e, ns = list_1.Nil, k = 0, full = false) => {
         return `(indbool ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
     if (e.tag === 'EIFixInd')
         return `(genindifix ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
+    if (e.tag === 'EIndType')
+        return `(genindtype ${e.args.map(x => exports.showTermS(x, ns, k, full)).join(' ')})`;
     return e;
 };
 const zonkSpine = (tm, vs, k, full) => {
@@ -648,6 +712,8 @@ exports.erasePrim = (prim) => {
         return exports.Abs('x', exports.Abs('y', exports.App(exports.Var(0), exports.Var(1)))); // \x p. p x
     if (prim === 'genindIFix')
         return exports.Abs('x', exports.Abs('y', exports.App(exports.Var(0), exports.Var(1)))); // \f x. x f
+    if (prim === 'genindType')
+        return exports.idTerm; // TODO
     return prim;
 };
 
@@ -1349,6 +1415,22 @@ const primTypes = {
       -> P i x
     */
     'genindIFix': () => domain_1.VPi(true, 'I', domain_1.VType, I => domain_1.VPi(true, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(true, 'P', domain_1.VPi(false, 'i', I, i => domain_1.VPi(false, '_', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), _ => domain_1.VType)), P => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'y', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), y => domain_1.vapp(domain_1.vapp(P, false, i), false, y))), _ => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'z', domain_1.vapp(domain_1.vapp(F, false, domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F)), false, i), z => domain_1.vapp(domain_1.vapp(P, false, i), false, domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VPrim('IIn'), true, I), true, F), true, i), false, z))))), _ => domain_1.VPi(true, 'i', I, i => domain_1.VPi(false, 'x', domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i), x => domain_1.vapp(domain_1.vapp(P, false, i), false, x))))))),
+    /*
+    indType
+    : {P : * -> *}
+      -> (((t : *) -> P t) -> P *)
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) -> B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ({x : A} -> B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) ** B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ({x : A} ** B x))
+      -> (((t : *) -> P t) -> (A : *) -> (B : A -> *) -> P ((x : A) ** {B x}))
+      -> (((t : *) -> P t) -> P UnitType)
+      -> (((t : *) -> P t) -> P Bool)
+      -> (((t : *) -> P t) -> (I : *) -> (F : (I -> *) -> (I -> *)) -> (i : *) -> P (IFix I F i))
+      -> (((t : *) -> P t) -> (A : *) -> (B : *) -> (a : A) -> (b : B) -> P (HEq {A} {B} a b))
+      -> (t : *) -> P t
+    */
+    genindType: () => domain_1.VPi(true, 'P', domain_1.VPi(false, '_', domain_1.VType, _ => domain_1.VType), P => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VType)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VPi(false, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VPi(true, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VSigma(false, false, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VSigma(true, false, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VPi(false, '_', A, _ => domain_1.VType), B => domain_1.vapp(P, false, domain_1.VSigma(false, true, 'x', A, x => domain_1.vapp(B, false, x)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VUnitType)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.vapp(P, false, domain_1.VBool)), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'I', domain_1.VType, I => domain_1.VPi(false, 'F', domain_1.VPi(false, '_', domain_1.VPi(false, '_', I, _ => domain_1.VType), _ => domain_1.VPi(false, '_', I, _ => domain_1.VType)), F => domain_1.VPi(false, 'i', I, i => domain_1.vapp(P, false, domain_1.vapp(domain_1.vapp(domain_1.vapp(domain_1.VIFix, false, I), false, F), false, i)))))), _ => domain_1.VPi(false, '_', domain_1.VPi(false, '_', domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t)), _ => domain_1.VPi(false, 'A', domain_1.VType, A => domain_1.VPi(false, 'B', domain_1.VType, B => domain_1.VPi(false, 'a', A, a => domain_1.VPi(false, 'b', B, b => domain_1.vapp(P, false, domain_1.vheq(A, B, a, b))))))), _ => domain_1.VPi(false, 't', domain_1.VType, t => domain_1.vapp(P, false, t))))))))))))),
 };
 exports.primType = (name) => primTypes[name]() || utils_1.impossible(`primType: ${name}`);
 
@@ -1582,6 +1664,7 @@ exports.primNames = [
     'UnitType', 'Unit',
     'Bool', 'True', 'False', 'indBool',
     'IFix', 'IIn', 'genindIFix',
+    'genindType',
 ];
 exports.isPrimName = (x) => exports.primNames.includes(x);
 exports.Prim = (name) => ({ tag: 'Prim', name });
@@ -2476,6 +2559,21 @@ const unifyElim = (k, a, b, x, y) => {
         return;
     }
     if (a.tag === 'EIndBool' && b.tag === 'EIndBool' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.unify(k, a.args[i], b.args[i]);
+        return;
+    }
+    if (a.tag === 'EElimHEqUnsafe' && b.tag === 'EElimHEqUnsafe' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.unify(k, a.args[i], b.args[i]);
+        return;
+    }
+    if (a.tag === 'EIFixInd' && b.tag === 'EIFixInd' && a.args.length === b.args.length) {
+        for (let i = 0; i < a.args.length; i++)
+            exports.unify(k, a.args[i], b.args[i]);
+        return;
+    }
+    if (a.tag === 'EIndType' && b.tag === 'EIndType' && a.args.length === b.args.length) {
         for (let i = 0; i < a.args.length; i++)
             exports.unify(k, a.args[i], b.args[i]);
         return;

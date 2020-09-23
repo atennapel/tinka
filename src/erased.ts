@@ -101,5 +101,7 @@ export const erasePrim = (prim: S.PrimName): Term => {
   if (prim === 'elimHEq') return Abs('x', Abs('y', App(Var(0), Var(1)))); // \x p. p x
   if (prim === 'genindIFix') return Abs('x', Abs('y', App(Var(0), Var(1)))); // \f x. x f
 
+  if (prim === 'genindType') return idTerm; // TODO
+
   return prim;
 };
