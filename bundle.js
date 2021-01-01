@@ -5,16 +5,17 @@ exports.log = exports.setConfig = exports.config = void 0;
 exports.config = {
     debug: false,
     showEnvs: false,
-    showNormalization: true,
 };
-exports.setConfig = (c) => {
+const setConfig = (c) => {
     for (let k in c)
         exports.config[k] = c[k];
 };
-exports.log = (msg) => {
+exports.setConfig = setConfig;
+const log = (msg) => {
     if (exports.config.debug)
         console.log(msg());
 };
+exports.log = log;
 
 },{}],2:[function(require,module,exports){
 "use strict";
@@ -823,8 +824,8 @@ exports.metaDiscard = () => { stack.pop(); postponedStack.pop(); };
 },{"./syntax":13,"./unify":15,"./utils/utils":18}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.nextName = void 0;
-exports.nextName = (x) => {
+exports.chooseName = exports.nextName = void 0;
+const nextName = (x) => {
     if (x === '_')
         return x;
     const s = x.split('$');
@@ -832,6 +833,9 @@ exports.nextName = (x) => {
         return `${s[0]}\$${+s[1] + 1}`;
     return `${x}\$0`;
 };
+exports.nextName = nextName;
+const chooseName = (x, ns) => x === '_' ? x : ns.contains(x) ? exports.chooseName(exports.nextName(x), ns) : x;
+exports.chooseName = chooseName;
 
 },{}],9:[function(require,module,exports){
 "use strict";
@@ -2987,17 +2991,20 @@ exports.last = (l) => {
 },{}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hasDuplicates = exports.range = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
-exports.impossible = (msg) => {
+exports.eqArr = exports.mapObj = exports.tryTE = exports.tryT = exports.hasDuplicates = exports.range = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
+const impossible = (msg) => {
     throw new Error(`impossible: ${msg}`);
 };
-exports.terr = (msg) => {
+exports.impossible = impossible;
+const terr = (msg) => {
     throw new TypeError(msg);
 };
-exports.serr = (msg) => {
+exports.terr = terr;
+const serr = (msg) => {
     throw new SyntaxError(msg);
 };
-exports.loadFile = (fn) => {
+exports.serr = serr;
+const loadFile = (fn) => {
     if (typeof window === 'undefined') {
         return new Promise((resolve, reject) => {
             require('fs').readFile(fn, 'utf8', (err, data) => {
@@ -3011,13 +3018,15 @@ exports.loadFile = (fn) => {
         return fetch(fn).then(r => r.text());
     }
 };
-exports.range = (n) => {
+exports.loadFile = loadFile;
+const range = (n) => {
     const a = Array(n);
     for (let i = 0; i < n; i++)
         a[i] = i;
     return a;
 };
-exports.hasDuplicates = (x) => {
+exports.range = range;
+const hasDuplicates = (x) => {
     const m = {};
     for (let i = 0; i < x.length; i++) {
         const y = `${x[i]}`;
@@ -3027,6 +3036,40 @@ exports.hasDuplicates = (x) => {
     }
     return false;
 };
+exports.hasDuplicates = hasDuplicates;
+const tryT = (v, e, throwErr = false) => {
+    try {
+        return v();
+    }
+    catch (err) {
+        if (!(err instanceof TypeError))
+            throw err;
+        const r = e(err);
+        if (throwErr)
+            throw err;
+        return r;
+    }
+};
+exports.tryT = tryT;
+const tryTE = (v) => exports.tryT(v, err => err);
+exports.tryTE = tryTE;
+const mapObj = (o, fn) => {
+    const n = {};
+    for (const k in o)
+        n[k] = fn(o[k]);
+    return n;
+};
+exports.mapObj = mapObj;
+const eqArr = (a, b, eq = (x, y) => x === y) => {
+    const l = a.length;
+    if (b.length !== l)
+        return false;
+    for (let i = 0; i < l; i++)
+        if (!eq(a[i], b[i]))
+            return false;
+    return true;
+};
+exports.eqArr = eqArr;
 
 },{"fs":21}],19:[function(require,module,exports){
 "use strict";
