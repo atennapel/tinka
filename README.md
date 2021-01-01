@@ -4,25 +4,4 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 todo:
-- fix erasure of types and induction on types
-- fix recursive instances
-- CEK machine for erased terms
-- fix Showable
-
-- find way to do recursive-inductive types
-- find way to do inductive-inductive types
-
-- improve error message of postponed problems (where do these problem originate from?)
-- combine all prim eliminators
-- add functions for vec (head, tail, index, S-is-cons)
-- fix annotated let parser
-- allow standalone projection
-- create a CEK machine
-- reset metas before
-- insert skolems in check
-- zonk all elims
-- figure out glued vars
-- add some better way to pretty print values for repl
-- add pretty print for lists of nats
-- find some way to automatically fill named holes (instance search)
 ```
