@@ -293,10 +293,11 @@ exports.elaborate = elaborate;
 },{"./config":1,"./conversion":2,"./core":3,"./local":5,"./mode":6,"./surface":10,"./usage":12,"./utils/utils":15,"./values":16}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
+exports.showVal = exports.showValCore = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
 const mode_1 = require("./mode");
 const List_1 = require("./utils/List");
 const values_1 = require("./values");
+const S = require("./surface");
 const EntryT = (type, usage, mode, bound, inserted) => ({ type, bound, mode, usage, inserted });
 exports.EntryT = EntryT;
 const indexEnvT = (ts, ix) => {
@@ -344,10 +345,12 @@ class Local {
     }
 }
 exports.Local = Local;
-const showVal = (local, val) => values_1.show(val, local.level);
+const showValCore = (local, val) => values_1.show(val, local.level);
+exports.showValCore = showValCore;
+const showVal = (local, val) => S.showVal(val, local.level, local.ns);
 exports.showVal = showVal;
 
-},{"./mode":6,"./utils/List":14,"./values":16}],6:[function(require,module,exports){
+},{"./mode":6,"./surface":10,"./utils/List":14,"./values":16}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.eqMode = exports.Impl = exports.Expl = void 0;
@@ -999,13 +1002,13 @@ const usage_1 = require("./usage");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
 const check = (local, tm, ty) => {
-    config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showVal(local, ty)}`);
+    config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showValCore(local, ty)}`);
     const [ty2, u] = synth(local, tm);
     return utils_1.tryT(() => {
-        config_1.log(() => `unify ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}`);
+        config_1.log(() => `unify ${local_1.showValCore(local, ty2)} ~ ${local_1.showValCore(local, ty)}`);
         conversion_1.conv(local.level, ty2, ty);
         return u;
-    }, e => utils_1.terr(`check failed (${core_1.show(tm)}): ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}: ${e}`));
+    }, e => utils_1.terr(`check failed (${core_1.show(tm)}): ${local_1.showValCore(local, ty2)} ~ ${local_1.showValCore(local, ty)}: ${e}`));
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth ${core_1.show(tm)}`);
@@ -1054,14 +1057,14 @@ const synth = (local, tm) => {
     return tm;
 };
 const synthapp = (local, ty, mode, arg) => {
-    config_1.log(() => `synthapp ${local_1.showVal(local, ty)} @ ${core_1.show(arg)}`);
+    config_1.log(() => `synthapp ${local_1.showValCore(local, ty)} @ ${core_1.show(arg)}`);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         const cty = ty.type;
         const uses = check(local, arg, cty);
         const v = values_1.evaluate(arg, local.vs);
         return [values_1.vinst(ty, v), usage_1.multiplyUses(ty.usage, uses)];
     }
-    return utils_1.terr(`not a correct pi type in synthapp: ${local_1.showVal(local, ty)} @ ${core_1.show(arg)}`);
+    return utils_1.terr(`not a correct pi type in synthapp: ${local_1.showValCore(local, ty)} @ ${core_1.show(arg)}`);
 };
 const typecheck = (t, local = local_1.Local.empty()) => {
     const [vty] = synth(local, t);

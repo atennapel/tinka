@@ -3,6 +3,7 @@ import { Ix, Lvl, Name } from './names';
 import { Usage } from './usage';
 import { cons, List, nil } from './utils/List';
 import { EnvV, show, Val, VVar } from './values';
+import * as S from './surface';
 
 export interface EntryT {
   readonly type: Val;
@@ -101,4 +102,5 @@ export class Local {
 
 }
 
-export const showVal = (local: Local, val: Val): string => show(val, local.level);
+export const showValCore = (local: Local, val: Val): string => show(val, local.level);
+export const showVal = (local: Local, val: Val): string => S.showVal(val, local.level, local.ns);
