@@ -1,5 +1,5 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair } from './core';
-import { Mode } from './mode';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, IndSigma } from './core';
+import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
 import { Usage } from './usage';
 import { Lazy } from './utils/Lazy';
@@ -11,10 +11,12 @@ export type Head = HVar;
 export interface HVar { readonly tag: 'HVar'; readonly level: Lvl }
 export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 
-export type Elim = EApp;
+export type Elim = EApp | EIndSigma;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
+export interface EIndSigma { readonly tag: 'EIndSigma'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
+export const EIndSigma = (usage: Usage, motive: Val, cas: Val): EIndSigma => ({ tag: 'EIndSigma', usage, motive, cas });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
@@ -58,6 +60,13 @@ export const vapp = (left: Val, mode: Mode, right: Val): Val => {
   if (left.tag === 'VLocal') return VLocal(left.head, left.level, cons(EApp(mode, right), left.spine), left.val.map(v => vapp(v, mode, right)));
   return impossible(`vapp: ${left.tag}`);
 };
+export const vindsigma = (usage: Usage, motive: Val, scrut: Val, cas: Val): Val => {
+  if (scrut.tag === 'VPair') return vapp(vapp(cas, Expl, scrut.fst), Expl, scrut.snd);
+  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EIndSigma(usage, motive, cas), scrut.spine));
+  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EIndSigma(usage, motive, cas), scrut.spine), scrut.val.map(v => vindsigma(usage, motive, v, cas)));
+  if (scrut.tag === 'VLocal') return VLocal(scrut.head, scrut.level, cons(EIndSigma(usage, motive, cas), scrut.spine), scrut.val.map(v => vindsigma(usage, motive, v, cas)));
+  return impossible(`vindsigma: ${scrut.tag}`);
+};
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'Type') return VType;
@@ -78,6 +87,8 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return VSigma(t.usage, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Pair')
     return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
+  if (t.tag === 'IndSigma')
+    return vindsigma(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
   return t;
 };
 
@@ -87,7 +98,8 @@ const quoteHead = (h: Head, k: Lvl): Core => {
 };
 const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full));
-  return e.tag;
+  if (e.tag === 'EIndSigma') return IndSigma(e.usage, quote(e.motive, k), t, quote(e.cas, k));
+  return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
   if (v.tag === 'VType') return Type;

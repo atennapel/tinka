@@ -10,7 +10,7 @@ export type Surface =
   Var | Let |
   Type |
   Pi | Abs | App |
-  Sigma | Pair;
+  Sigma | Pair | IndSigma;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -30,6 +30,8 @@ export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly 
 export const Sigma = (usage: Usage, name: Name, type: Surface, body: Surface): Sigma => ({ tag: 'Sigma', usage, name, type, body });
 export interface Pair { readonly tag: 'Pair'; readonly fst: Surface; readonly snd: Surface }
 export const Pair = (fst: Surface, snd: Surface): Pair => ({ tag: 'Pair', fst, snd });
+export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly cas: Surface }
+export const IndSigma = (usage: Usage, motive: Surface, scrut: Surface, cas: Surface): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
 
 export const flattenPi = (t: Surface): [[Usage, Mode, Name, Surface][], Surface] => {
   const params: [Usage, Mode, Name, Surface][] = [];
@@ -105,6 +107,8 @@ export const show = (t: Surface): string => {
     const ps = flattenPair(t);
     return `(${ps.map(show).join(', ')})`;
   }
+  if (t.tag === 'IndSigma')
+    return `indSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   return t;
 };
 
@@ -130,6 +134,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
     return Sigma(t.usage, x, fromCore(t.type, ns), fromCore(t.body, cons(x, ns)));
   }
   if (t.tag === 'Pair') return Pair(fromCore(t.fst, ns), fromCore(t.snd, ns));
+  if (t.tag === 'IndSigma') return IndSigma(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.cas, ns));
   return t;
 };
 

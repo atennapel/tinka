@@ -193,27 +193,13 @@ export class Cons<T> extends List<T> {
     return r;
   }
 
-  zip<R>(o: List<R>): List<[T, R]> {
-    let a: List<T> = this;
-    let b: List<R> = o;
-    let r: List<[T, R]> = List.Nil();
-    while (a.isCons() && b.isCons()) {
-      r = new Cons([a.head, b.head], r);
-      a = a.tail;
-      b = b.tail;
-    }
-    return r;
+  zip<R>(b: List<R>): List<[T, R]> {
+    if (b.isCons()) return new Cons([this.head, b.head], this.tail.zip(b.tail));
+    return List.Nil();
   }
-  zipWith<R, U>(o: List<R>, fn: (a: T, b: R) => U): List<U> {
-    let a: List<T> = this;
-    let b: List<R> = o;
-    let r: List<U> = List.Nil();
-    while (a.isCons() && b.isCons()) {
-      r = new Cons(fn(a.head, b.head), r);
-      a = a.tail;
-      b = b.tail;
-    }
-    return r;
+  zipWith<R, U>(b: List<R>, fn: (a: T, b: R) => U): List<U> {
+    if (b.isCons()) return new Cons(fn(this.head, b.head), this.tail.zipWith(b.tail, fn));
+    return List.Nil();
   }
   zipWith_<R>(o: List<R>, fn: (a: T, b: R) => void): void {
     let a: List<T> = this;

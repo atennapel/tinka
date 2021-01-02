@@ -6,7 +6,7 @@ export type Core =
   Var | Global | Let |
   Type |
   Pi | Abs | App |
-  Sigma | Pair;
+  Sigma | Pair | IndSigma;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -28,6 +28,8 @@ export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly 
 export const Sigma = (usage: Usage, name: Name, type: Core, body: Core): Sigma => ({ tag: 'Sigma', usage, name, type, body });
 export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: Core; readonly type: Core }
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
+export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
+export const IndSigma = (usage: Usage, motive: Core, scrut: Core, cas: Core): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
 
 export const flattenPi = (t: Core): [[Usage, Mode, Name, Core][], Core] => {
   const params: [Usage, Mode, Name, Core][] = [];
@@ -104,5 +106,7 @@ export const show = (t: Core): string => {
     const ps = flattenPair(t);
     return `(${ps.map(t => show(t)).join(', ')} : ${show(t.type)})`;
   }
+  if (t.tag === 'IndSigma')
+    return `indSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   return t;
 };

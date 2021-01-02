@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Let, Pair, Pi, show, Sigma, Surface, Type, Var } from './surface';
+import { Abs, App, IndSigma, Let, Pair, Pi, show, Sigma, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -299,6 +299,16 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(', fromRepl);
     return args.reduceRight((x, [u, name, mode , ty]) => Abs(u, mode, name, ty, x), body);
+  }
+  if (isName(ts[0], 'indSigma')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    if (ts.length !== 3 + j) return serr(`indSigma expects exactly 3 arguments`);
+    const [motive] = expr(ts[j], fromRepl);
+    const [scrut] = expr(ts[j + 1], fromRepl);
+    const [cas] = expr(ts[j + 2], fromRepl);
+    return IndSigma(u, motive, scrut, cas);
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

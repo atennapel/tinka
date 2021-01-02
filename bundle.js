@@ -38,6 +38,10 @@ const convElim = (k, a, b, x, y) => {
         return;
     if (a.tag === 'EApp' && b.tag === 'EApp' && mode_1.eqMode(a.mode, b.mode))
         return exports.conv(k, a.arg, b.arg);
+    if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
+        exports.conv(k, a.motive, b.motive);
+        return exports.conv(k, a.cas, b.cas);
+    }
     return utils_1.terr(`conv failed (${k}): ${values_1.show(x, k)} ~ ${values_1.show(y, k)}`);
 };
 const conv = (k, a, b) => {
@@ -93,7 +97,7 @@ exports.conv = conv;
 },{"./config":1,"./mode":6,"./utils/utils":15,"./values":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
+exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -112,6 +116,8 @@ const Sigma = (usage, name, type, body) => ({ tag: 'Sigma', usage, name, type, b
 exports.Sigma = Sigma;
 const Pair = (fst, snd, type) => ({ tag: 'Pair', fst, snd, type });
 exports.Pair = Pair;
+const IndSigma = (usage, motive, scrut, cas) => ({ tag: 'IndSigma', usage, motive, scrut, cas });
+exports.IndSigma = IndSigma;
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -194,6 +200,8 @@ const show = (t) => {
         const ps = exports.flattenPair(t);
         return `(${ps.map(t => exports.show(t)).join(', ')} : ${exports.show(t.type)})`;
     }
+    if (t.tag === 'IndSigma')
+        return `indSigma ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     return t;
 };
 exports.show = show;
@@ -342,6 +350,18 @@ const synth = (local, tm) => {
         const [snd, ty2, u2] = synth(local, tm.snd);
         const ty = values_1.VSigma(usage_1.many, '_', ty1, _ => ty2);
         return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), ty, usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
+    }
+    if (tm.tag === 'IndSigma') {
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in sigma induction ${surface_1.show(tm)}: ${tm.usage}`);
+        const [scrut, sigma_, u1] = synth(local, tm.scrut);
+        const sigma = values_1.force(sigma_);
+        if (sigma.tag !== 'VSigma')
+            return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+        const [motive] = check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', sigma_, _ => values_1.VType));
+        const vmotive = values_1.evaluate(motive, local.vs);
+        const [cas, u2] = check(local, tm.cas, values_1.VPi(usage_1.multiply(tm.usage, sigma.usage), mode_1.Expl, 'x', sigma.type, x => values_1.VPi(tm.usage, mode_1.Expl, 'y', values_1.vinst(sigma, x), y => values_1.vapp(vmotive, mode_1.Expl, values_1.VPair(x, y, sigma_)))));
+        return [core_1.IndSigma(tm.usage, motive, scrut, cas), values_1.vapp(vmotive, mode_1.Expl, values_1.evaluate(scrut, local.vs)), usage_1.multiplyUses(tm.usage, usage_1.addUses(u1, u2))];
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
@@ -811,6 +831,22 @@ const exprs = (ts, br, fromRepl) => {
         const body = exprs(ts.slice(i + 1), '(', fromRepl);
         return args.reduceRight((x, [u, name, mode, ty]) => surface_1.Abs(u, mode, name, ty, x), body);
     }
+    if (isName(ts[0], 'indSigma')) {
+        let j = 1;
+        let u = usage(ts[1]);
+        if (u) {
+            j = 2;
+        }
+        else {
+            u = usage_1.many;
+        }
+        if (ts.length !== 3 + j)
+            return utils_1.serr(`indSigma expects exactly 3 arguments`);
+        const [motive] = expr(ts[j], fromRepl);
+        const [scrut] = expr(ts[j + 1], fromRepl);
+        const [cas] = expr(ts[j + 2], fromRepl);
+        return surface_1.IndSigma(u, motive, scrut, cas);
+    }
     const j = ts.findIndex(x => isName(x, '->'));
     if (j >= 0) {
         const s = splitTokens(ts, x => isName(x, '->'));
@@ -998,7 +1034,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./local":5,"./parser":8,"./surface":10,"./typecheck":11,"./usage":12,"./values":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1019,6 +1055,8 @@ const Sigma = (usage, name, type, body) => ({ tag: 'Sigma', usage, name, type, b
 exports.Sigma = Sigma;
 const Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
 exports.Pair = Pair;
+const IndSigma = (usage, motive, scrut, cas) => ({ tag: 'IndSigma', usage, motive, scrut, cas });
+exports.IndSigma = IndSigma;
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -1099,6 +1137,8 @@ const show = (t) => {
         const ps = exports.flattenPair(t);
         return `(${ps.map(exports.show).join(', ')})`;
     }
+    if (t.tag === 'IndSigma')
+        return `indSigma ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     return t;
 };
 exports.show = show;
@@ -1129,6 +1169,8 @@ const fromCore = (t, ns = List_1.nil) => {
     }
     if (t.tag === 'Pair')
         return exports.Pair(exports.fromCore(t.fst, ns), exports.fromCore(t.snd, ns));
+    if (t.tag === 'IndSigma')
+        return exports.IndSigma(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), exports.fromCore(t.cas, ns));
     return t;
 };
 exports.fromCore = fromCore;
@@ -1218,6 +1260,26 @@ const synth = (local, tm) => {
         const u1 = check(local, tm.fst, vsigma.type);
         const u2 = check(local, tm.snd, values_1.vinst(vsigma, values_1.evaluate(tm.fst, local.vs)));
         return [vsigma_, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2)];
+    }
+    if (tm.tag === 'IndSigma') {
+        /*
+          1 <= q
+          G |- p : (u x : A) ** B
+          G |- P : ((u x : A) ** B x) -> Type
+          G |- k : (q * u x : A) -> (q y : B x) -> P (x, y)
+          ---------------------------------------------
+          q * G |- indSigma q P p k : P p
+        */
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in sigma induction ${core_1.show(tm)}: ${tm.usage}`);
+        const [sigma_, u1] = synth(local, tm.scrut);
+        const sigma = values_1.force(sigma_);
+        if (sigma.tag !== 'VSigma')
+            return utils_1.terr(`not a sigma type in ${core_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+        check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', sigma_, _ => values_1.VType));
+        const motive = values_1.evaluate(tm.motive, local.vs);
+        const u2 = check(local, tm.cas, values_1.VPi(usage_1.multiply(tm.usage, sigma.usage), mode_1.Expl, 'x', sigma.type, x => values_1.VPi(tm.usage, mode_1.Expl, 'y', values_1.vinst(sigma, x), y => values_1.vapp(motive, mode_1.Expl, values_1.VPair(x, y, sigma_)))));
+        return [values_1.vapp(motive, mode_1.Expl, values_1.evaluate(tm.scrut, local.vs)), usage_1.multiplyUses(tm.usage, usage_1.addUses(u1, u2))];
     }
     return tm;
 };
@@ -1461,27 +1523,15 @@ class Cons extends List {
         }
         return r;
     }
-    zip(o) {
-        let a = this;
-        let b = o;
-        let r = List.Nil();
-        while (a.isCons() && b.isCons()) {
-            r = new Cons([a.head, b.head], r);
-            a = a.tail;
-            b = b.tail;
-        }
-        return r;
+    zip(b) {
+        if (b.isCons())
+            return new Cons([this.head, b.head], this.tail.zip(b.tail));
+        return List.Nil();
     }
-    zipWith(o, fn) {
-        let a = this;
-        let b = o;
-        let r = List.Nil();
-        while (a.isCons() && b.isCons()) {
-            r = new Cons(fn(a.head, b.head), r);
-            a = a.tail;
-            b = b.tail;
-        }
-        return r;
+    zipWith(b, fn) {
+        if (b.isCons())
+            return new Cons(fn(this.head, b.head), this.tail.zipWith(b.tail, fn));
+        return List.Nil();
     }
     zipWith_(o, fn) {
         let a = this;
@@ -1605,8 +1655,9 @@ exports.eqArr = eqArr;
 },{"fs":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VLocal = exports.VGlobal = exports.VNe = exports.VType = exports.EApp = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vindsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VLocal = exports.VGlobal = exports.VNe = exports.VType = exports.EIndSigma = exports.EApp = exports.HVar = void 0;
 const core_1 = require("./core");
+const mode_1 = require("./mode");
 const Lazy_1 = require("./utils/Lazy");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -1614,6 +1665,8 @@ const HVar = (level) => ({ tag: 'HVar', level });
 exports.HVar = HVar;
 const EApp = (mode, arg) => ({ tag: 'EApp', mode, arg });
 exports.EApp = EApp;
+const EIndSigma = (usage, motive, cas) => ({ tag: 'EIndSigma', usage, motive, cas });
+exports.EIndSigma = EIndSigma;
 exports.VType = { tag: 'VType' };
 const VNe = (head, spine) => ({ tag: 'VNe', head, spine });
 exports.VNe = VNe;
@@ -1655,6 +1708,18 @@ const vapp = (left, mode, right) => {
     return utils_1.impossible(`vapp: ${left.tag}`);
 };
 exports.vapp = vapp;
+const vindsigma = (usage, motive, scrut, cas) => {
+    if (scrut.tag === 'VPair')
+        return exports.vapp(exports.vapp(cas, mode_1.Expl, scrut.fst), mode_1.Expl, scrut.snd);
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EIndSigma(usage, motive, cas), scrut.spine));
+    if (scrut.tag === 'VGlobal')
+        return exports.VGlobal(scrut.head, List_1.cons(exports.EIndSigma(usage, motive, cas), scrut.spine), scrut.val.map(v => exports.vindsigma(usage, motive, v, cas)));
+    if (scrut.tag === 'VLocal')
+        return exports.VLocal(scrut.head, scrut.level, List_1.cons(exports.EIndSigma(usage, motive, cas), scrut.spine), scrut.val.map(v => exports.vindsigma(usage, motive, v, cas)));
+    return utils_1.impossible(`vindsigma: ${scrut.tag}`);
+};
+exports.vindsigma = vindsigma;
 const evaluate = (t, vs) => {
     if (t.tag === 'Type')
         return exports.VType;
@@ -1676,6 +1741,8 @@ const evaluate = (t, vs) => {
         return exports.VSigma(t.usage, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
     if (t.tag === 'Pair')
         return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs), exports.evaluate(t.type, vs));
+    if (t.tag === 'IndSigma')
+        return exports.vindsigma(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), exports.evaluate(t.cas, vs));
     return t;
 };
 exports.evaluate = evaluate;
@@ -1687,7 +1754,9 @@ const quoteHead = (h, k) => {
 const quoteElim = (t, e, k, full) => {
     if (e.tag === 'EApp')
         return core_1.App(t, e.mode, exports.quote(e.arg, k, full));
-    return e.tag;
+    if (e.tag === 'EIndSigma')
+        return core_1.IndSigma(e.usage, exports.quote(e.motive, k), t, exports.quote(e.cas, k));
+    return e;
 };
 const quote = (v, k, full = false) => {
     if (v.tag === 'VType')
@@ -1720,7 +1789,7 @@ exports.normalize = normalize;
 const show = (v, k = 0, full = false) => core_1.show(exports.quote(v, k, full));
 exports.show = show;
 
-},{"./core":3,"./utils/Lazy":13,"./utils/List":14,"./utils/utils":15}],17:[function(require,module,exports){
+},{"./core":3,"./mode":6,"./utils/Lazy":13,"./utils/List":14,"./utils/utils":15}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");

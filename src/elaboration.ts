@@ -1,11 +1,11 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vinst, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, VSigma, VType, VVar } from './values';
 import { Surface } from './surface';
 import { show } from './surface';
 import { conv } from './conversion';
-import { addUses, many, multiplyUses, noUses, one, sub, Uses } from './usage';
+import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 
@@ -134,6 +134,17 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [snd, ty2, u2] = synth(local, tm.snd);
     const ty = VSigma(many, '_', ty1, _ => ty2);
     return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
+  }
+  if (tm.tag === 'IndSigma') {
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)
+    const [scrut, sigma_, u1] = synth(local, tm.scrut);
+    const sigma = force(sigma_);
+    if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+    const [motive] = check(local, tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
+    return [IndSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
   }
   return terr(`unable to synth ${show(tm)}`);
 };

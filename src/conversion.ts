@@ -12,6 +12,10 @@ export const eqHead = (a: Head, b: Head): boolean => {
 const convElim = (k: Lvl, a: Elim, b: Elim, x: Val, y: Val): void => {
   if (a === b) return;
   if (a.tag === 'EApp' && b.tag === 'EApp' && eqMode(a.mode, b.mode)) return conv(k, a.arg, b.arg);
+  if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
+    conv(k, a.motive, b.motive);
+    return conv(k, a.cas, b.cas);
+  }
   return terr(`conv failed (${k}): ${show(x, k)} ~ ${show(y, k)}`);
 };
 export const conv = (k: Lvl, a: Val, b: Val): void => {
