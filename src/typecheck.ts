@@ -5,7 +5,7 @@ import { indexEnvT, Local, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { addUses, many, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { impossible, terr, tryT } from './utils/utils';
-import { evaluate, quote, Val, vinst, VType } from './values';
+import { evaluate, force, quote, Val, vinst, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -68,17 +68,19 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   }
   if (tm.tag === 'Pair') {
     check(local, tm.type, VType);
-    const vsigma = evaluate(tm.type, local.vs);
+    const vsigma_ = evaluate(tm.type, local.vs);
+    const vsigma = force(vsigma_);
     if (vsigma.tag !== 'VSigma') return terr(`pair without sigma type: ${show(tm)}`);
     const u1 = check(local, tm.fst, vsigma.type);
     const u2 = check(local, tm.snd, vinst(vsigma, evaluate(tm.fst, local.vs)));
-    return [vsigma, addUses(multiplyUses(vsigma.usage, u1), u2)];
+    return [vsigma_, addUses(multiplyUses(vsigma.usage, u1), u2)];
   }
   return tm;
 };
 
-const synthapp = (local: Local, ty: Val, mode: Mode, arg: Core): [Val, Uses] => {
-  log(() => `synthapp ${showValCore(local, ty)} @ ${show(arg)}`);
+const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Core): [Val, Uses] => {
+  log(() => `synthapp ${showValCore(local, ty_)} @ ${show(arg)}`);
+  const ty = force(ty_);
   if (ty.tag === 'VPi' && eqMode(ty.mode, mode)) {
     const cty = ty.type;
     const uses = check(local, arg, cty);

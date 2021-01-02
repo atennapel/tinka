@@ -79,6 +79,13 @@ const conv = (k, a, b) => {
         return exports.conv(k, a.val.get(), b);
     if (b.tag === 'VGlobal')
         return exports.conv(k, a, b.val.get());
+    if (a.tag === 'VLocal' && b.tag === 'VLocal' && a.head === b.head && a.level === b.level) {
+        return utils_1.tryT(() => a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b)), () => exports.conv(k, a.val.get(), b.val.get()));
+    }
+    if (a.tag === 'VLocal')
+        return exports.conv(k, a.val.get(), b);
+    if (b.tag === 'VLocal')
+        return exports.conv(k, a, b.val.get());
     return utils_1.terr(`conv failed (${k}): ${values_1.show(a, k)} ~ ${values_1.show(b, k)}`);
 };
 exports.conv = conv;
@@ -204,8 +211,9 @@ const conversion_1 = require("./conversion");
 const usage_1 = require("./usage");
 const local_1 = require("./local");
 const mode_1 = require("./mode");
-const check = (local, tm, ty) => {
-    config_1.log(() => `check (${local.level}) ${surface_1.show(tm)} : ${local_1.showVal(local, ty)}`);
+const check = (local, tm, ty_) => {
+    config_1.log(() => `check (${local.level}) ${surface_1.show(tm)} : ${local_1.showVal(local, ty_)}`);
+    const ty = values_1.force(ty_);
     if (tm.tag === 'Type' && ty.tag === 'VType')
         return [core_1.Type, usage_1.noUses(local.level)];
     if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && mode_1.eqMode(tm.mode, ty.mode)) {
@@ -248,7 +256,7 @@ const check = (local, tm, ty) => {
             vtype = values_1.quote(vty, local.level);
         }
         const v = values_1.evaluate(val, local.vs);
-        const [body, ub] = check(local.define(tm.usage, tm.name, vty, v), tm.body, ty);
+        const [body, ub] = check(local.define(tm.usage, tm.name, vty, v), tm.body, ty_);
         const [ux, urest] = ub.uncons();
         if (!usage_1.sub(ux, tm.usage))
             return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
@@ -256,10 +264,10 @@ const check = (local, tm, ty) => {
     }
     const [Core, ty2, uses] = synth(local, tm);
     return utils_1.tryT(() => {
-        config_1.log(() => `unify ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}`);
-        conversion_1.conv(local.level, ty2, ty);
+        config_1.log(() => `unify ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty_)}`);
+        conversion_1.conv(local.level, ty2, ty_);
         return [Core, uses];
-    }, e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}: ${e}`));
+    }, e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty_)}: ${e}`));
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth (${local.level}) ${surface_1.show(tm)}`);
@@ -337,8 +345,9 @@ const synth = (local, tm) => {
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
-const synthapp = (local, ty, mode, arg) => {
-    config_1.log(() => `synthapp (${local.level}) ${local_1.showVal(local, ty)} @ ${surface_1.show(arg)}`);
+const synthapp = (local, ty_, mode, arg) => {
+    config_1.log(() => `synthapp (${local.level}) ${local_1.showVal(local, ty_)} @ ${surface_1.show(arg)}`);
+    const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         const cty = ty.type;
         const [Core, uses] = check(local, arg, cty);
@@ -1202,17 +1211,19 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Pair') {
         check(local, tm.type, values_1.VType);
-        const vsigma = values_1.evaluate(tm.type, local.vs);
+        const vsigma_ = values_1.evaluate(tm.type, local.vs);
+        const vsigma = values_1.force(vsigma_);
         if (vsigma.tag !== 'VSigma')
             return utils_1.terr(`pair without sigma type: ${core_1.show(tm)}`);
         const u1 = check(local, tm.fst, vsigma.type);
         const u2 = check(local, tm.snd, values_1.vinst(vsigma, values_1.evaluate(tm.fst, local.vs)));
-        return [vsigma, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2)];
+        return [vsigma_, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2)];
     }
     return tm;
 };
-const synthapp = (local, ty, mode, arg) => {
-    config_1.log(() => `synthapp ${local_1.showValCore(local, ty)} @ ${core_1.show(arg)}`);
+const synthapp = (local, ty_, mode, arg) => {
+    config_1.log(() => `synthapp ${local_1.showValCore(local, ty_)} @ ${core_1.show(arg)}`);
+    const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         const cty = ty.type;
         const uses = check(local, arg, cty);
@@ -1594,7 +1605,7 @@ exports.eqArr = eqArr;
 },{"fs":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vapp = exports.vinst = exports.VVar = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EApp = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VLocal = exports.VGlobal = exports.VNe = exports.VType = exports.EApp = exports.HVar = void 0;
 const core_1 = require("./core");
 const Lazy_1 = require("./utils/Lazy");
 const List_1 = require("./utils/List");
@@ -1609,6 +1620,9 @@ exports.VNe = VNe;
 ;
 const VGlobal = (head, spine, val) => ({ tag: 'VGlobal', head, spine, val });
 exports.VGlobal = VGlobal;
+;
+const VLocal = (head, level, spine, val) => ({ tag: 'VLocal', head, level, spine, val });
+exports.VLocal = VLocal;
 const VAbs = (usage, mode, name, type, clos) => ({ tag: 'VAbs', usage, mode, name, type, clos });
 exports.VAbs = VAbs;
 const VPi = (usage, mode, name, type, clos) => ({ tag: 'VPi', usage, mode, name, type, clos });
@@ -1621,6 +1635,14 @@ const VVar = (level, spine = List_1.nil) => exports.VNe(exports.HVar(level), spi
 exports.VVar = VVar;
 const vinst = (val, arg) => val.clos(arg);
 exports.vinst = vinst;
+const force = (v) => {
+    if (v.tag === 'VGlobal')
+        return exports.force(v.val.get());
+    if (v.tag === 'VLocal')
+        return exports.force(v.val.get());
+    return v;
+};
+exports.force = force;
 const vapp = (left, mode, right) => {
     if (left.tag === 'VAbs')
         return exports.vinst(left, right);
@@ -1628,6 +1650,8 @@ const vapp = (left, mode, right) => {
         return exports.VNe(left.head, List_1.cons(exports.EApp(mode, right), left.spine));
     if (left.tag === 'VGlobal')
         return exports.VGlobal(left.head, List_1.cons(exports.EApp(mode, right), left.spine), left.val.map(v => exports.vapp(v, mode, right)));
+    if (left.tag === 'VLocal')
+        return exports.VLocal(left.head, left.level, List_1.cons(exports.EApp(mode, right), left.spine), left.val.map(v => exports.vapp(v, mode, right)));
     return utils_1.impossible(`vapp: ${left.tag}`);
 };
 exports.vapp = vapp;
@@ -1638,8 +1662,10 @@ const evaluate = (t, vs) => {
         return exports.VAbs(t.usage, t.mode, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
     if (t.tag === 'Pi')
         return exports.VPi(t.usage, t.mode, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
-    if (t.tag === 'Var')
-        return vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
+    if (t.tag === 'Var') {
+        const val = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
+        return exports.VLocal(t.index, vs.length(), List_1.nil, Lazy_1.Lazy.of(val));
+    }
     if (t.tag === 'Global')
         return exports.VGlobal(t.name, List_1.nil, Lazy_1.Lazy.from(() => utils_1.impossible('globals are not implemented yet'))); // TODO
     if (t.tag === 'App')
@@ -1672,6 +1698,11 @@ const quote = (v, k, full = false) => {
         if (full)
             return exports.quote(v.val.get(), k, full);
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Global(v.head));
+    }
+    if (v.tag === 'VLocal') {
+        if (full || k !== v.level)
+            return exports.quote(v.val.get(), k, full);
+        return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Var(v.head));
     }
     if (v.tag === 'VAbs')
         return core_1.Abs(v.usage, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));

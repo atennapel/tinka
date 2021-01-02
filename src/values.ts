@@ -20,7 +20,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNe | VGlobal | VAbs | VPi | VSigma | VPair;
+export type Val = VType | VNe | VGlobal | VLocal | VAbs | VPi | VSigma | VPair;
 
 export interface VType { readonly tag: 'VType' }
 export const VType: VType = { tag: 'VType' };
@@ -28,6 +28,8 @@ export interface VNe { readonly tag: 'VNe'; readonly head: Head; readonly spine:
 export const VNe = (head: Head, spine: Spine): VNe => ({ tag: 'VNe', head, spine });
 export interface VGlobal { readonly tag: 'VGlobal'; readonly head: Name; readonly spine: Spine; readonly val: Lazy<Val> };
 export const VGlobal = (head: Name, spine: Spine, val: Lazy<Val>): VGlobal => ({ tag: 'VGlobal', head, spine, val });
+export interface VLocal { readonly tag: 'VLocal'; readonly head: Lvl; readonly level: Lvl; readonly spine: Spine; readonly val: Lazy<Val> };
+export const VLocal = (head: Lvl, level: Lvl, spine: Spine, val: Lazy<Val>): VLocal => ({ tag: 'VLocal', head, level, spine, val });
 export interface VAbs { readonly tag: 'VAbs'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Val; readonly clos: Clos }
 export const VAbs = (usage: Usage, mode: Mode, name: Name, type: Val, clos: Clos): VAbs => ({ tag: 'VAbs', usage, mode, name, type, clos });
 export interface VPi { readonly tag: 'VPi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Val; readonly clos: Clos }
@@ -43,10 +45,17 @@ export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), sp
 
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 
+export const force = (v: Val): Val => {
+  if (v.tag === 'VGlobal') return force(v.val.get());
+  if (v.tag === 'VLocal') return force(v.val.get());
+  return v;
+};
+
 export const vapp = (left: Val, mode: Mode, right: Val): Val => {
   if (left.tag === 'VAbs') return vinst(left, right);
   if (left.tag === 'VNe') return VNe(left.head, cons(EApp(mode, right), left.spine));
   if (left.tag === 'VGlobal') return VGlobal(left.head, cons(EApp(mode, right), left.spine), left.val.map(v => vapp(v, mode, right)));
+  if (left.tag === 'VLocal') return VLocal(left.head, left.level, cons(EApp(mode, right), left.spine), left.val.map(v => vapp(v, mode, right)));
   return impossible(`vapp: ${left.tag}`);
 };
 
@@ -56,8 +65,10 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Pi')
     return VPi(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
-  if (t.tag === 'Var') 
-    return vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
+  if (t.tag === 'Var') {
+    const val = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
+    return VLocal(t.index, vs.length(), nil, Lazy.of(val));
+  }
   if (t.tag === 'Global') return VGlobal(t.name, nil, Lazy.from(() => impossible('globals are not implemented yet'))); // TODO
   if (t.tag === 'App')
     return vapp(evaluate(t.fn, vs), t.mode, evaluate(t.arg, vs));
@@ -90,6 +101,13 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
       Global(v.head) as Core,
+    );
+  }
+  if (v.tag === 'VLocal') {
+    if (full || k !== v.level) return quote(v.val.get(), k, full);
+    return v.spine.foldr(
+      (x, y) => quoteElim(y, x, k, full),
+      Var(v.head) as Core,
     );
   }
   if (v.tag === 'VAbs')

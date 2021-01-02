@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, quote, Val, vinst, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vinst, VSigma, VType, VVar } from './values';
 import { Surface } from './surface';
 import { show } from './surface';
 import { conv } from './conversion';
@@ -9,8 +9,9 @@ import { addUses, many, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 
-const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
-  log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty)}`);
+const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
+  log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
+  const ty = force(ty_);
   if (tm.tag === 'Type' && ty.tag === 'VType') return [Type, noUses(local.level)];
   if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && eqMode(tm.mode, ty.mode)) {
     const v = VVar(local.level);
@@ -51,7 +52,7 @@ const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
       vtype = quote(vty, local.level);
     }
     const v = evaluate(val, local.vs);
-    const [body, ub] = check(local.define(tm.usage, tm.name, vty, v), tm.body, ty);
+    const [body, ub] = check(local.define(tm.usage, tm.name, vty, v), tm.body, ty_);
     const [ux, urest] = ub.uncons();
     if (!sub(ux, tm.usage))
       return terr(`usage error in ${show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
@@ -59,10 +60,10 @@ const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
   }
   const [Core, ty2, uses] = synth(local, tm);
   return tryT(() => {
-    log(() => `unify ${showVal(local, ty2)} ~ ${showVal(local, ty)}`);
-    conv(local.level, ty2, ty);
+    log(() => `unify ${showVal(local, ty2)} ~ ${showVal(local, ty_)}`);
+    conv(local.level, ty2, ty_);
     return [Core, uses];
-  }, e => terr(`check failed (${show(tm)}): ${showVal(local, ty2)} ~ ${showVal(local, ty)}: ${e}`));
+  }, e => terr(`check failed (${show(tm)}): ${showVal(local, ty2)} ~ ${showVal(local, ty_)}: ${e}`));
 };
 
 const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
@@ -137,8 +138,9 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   return terr(`unable to synth ${show(tm)}`);
 };
 
-const synthapp = (local: Local, ty: Val, mode: Mode, arg: Surface): [Core, Val, Uses] => {
-  log(() => `synthapp (${local.level}) ${showVal(local, ty)} @ ${show(arg)}`);
+const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Surface): [Core, Val, Uses] => {
+  log(() => `synthapp (${local.level}) ${showVal(local, ty_)} @ ${show(arg)}`);
+  const ty = force(ty_);
   if (ty.tag === 'VPi' && eqMode(ty.mode, mode)) {
     const cty = ty.type;
     const [Core, uses] = check(local, arg, cty);
