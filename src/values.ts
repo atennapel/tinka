@@ -91,5 +91,5 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
   return v;
 };
 
-export const normalize = (t: Core, full: boolean = false): Core => quote(evaluate(t, nil), 0, full);
+export const normalize = (t: Core, vs: EnvV = nil, full: boolean = false): Core => quote(evaluate(t, vs), 0, full);
 export const show = (v: Val, k: Lvl = 0, full: boolean = false): string => showCore(quote(v, k, full));

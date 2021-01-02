@@ -61,12 +61,21 @@ export class Local {
     return Local._empty;  
   }
 
-  bound(usage: Usage, mode: Mode, name: Name, ty: Val): Local {
+  bind(usage: Usage, mode: Mode, name: Name, ty: Val): Local {
     return new Local(
       this.level + 1,
       cons(name, this.ns),
       cons(name, this.nsSurface),
       cons(EntryT(ty, usage, mode, true, false), this.ts),
+      cons(VVar(this.level), this.vs),
+    );
+  }
+  insert(usage: Usage, mode: Mode, name: Name, ty: Val): Local {
+    return new Local(
+      this.level + 1,
+      cons(name, this.ns),
+      this.nsSurface,
+      cons(EntryT(ty, usage, mode, true, true), this.ts),
       cons(VVar(this.level), this.vs),
     );
   }

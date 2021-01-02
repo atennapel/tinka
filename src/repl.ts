@@ -1,9 +1,13 @@
 import { config, log, setConfig } from './config';
 import { parse } from './parser';
-import { Let, show, Surface, Var } from './surface';
+import { Let, show, showCore, Surface, Var } from './surface';
 import { many, Usage, zero } from './usage';
 import { Name } from './names';
 import { Local } from './local';
+import { elaborate } from './elaboration';
+import * as C from './core';
+import { typecheck } from './typecheck';
+import { evaluate, normalize } from './values';
 
 const help = `
 COMMANDS
@@ -55,55 +59,52 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       }
       cb(`no def to undo`);
     }
-    //let typeOnly = false;    
+    let typeOnly = false;    
     if (s.startsWith(':type') || s.startsWith(':t')) {
-      //typeOnly = true;
+      typeOnly = true;
       s = s.startsWith(':type') ? s.slice(5) : s.slice(2);
     }
     if (s.startsWith(':')) throw new Error(`invalid command: ${s}`);
 
     log(() => 'PARSE');
     let term = parse(s, true);
-    //let isDef = false;
-    //let usage = many;
+    let isDef = false;
+    let usage = many;
     if (term.tag === 'Let' && term.body === null) {
-      //isDef = true;
-      //usage = term.usage;
+      isDef = true;
+      usage = term.usage;
       term = Let(term.usage === zero ? many : term.usage, term.name, term.type, term.val, Var(term.name));
     }
     log(() => show(term));
 
-/*
     log(() => 'ELABORATE');
-    const [eterm, etype] = elaborate(term, elocal);
+    const [eterm, etype] = elaborate(term, local);
     log(() => C.show(eterm));
     log(() => showCore(eterm));
     log(() => C.show(etype));
     log(() => showCore(etype));
 
     log(() => 'VERIFICATION');
-    const verifty = verify(eterm, vlocal);
+    typecheck(eterm, local);
 
     let normstr = '';
     if (!typeOnly) {
       log(() => 'NORMALIZE');
-      const norm = normalize(eterm, elocal.vs);
+      const norm = normalize(eterm, local.vs);
       log(() => C.show(norm));
       log(() => showCore(norm));
       normstr = `\nnorm: ${showCore(norm)}`;
     }
 
-    const etermstr = showCore(eterm, elocal.ns);
+    const etermstr = showCore(eterm, local.ns);
 
     if (isDef && term.tag === 'Let') {
       defs.push([usage, term.name, term.type, term.val]);
-      const value = evaluate(eterm, elocal.vs);
-      elocal = Elab.localExtend(elocal, term.name, evaluate(etype, elocal.vs), usage, value);
-      vlocal = Verif.localExtend(vlocal, evaluate(verifty, vlocal.vs), usage, value);
+      const value = evaluate(eterm, local.vs);
+      local = local.define(usage, term.name, evaluate(etype, local.vs), value);
     }
 
-    return cb(`term: ${show(term)}\ntype: ${showCore(etype)}\netrm: ${etermstr}${normstr}`);*/
-    return cb(show(term));
+    return cb(`term: ${show(term)}\ntype: ${showCore(etype)}\netrm: ${etermstr}${normstr}`);
   } catch (err) {
     if (showStackTrace) console.error(err);
     return cb(`${err}`, true);

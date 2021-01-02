@@ -19,7 +19,7 @@ export abstract class List<T> {
   static of<T>(...values: T[]): List<T> { return List.from(values) }
 
   static range(n: number): List<number> {
-    let l: List<number> = List._Nil;
+    let l: List<number> = List.Nil();
     for (let i = 0; i < n; i++) l = List.Cons(i, l);
     return l;
   }

@@ -3,7 +3,7 @@ import { conv } from './conversion';
 import { Core, Pi, show } from './core';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Mode } from './mode';
-import { addUses, multiplyUses, noUses, one, sub, Uses } from './usage';
+import { addUses, many, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { impossible, terr, tryT } from './utils/utils';
 import { evaluate, quote, Val, vinst, VType } from './values';
 
@@ -34,7 +34,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   if (tm.tag === 'Abs') {
     check(local, tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
-    const [rty, u] = synth(local.bound(tm.usage, tm.mode, tm.name, ty), tm.body);
+    const [rty, u] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
     const pi = evaluate(Pi(tm.usage, tm.mode, tm.name, tm.type, quote(rty, local.level + 1)), local.vs);
     const [ux, urest] = u.uncons();
     if (!sub(ux, tm.usage))
@@ -44,7 +44,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   if (tm.tag === 'Pi') {
     const u1 = check(local, tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
-    const u2 = check(local.bound(tm.usage, tm.mode, tm.name, ty), tm.body, VType);
+    const u2 = check(local.bind(many, tm.mode, tm.name, ty), tm.body, VType);
     const [, urest] = u2.uncons();
     return [VType, addUses(u1, urest)];
   }

@@ -20,6 +20,63 @@ exports.log = log;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.conv = exports.eqHead = void 0;
+const config_1 = require("./config");
+const mode_1 = require("./mode");
+const utils_1 = require("./utils/utils");
+const values_1 = require("./values");
+const eqHead = (a, b) => {
+    if (a === b)
+        return true;
+    if (a.tag === 'HVar')
+        return b.tag === 'HVar' && a.level === b.level;
+    return a.tag;
+};
+exports.eqHead = eqHead;
+const convElim = (k, a, b, x, y) => {
+    if (a === b)
+        return;
+    if (a.tag === 'EApp' && b.tag === 'EApp' && mode_1.eqMode(a.mode, b.mode))
+        return exports.conv(k, a.arg, b.arg);
+    return utils_1.terr(`conv failed (${k}): ${values_1.show(x, k)} ~ ${values_1.show(y, k)}`);
+};
+const conv = (k, a, b) => {
+    config_1.log(() => `conv(${k}): ${values_1.show(a, k)} ~ ${values_1.show(b, k)}`);
+    if (a === b)
+        return;
+    if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && mode_1.eqMode(a.mode, b.mode)) {
+        exports.conv(k, a.type, b.type);
+        const v = values_1.VVar(k);
+        return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
+    }
+    if (a.tag === 'VAbs' && b.tag === 'VAbs') {
+        const v = values_1.VVar(k);
+        return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
+    }
+    if (a.tag === 'VAbs') {
+        const v = values_1.VVar(k);
+        return exports.conv(k + 1, values_1.vinst(a, v), values_1.vapp(b, a.mode, v));
+    }
+    if (b.tag === 'VAbs') {
+        const v = values_1.VVar(k);
+        return exports.conv(k + 1, values_1.vapp(a, b.mode, v), values_1.vinst(b, v));
+    }
+    if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head))
+        return a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b));
+    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head) {
+        return utils_1.tryT(() => a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b)), () => exports.conv(k, a.val.get(), b.val.get()));
+    }
+    if (a.tag === 'VGlobal')
+        return exports.conv(k, a.val.get(), b);
+    if (b.tag === 'VGlobal')
+        return exports.conv(k, a, b.val.get());
+    return utils_1.terr(`conv failed (${k}): ${values_1.show(a, k)} ~ ${values_1.show(b, k)}`);
+};
+exports.conv = conv;
+
+},{"./config":1,"./mode":6,"./utils/utils":15,"./values":16}],3:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.show = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
@@ -93,7 +150,147 @@ const show = (t) => {
 };
 exports.show = show;
 
-},{"./usage":9}],3:[function(require,module,exports){
+},{"./usage":12}],4:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.elaborate = void 0;
+const config_1 = require("./config");
+const core_1 = require("./core");
+const utils_1 = require("./utils/utils");
+const values_1 = require("./values");
+const surface_1 = require("./surface");
+const conversion_1 = require("./conversion");
+const usage_1 = require("./usage");
+const local_1 = require("./local");
+const mode_1 = require("./mode");
+const check = (local, tm, ty) => {
+    config_1.log(() => `check ${surface_1.show(tm)} : ${local_1.showVal(local, ty)}`);
+    if (tm.tag === 'Type' && ty.tag === 'VType')
+        return [core_1.Type, usage_1.noUses(local.level)];
+    if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && mode_1.eqMode(tm.mode, ty.mode)) {
+        const v = values_1.VVar(local.level);
+        const x = tm.name;
+        const [body, u] = check(local.bind(ty.usage, ty.mode, x, ty.type), tm.body, values_1.vinst(ty, v));
+        const [ux, urest] = u.uncons();
+        if (!usage_1.sub(ux, ty.usage))
+            return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${ty.usage} for ${x} but actual ${ux}`);
+        return [core_1.Abs(ty.usage, ty.mode, x, values_1.quote(ty.type, local.level), body), urest];
+    }
+    if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && !(tm.tag === 'Abs' && tm.mode.tag === 'Impl')) {
+        const v = values_1.VVar(local.level);
+        const x = ty.name;
+        const [term, u] = check(local.insert(ty.usage, ty.mode, x, ty.type), tm, values_1.vinst(ty, v));
+        return [core_1.Abs(ty.usage, ty.mode, x, values_1.quote(ty.type, local.level), term), u];
+    }
+    if (tm.tag === 'Let') {
+        let vtype;
+        let vty;
+        let val;
+        let uv;
+        if (tm.type) {
+            [vtype] = check(local, tm.type, values_1.VType);
+            vty = values_1.evaluate(vtype, local.vs);
+            [val, uv] = check(local, tm.val, ty);
+        }
+        else {
+            [val, vty, uv] = synth(local, tm.val);
+            vtype = values_1.quote(vty, local.level);
+        }
+        const v = values_1.evaluate(val, local.vs);
+        const [body, ub] = check(local.define(tm.usage, tm.name, vty, v), tm.body, ty);
+        const [ux, urest] = ub.uncons();
+        if (!usage_1.sub(ux, tm.usage))
+            return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
+        return [core_1.Let(tm.usage, tm.name, vtype, val, body), usage_1.addUses(usage_1.multiplyUses(ux, uv), urest)];
+    }
+    const [Core, ty2, uses] = synth(local, tm);
+    return utils_1.tryT(() => {
+        config_1.log(() => `unify ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}`);
+        conversion_1.conv(local.level, ty2, ty);
+        return [Core, uses];
+    }, e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}: ${e}`));
+};
+const synth = (local, tm) => {
+    config_1.log(() => `synth ${surface_1.show(tm)}`);
+    if (tm.tag === 'Type')
+        return [core_1.Type, values_1.VType, usage_1.noUses(local.level)];
+    if (tm.tag === 'Var') {
+        const i = local.nsSurface.indexOf(tm.name);
+        if (i < 0)
+            return utils_1.terr(`undefined var ${tm.name}`);
+        else {
+            const [entry, j] = local_1.indexEnvT(local.ts, i) || utils_1.terr(`var out of scope ${surface_1.show(tm)}`);
+            const uses = usage_1.noUses(local.level).updateAt(j, _ => usage_1.one);
+            return [core_1.Var(j), entry.type, uses];
+        }
+    }
+    if (tm.tag === 'App') {
+        const [fntm, fnty, fnu] = synth(local, tm.fn);
+        const [argtm, rty, fnarg] = synthapp(local, fnty, tm.mode, tm.arg);
+        return [core_1.App(fntm, tm.mode, argtm), rty, usage_1.addUses(fnu, fnarg)];
+    }
+    if (tm.tag === 'Abs') {
+        if (tm.type) {
+            const [type] = check(local, tm.type, values_1.VType);
+            const ty = values_1.evaluate(type, local.vs);
+            const [body, rty, u] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
+            const pi = values_1.evaluate(core_1.Pi(tm.usage, tm.mode, tm.name, type, values_1.quote(rty, local.level + 1)), local.vs);
+            const [ux, urest] = u.uncons();
+            if (!usage_1.sub(ux, tm.usage))
+                return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
+            return [core_1.Abs(tm.usage, tm.mode, tm.name, type, body), pi, urest];
+        }
+        else
+            utils_1.terr(`cannot synth unannotated lambda: ${surface_1.show(tm)}`);
+    }
+    if (tm.tag === 'Pi') {
+        const [type, u1] = check(local, tm.type, values_1.VType);
+        const ty = values_1.evaluate(type, local.vs);
+        const [body, u2] = check(local.bind(usage_1.many, tm.mode, tm.name, ty), tm.body, values_1.VType);
+        const [, urest] = u2.uncons();
+        return [core_1.Pi(tm.usage, tm.mode, tm.name, type, body), values_1.VType, usage_1.addUses(u1, urest)];
+    }
+    if (tm.tag === 'Let') {
+        let type;
+        let ty;
+        let val;
+        let uv;
+        if (tm.type) {
+            [type] = check(local, tm.type, values_1.VType);
+            ty = values_1.evaluate(type, local.vs);
+            [val, uv] = check(local, tm.val, ty);
+        }
+        else {
+            [val, ty, uv] = synth(local, tm.val);
+            type = values_1.quote(ty, local.level);
+        }
+        const v = values_1.evaluate(val, local.vs);
+        const [body, rty, ub] = synth(local.define(tm.usage, tm.name, ty, v), tm.body);
+        const [ux, urest] = ub.uncons();
+        if (!usage_1.sub(ux, tm.usage))
+            return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
+        return [core_1.Let(tm.usage, tm.name, type, val, body), rty, usage_1.addUses(usage_1.multiplyUses(ux, uv), urest)];
+    }
+    return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
+};
+const synthapp = (local, ty, mode, arg) => {
+    config_1.log(() => `synthapp ${local_1.showVal(local, ty)} @ ${surface_1.show(arg)}`);
+    if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
+        const cty = ty.type;
+        const [Core, uses] = check(local, arg, cty);
+        const v = values_1.evaluate(Core, local.vs);
+        return [Core, values_1.vinst(ty, v), usage_1.multiplyUses(ty.usage, uses)];
+    }
+    return utils_1.terr(`not a correct pi type in synthapp: ${local_1.showVal(local, ty)} @ ${surface_1.show(arg)}`);
+};
+const elaborate = (t, local = local_1.Local.empty()) => {
+    const [tm, vty] = synth(local, t);
+    const ty = values_1.quote(vty, 0);
+    return [tm, ty];
+};
+exports.elaborate = elaborate;
+
+},{"./config":1,"./conversion":2,"./core":3,"./local":5,"./mode":6,"./surface":10,"./usage":12,"./utils/utils":15,"./values":16}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showVal = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
@@ -133,8 +330,11 @@ class Local {
             Local._empty = new Local(0, List_1.nil, List_1.nil, List_1.nil, List_1.nil);
         return Local._empty;
     }
-    bound(usage, mode, name, ty) {
+    bind(usage, mode, name, ty) {
         return new Local(this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, usage, mode, true, false), this.ts), List_1.cons(values_1.VVar(this.level), this.vs));
+    }
+    insert(usage, mode, name, ty) {
+        return new Local(this.level + 1, List_1.cons(name, this.ns), this.nsSurface, List_1.cons(exports.EntryT(ty, usage, mode, true, true), this.ts), List_1.cons(values_1.VVar(this.level), this.vs));
     }
     define(usage, name, ty, val) {
         return new Local(this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, usage, mode_1.Expl, false, false), this.ts), List_1.cons(val, this.vs));
@@ -147,7 +347,7 @@ exports.Local = Local;
 const showVal = (local, val) => values_1.show(val, local.level);
 exports.showVal = showVal;
 
-},{"./mode":4,"./utils/List":11,"./values":13}],4:[function(require,module,exports){
+},{"./mode":6,"./utils/List":14,"./values":16}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.eqMode = exports.Impl = exports.Expl = void 0;
@@ -158,7 +358,7 @@ exports.Impl = { tag: 'Impl' };
 const eqMode = (a, b) => a.tag === b.tag;
 exports.eqMode = eqMode;
 
-},{}],5:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.chooseName = exports.nextName = void 0;
@@ -174,7 +374,7 @@ exports.nextName = nextName;
 const chooseName = (x, ns) => x === '_' ? x : ns.contains(x) ? exports.chooseName(exports.nextName(x), ns) : x;
 exports.chooseName = chooseName;
 
-},{}],6:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parse = void 0;
@@ -572,7 +772,7 @@ const parse = (s, fromRepl = false) => {
 };
 exports.parse = parse;
 
-},{"./config":1,"./mode":4,"./surface":8,"./usage":9,"./utils/utils":12}],7:[function(require,module,exports){
+},{"./config":1,"./mode":6,"./surface":10,"./usage":12,"./utils/utils":15}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -581,6 +781,10 @@ const parser_1 = require("./parser");
 const surface_1 = require("./surface");
 const usage_1 = require("./usage");
 const local_1 = require("./local");
+const elaboration_1 = require("./elaboration");
+const C = require("./core");
+const typecheck_1 = require("./typecheck");
+const values_1 = require("./values");
 const help = `
 COMMANDS
 [:help or :h] this help message
@@ -629,54 +833,46 @@ const runREPL = (s_, cb) => {
             }
             cb(`no def to undo`);
         }
-        //let typeOnly = false;    
+        let typeOnly = false;
         if (s.startsWith(':type') || s.startsWith(':t')) {
-            //typeOnly = true;
+            typeOnly = true;
             s = s.startsWith(':type') ? s.slice(5) : s.slice(2);
         }
         if (s.startsWith(':'))
             throw new Error(`invalid command: ${s}`);
         config_1.log(() => 'PARSE');
         let term = parser_1.parse(s, true);
-        //let isDef = false;
-        //let usage = many;
+        let isDef = false;
+        let usage = usage_1.many;
         if (term.tag === 'Let' && term.body === null) {
-            //isDef = true;
-            //usage = term.usage;
+            isDef = true;
+            usage = term.usage;
             term = surface_1.Let(term.usage === usage_1.zero ? usage_1.many : term.usage, term.name, term.type, term.val, surface_1.Var(term.name));
         }
         config_1.log(() => surface_1.show(term));
-        /*
-            log(() => 'ELABORATE');
-            const [eterm, etype] = elaborate(term, elocal);
-            log(() => C.show(eterm));
-            log(() => showCore(eterm));
-            log(() => C.show(etype));
-            log(() => showCore(etype));
-        
-            log(() => 'VERIFICATION');
-            const verifty = verify(eterm, vlocal);
-        
-            let normstr = '';
-            if (!typeOnly) {
-              log(() => 'NORMALIZE');
-              const norm = normalize(eterm, elocal.vs);
-              log(() => C.show(norm));
-              log(() => showCore(norm));
-              normstr = `\nnorm: ${showCore(norm)}`;
-            }
-        
-            const etermstr = showCore(eterm, elocal.ns);
-        
-            if (isDef && term.tag === 'Let') {
-              defs.push([usage, term.name, term.type, term.val]);
-              const value = evaluate(eterm, elocal.vs);
-              elocal = Elab.localExtend(elocal, term.name, evaluate(etype, elocal.vs), usage, value);
-              vlocal = Verif.localExtend(vlocal, evaluate(verifty, vlocal.vs), usage, value);
-            }
-        
-            return cb(`term: ${show(term)}\ntype: ${showCore(etype)}\netrm: ${etermstr}${normstr}`);*/
-        return cb(surface_1.show(term));
+        config_1.log(() => 'ELABORATE');
+        const [eterm, etype] = elaboration_1.elaborate(term, local);
+        config_1.log(() => C.show(eterm));
+        config_1.log(() => surface_1.showCore(eterm));
+        config_1.log(() => C.show(etype));
+        config_1.log(() => surface_1.showCore(etype));
+        config_1.log(() => 'VERIFICATION');
+        typecheck_1.typecheck(eterm, local);
+        let normstr = '';
+        if (!typeOnly) {
+            config_1.log(() => 'NORMALIZE');
+            const norm = values_1.normalize(eterm, local.vs);
+            config_1.log(() => C.show(norm));
+            config_1.log(() => surface_1.showCore(norm));
+            normstr = `\nnorm: ${surface_1.showCore(norm)}`;
+        }
+        const etermstr = surface_1.showCore(eterm, local.ns);
+        if (isDef && term.tag === 'Let') {
+            defs.push([usage, term.name, term.type, term.val]);
+            const value = values_1.evaluate(eterm, local.vs);
+            local = local.define(usage, term.name, values_1.evaluate(etype, local.vs), value);
+        }
+        return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype)}\netrm: ${etermstr}${normstr}`);
     }
     catch (err) {
         if (showStackTrace)
@@ -686,7 +882,7 @@ const runREPL = (s_, cb) => {
 };
 exports.runREPL = runREPL;
 
-},{"./config":1,"./local":3,"./parser":6,"./surface":8,"./usage":9}],8:[function(require,module,exports){
+},{"./config":1,"./core":3,"./elaboration":4,"./local":5,"./parser":8,"./surface":10,"./typecheck":11,"./usage":12,"./values":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
@@ -790,7 +986,91 @@ exports.showCore = showCore;
 const showVal = (v, k = 0, ns = List_1.nil) => exports.show(exports.fromCore(values_1.quote(v, k), ns));
 exports.showVal = showVal;
 
-},{"./names":5,"./usage":9,"./utils/List":11,"./utils/utils":12,"./values":13}],9:[function(require,module,exports){
+},{"./names":7,"./usage":12,"./utils/List":14,"./utils/utils":15,"./values":16}],11:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.typecheck = void 0;
+const config_1 = require("./config");
+const conversion_1 = require("./conversion");
+const core_1 = require("./core");
+const local_1 = require("./local");
+const mode_1 = require("./mode");
+const usage_1 = require("./usage");
+const utils_1 = require("./utils/utils");
+const values_1 = require("./values");
+const check = (local, tm, ty) => {
+    config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showVal(local, ty)}`);
+    const [ty2, u] = synth(local, tm);
+    return utils_1.tryT(() => {
+        config_1.log(() => `unify ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}`);
+        conversion_1.conv(local.level, ty2, ty);
+        return u;
+    }, e => utils_1.terr(`check failed (${core_1.show(tm)}): ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}: ${e}`));
+};
+const synth = (local, tm) => {
+    config_1.log(() => `synth ${core_1.show(tm)}`);
+    if (tm.tag === 'Type')
+        return [values_1.VType, usage_1.noUses(local.level)];
+    if (tm.tag === 'Var') {
+        const [entry, j] = local_1.indexEnvT(local.ts, tm.index) || utils_1.terr(`var out of scope ${core_1.show(tm)}`);
+        const uses = usage_1.noUses(local.level).updateAt(j, _ => usage_1.one);
+        return [entry.type, uses];
+    }
+    if (tm.tag === 'Global')
+        return utils_1.impossible('Globals are unimplemented'); // TODO
+    if (tm.tag === 'App') {
+        const [fnty, fnu] = synth(local, tm.fn);
+        const [rty, argu] = synthapp(local, fnty, tm.mode, tm.arg);
+        return [rty, usage_1.addUses(fnu, argu)];
+    }
+    if (tm.tag === 'Abs') {
+        check(local, tm.type, values_1.VType);
+        const ty = values_1.evaluate(tm.type, local.vs);
+        const [rty, u] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
+        const pi = values_1.evaluate(core_1.Pi(tm.usage, tm.mode, tm.name, tm.type, values_1.quote(rty, local.level + 1)), local.vs);
+        const [ux, urest] = u.uncons();
+        if (!usage_1.sub(ux, tm.usage))
+            return utils_1.terr(`usage error in ${core_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
+        return [pi, urest];
+    }
+    if (tm.tag === 'Pi') {
+        const u1 = check(local, tm.type, values_1.VType);
+        const ty = values_1.evaluate(tm.type, local.vs);
+        const u2 = check(local.bind(usage_1.many, tm.mode, tm.name, ty), tm.body, values_1.VType);
+        const [, urest] = u2.uncons();
+        return [values_1.VType, usage_1.addUses(u1, urest)];
+    }
+    if (tm.tag === 'Let') {
+        check(local, tm.type, values_1.VType);
+        const ty = values_1.evaluate(tm.type, local.vs);
+        const uv = check(local, tm.val, ty);
+        const v = values_1.evaluate(tm.val, local.vs);
+        const [rty, ub] = synth(local.define(tm.usage, tm.name, ty, v), tm.body);
+        const [ux, urest] = ub.uncons();
+        if (!usage_1.sub(ux, tm.usage))
+            return utils_1.terr(`usage error in ${core_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
+        return [rty, usage_1.addUses(usage_1.multiplyUses(ux, uv), urest)];
+    }
+    return tm;
+};
+const synthapp = (local, ty, mode, arg) => {
+    config_1.log(() => `synthapp ${local_1.showVal(local, ty)} @ ${core_1.show(arg)}`);
+    if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
+        const cty = ty.type;
+        const uses = check(local, arg, cty);
+        const v = values_1.evaluate(arg, local.vs);
+        return [values_1.vinst(ty, v), usage_1.multiplyUses(ty.usage, uses)];
+    }
+    return utils_1.terr(`not a correct pi type in synthapp: ${local_1.showVal(local, ty)} @ ${core_1.show(arg)}`);
+};
+const typecheck = (t, local = local_1.Local.empty()) => {
+    const [vty] = synth(local, t);
+    const ty = values_1.quote(vty, 0);
+    return ty;
+};
+exports.typecheck = typecheck;
+
+},{"./config":1,"./conversion":2,"./core":3,"./local":5,"./mode":6,"./usage":12,"./utils/utils":15,"./values":16}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lubUses = exports.multiplyUses = exports.addUses = exports.noUses = exports.lub = exports.sub = exports.multiply = exports.add = exports.many = exports.one = exports.zero = exports.usages = void 0;
@@ -830,7 +1110,7 @@ exports.multiplyUses = multiplyUses;
 const lubUses = (a, b) => a.zipWith(b, exports.lub);
 exports.lubUses = lubUses;
 
-},{"./utils/List":11}],10:[function(require,module,exports){
+},{"./utils/List":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = void 0;
@@ -859,7 +1139,7 @@ class Lazy {
 }
 exports.Lazy = Lazy;
 
-},{}],11:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cons = exports.nil = exports.Cons = exports.Nil = exports.List = void 0;
@@ -879,7 +1159,7 @@ class List {
     }
     static of(...values) { return List.from(values); }
     static range(n) {
-        let l = List._Nil;
+        let l = List.Nil();
         for (let i = 0; i < n; i++)
             l = List.Cons(i, l);
         return l;
@@ -1070,7 +1350,7 @@ exports.nil = new Nil();
 const cons = (head, tail) => new Cons(head, tail);
 exports.cons = cons;
 
-},{"./utils":12}],12:[function(require,module,exports){
+},{"./utils":15}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.eqArr = exports.mapObj = exports.tryTE = exports.tryT = exports.hasDuplicates = exports.range = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
@@ -1153,7 +1433,7 @@ const eqArr = (a, b, eq = (x, y) => x === y) => {
 };
 exports.eqArr = eqArr;
 
-},{"fs":15}],13:[function(require,module,exports){
+},{"fs":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vapp = exports.vinst = exports.VVar = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EApp = exports.HVar = void 0;
@@ -1234,12 +1514,12 @@ const quote = (v, k, full = false) => {
     return v;
 };
 exports.quote = quote;
-const normalize = (t, full = false) => exports.quote(exports.evaluate(t, List_1.nil), 0, full);
+const normalize = (t, vs = List_1.nil, full = false) => exports.quote(exports.evaluate(t, vs), 0, full);
 exports.normalize = normalize;
 const show = (v, k = 0, full = false) => core_1.show(exports.quote(v, k, full));
 exports.show = show;
 
-},{"./core":2,"./utils/Lazy":10,"./utils/List":11,"./utils/utils":12}],14:[function(require,module,exports){
+},{"./core":3,"./utils/Lazy":13,"./utils/List":14,"./utils/utils":15}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1295,6 +1575,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":7}],15:[function(require,module,exports){
+},{"./repl":9}],18:[function(require,module,exports){
 
-},{}]},{},[14]);
+},{}]},{},[17]);

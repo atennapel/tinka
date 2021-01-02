@@ -1,23 +1,26 @@
 import { initREPL, runREPL } from './repl';
 import { setConfig } from './config';
-import { show } from './surface';
+import { show, showCore } from './surface';
 import { parse } from './parser';
+import { elaborate } from './elaboration';
+import { typecheck } from './typecheck';
+import { normalize } from './values';
 
 if (process.argv[2]) {
   const option = process.argv[3] || '';
-  // let typeOnly = false;
+  let typeOnly = false;
   if (option.includes('d')) setConfig({ debug: true });
   if (option.includes('e')) setConfig({ showEnvs: true });
-  // if (option.includes('t')) typeOnly = true;
+  if (option.includes('t')) typeOnly = true;
   try {
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
     const e = parse(sc);
     console.log(show(e));
-    /*const [tm, ty] = elaborate(e);
+    const [tm, ty] = elaborate(e);
     console.log(showCore(tm));
     console.log(showCore(ty));
-    verify(tm);
-    if (!typeOnly) console.log(showCore(normalize(tm)));*/
+    typecheck(tm);
+    if (!typeOnly) console.log(showCore(normalize(tm)));
   } catch(err) {
     console.error(err);
     process.exit();
