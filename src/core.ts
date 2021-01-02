@@ -5,7 +5,8 @@ import { many, Usage } from './usage';
 export type Core =
   Var | Global | Let |
   Type |
-  Pi | Abs | App;
+  Pi | Abs | App |
+  Sigma | Pair;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -23,6 +24,10 @@ export const Abs = (usage: Usage, mode: Mode, name: Name, type: Core, body: Core
   ({ tag: 'Abs', usage, mode, name, type, body });
 export interface App { readonly tag: 'App'; readonly fn: Core; readonly mode: Mode; readonly arg: Core }
 export const App = (fn: Core, mode: Mode, arg: Core): App => ({ tag: 'App', fn, mode, arg });
+export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly name: Name; readonly type: Core; readonly body: Core }
+export const Sigma = (usage: Usage, name: Name, type: Core, body: Core): Sigma => ({ tag: 'Sigma', usage, name, type, body });
+export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: Core; readonly type: Core }
+export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
 
 export const flattenPi = (t: Core): [[Usage, Mode, Name, Core][], Core] => {
   const params: [Usage, Mode, Name, Core][] = [];
@@ -51,6 +56,24 @@ export const flattenApp = (t: Core): [Core, [Mode, Core][]] => {
   }
   return [c, args.reverse()];
 };
+export const flattenSigma = (t: Core): [[Usage, Name, Core][], Core] => {
+  const params: [Usage, Name, Core][] = [];
+  let c = t;  
+  while (c.tag === 'Sigma') {
+    params.push([c.usage, c.name, c.type]);
+    c = c.body;
+  }
+  return [params, c];
+};
+export const flattenPair = (t: Core): Core[] => {
+  const r: Core[] = [];
+  while (t.tag === 'Pair') {
+    r.push(t.fst);
+    t = t.snd;
+  }
+  r.push(t);
+  return r;
+};
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global';
@@ -73,5 +96,13 @@ export const show = (t: Core): string => {
   }
   if (t.tag === 'Let')
     return `let ${t.usage === many ? '' : `${t.usage} `}${t.name} : ${showP(t.type.tag === 'Let', t.type)} = ${showP(t.val.tag === 'Let', t.val)}; ${show(t.body)}`;
+  if (t.tag === 'Sigma') {
+    const [params, ret] = flattenSigma(t);
+    return `${params.map(([u, x, t]) => u === many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === many ? '' : `${u} `}${x} : ${show(t)})`).join(' ** ')} ** ${show(ret)}`;
+  }
+  if (t.tag === 'Pair') {
+    const ps = flattenPair(t);
+    return `(${ps.map(t => show(t)).join(', ')} : ${show(t.type)})`;
+  }
   return t;
 };

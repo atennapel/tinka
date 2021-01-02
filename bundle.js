@@ -77,7 +77,7 @@ exports.conv = conv;
 },{"./config":1,"./mode":6,"./utils/utils":15,"./values":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
+exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -92,6 +92,10 @@ const Abs = (usage, mode, name, type, body) => ({ tag: 'Abs', usage, mode, name,
 exports.Abs = Abs;
 const App = (fn, mode, arg) => ({ tag: 'App', fn, mode, arg });
 exports.App = App;
+const Sigma = (usage, name, type, body) => ({ tag: 'Sigma', usage, name, type, body });
+exports.Sigma = Sigma;
+const Pair = (fst, snd, type) => ({ tag: 'Pair', fst, snd, type });
+exports.Pair = Pair;
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -122,6 +126,26 @@ const flattenApp = (t) => {
     return [c, args.reverse()];
 };
 exports.flattenApp = flattenApp;
+const flattenSigma = (t) => {
+    const params = [];
+    let c = t;
+    while (c.tag === 'Sigma') {
+        params.push([c.usage, c.name, c.type]);
+        c = c.body;
+    }
+    return [params, c];
+};
+exports.flattenSigma = flattenSigma;
+const flattenPair = (t) => {
+    const r = [];
+    while (t.tag === 'Pair') {
+        r.push(t.fst);
+        t = t.snd;
+    }
+    r.push(t);
+    return r;
+};
+exports.flattenPair = flattenPair;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
 const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global';
 const showS = (t) => showP(!isSimple(t), t);
@@ -146,6 +170,14 @@ const show = (t) => {
     }
     if (t.tag === 'Let')
         return `let ${t.usage === usage_1.many ? '' : `${t.usage} `}${t.name} : ${showP(t.type.tag === 'Let', t.type)} = ${showP(t.val.tag === 'Let', t.val)}; ${exports.show(t.body)}`;
+    if (t.tag === 'Sigma') {
+        const [params, ret] = exports.flattenSigma(t);
+        return `${params.map(([u, x, t]) => u === usage_1.many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
+    }
+    if (t.tag === 'Pair') {
+        const ps = exports.flattenPair(t);
+        return `(${ps.map(t => exports.show(t)).join(', ')} : ${exports.show(t.type)})`;
+    }
     return t;
 };
 exports.show = show;
@@ -181,6 +213,11 @@ const check = (local, tm, ty) => {
         const x = ty.name;
         const [term, u] = check(local.insert(ty.usage, ty.mode, x, ty.type), tm, values_1.vinst(ty, v));
         return [core_1.Abs(ty.usage, ty.mode, x, values_1.quote(ty.type, local.level), term), u];
+    }
+    if (tm.tag === 'Pair' && ty.tag === 'VSigma') {
+        const [fst, u1] = check(local, tm.fst, ty.type);
+        const [snd, u2] = check(local, tm.snd, values_1.vinst(ty, values_1.evaluate(fst, local.vs)));
+        return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
     }
     if (tm.tag === 'Let') {
         let vtype;
@@ -270,6 +307,19 @@ const synth = (local, tm) => {
         if (!usage_1.sub(ux, tm.usage))
             return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
         return [core_1.Let(tm.usage, tm.name, type, val, body), rty, usage_1.addUses(usage_1.multiplyUses(ux, uv), urest)];
+    }
+    if (tm.tag === 'Sigma') {
+        const [type, u1] = check(local, tm.type, values_1.VType);
+        const ty = values_1.evaluate(type, local.vs);
+        const [body, u2] = check(local.bind(usage_1.many, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);
+        const [, urest] = u2.uncons();
+        return [core_1.Sigma(tm.usage, tm.name, type, body), values_1.VType, usage_1.addUses(u1, urest)];
+    }
+    if (tm.tag === 'Pair') {
+        const [fst, ty1, u1] = synth(local, tm.fst);
+        const [snd, ty2, u2] = synth(local, tm.snd);
+        const ty = values_1.VSigma(usage_1.many, '_', ty1, _ => ty2);
+        return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), ty, usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
@@ -401,8 +451,8 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
-const SYM1 = ['\\', ':', '=', ';', '*'];
-const SYM2 = ['->'];
+const SYM1 = ['\\', ':', '=', ';', '*', ','];
+const SYM2 = ['->', '**'];
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
@@ -749,6 +799,43 @@ const exprs = (ts, br, fromRepl) => {
         const body = exprs(s[s.length - 1], '(', fromRepl);
         return args.reduceRight((x, [u, name, impl, ty]) => surface_1.Pi(u, impl, name, ty, x), body);
     }
+    const jp = ts.findIndex(x => isName(x, ','));
+    if (jp >= 0) {
+        const s = splitTokens(ts, x => isName(x, ','));
+        if (s.length < 2)
+            return utils_1.serr(`parsing failed with ,`);
+        const args = s.map(x => {
+            if (x.length === 1) {
+                const h = x[0];
+                if (h.tag === 'List' && h.bracket === '{')
+                    return expr(h, fromRepl);
+            }
+            return [exprs(x, '(', fromRepl), false];
+        });
+        if (args.length === 0)
+            return utils_1.serr(`empty pair`);
+        if (args.length === 1)
+            return utils_1.serr(`singleton pair`);
+        const last1 = args[args.length - 1];
+        const last2 = args[args.length - 2];
+        const lastitem = surface_1.Pair(last2[0], last1[0]);
+        return args.slice(0, -2).reduceRight((x, [y, _p]) => surface_1.Pair(y, x), lastitem);
+    }
+    const js = ts.findIndex(x => isName(x, '**'));
+    if (js >= 0) {
+        const s = splitTokens(ts, x => isName(x, '**'));
+        if (s.length < 2)
+            return utils_1.serr(`parsing failed with **`);
+        const args = s.slice(0, -1)
+            .map(p => p.length === 1 ? piParams(p[0], fromRepl) : [[usage_1.many, '_', mode_1.Expl, exprs(p, '(', fromRepl)]])
+            .reduce((x, y) => x.concat(y), []);
+        const body = exprs(s[s.length - 1], '(', fromRepl);
+        return args.reduceRight((x, [u, name, mode, ty]) => {
+            if (mode.tag !== 'Expl')
+                return utils_1.serr(`sigma cannot be implicit`);
+            return surface_1.Sigma(u, name, ty, x);
+        }, body);
+    }
     const l = ts.findIndex(x => isName(x, '\\'));
     let all = [];
     if (l >= 0) {
@@ -888,7 +975,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./local":5,"./parser":8,"./surface":10,"./typecheck":11,"./usage":12,"./values":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -905,6 +992,10 @@ const Abs = (usage, mode, name, type, body) => ({ tag: 'Abs', usage, mode, name,
 exports.Abs = Abs;
 const App = (fn, mode, arg) => ({ tag: 'App', fn, mode, arg });
 exports.App = App;
+const Sigma = (usage, name, type, body) => ({ tag: 'Sigma', usage, name, type, body });
+exports.Sigma = Sigma;
+const Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
+exports.Pair = Pair;
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -935,6 +1026,26 @@ const flattenApp = (t) => {
     return [c, args.reverse()];
 };
 exports.flattenApp = flattenApp;
+const flattenSigma = (t) => {
+    const params = [];
+    let c = t;
+    while (c.tag === 'Sigma') {
+        params.push([c.usage, c.name, c.type]);
+        c = c.body;
+    }
+    return [params, c];
+};
+exports.flattenSigma = flattenSigma;
+const flattenPair = (t) => {
+    const r = [];
+    while (t.tag === 'Pair') {
+        r.push(t.fst);
+        t = t.snd;
+    }
+    r.push(t);
+    return r;
+};
+exports.flattenPair = flattenPair;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
 const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var';
 const showS = (t) => showP(!isSimple(t), t);
@@ -957,6 +1068,14 @@ const show = (t) => {
     }
     if (t.tag === 'Let')
         return `let ${t.usage === usage_1.many ? '' : `${t.usage} `}${t.name}${t.type ? ` : ${showP(t.type.tag === 'Let', t.type)}` : ''} = ${showP(t.val.tag === 'Let', t.val)}; ${exports.show(t.body)}`;
+    if (t.tag === 'Sigma') {
+        const [params, ret] = exports.flattenSigma(t);
+        return `${params.map(([u, x, t]) => u === usage_1.many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
+    }
+    if (t.tag === 'Pair') {
+        const ps = exports.flattenPair(t);
+        return `(${ps.map(exports.show).join(', ')})`;
+    }
     return t;
 };
 exports.show = show;
@@ -981,6 +1100,12 @@ const fromCore = (t, ns = List_1.nil) => {
         const x = names_1.chooseName(t.name, ns);
         return exports.Let(t.usage, x, exports.fromCore(t.type, ns), exports.fromCore(t.val, ns), exports.fromCore(t.body, List_1.cons(x, ns)));
     }
+    if (t.tag === 'Sigma') {
+        const x = names_1.chooseName(t.name, ns);
+        return exports.Sigma(t.usage, x, exports.fromCore(t.type, ns), exports.fromCore(t.body, List_1.cons(x, ns)));
+    }
+    if (t.tag === 'Pair')
+        return exports.Pair(exports.fromCore(t.fst, ns), exports.fromCore(t.snd, ns));
     return t;
 };
 exports.fromCore = fromCore;
@@ -1053,6 +1178,22 @@ const synth = (local, tm) => {
         if (!usage_1.sub(ux, tm.usage))
             return utils_1.terr(`usage error in ${core_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
         return [rty, usage_1.addUses(usage_1.multiplyUses(ux, uv), urest)];
+    }
+    if (tm.tag === 'Sigma') {
+        const u1 = check(local, tm.type, values_1.VType);
+        const ty = values_1.evaluate(tm.type, local.vs);
+        const u2 = check(local.bind(usage_1.many, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);
+        const [, urest] = u2.uncons();
+        return [values_1.VType, usage_1.addUses(u1, urest)];
+    }
+    if (tm.tag === 'Pair') {
+        check(local, tm.type, values_1.VType);
+        const vsigma = values_1.evaluate(tm.type, local.vs);
+        if (vsigma.tag !== 'VSigma')
+            return utils_1.terr(`pair without sigma type: ${core_1.show(tm)}`);
+        const u1 = check(local, tm.fst, vsigma.type);
+        const u2 = check(local, tm.snd, values_1.vinst(vsigma, values_1.evaluate(tm.fst, local.vs)));
+        return [vsigma, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2)];
     }
     return tm;
 };
@@ -1439,7 +1580,7 @@ exports.eqArr = eqArr;
 },{"fs":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vapp = exports.vinst = exports.VVar = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EApp = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vapp = exports.vinst = exports.VVar = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EApp = exports.HVar = void 0;
 const core_1 = require("./core");
 const Lazy_1 = require("./utils/Lazy");
 const List_1 = require("./utils/List");
@@ -1458,6 +1599,10 @@ const VAbs = (usage, mode, name, type, clos) => ({ tag: 'VAbs', usage, mode, nam
 exports.VAbs = VAbs;
 const VPi = (usage, mode, name, type, clos) => ({ tag: 'VPi', usage, mode, name, type, clos });
 exports.VPi = VPi;
+const VSigma = (usage, name, type, clos) => ({ tag: 'VSigma', usage, name, type, clos });
+exports.VSigma = VSigma;
+const VPair = (fst, snd, type) => ({ tag: 'VPair', fst, snd, type });
+exports.VPair = VPair;
 const VVar = (level, spine = List_1.nil) => exports.VNe(exports.HVar(level), spine);
 exports.VVar = VVar;
 const vinst = (val, arg) => val.clos(arg);
@@ -1487,6 +1632,10 @@ const evaluate = (t, vs) => {
         return exports.vapp(exports.evaluate(t.fn, vs), t.mode, exports.evaluate(t.arg, vs));
     if (t.tag === 'Let')
         return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs), vs));
+    if (t.tag === 'Sigma')
+        return exports.VSigma(t.usage, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
+    if (t.tag === 'Pair')
+        return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs), exports.evaluate(t.type, vs));
     return t;
 };
 exports.evaluate = evaluate;
@@ -1514,6 +1663,10 @@ const quote = (v, k, full = false) => {
         return core_1.Abs(v.usage, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
     if (v.tag === 'VPi')
         return core_1.Pi(v.usage, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
+    if (v.tag === 'VSigma')
+        return core_1.Sigma(v.usage, v.name, exports.quote(v.type, k), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1));
+    if (v.tag === 'VPair')
+        return core_1.Pair(exports.quote(v.fst, k), exports.quote(v.snd, k), exports.quote(v.type, k));
     return v;
 };
 exports.quote = quote;

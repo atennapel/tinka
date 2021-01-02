@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair } from './core';
 import { Mode } from './mode';
 import { Lvl, Name } from './names';
 import { Usage } from './usage';
@@ -20,7 +20,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNe | VGlobal | VAbs | VPi;
+export type Val = VType | VNe | VGlobal | VAbs | VPi | VSigma | VPair;
 
 export interface VType { readonly tag: 'VType' }
 export const VType: VType = { tag: 'VType' };
@@ -32,8 +32,12 @@ export interface VAbs { readonly tag: 'VAbs'; readonly usage: Usage; readonly mo
 export const VAbs = (usage: Usage, mode: Mode, name: Name, type: Val, clos: Clos): VAbs => ({ tag: 'VAbs', usage, mode, name, type, clos });
 export interface VPi { readonly tag: 'VPi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Val; readonly clos: Clos }
 export const VPi = (usage: Usage, mode: Mode, name: Name, type: Val, clos: Clos): VPi => ({ tag: 'VPi', usage, mode, name, type, clos });
+export interface VSigma { readonly tag: 'VSigma'; readonly usage: Usage; readonly name: Name; readonly type: Val; readonly clos: Clos }
+export const VSigma = (usage: Usage, name: Name, type: Val, clos: Clos): VSigma => ({ tag: 'VSigma', usage, name, type, clos });
+export interface VPair { readonly tag: 'VPair'; readonly fst: Val; readonly snd: Val; readonly type: Val }
+export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
 
-export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' };
+export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 
 export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), spine);
 
@@ -59,6 +63,10 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return vapp(evaluate(t.fn, vs), t.mode, evaluate(t.arg, vs));
   if (t.tag === 'Let')
     return evaluate(t.body, cons(evaluate(t.val, vs), vs));
+  if (t.tag === 'Sigma')
+    return VSigma(t.usage, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
+  if (t.tag === 'Pair')
+    return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   return t;
 };
 
@@ -88,6 +96,10 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
     return Abs(v.usage, v.mode, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
   if (v.tag === 'VPi')
     return Pi(v.usage, v.mode, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
+  if (v.tag === 'VSigma')
+    return Sigma(v.usage, v.name, quote(v.type, k), quote(vinst(v, VVar(k)), k + 1));
+  if (v.tag === 'VPair')
+    return Pair(quote(v.fst, k), quote(v.snd, k), quote(v.type, k));
   return v;
 };
 

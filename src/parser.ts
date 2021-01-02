@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Let, Pi, show, Surface, Type, Var } from './surface';
+import { Abs, App, Let, Pair, Pi, show, Sigma, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -25,8 +25,8 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
-const SYM1: string[] = ['\\', ':', '=', ';', '*'];
-const SYM2: string[] = ['->'];
+const SYM1: string[] = ['\\', ':', '=', ';', '*', ','];
+const SYM2: string[] = ['->', '**'];
 
 const START = 0;
 const NAME = 1;
@@ -309,6 +309,38 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
       .reduce((x, y) => x.concat(y), []);
     const body = exprs(s[s.length - 1], '(', fromRepl);
     return args.reduceRight((x, [u, name, impl, ty]) => Pi(u, impl, name, ty, x), body);
+  }
+  const jp = ts.findIndex(x => isName(x, ','));
+  if (jp >= 0) {
+    const s = splitTokens(ts, x => isName(x, ','));
+    if (s.length < 2) return serr(`parsing failed with ,`);
+    const args: [Surface, boolean][] = s.map(x => {
+      if (x.length === 1) {
+        const h = x[0];
+        if (h.tag === 'List' && h.bracket === '{')
+          return expr(h, fromRepl)
+      }
+      return [exprs(x, '(', fromRepl), false];
+    });
+    if (args.length === 0) return serr(`empty pair`);
+    if (args.length === 1) return serr(`singleton pair`);
+    const last1 = args[args.length - 1];
+    const last2 = args[args.length - 2];
+    const lastitem = Pair(last2[0], last1[0]);
+    return args.slice(0, -2).reduceRight((x, [y, _p]) => Pair(y, x), lastitem);
+  }
+  const js = ts.findIndex(x => isName(x, '**'));
+  if (js >= 0) {
+    const s = splitTokens(ts, x => isName(x, '**'));
+    if (s.length < 2) return serr(`parsing failed with **`);
+    const args: [Usage, Name, Mode, Surface][] = s.slice(0, -1)
+      .map(p => p.length === 1 ? piParams(p[0], fromRepl) : [[many, '_', Expl, exprs(p, '(', fromRepl)] as [Usage, Name, Mode, Surface]])
+      .reduce((x, y) => x.concat(y), []);
+    const body = exprs(s[s.length - 1], '(', fromRepl);
+    return args.reduceRight((x, [u, name, mode, ty]) => {
+      if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
+      return Sigma(u, name, ty, x)
+    }, body);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all = [];

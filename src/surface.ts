@@ -9,7 +9,8 @@ import { quote, Val } from './values';
 export type Surface =
   Var | Let |
   Type |
-  Pi | Abs | App;
+  Pi | Abs | App |
+  Sigma | Pair;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -25,6 +26,10 @@ export const Abs = (usage: Usage, mode: Mode, name: Name, type: Surface | null, 
   ({ tag: 'Abs', usage, mode, name, type, body });
 export interface App { readonly tag: 'App'; readonly fn: Surface; readonly mode: Mode; readonly arg: Surface }
 export const App = (fn: Surface, mode: Mode, arg: Surface): App => ({ tag: 'App', fn, mode, arg });
+export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly name: Name; readonly type: Surface; readonly body: Surface }
+export const Sigma = (usage: Usage, name: Name, type: Surface, body: Surface): Sigma => ({ tag: 'Sigma', usage, name, type, body });
+export interface Pair { readonly tag: 'Pair'; readonly fst: Surface; readonly snd: Surface }
+export const Pair = (fst: Surface, snd: Surface): Pair => ({ tag: 'Pair', fst, snd });
 
 export const flattenPi = (t: Surface): [[Usage, Mode, Name, Surface][], Surface] => {
   const params: [Usage, Mode, Name, Surface][] = [];
@@ -53,6 +58,24 @@ export const flattenApp = (t: Surface): [Surface, [Mode, Surface][]] => {
   }
   return [c, args.reverse()];
 };
+export const flattenSigma = (t: Surface): [[Usage, Name, Surface][], Surface] => {
+  const params: [Usage, Name, Surface][] = [];
+  let c = t;  
+  while (c.tag === 'Sigma') {
+    params.push([c.usage, c.name, c.type]);
+    c = c.body;
+  }
+  return [params, c];
+};
+export const flattenPair = (t: Surface): Surface[] => {
+  const r: Surface[] = [];
+  while (t.tag === 'Pair') {
+    r.push(t.fst);
+    t = t.snd;
+  }
+  r.push(t);
+  return r;
+};
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var';
@@ -74,6 +97,14 @@ export const show = (t: Surface): string => {
   }
   if (t.tag === 'Let')
     return `let ${t.usage === many ? '' : `${t.usage} `}${t.name}${t.type ? ` : ${showP(t.type.tag === 'Let', t.type)}` : ''} = ${showP(t.val.tag === 'Let', t.val)}; ${show(t.body)}`;
+  if (t.tag === 'Sigma') {
+    const [params, ret] = flattenSigma(t);
+    return `${params.map(([u, x, t]) => u === many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === many ? '' : `${u} `}${x} : ${show(t)})`).join(' ** ')} ** ${show(ret)}`;
+  }
+  if (t.tag === 'Pair') {
+    const ps = flattenPair(t);
+    return `(${ps.map(show).join(', ')})`;
+  }
   return t;
 };
 
@@ -94,6 +125,11 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
     const x = chooseName(t.name, ns);
     return Let(t.usage, x, fromCore(t.type, ns), fromCore(t.val, ns), fromCore(t.body, cons(x, ns)));
   }
+  if (t.tag === 'Sigma') {
+    const x = chooseName(t.name, ns);
+    return Sigma(t.usage, x, fromCore(t.type, ns), fromCore(t.body, cons(x, ns)));
+  }
+  if (t.tag === 'Pair') return Pair(fromCore(t.fst, ns), fromCore(t.snd, ns));
   return t;
 };
 

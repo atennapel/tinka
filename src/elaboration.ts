@@ -1,13 +1,13 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, quote, Val, vinst, VType, VVar } from './values';
+import { evaluate, quote, Val, vinst, VSigma, VType, VVar } from './values';
 import { Surface } from './surface';
 import { show } from './surface';
 import { conv } from './conversion';
 import { addUses, many, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { indexEnvT, Local, showVal } from './local';
-import { eqMode, Mode } from './mode';
+import { eqMode, Expl, Mode } from './mode';
 
 const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
   log(() => `check ${show(tm)} : ${showVal(local, ty)}`);
@@ -26,6 +26,11 @@ const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
     const x = ty.name;
     const [term, u] = check(local.insert(ty.usage, ty.mode, x, ty.type), tm, vinst(ty, v));
     return [Abs(ty.usage, ty.mode, x, quote(ty.type, local.level), term), u];
+  }
+  if (tm.tag === 'Pair' && ty.tag === 'VSigma') {
+    const [fst, u1] = check(local, tm.fst, ty.type);
+    const [snd, u2] = check(local, tm.snd, vinst(ty, evaluate(fst, local.vs)));
+    return [Pair(fst, snd, quote(ty, local.level)), addUses(multiplyUses(ty.usage, u1), u2)];
   }
   if (tm.tag === 'Let') {
     let vtype: Core;
@@ -110,6 +115,19 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     if (!sub(ux, tm.usage))
       return terr(`usage error in ${show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
     return [Let(tm.usage, tm.name, type, val, body), rty, addUses(multiplyUses(ux, uv), urest)];
+  }
+  if (tm.tag === 'Sigma') {
+    const [type, u1] = check(local, tm.type, VType);
+    const ty = evaluate(type, local.vs);
+    const [body, u2] = check(local.bind(many, Expl, tm.name, ty), tm.body, VType);
+    const [, urest] = u2.uncons();
+    return [Sigma(tm.usage, tm.name, type, body), VType, addUses(u1, urest)];
+  }
+  if (tm.tag === 'Pair') {
+    const [fst, ty1, u1] = synth(local, tm.fst);
+    const [snd, ty2, u2] = synth(local, tm.snd);
+    const ty = VSigma(many, '_', ty1, _ => ty2);
+    return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
   }
   return terr(`unable to synth ${show(tm)}`);
 };

@@ -2,7 +2,7 @@ import { log } from './config';
 import { conv } from './conversion';
 import { Core, Pi, show } from './core';
 import { indexEnvT, Local, showValCore } from './local';
-import { eqMode, Mode } from './mode';
+import { eqMode, Expl, Mode } from './mode';
 import { addUses, many, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { impossible, terr, tryT } from './utils/utils';
 import { evaluate, quote, Val, vinst, VType } from './values';
@@ -58,6 +58,21 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     if (!sub(ux, tm.usage))
       return terr(`usage error in ${show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
     return [rty, addUses(multiplyUses(ux, uv), urest)];
+  }
+  if (tm.tag === 'Sigma') {
+    const u1 = check(local, tm.type, VType);
+    const ty = evaluate(tm.type, local.vs);
+    const u2 = check(local.bind(many, Expl, tm.name, ty), tm.body, VType);
+    const [, urest] = u2.uncons();
+    return [VType, addUses(u1, urest)];
+  }
+  if (tm.tag === 'Pair') {
+    check(local, tm.type, VType);
+    const vsigma = evaluate(tm.type, local.vs);
+    if (vsigma.tag !== 'VSigma') return terr(`pair without sigma type: ${show(tm)}`);
+    const u1 = check(local, tm.fst, vsigma.type);
+    const u2 = check(local, tm.snd, vinst(vsigma, evaluate(tm.fst, local.vs)));
+    return [vsigma, addUses(multiplyUses(vsigma.usage, u1), u2)];
   }
   return tm;
 };
