@@ -22,9 +22,18 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     const v = VVar(k);
     return conv(k + 1, vinst(a, v), vinst(b, v));
   }
+  if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.usage === b.usage) {
+    conv(k, a.type, b.type);
+    const v = VVar(k);
+    return conv(k + 1, vinst(a, v), vinst(b, v));
+  }
   if (a.tag === 'VAbs' && b.tag === 'VAbs') {
     const v = VVar(k);
     return conv(k + 1, vinst(a, v), vinst(b, v));
+  }
+  if (a.tag === 'VPair' && b.tag === 'VPair') {
+    conv(k, a.fst, b.fst);
+    return conv(k, a.snd, b.snd);
   }
 
   if (a.tag === 'VAbs') {

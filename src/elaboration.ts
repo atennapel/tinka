@@ -10,7 +10,7 @@ import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 
 const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
-  log(() => `check ${show(tm)} : ${showVal(local, ty)}`);
+  log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty)}`);
   if (tm.tag === 'Type' && ty.tag === 'VType') return [Type, noUses(local.level)];
   if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && eqMode(tm.mode, ty.mode)) {
     const v = VVar(local.level);
@@ -21,12 +21,17 @@ const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
       return terr(`usage error in ${show(tm)}: expected ${ty.usage} for ${x} but actual ${ux}`);
     return [Abs(ty.usage, ty.mode, x, quote(ty.type, local.level), body), urest];
   }
+  /*
   if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && !(tm.tag === 'Abs' && tm.mode.tag === 'Impl')) {
     const v = VVar(local.level);
     const x = ty.name;
     const [term, u] = check(local.insert(ty.usage, ty.mode, x, ty.type), tm, vinst(ty, v));
-    return [Abs(ty.usage, ty.mode, x, quote(ty.type, local.level), term), u];
+    const [ux, urest] = u.uncons();
+    if (!sub(ux, ty.usage))
+      return terr(`usage error in ${show(tm)}: expected ${ty.usage} for ${x} but actual ${ux}`);
+    return [Abs(ty.usage, ty.mode, x, quote(ty.type, local.level), term), urest];
   }
+  */
   if (tm.tag === 'Pair' && ty.tag === 'VSigma') {
     const [fst, u1] = check(local, tm.fst, ty.type);
     const [snd, u2] = check(local, tm.snd, vinst(ty, evaluate(fst, local.vs)));
@@ -61,7 +66,7 @@ const check = (local: Local, tm: Surface, ty: Val): [Core, Uses] => {
 };
 
 const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
-  log(() => `synth ${show(tm)}`);
+  log(() => `synth (${local.level}) ${show(tm)}`);
   if (tm.tag === 'Type') return [Type, VType, noUses(local.level)];
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);
@@ -133,7 +138,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
 };
 
 const synthapp = (local: Local, ty: Val, mode: Mode, arg: Surface): [Core, Val, Uses] => {
-  log(() => `synthapp ${showVal(local, ty)} @ ${show(arg)}`);
+  log(() => `synthapp (${local.level}) ${showVal(local, ty)} @ ${show(arg)}`);
   if (ty.tag === 'VPi' && eqMode(ty.mode, mode)) {
     const cty = ty.type;
     const [Core, uses] = check(local, arg, cty);

@@ -150,7 +150,7 @@ export class Cons<T> extends List<T> {
   updateAt(ix: number, fn: (val: T) => T): List<T> {
     if (ix < 0) return impossible(`updateAt with negative index: ${ix}`);
     if (ix === 0) return new Cons(fn(this.head), this.tail);
-    return new Cons(this.head, this.updateAt(ix - 1, fn));
+    return new Cons(this.head, this.tail.updateAt(ix - 1, fn));
   }
 
   findIndex(fn: (val: T) => boolean): number {

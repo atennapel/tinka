@@ -49,9 +49,18 @@ const conv = (k, a, b) => {
         const v = values_1.VVar(k);
         return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
     }
+    if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.usage === b.usage) {
+        exports.conv(k, a.type, b.type);
+        const v = values_1.VVar(k);
+        return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
+    }
     if (a.tag === 'VAbs' && b.tag === 'VAbs') {
         const v = values_1.VVar(k);
         return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
+    }
+    if (a.tag === 'VPair' && b.tag === 'VPair') {
+        exports.conv(k, a.fst, b.fst);
+        return exports.conv(k, a.snd, b.snd);
     }
     if (a.tag === 'VAbs') {
         const v = values_1.VVar(k);
@@ -196,7 +205,7 @@ const usage_1 = require("./usage");
 const local_1 = require("./local");
 const mode_1 = require("./mode");
 const check = (local, tm, ty) => {
-    config_1.log(() => `check ${surface_1.show(tm)} : ${local_1.showVal(local, ty)}`);
+    config_1.log(() => `check (${local.level}) ${surface_1.show(tm)} : ${local_1.showVal(local, ty)}`);
     if (tm.tag === 'Type' && ty.tag === 'VType')
         return [core_1.Type, usage_1.noUses(local.level)];
     if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && mode_1.eqMode(tm.mode, ty.mode)) {
@@ -208,12 +217,17 @@ const check = (local, tm, ty) => {
             return utils_1.terr(`usage error in ${surface_1.show(tm)}: expected ${ty.usage} for ${x} but actual ${ux}`);
         return [core_1.Abs(ty.usage, ty.mode, x, values_1.quote(ty.type, local.level), body), urest];
     }
+    /*
     if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && !(tm.tag === 'Abs' && tm.mode.tag === 'Impl')) {
-        const v = values_1.VVar(local.level);
-        const x = ty.name;
-        const [term, u] = check(local.insert(ty.usage, ty.mode, x, ty.type), tm, values_1.vinst(ty, v));
-        return [core_1.Abs(ty.usage, ty.mode, x, values_1.quote(ty.type, local.level), term), u];
+      const v = VVar(local.level);
+      const x = ty.name;
+      const [term, u] = check(local.insert(ty.usage, ty.mode, x, ty.type), tm, vinst(ty, v));
+      const [ux, urest] = u.uncons();
+      if (!sub(ux, ty.usage))
+        return terr(`usage error in ${show(tm)}: expected ${ty.usage} for ${x} but actual ${ux}`);
+      return [Abs(ty.usage, ty.mode, x, quote(ty.type, local.level), term), urest];
     }
+    */
     if (tm.tag === 'Pair' && ty.tag === 'VSigma') {
         const [fst, u1] = check(local, tm.fst, ty.type);
         const [snd, u2] = check(local, tm.snd, values_1.vinst(ty, values_1.evaluate(fst, local.vs)));
@@ -248,7 +262,7 @@ const check = (local, tm, ty) => {
     }, e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${local_1.showVal(local, ty2)} ~ ${local_1.showVal(local, ty)}: ${e}`));
 };
 const synth = (local, tm) => {
-    config_1.log(() => `synth ${surface_1.show(tm)}`);
+    config_1.log(() => `synth (${local.level}) ${surface_1.show(tm)}`);
     if (tm.tag === 'Type')
         return [core_1.Type, values_1.VType, usage_1.noUses(local.level)];
     if (tm.tag === 'Var') {
@@ -324,7 +338,7 @@ const synth = (local, tm) => {
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
 const synthapp = (local, ty, mode, arg) => {
-    config_1.log(() => `synthapp ${local_1.showVal(local, ty)} @ ${surface_1.show(arg)}`);
+    config_1.log(() => `synthapp (${local.level}) ${local_1.showVal(local, ty)} @ ${surface_1.show(arg)}`);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         const cty = ty.type;
         const [Core, uses] = check(local, arg, cty);
@@ -1394,7 +1408,7 @@ class Cons extends List {
             return utils_1.impossible(`updateAt with negative index: ${ix}`);
         if (ix === 0)
             return new Cons(fn(this.head), this.tail);
-        return new Cons(this.head, this.updateAt(ix - 1, fn));
+        return new Cons(this.head, this.tail.updateAt(ix - 1, fn));
     }
     findIndex(fn) {
         let i = 0;
