@@ -1,3 +1,5 @@
+import { impossible } from './utils';
+
 export abstract class List<T> {
 
   private static _Nil: List<never>;
@@ -34,6 +36,7 @@ export abstract class List<T> {
   abstract map<R>(fn: (val: T) => R): List<R>;
   abstract each(fn: (val: T) => void): void;
   abstract index(ix: number): T | null;
+  abstract updateAt(ix: number, fn: (val: T) => T): List<T>;
 
   abstract findIndex(fn: (val: T) => boolean): number;
   abstract find(fn: (val: T) => boolean): T | null;
@@ -50,6 +53,9 @@ export abstract class List<T> {
 
   abstract foldr<R>(cons: (a: T, b: R) => R, nil: R): R;
 
+  abstract length(): number;
+  abstract uncons(): [T, List<T>];
+
 }
 
 export class Nil extends List<never> {
@@ -63,6 +69,7 @@ export class Nil extends List<never> {
   map(): List<never> { return this }
   each(): void {}
   index(): null { return null }
+  updateAt(): List<never> { return this }
 
   findIndex(): number { return -1 }
   find(): null { return null }
@@ -78,6 +85,9 @@ export class Nil extends List<never> {
   zipWithR_(): void {}
 
   foldr<R>(_cons: (a: never, b: R) => R, nil: R): R { return nil }
+
+  length(): number { return 0 }
+  uncons(): never { return impossible('uncons called on Nil') }
 
 }
 
@@ -126,7 +136,8 @@ export class Cons<T> extends List<T> {
   }
 
   index(ix: number): T | null {
-    if (ix <= 0) return this.head;
+    if (ix < 0) return impossible(`index with negative index: ${ix}`);
+    if (ix === 0) return this.head;
     let i = ix;
     let c: List<T> = this;
     while (c.isCons()) {
@@ -135,6 +146,11 @@ export class Cons<T> extends List<T> {
       i--;
     }
     return null;
+  }
+  updateAt(ix: number, fn: (val: T) => T): List<T> {
+    if (ix < 0) return impossible(`updateAt with negative index: ${ix}`);
+    if (ix === 0) return new Cons(fn(this.head), this.tail);
+    return new Cons(this.head, this.updateAt(ix - 1, fn));
   }
 
   findIndex(fn: (val: T) => boolean): number {
@@ -217,6 +233,20 @@ export class Cons<T> extends List<T> {
 
   foldr<R>(cons: (a: T, b: R) => R, nil: R): R {
     return cons(this.head, this.tail.foldr(cons, nil));
+  }
+
+  length(): number {
+    let i = 0;
+    let c: List<T> = this;
+    while (c.isCons()) {
+      c = c.tail;
+      i++;
+    }
+    return i;
+  }
+
+  uncons(): [T, List<T>] {
+    return [this.head, this.tail];
   }
 
 }

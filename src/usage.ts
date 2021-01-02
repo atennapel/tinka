@@ -1,6 +1,7 @@
 import { List } from './utils/List';
 
 export type Usage = '0' | '1' | '*';
+export const usages: string[] = ['0', '1', '*'];
 
 export const zero: Usage = '0';
 export const one: Usage = '1';
