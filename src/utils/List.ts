@@ -46,6 +46,7 @@ export abstract class List<T> {
   abstract zip<R>(o: List<R>): List<[T, R]>;
   abstract zipWith<R, U>(o: List<R>, fn: (a: T, b: R) => U): List<U>;
   abstract zipWith_<R>(o: List<R>, fn: (a: T, b: R) => void): void;
+  abstract zipWithR_<R>(o: List<R>, fn: (a: T, b: R) => void): void;
 
   abstract foldr<R>(cons: (a: T, b: R) => R, nil: R): R;
 
@@ -74,6 +75,7 @@ export class Nil extends List<never> {
   zip<R>(): List<[never, R]> { return this }
   zipWith<U>(): List<U> { return this }
   zipWith_(): void {}
+  zipWithR_(): void {}
 
   foldr<R>(_cons: (a: never, b: R) => R, nil: R): R { return nil }
 
@@ -204,6 +206,12 @@ export class Cons<T> extends List<T> {
       fn(a.head, b.head);
       a = a.tail;
       b = b.tail;
+    }
+  }
+  zipWithR_<R>(o: List<R>, fn: (a: T, b: R) => void): void {
+    if (o.isCons()) {
+      this.tail.zipWithR_(o.tail, fn);
+      fn(this.head, o.head);
     }
   }
 

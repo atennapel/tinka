@@ -2878,7 +2878,7 @@ exports.Lazy = Lazy;
 },{}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Cons = exports.Nil = exports.List = void 0;
+exports.cons = exports.nil = exports.Cons = exports.Nil = exports.List = void 0;
 class List {
     static Nil() {
         if (List._Nil === undefined)
@@ -2922,6 +2922,8 @@ class Nil extends List {
     zip() { return this; }
     zipWith() { return this; }
     zipWith_() { }
+    zipWithR_() { }
+    foldr(_cons, nil) { return nil; }
 }
 exports.Nil = Nil;
 class Cons extends List {
@@ -3044,8 +3046,20 @@ class Cons extends List {
             b = b.tail;
         }
     }
+    zipWithR_(o, fn) {
+        if (o.isCons()) {
+            this.tail.zipWithR_(o.tail, fn);
+            fn(this.head, o.head);
+        }
+    }
+    foldr(cons, nil) {
+        return cons(this.head, this.tail.foldr(cons, nil));
+    }
 }
 exports.Cons = Cons;
+exports.nil = new Nil();
+const cons = (head, tail) => new Cons(head, tail);
+exports.cons = cons;
 
 },{}],18:[function(require,module,exports){
 "use strict";

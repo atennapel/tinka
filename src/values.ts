@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore } from './core';
 import { Mode } from './mode';
 import { Lvl, Name } from './names';
 import { Usage } from './usage';
@@ -92,3 +92,4 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
 };
 
 export const normalize = (t: Core, full: boolean = false): Core => quote(evaluate(t, nil), 0, full);
+export const show = (v: Val, k: Lvl = 0, full: boolean = false): string => showCore(quote(v, k, full));
