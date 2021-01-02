@@ -119,6 +119,10 @@ exports.conv = (k, a_, b_) => {
         return;
     if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit')
         return;
+    if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'ReflHEq')
+        return;
+    if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'ReflHEq')
+        return;
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => convElim(k, x, y, a, b), a.args, b.args);
     if (a.tag === 'VGlued' && b.tag === 'VGlued' && a.head === b.head && list_1.length(a.args) === list_1.length(b.args)) {
@@ -2069,6 +2073,11 @@ const check = (local, tm, ty) => {
     const fty = domain_1.force(ty);
     if (tm.tag === 'Sort' && fty === domain_1.VType)
         return syntax_1.Sort(tm.sort);
+    if (tm.tag === 'Hole' && fty.tag === 'VSigma' && !tm.name) {
+        const x = newMeta(local.ts);
+        const y = syntax_1.App(newMeta(local.ts), fty.plicity, x);
+        return syntax_1.Pair(fty.plicity, fty.plicity2, x, y, domain_1.quote(ty, local.index, false));
+    }
     if (tm.tag === 'Hole') {
         const x = newMeta(local.ts);
         if (tm.name) {
@@ -2633,6 +2642,10 @@ exports.unify = (k, a_, b_) => {
         return;
     if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'Unit')
         return;
+    if (a.tag === 'VNe' && a.head.tag === 'HPrim' && a.head.name === 'ReflHEq')
+        return;
+    if (b.tag === 'VNe' && b.head.tag === 'HPrim' && b.head.name === 'ReflHEq')
+        return;
     // neutrals
     if (a.tag === 'VNe' && b.tag === 'VNe' && conv_1.eqHead(a.head, b.head) && list_1.length(a.args) === list_1.length(b.args))
         return list_1.zipWithR_((x, y) => unifyElim(k, x, y, a, b), a.args, b.args);
@@ -2836,157 +2849,203 @@ const checkSolution = (k, m, is, t) => {
 },{"./config":1,"./conv":2,"./domain":3,"./metas":7,"./syntax":13,"./utils/lazy":16,"./utils/list":17,"./utils/utils":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mapLazy = exports.forceLazy = exports.lazyOf = exports.Lazy = void 0;
-exports.Lazy = (fn) => ({ fn, val: null, forced: false });
-exports.lazyOf = (val) => ({ fn: () => val, val, forced: true });
-exports.forceLazy = (lazy) => {
-    if (lazy.forced)
-        return lazy.val;
-    const v = lazy.fn();
-    lazy.val = v;
-    lazy.forced = true;
-    return v;
-};
-exports.mapLazy = (lazy, fn) => exports.Lazy(() => fn(exports.forceLazy(lazy)));
+exports.Lazy = void 0;
+class Lazy {
+    constructor(fn) {
+        this.forced = false;
+        this.value = null;
+        this.fn = fn;
+    }
+    static from(fn) {
+        return new Lazy(fn);
+    }
+    static of(val) {
+        return Lazy.from(() => val);
+    }
+    get() {
+        if (!this.forced) {
+            this.value = this.fn();
+            this.forced = true;
+        }
+        return this.value;
+    }
+    map(fn) {
+        return new Lazy(() => fn(this.get()));
+    }
+}
+exports.Lazy = Lazy;
 
 },{}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.last = exports.max = exports.contains = exports.range = exports.and = exports.zipWithR_ = exports.zipWith_ = exports.zipWith = exports.foldlprim = exports.foldrprim = exports.foldl = exports.foldr = exports.lookup = exports.extend = exports.take = exports.indecesOf = exports.dropWhile = exports.takeWhile = exports.indexOf = exports.index = exports.mapIndex = exports.map = exports.consAll = exports.append = exports.toArrayFilter = exports.toArray = exports.reverse = exports.isEmpty = exports.length = exports.each = exports.first = exports.filter = exports.listToString = exports.list = exports.listFrom = exports.Cons = exports.Nil = void 0;
-exports.Nil = { tag: 'Nil' };
-exports.Cons = (head, tail) => ({ tag: 'Cons', head, tail });
-exports.listFrom = (a) => a.reduceRight((x, y) => exports.Cons(y, x), exports.Nil);
-exports.list = (...a) => exports.listFrom(a);
-exports.listToString = (l, fn = x => `${x}`) => {
-    const r = [];
-    let c = l;
-    while (c.tag === 'Cons') {
-        r.push(fn(c.head));
-        c = c.tail;
+exports.Cons = exports.Nil = exports.List = void 0;
+class List {
+    static Nil() {
+        if (List._Nil === undefined)
+            List._Nil = new Nil();
+        return List._Nil;
     }
-    return `[${r.join(', ')}]`;
-};
-exports.filter = (l, fn) => l.tag === 'Cons' ? (fn(l.head) ? exports.Cons(l.head, exports.filter(l.tail, fn)) : exports.filter(l.tail, fn)) : l;
-exports.first = (l, fn) => {
-    let c = l;
-    while (c.tag === 'Cons') {
-        if (fn(c.head))
-            return c.head;
-        c = c.tail;
+    static Cons(head, tail) { return new Cons(head, tail); }
+    static from(values) {
+        let l = List.Nil();
+        for (let i = values.length - 1; i >= 0; i--)
+            l = List.Cons(values[i], l);
+        return l;
     }
-    return null;
-};
-exports.each = (l, fn) => {
-    let c = l;
-    while (c.tag === 'Cons') {
-        fn(c.head);
-        c = c.tail;
+    static of(...values) { return List.from(values); }
+    static range(n) {
+        let l = List._Nil;
+        for (let i = 0; i < n; i++)
+            l = List.Cons(i, l);
+        return l;
     }
-};
-exports.length = (l) => {
-    let n = 0;
-    let c = l;
-    while (c.tag === 'Cons') {
-        n++;
-        c = c.tail;
+    toString(fn = val => `${val}`) {
+        return `[${this.toMappedArray(fn).join(', ')}]`;
     }
-    return n;
-};
-exports.isEmpty = (l) => l.tag === 'Nil';
-exports.reverse = (l) => exports.listFrom(exports.toArray(l, x => x).reverse());
-exports.toArray = (l, fn) => {
-    let c = l;
-    const r = [];
-    while (c.tag === 'Cons') {
-        r.push(fn(c.head));
-        c = c.tail;
+    contains(val) { return this.indexOf(val) >= 0; }
+}
+exports.List = List;
+class Nil extends List {
+    isNil() { return true; }
+    isCons() { return false; }
+    toString() { return '[]'; }
+    toMappedArray() { return []; }
+    toArray() { return []; }
+    map() { return this; }
+    each() { }
+    index() { return null; }
+    findIndex() { return -1; }
+    find() { return null; }
+    indexOf() { return -1; }
+    contains() { return false; }
+    reverse() { return this; }
+    zip() { return this; }
+    zipWith() { return this; }
+    zipWith_() { }
+}
+exports.Nil = Nil;
+class Cons extends List {
+    constructor(head, tail) {
+        super();
+        this.head = head;
+        this.tail = tail;
     }
-    return r;
-};
-exports.toArrayFilter = (l, m, f) => {
-    const a = [];
-    while (l.tag === 'Cons') {
-        if (f(l.head))
-            a.push(m(l.head));
-        l = l.tail;
+    isNil() { return false; }
+    isCons() { return true; }
+    toMappedArray(fn) {
+        const r = [];
+        let c = this;
+        while (c.isCons()) {
+            r.push(fn(c.head));
+            c = c.tail;
+        }
+        return r;
     }
-    return a;
-};
-exports.append = (a, b) => a.tag === 'Cons' ? exports.Cons(a.head, exports.append(a.tail, b)) : b;
-exports.consAll = (hs, b) => exports.append(exports.listFrom(hs), b);
-exports.map = (l, fn) => l.tag === 'Cons' ? exports.Cons(fn(l.head), exports.map(l.tail, fn)) : l;
-exports.mapIndex = (l, fn, i = 0) => l.tag === 'Cons' ? exports.Cons(fn(i, l.head), exports.mapIndex(l.tail, fn, i + 1)) : l;
-exports.index = (l, i) => {
-    while (l.tag === 'Cons') {
-        if (i-- === 0)
-            return l.head;
-        l = l.tail;
+    toArray() {
+        const r = [];
+        let c = this;
+        while (c.isCons()) {
+            r.push(c.head);
+            c = c.tail;
+        }
+        return r;
     }
-    return null;
-};
-exports.indexOf = (l, x) => {
-    let i = 0;
-    while (l.tag === 'Cons') {
-        if (l.head === x)
-            return i;
-        l = l.tail;
-        i++;
+    map(fn) {
+        return new Cons(fn(this.head), this.tail.map(fn));
     }
-    return -1;
-};
-exports.takeWhile = (l, fn) => l.tag === 'Cons' && fn(l.head) ? exports.Cons(l.head, exports.takeWhile(l.tail, fn)) : exports.Nil;
-exports.dropWhile = (l, fn) => l.tag === 'Cons' && fn(l.head) ? exports.dropWhile(l.tail, fn) : l;
-exports.indecesOf = (l, val) => {
-    const a = [];
-    let i = 0;
-    while (l.tag === 'Cons') {
-        if (l.head === val)
-            a.push(i);
-        l = l.tail;
-        i++;
+    each(fn) {
+        let c = this;
+        while (c.isCons()) {
+            fn(c.head);
+            c = c.tail;
+        }
     }
-    return a;
-};
-exports.take = (l, n) => n <= 0 || l.tag === 'Nil' ? exports.Nil : exports.Cons(l.head, exports.take(l.tail, n - 1));
-exports.extend = (name, val, rest) => exports.Cons([name, val], rest);
-exports.lookup = (l, name, eq = (x, y) => x === y) => {
-    while (l.tag === 'Cons') {
-        const h = l.head;
-        if (eq(h[0], name))
-            return h[1];
-        l = l.tail;
+    index(ix) {
+        if (ix <= 0)
+            return this.head;
+        let i = ix;
+        let c = this;
+        while (c.isCons()) {
+            if (i <= 0)
+                return c.head;
+            c = c.tail;
+            i--;
+        }
+        return null;
     }
-    return null;
-};
-exports.foldr = (f, i, l, j = 0) => l.tag === 'Nil' ? i : f(l.head, exports.foldr(f, i, l.tail, j + 1), j);
-exports.foldl = (f, i, l) => l.tag === 'Nil' ? i : exports.foldl(f, f(i, l.head), l.tail);
-exports.foldrprim = (f, i, l, ind = 0) => l.tag === 'Nil' ? i : f(l.head, exports.foldrprim(f, i, l.tail, ind + 1), l, ind);
-exports.foldlprim = (f, i, l, ind = 0) => l.tag === 'Nil' ? i : exports.foldlprim(f, f(l.head, i, l, ind), l.tail, ind + 1);
-exports.zipWith = (f, la, lb) => la.tag === 'Nil' || lb.tag === 'Nil' ? exports.Nil :
-    exports.Cons(f(la.head, lb.head), exports.zipWith(f, la.tail, lb.tail));
-exports.zipWith_ = (f, la, lb) => {
-    if (la.tag === 'Cons' && lb.tag === 'Cons') {
-        f(la.head, lb.head);
-        exports.zipWith_(f, la.tail, lb.tail);
+    findIndex(fn) {
+        let i = 0;
+        let c = this;
+        while (c.isCons()) {
+            if (fn(c.head))
+                return i;
+            c = c.tail;
+            i++;
+        }
+        return -1;
     }
-};
-exports.zipWithR_ = (f, la, lb) => {
-    if (la.tag === 'Cons' && lb.tag === 'Cons') {
-        exports.zipWith_(f, la.tail, lb.tail);
-        f(la.head, lb.head);
+    find(fn) {
+        let c = this;
+        while (c.isCons()) {
+            if (fn(c.head))
+                return c.head;
+            c = c.tail;
+        }
+        return null;
     }
-};
-exports.and = (l) => l.tag === 'Nil' ? true : l.head && exports.and(l.tail);
-exports.range = (n) => n <= 0 ? exports.Nil : exports.Cons(n - 1, exports.range(n - 1));
-exports.contains = (l, v) => l.tag === 'Cons' ? (l.head === v || exports.contains(l.tail, v)) : false;
-exports.max = (l) => exports.foldl((a, b) => b > a ? b : a, Number.MIN_SAFE_INTEGER, l);
-exports.last = (l) => {
-    let c = l;
-    while (c.tag === 'Cons')
-        if (c.tail.tag === 'Nil')
-            return c.head;
-    return null;
-};
+    indexOf(val) {
+        let i = 0;
+        let c = this;
+        while (c.isCons()) {
+            if (c.head === val)
+                return i;
+            c = c.tail;
+            i++;
+        }
+        return -1;
+    }
+    reverse() {
+        let c = this;
+        let r = List.Nil();
+        while (c.isCons()) {
+            r = new Cons(c.head, r);
+            c = c.tail;
+        }
+        return r;
+    }
+    zip(o) {
+        let a = this;
+        let b = o;
+        let r = List.Nil();
+        while (a.isCons() && b.isCons()) {
+            r = new Cons([a.head, b.head], r);
+            a = a.tail;
+            b = b.tail;
+        }
+        return r;
+    }
+    zipWith(o, fn) {
+        let a = this;
+        let b = o;
+        let r = List.Nil();
+        while (a.isCons() && b.isCons()) {
+            r = new Cons(fn(a.head, b.head), r);
+            a = a.tail;
+            b = b.tail;
+        }
+        return r;
+    }
+    zipWith_(o, fn) {
+        let a = this;
+        let b = o;
+        while (a.isCons() && b.isCons()) {
+            fn(a.head, b.head);
+            a = a.tail;
+            b = b.tail;
+        }
+    }
+}
+exports.Cons = Cons;
 
 },{}],18:[function(require,module,exports){
 "use strict";
