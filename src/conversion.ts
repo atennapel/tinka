@@ -59,12 +59,5 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   if (a.tag === 'VGlobal') return conv(k, a.val.get(), b);
   if (b.tag === 'VGlobal') return conv(k, a, b.val.get());
 
-  if (a.tag === 'VLocal' && b.tag === 'VLocal' && a.head === b.head && a.level === b.level) {
-    return tryT(() => a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b)),
-      () => conv(k, a.val.get(), b.val.get()));
-  }
-  if (a.tag === 'VLocal') return conv(k, a.val.get(), b);
-  if (b.tag === 'VLocal') return conv(k, a, b.val.get());
-
   return terr(`conv failed (${k}): ${show(a, k)} ~ ${show(b, k)}`);
 };

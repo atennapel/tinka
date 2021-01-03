@@ -22,7 +22,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   if (tm.tag === 'Type') return [VType, noUses(local.level)];
   if (tm.tag === 'Var') {
     const [entry, j] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
-    const uses = noUses(local.level).updateAt(j, _ => one);
+    const uses = noUses(local.level).updateAt(j, _ => local.usage);
     return [entry.type, uses];
   }
   if (tm.tag === 'Global') return impossible('Globals are unimplemented'); // TODO
@@ -32,7 +32,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     return [rty, addUses(fnu, argu)];
   }
   if (tm.tag === 'Abs') {
-    check(local, tm.type, VType);
+    check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
     const [rty, u] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
     const pi = evaluate(Pi(tm.usage, tm.mode, tm.name, tm.type, quote(rty, local.level + 1)), local.vs);
@@ -42,14 +42,14 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     return [pi, urest];
   }
   if (tm.tag === 'Pi') {
-    const u1 = check(local, tm.type, VType);
+    const u1 = check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
     const u2 = check(local.bind(many, tm.mode, tm.name, ty), tm.body, VType);
     const [, urest] = u2.uncons();
     return [VType, addUses(u1, urest)];
   }
   if (tm.tag === 'Let') {
-    check(local, tm.type, VType);
+    check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
     const uv = check(local, tm.val, ty);
     const v = evaluate(tm.val, local.vs);
@@ -60,14 +60,14 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     return [rty, addUses(multiplyUses(ux, uv), urest)];
   }
   if (tm.tag === 'Sigma') {
-    const u1 = check(local, tm.type, VType);
+    const u1 = check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
     const u2 = check(local.bind(many, Expl, tm.name, ty), tm.body, VType);
     const [, urest] = u2.uncons();
     return [VType, addUses(u1, urest)];
   }
   if (tm.tag === 'Pair') {
-    check(local, tm.type, VType);
+    check(local.inType(), tm.type, VType);
     const vsigma_ = evaluate(tm.type, local.vs);
     const vsigma = force(vsigma_);
     if (vsigma.tag !== 'VSigma') return terr(`pair without sigma type: ${show(tm)}`);
@@ -89,7 +89,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const [sigma_, u1] = synth(local, tm.scrut);
     const sigma = force(sigma_);
     if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-    check(local, tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
+    check(local.inType(), tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
     const motive = evaluate(tm.motive, local.vs);
     const u2 = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(motive, Expl, VPair(x, y, sigma_)))));
     return [vapp(motive, Expl, evaluate(tm.scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];

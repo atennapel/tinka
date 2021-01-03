@@ -1,6 +1,6 @@
 import { Expl, Mode } from './mode';
 import { Ix, Lvl, Name } from './names';
-import { Usage } from './usage';
+import { Subusage, Usage } from './usage';
 import { cons, List, nil } from './utils/List';
 import { EnvV, show, Val, VVar } from './values';
 import * as S from './surface';
@@ -36,6 +36,7 @@ export const indexEnvT = (ts: EnvT, ix: Ix): [EntryT, Ix] | null => {
 
 export class Local {
 
+  readonly usage: Subusage;
   readonly level: Lvl;
   readonly ns: List<Name>;
   readonly nsSurface: List<Name>;
@@ -43,12 +44,14 @@ export class Local {
   readonly vs: EnvV;
 
   constructor(
+    usage: Subusage,
     level: Lvl,
     ns: List<Name>,
     nsSurface: List<Name>,
     ts: EnvT,
     vs: EnvV,
   ) {
+    this.usage = usage;
     this.level = level;
     this.ns = ns;
     this.nsSurface = nsSurface;
@@ -58,12 +61,13 @@ export class Local {
 
   private static _empty: Local;
   static empty() {
-    if (Local._empty === undefined) Local._empty = new Local(0, nil, nil, nil, nil);
+    if (Local._empty === undefined) Local._empty = new Local('1', 0, nil, nil, nil, nil);
     return Local._empty;  
   }
 
   bind(usage: Usage, mode: Mode, name: Name, ty: Val): Local {
     return new Local(
+      this.usage,
       this.level + 1,
       cons(name, this.ns),
       cons(name, this.nsSurface),
@@ -73,6 +77,7 @@ export class Local {
   }
   insert(usage: Usage, mode: Mode, name: Name, ty: Val): Local {
     return new Local(
+      this.usage,
       this.level + 1,
       cons(name, this.ns),
       this.nsSurface,
@@ -82,6 +87,7 @@ export class Local {
   }
   define(usage: Usage, name: Name, ty: Val, val: Val): Local {
     return new Local(
+      this.usage,
       this.level + 1,
       cons(name, this.ns),
       cons(name, this.nsSurface),
@@ -92,11 +98,23 @@ export class Local {
 
   unsafeUndo(): Local {
     return new Local(
+      this.usage,
       this.level - 1,
       (this.ns as any).tail,
       (this.nsSurface as any).tail,
       (this.ts as any).tail,
       (this.vs as any).tail,
+    );
+  }
+
+  inType(): Local {
+    return new Local(
+      '0',
+      this.level,
+      this.ns,
+      this.nsSurface,
+      this.ts,
+      this.vs,
     );
   }
 

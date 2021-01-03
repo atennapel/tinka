@@ -13,8 +13,12 @@ yarn start example.p
 ```
 todo:
 - sigma elimination, make motive implicit
+- sigma projections
+- sigma named projections
 - eta law for (some) sigmas
 - metas
 - elaboration with metas
-- improve local glued values
+- local glued values
+- importing
+- add primitives: void, unit, bool
 ```

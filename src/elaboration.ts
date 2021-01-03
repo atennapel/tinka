@@ -44,7 +44,7 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
     let val: Core;
     let uv: Uses;
     if (tm.type) {
-      [vtype] = check(local, tm.type, VType);
+      [vtype] = check(local.inType(), tm.type, VType);
       vty = evaluate(vtype, local.vs);
       [val, uv] = check(local, tm.val, ty);
     } else {
@@ -74,7 +74,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     if (i < 0) return terr(`undefined var ${tm.name}`);
     else {
       const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
-      const uses = noUses(local.level).updateAt(j, _ => one);
+      const uses = noUses(local.level).updateAt(j, _ => local.usage);
       return [Var(j), entry.type, uses];
     }
   }
@@ -85,7 +85,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   }
   if (tm.tag === 'Abs') {
     if (tm.type) {
-      const [type] = check(local, tm.type, VType);
+      const [type] = check(local.inType(), tm.type, VType);
       const ty = evaluate(type, local.vs);
       const [body, rty, u] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
       const pi = evaluate(Pi(tm.usage, tm.mode, tm.name, type, quote(rty, local.level + 1)), local.vs);
@@ -96,7 +96,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     } else terr(`cannot synth unannotated lambda: ${show(tm)}`);
   }
   if (tm.tag === 'Pi') {
-    const [type, u1] = check(local, tm.type, VType);
+    const [type, u1] = check(local.inType(), tm.type, VType);
     const ty = evaluate(type, local.vs);
     const [body, u2] = check(local.bind(many, tm.mode, tm.name, ty), tm.body, VType);
     const [, urest] = u2.uncons();
@@ -108,7 +108,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     let val: Core;
     let uv: Uses;
     if (tm.type) {
-      [type] = check(local, tm.type, VType);
+      [type] = check(local.inType(), tm.type, VType);
       ty = evaluate(type, local.vs);
       [val, uv] = check(local, tm.val, ty);
     } else {
@@ -123,7 +123,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     return [Let(tm.usage, tm.name, type, val, body), rty, addUses(multiplyUses(ux, uv), urest)];
   }
   if (tm.tag === 'Sigma') {
-    const [type, u1] = check(local, tm.type, VType);
+    const [type, u1] = check(local.inType(), tm.type, VType);
     const ty = evaluate(type, local.vs);
     const [body, u2] = check(local.bind(many, Expl, tm.name, ty), tm.body, VType);
     const [, urest] = u2.uncons();
@@ -141,7 +141,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [scrut, sigma_, u1] = synth(local, tm.scrut);
     const sigma = force(sigma_);
     if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-    const [motive] = check(local, tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
+    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
     const vmotive = evaluate(motive, local.vs);
     const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
     return [IndSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
