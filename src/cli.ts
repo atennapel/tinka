@@ -5,6 +5,7 @@ import { parse } from './parser';
 import { elaborate } from './elaboration';
 import { typecheck } from './typecheck';
 import { normalize } from './values';
+import { nil } from './utils/List';
 
 if (process.argv[2]) {
   const option = process.argv[3] || '';
@@ -20,7 +21,7 @@ if (process.argv[2]) {
     console.log(showCore(tm));
     console.log(showCore(ty));
     typecheck(tm);
-    if (!typeOnly) console.log(showCore(normalize(tm)));
+    if (!typeOnly) console.log(showCore(normalize(tm, nil, true)));
   } catch(err) {
     console.error(err);
     process.exit();

@@ -1,0 +1,5 @@
+let fst
+  : {0 A : Type} -> {0 B : A -> Type} -> ((x : A) ** B x) -> A
+  = \{A} {B} s. indSigma (\_. A) s (\x y. x);
+
+fst

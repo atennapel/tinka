@@ -1,0 +1,5 @@
+let add
+  : Nat -> Nat -> Nat
+  = \a b. cataNat {Nat} a b S;
+
+add

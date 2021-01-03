@@ -1,0 +1,5 @@
+let UnitType
+  : Type
+  = {0 A : Type} -> A -> A;
+
+UnitType

@@ -1,0 +1,5 @@
+let Nil
+  : {0 A : Type} -> List A
+  = \{A} {R} nil cons. nil;
+
+Nil

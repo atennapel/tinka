@@ -25,7 +25,7 @@ export const globalSet = (x: string, val: Val, type: Val): void => {
 
 export const globalLoad = (x: string): EntryG | null => {
   if (globals[x]) return globals[x];
-  const sc = loadFileSync(x);
+  const sc = loadFileSync(`lib/${x}`);
   if (sc instanceof Error) return null;
   const e = parse(sc);
   const [tm, ty] = elaborate(e);

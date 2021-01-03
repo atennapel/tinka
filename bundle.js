@@ -405,7 +405,7 @@ exports.globalSet = globalSet;
 const globalLoad = (x) => {
     if (globals[x])
         return globals[x];
-    const sc = utils_1.loadFileSync(x);
+    const sc = utils_1.loadFileSync(`lib/${x}`);
     if (sc instanceof Error)
         return null;
     const e = parser_1.parse(sc);
@@ -971,6 +971,9 @@ const elaboration_1 = require("./elaboration");
 const C = require("./core");
 const typecheck_1 = require("./typecheck");
 const values_1 = require("./values");
+const utils_1 = require("./utils/utils");
+const globals_1 = require("./globals");
+const List_1 = require("./utils/List");
 const help = `
 COMMANDS
 [:help or :h] this help message
@@ -980,6 +983,7 @@ COMMANDS
 [:defs] show definitions
 [:clear] clear definitions
 [:undoDef] undo last def
+[:load name] load a global
 `.trim();
 let showStackTrace = false;
 let defs = [];
@@ -1019,6 +1023,19 @@ const runREPL = (s_, cb) => {
             }
             cb(`no def to undo`);
         }
+        if (s.startsWith(':load')) {
+            const name = `lib/${s.slice(5).trim()}`;
+            utils_1.loadFile(name)
+                .then(sc => {
+                const e = parser_1.parse(sc);
+                const [tm, ty] = elaboration_1.elaborate(e);
+                typecheck_1.typecheck(tm);
+                globals_1.globalSet(name, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil));
+                cb(`loaded ${name}`);
+            })
+                .catch(err => cb('' + err, true));
+            return;
+        }
         let typeOnly = false;
         if (s.startsWith(':type') || s.startsWith(':t')) {
             typeOnly = true;
@@ -1047,7 +1064,7 @@ const runREPL = (s_, cb) => {
         let normstr = '';
         if (!typeOnly) {
             config_1.log(() => 'NORMALIZE');
-            const norm = values_1.normalize(eterm, local.vs);
+            const norm = values_1.normalize(eterm, local.vs, true);
             config_1.log(() => C.show(norm));
             config_1.log(() => surface_1.showCore(norm));
             normstr = `\nnorm: ${surface_1.showCore(norm)}`;
@@ -1068,7 +1085,7 @@ const runREPL = (s_, cb) => {
 };
 exports.runREPL = runREPL;
 
-},{"./config":1,"./core":3,"./elaboration":4,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./values":17}],11:[function(require,module,exports){
+},{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;

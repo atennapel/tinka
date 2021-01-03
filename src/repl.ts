@@ -8,6 +8,9 @@ import { elaborate } from './elaboration';
 import * as C from './core';
 import { typecheck } from './typecheck';
 import { evaluate, normalize } from './values';
+import { loadFile } from './utils/utils';
+import { globalSet } from './globals';
+import { nil } from './utils/List';
 
 const help = `
 COMMANDS
@@ -18,6 +21,7 @@ COMMANDS
 [:defs] show definitions
 [:clear] clear definitions
 [:undoDef] undo last def
+[:load name] load a global
 `.trim();
 
 let showStackTrace = false;
@@ -59,6 +63,19 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       }
       cb(`no def to undo`);
     }
+    if (s.startsWith(':load')) {
+      const name = `lib/${s.slice(5).trim()}`;
+      loadFile(name)
+        .then(sc => {
+          const e = parse(sc);
+          const [tm, ty] = elaborate(e);
+          typecheck(tm);
+          globalSet(name, evaluate(tm, nil), evaluate(ty, nil));
+          cb(`loaded ${name}`);
+        })
+        .catch(err => cb('' + err, true));
+      return;
+    }
     let typeOnly = false;    
     if (s.startsWith(':type') || s.startsWith(':t')) {
       typeOnly = true;
@@ -90,7 +107,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     let normstr = '';
     if (!typeOnly) {
       log(() => 'NORMALIZE');
-      const norm = normalize(eterm, local.vs);
+      const norm = normalize(eterm, local.vs, true);
       log(() => C.show(norm));
       log(() => showCore(norm));
       normstr = `\nnorm: ${showCore(norm)}`;
