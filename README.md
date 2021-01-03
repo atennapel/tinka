@@ -12,7 +12,6 @@ yarn start example.p
 
 ```
 todo:
-- sigma elimination, make motive implicit
 - sigma projections
 - sigma named projections
 - eta law for (some) sigmas

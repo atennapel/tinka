@@ -349,7 +349,7 @@ const synth = (local, tm) => {
         const ty = values_1.VSigma(usage_1.many, '_', ty1, _ => ty2);
         return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), ty, usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
     }
-    if (tm.tag === 'IndSigma') {
+    if (tm.tag === 'IndSigma' && tm.motive) {
         if (!usage_1.sub(usage_1.one, tm.usage))
             return utils_1.terr(`usage must be 1 <= q in sigma induction ${surface_1.show(tm)}: ${tm.usage}`);
         const [scrut, sigma_, u1] = synth(local, tm.scrut);
@@ -877,11 +877,21 @@ const exprs = (ts, br, fromRepl) => {
         else {
             u = usage_1.many;
         }
-        if (ts.length !== 3 + j)
-            return utils_1.serr(`indSigma expects exactly 3 arguments`);
-        const [motive] = expr(ts[j], fromRepl);
-        const [scrut] = expr(ts[j + 1], fromRepl);
-        const [cas] = expr(ts[j + 2], fromRepl);
+        let motive = null;
+        let scrut;
+        const [maybemotive, impl] = expr(ts[j], fromRepl);
+        if (impl) {
+            motive = maybemotive;
+            const [scrut2, impl2] = expr(ts[j + 1], fromRepl);
+            if (impl2)
+                return utils_1.serr(`indSigma scrutinee cannot be implicit`);
+            scrut = scrut2;
+            j++;
+        }
+        else {
+            scrut = maybemotive;
+        }
+        const cas = exprs(ts.slice(j + 1), '(', fromRepl);
         return surface_1.IndSigma(u, motive, scrut, cas);
     }
     const j = ts.findIndex(x => isName(x, '->'));
@@ -1192,7 +1202,7 @@ const show = (t) => {
         return `(${ps.map(exports.show).join(', ')})`;
     }
     if (t.tag === 'IndSigma')
-        return `indSigma ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+        return `indSigma ${t.usage === usage_1.many ? '' : `${t.usage} `}${t.motive ? `{${exports.show(t.motive)}} ` : ''}${showS(t.scrut)} ${showS(t.cas)}`;
     return t;
 };
 exports.show = show;

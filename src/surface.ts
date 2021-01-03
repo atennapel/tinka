@@ -30,8 +30,8 @@ export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly 
 export const Sigma = (usage: Usage, name: Name, type: Surface, body: Surface): Sigma => ({ tag: 'Sigma', usage, name, type, body });
 export interface Pair { readonly tag: 'Pair'; readonly fst: Surface; readonly snd: Surface }
 export const Pair = (fst: Surface, snd: Surface): Pair => ({ tag: 'Pair', fst, snd });
-export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly cas: Surface }
-export const IndSigma = (usage: Usage, motive: Surface, scrut: Surface, cas: Surface): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
+export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Surface | null; readonly scrut: Surface, readonly cas: Surface }
+export const IndSigma = (usage: Usage, motive: Surface | null, scrut: Surface, cas: Surface): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
 
 export const flattenPi = (t: Surface): [[Usage, Mode, Name, Surface][], Surface] => {
   const params: [Usage, Mode, Name, Surface][] = [];
@@ -108,7 +108,7 @@ export const show = (t: Surface): string => {
     return `(${ps.map(show).join(', ')})`;
   }
   if (t.tag === 'IndSigma')
-    return `indSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+    return `indSigma ${t.usage === many ? '' : `${t.usage} `}${t.motive ? `{${show(t.motive)}} ` : ''}${showS(t.scrut)} ${showS(t.cas)}`;
   return t;
 };
 

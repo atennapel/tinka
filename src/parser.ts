@@ -304,10 +304,19 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     let j = 1;
     let u = usage(ts[1]);
     if (u) { j = 2 } else { u = many }
-    if (ts.length !== 3 + j) return serr(`indSigma expects exactly 3 arguments`);
-    const [motive] = expr(ts[j], fromRepl);
-    const [scrut] = expr(ts[j + 1], fromRepl);
-    const [cas] = expr(ts[j + 2], fromRepl);
+    let motive: Surface | null = null;
+    let scrut: Surface;
+    const [maybemotive, impl] = expr(ts[j], fromRepl);
+    if (impl) {
+      motive = maybemotive;
+      const [scrut2, impl2] = expr(ts[j + 1], fromRepl);
+      if (impl2) return serr(`indSigma scrutinee cannot be implicit`);
+      scrut = scrut2;
+      j++;
+    } else {
+      scrut = maybemotive;
+    }
+    const cas = exprs(ts.slice(j + 1), '(', fromRepl);
     return IndSigma(u, motive, scrut, cas);
   }
   const j = ts.findIndex(x => isName(x, '->'));

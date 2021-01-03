@@ -139,7 +139,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const ty = VSigma(many, '_', ty1, _ => ty2);
     return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
   }
-  if (tm.tag === 'IndSigma') {
+  if (tm.tag === 'IndSigma' && tm.motive) {
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)
     const [scrut, sigma_, u1] = synth(local, tm.scrut);
