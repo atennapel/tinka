@@ -1,10 +1,11 @@
 import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, IndSigma } from './core';
+import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
 import { Usage } from './usage';
 import { Lazy } from './utils/Lazy';
 import { cons, List, nil } from './utils/List';
-import { impossible } from './utils/utils';
+import { impossible, terr } from './utils/utils';
 
 export type Head = HVar;
 
@@ -70,7 +71,11 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'Pi')
     return VPi(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Var') return vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
-  if (t.tag === 'Global') return VGlobal(t.name, nil, Lazy.from(() => impossible('globals are not implemented yet'))); // TODO
+  if (t.tag === 'Global') return VGlobal(t.name, nil, Lazy.from(() => {
+    const e = globalLoad(t.name);
+    if (!e) return terr(`failed to load global ${t.name}`);
+    return e.val;
+  }));
   if (t.tag === 'App')
     return vapp(evaluate(t.fn, vs), t.mode, evaluate(t.arg, vs));
   if (t.tag === 'Let')

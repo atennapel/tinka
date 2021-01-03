@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, VSigma, VType, VVar } from './values';
 import { Surface } from './surface';
@@ -8,6 +8,7 @@ import { conv } from './conversion';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
+import { globalLoad } from './globals';
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
@@ -71,8 +72,11 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   if (tm.tag === 'Type') return [Type, VType, noUses(local.level)];
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);
-    if (i < 0) return terr(`undefined var ${tm.name}`);
-    else {
+    if (i < 0) {
+      const e = globalLoad(tm.name);
+      if (!e) return terr(`undefined variable or failed to load global ${tm.name}`);
+      return [Global(tm.name), e.type, noUses(local.level)];
+    } else {
       const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
       const uses = noUses(local.level).updateAt(j, _ => local.usage);
       return [Var(j), entry.type, uses];

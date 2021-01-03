@@ -1,10 +1,11 @@
 import { log } from './config';
 import { conv } from './conversion';
 import { Core, Pi, show } from './core';
+import { globalLoad } from './globals';
 import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from './usage';
-import { impossible, terr, tryT } from './utils/utils';
+import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
@@ -25,7 +26,11 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const uses = noUses(local.level).updateAt(j, _ => local.usage);
     return [entry.type, uses];
   }
-  if (tm.tag === 'Global') return impossible('Globals are unimplemented'); // TODO
+  if (tm.tag === 'Global') {
+    const e = globalLoad(tm.name);
+    if (!e) return terr(`undefined global or failed to load global ${tm.name}`);
+    return [e.type, noUses(local.level)];
+  }
   if (tm.tag === 'App') {
     const [fnty, fnu] = synth(local, tm.fn);
     const [rty, argu] = synthapp(local, fnty, tm.mode, tm.arg);

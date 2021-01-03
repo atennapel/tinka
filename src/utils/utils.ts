@@ -23,6 +23,18 @@ export const loadFile = (fn: string): Promise<string> => {
   }
 };
 
+export const loadFileSync = (fn: string): string | Error => {
+  if (typeof window === 'undefined') {
+    try {
+      return require('fs').readFileSync(fn, 'utf8');
+    } catch (err) {
+      return err;
+    }
+  } else {
+    return new Error(`cannot synchronously retrieve file in browser: ${fn}`);
+  }
+};
+
 export const range = (n: number): number[] => {
   const a = Array(n);
   for (let i = 0; i < n; i++) a[i] = i;
