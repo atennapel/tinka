@@ -95,7 +95,7 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global';
+const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj';
 const showS = (t: Core) => showP(!isSimple(t), t);
 export const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';

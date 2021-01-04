@@ -90,7 +90,7 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var';
+const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj';
 const showS = (t: Surface) => showP(!isSimple(t), t);
 export const show = (t: Surface): string => {
   if (t.tag === 'Type') return 'Type';

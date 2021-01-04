@@ -189,6 +189,10 @@ const proj = (p: string): ProjType => {
   if (p === '_2') return PSnd;
   return serr(`invalid projection: ${p}`);
 };
+const projs = (ps: string): ProjType[] => {
+  const parts = ps.split('.');
+  return parts.map(proj);
+};
 
 const expr = (t: Token, fromRepl: boolean): [Surface, boolean] => {
   if (t.tag === 'List')
@@ -204,8 +208,12 @@ const expr = (t: Token, fromRepl: boolean): [Surface, boolean] => {
     if (x === 'Type') return [Type, false];
     if (x === '*') return [Var('Unit'), false];
     if (/[a-z]/i.test(x[0])) {
-      const parts = x.split('.');
-      return [parts.slice(1).reduce((t, p) => Proj(t, proj(p)), Var(parts[0]) as Surface), false];
+      if (x.indexOf('.') >= 0) {
+        const parts = x.split('.');
+        const first = parts[0];
+        const ps = projs(parts.slice(1).join('.'));
+        return [ps.reduce((t, p) => Proj(t, p), Var(first) as Surface), false];
+      } else return [Var(x), false];
     }
     return serr(`invalid name: ${x}`);
   }
@@ -372,17 +380,29 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     }, body);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
-  let all = [];
+  let all: AppPart[] = [];
   if (l >= 0) {
-    const first = ts.slice(0, l).map(t => expr(t, fromRepl));
+    const first = ts.slice(0, l).map(t => appPart(t, fromRepl));
     const rest = exprs(ts.slice(l), '(', fromRepl);
-    all = first.concat([[rest, false]]);
+    all = first.concat([{ tag: 'Expr', expr: rest, impl: false }]);
   } else {
-    all = ts.map(t => expr(t, fromRepl));
+    all = ts.map(t => appPart(t, fromRepl));
   }
   if (all.length === 0) return serr(`empty application`);
-  if (all[0] && all[0][1]) return serr(`in application function cannot be between {}`);
-  return all.slice(1).reduce((x, [y, impl]) => App(x, impl ? Impl : Expl, y), all[0][0]);
+  const hd = all[0];
+  if (hd.tag === 'Expr' && hd.impl) return serr(`in application function cannot be between {}`);
+  if (hd.tag === 'Proj') return serr(`in application function cannot be a projection`);
+  return all.slice(1).reduce((x, a) => {
+    if (a.tag === 'Proj') return a.proj.reduce((t, p) => Proj(t, p), x as Surface);
+    return App(x, a.impl ? Impl : Expl, a.expr)
+  }, hd.expr);
+};
+
+type AppPart = { tag: 'Expr', expr: Surface, impl: boolean } | { tag: 'Proj', proj: ProjType[] };
+const appPart = (t: Token, fromRepl: boolean): AppPart => {
+  if (t.tag === 'Name' && t.name[0] === '.') return { tag: 'Proj', proj: projs(t.name.slice(1)) };
+  const [ex, impl] = expr(t, fromRepl);
+  return { tag: 'Expr', expr: ex, impl };
 };
 
 export const parse = (s: string, fromRepl: boolean = false): Surface => {

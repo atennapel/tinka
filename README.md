@@ -12,7 +12,6 @@ yarn start example.p
 
 ```
 todo:
-- parser: projections on arbitrary expressions
 - sigma named projections
 - sigma indexed projections
 - local glued values
@@ -20,6 +19,7 @@ todo:
 - elaboration with metas
 - importing
 - add primitives: void, unit, bool
+- rewrite parser, include locations
 ```
 
 ```

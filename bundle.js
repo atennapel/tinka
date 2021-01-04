@@ -190,7 +190,7 @@ const flattenProj = (t) => {
 };
 exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
-const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global';
+const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj';
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -780,6 +780,10 @@ const proj = (p) => {
         return core_1.PSnd;
     return utils_1.serr(`invalid projection: ${p}`);
 };
+const projs = (ps) => {
+    const parts = ps.split('.');
+    return parts.map(proj);
+};
 const expr = (t, fromRepl) => {
     if (t.tag === 'List')
         return [exprs(t.list, '(', fromRepl), t.bracket === '{'];
@@ -796,8 +800,14 @@ const expr = (t, fromRepl) => {
         if (x === '*')
             return [surface_1.Var('Unit'), false];
         if (/[a-z]/i.test(x[0])) {
-            const parts = x.split('.');
-            return [parts.slice(1).reduce((t, p) => surface_1.Proj(t, proj(p)), surface_1.Var(parts[0])), false];
+            if (x.indexOf('.') >= 0) {
+                const parts = x.split('.');
+                const first = parts[0];
+                const ps = projs(parts.slice(1).join('.'));
+                return [ps.reduce((t, p) => surface_1.Proj(t, p), surface_1.Var(first)), false];
+            }
+            else
+                return [surface_1.Var(x), false];
         }
         return utils_1.serr(`invalid name: ${x}`);
     }
@@ -1002,18 +1012,31 @@ const exprs = (ts, br, fromRepl) => {
     const l = ts.findIndex(x => isName(x, '\\'));
     let all = [];
     if (l >= 0) {
-        const first = ts.slice(0, l).map(t => expr(t, fromRepl));
+        const first = ts.slice(0, l).map(t => appPart(t, fromRepl));
         const rest = exprs(ts.slice(l), '(', fromRepl);
-        all = first.concat([[rest, false]]);
+        all = first.concat([{ tag: 'Expr', expr: rest, impl: false }]);
     }
     else {
-        all = ts.map(t => expr(t, fromRepl));
+        all = ts.map(t => appPart(t, fromRepl));
     }
     if (all.length === 0)
         return utils_1.serr(`empty application`);
-    if (all[0] && all[0][1])
+    const hd = all[0];
+    if (hd.tag === 'Expr' && hd.impl)
         return utils_1.serr(`in application function cannot be between {}`);
-    return all.slice(1).reduce((x, [y, impl]) => surface_1.App(x, impl ? mode_1.Impl : mode_1.Expl, y), all[0][0]);
+    if (hd.tag === 'Proj')
+        return utils_1.serr(`in application function cannot be a projection`);
+    return all.slice(1).reduce((x, a) => {
+        if (a.tag === 'Proj')
+            return a.proj.reduce((t, p) => surface_1.Proj(t, p), x);
+        return surface_1.App(x, a.impl ? mode_1.Impl : mode_1.Expl, a.expr);
+    }, hd.expr);
+};
+const appPart = (t, fromRepl) => {
+    if (t.tag === 'Name' && t.name[0] === '.')
+        return { tag: 'Proj', proj: projs(t.name.slice(1)) };
+    const [ex, impl] = expr(t, fromRepl);
+    return { tag: 'Expr', expr: ex, impl };
 };
 const parse = (s, fromRepl = false) => {
     config_1.log(() => `parse ${s}`);
@@ -1241,7 +1264,7 @@ const flattenProj = (t) => {
 };
 exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
-const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var';
+const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj';
 const showS = (t) => showP(!isSimple(t), t);
 const show = (t) => {
     if (t.tag === 'Type')
