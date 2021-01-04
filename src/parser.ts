@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, IndSigma, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Type, Var } from './surface';
+import { Abs, App, Import, IndSigma, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -305,18 +305,21 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     if (!ts[1]) return serr(`import needs a term`);
     const [term, i] = expr(ts[1], fromRepl);
     if (i) return serr(`import term cannot be implicit`);
-    if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(') return serr(`import needs a list`);
-    const imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
-      if (ts.length === 0) return null;
-      if (ts.length > 1) return serr(`import list must only contain variables`);
-      if (ts[0].tag !== 'Name') return serr(`import list must only contain variables`);
-      return ts[0].name;
-    }).filter(Boolean) as string[];
-    if (!isName(ts[3], ';')) return serr(`expected ; after import list`);
-    const body = exprs(ts.slice(4), '(', fromRepl);
-    const vr = '$import';
-    const vvr = Var(vr);
-    return Let(many, vr, null, term, imports.reduceRight((e, s) => Let(many, s, null, Proj(vvr, PName(s)), e), body));
+    let j = 3;
+    let imports: string[] | null = null;
+    if (!(ts[2] && isName(ts[2], ';'))) {
+      if (ts[2].tag !== 'List' || ts[2].bracket !== '(') return serr(`import needs a list`);
+      imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
+        if (ts.length === 0) return null;
+        if (ts.length > 1) return serr(`import list must only contain variables`);
+        if (ts[0].tag !== 'Name') return serr(`import list must only contain variables`);
+        return ts[0].name;
+      }).filter(Boolean) as string[];
+      if (!isName(ts[3], ';')) return serr(`expected ; after import list`);
+      j++;
+    }
+    const body = exprs(ts.slice(j), '(', fromRepl);
+    return Import(term, imports, body);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {

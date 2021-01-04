@@ -275,6 +275,7 @@ const core_1 = require("./core");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
 const surface_1 = require("./surface");
+const S = require("./surface");
 const conversion_1 = require("./conversion");
 const usage_1 = require("./usage");
 const local_1 = require("./local");
@@ -318,10 +319,10 @@ const check = (local, tm, ty_) => {
         if (tm.type) {
             [vtype] = check(local.inType(), tm.type, values_1.VType);
             vty = values_1.evaluate(vtype, local.vs);
-            [val, uv] = check(local, tm.val, ty);
+            [val, uv] = check(tm.usage === usage_1.zero ? local.inType() : local, tm.val, ty);
         }
         else {
-            [val, vty, uv] = synth(local, tm.val);
+            [val, vty, uv] = synth(tm.usage === usage_1.zero ? local.inType() : local, tm.val);
             vtype = values_1.quote(vty, local.level);
         }
         const v = values_1.evaluate(val, local.vs);
@@ -390,10 +391,10 @@ const synth = (local, tm) => {
         if (tm.type) {
             [type] = check(local.inType(), tm.type, values_1.VType);
             ty = values_1.evaluate(type, local.vs);
-            [val, uv] = check(local, tm.val, ty);
+            [val, uv] = check(tm.usage === usage_1.zero ? local.inType() : local, tm.val, ty);
         }
         else {
-            [val, ty, uv] = synth(local, tm.val);
+            [val, ty, uv] = synth(tm.usage === usage_1.zero ? local.inType() : local, tm.val);
             type = values_1.quote(ty, local.level);
         }
         const v = values_1.evaluate(val, local.vs);
@@ -429,7 +430,7 @@ const synth = (local, tm) => {
         return [core_1.IndSigma(tm.usage, motive, scrut, cas), values_1.vapp(vmotive, mode_1.Expl, values_1.evaluate(scrut, local.vs)), usage_1.multiplyUses(tm.usage, usage_1.addUses(u1, u2))];
     }
     if (tm.tag === 'Proj') {
-        const [term, sigma_, u1] = synth(local, tm.term);
+        const [term, sigma_, u] = synth(local, tm.term);
         if (tm.proj.tag === 'PProj') {
             const sigma = values_1.force(sigma_);
             if (sigma.tag !== 'VSigma')
@@ -437,16 +438,42 @@ const synth = (local, tm) => {
             if (local.usage === usage_1.one && (sigma.usage === usage_1.one || (sigma.usage === usage_1.zero && tm.proj.proj === 'fst')))
                 return utils_1.terr(`cannot project ${surface_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
             const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
-            return [core_1.Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(term, local.vs), fst)), u1];
+            return [core_1.Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(term, local.vs), fst)), u];
         }
         else if (tm.proj.tag === 'PName') {
             const [ty, ix] = projectName(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.name, 0);
-            return [core_1.Proj(term, core_1.PIndex(tm.proj.name, ix)), ty, u1];
+            return [core_1.Proj(term, core_1.PIndex(tm.proj.name, ix)), ty, u];
         }
         else
-            return [core_1.Proj(term, core_1.PIndex(null, tm.proj.index)), projectIndex(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.index), u1];
+            return [core_1.Proj(term, core_1.PIndex(null, tm.proj.index)), projectIndex(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.index), u];
+    }
+    if (tm.tag === 'Import') {
+        const [, sigma_,] = synth(local, tm.term);
+        const sigma = values_1.force(sigma_);
+        if (sigma.tag !== 'VSigma')
+            return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+        const [imports, all] = getAllNamesFromSigma(local.level, sigma, tm.imports);
+        if (tm.imports)
+            for (const i of tm.imports)
+                if (!all.includes(i))
+                    return utils_1.terr(`import includes name not included in module (${i}) in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+        const v = '$import';
+        const vv = tm.term.tag === 'Var' ? tm.term : S.Var(v);
+        const lets = imports.reduceRight((t, [x, u]) => S.Let(u, x, null, S.Proj(vv, S.PName(x)), t), tm.body);
+        const lets2 = tm.term.tag === 'Var' ? lets : S.Let(usage_1.many, v, null, tm.term, lets);
+        return synth(local, lets2); // TODO: improve this elaboration
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
+};
+const getAllNamesFromSigma = (k, ty_, ns, a = [], all = []) => {
+    const ty = values_1.force(ty_);
+    if (ty.tag === 'VSigma') {
+        if (!ns || ns.includes(ty.name))
+            a.push([ty.name, ty.usage]);
+        all.push(ty.name);
+        return getAllNamesFromSigma(k + 1, values_1.vinst(ty, values_1.VVar(k)), ns, a, all);
+    }
+    return [a, all];
 };
 const projectIndex = (local, full, tm, ty_, index) => {
     const ty = values_1.force(ty_);
@@ -988,23 +1015,26 @@ const exprs = (ts, br, fromRepl) => {
         const [term, i] = expr(ts[1], fromRepl);
         if (i)
             return utils_1.serr(`import term cannot be implicit`);
-        if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(')
-            return utils_1.serr(`import needs a list`);
-        const imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
-            if (ts.length === 0)
-                return null;
-            if (ts.length > 1)
-                return utils_1.serr(`import list must only contain variables`);
-            if (ts[0].tag !== 'Name')
-                return utils_1.serr(`import list must only contain variables`);
-            return ts[0].name;
-        }).filter(Boolean);
-        if (!isName(ts[3], ';'))
-            return utils_1.serr(`expected ; after import list`);
-        const body = exprs(ts.slice(4), '(', fromRepl);
-        const vr = '$import';
-        const vvr = surface_1.Var(vr);
-        return surface_1.Let(usage_1.many, vr, null, term, imports.reduceRight((e, s) => surface_1.Let(usage_1.many, s, null, surface_1.Proj(vvr, surface_1.PName(s)), e), body));
+        let j = 3;
+        let imports = null;
+        if (!(ts[2] && isName(ts[2], ';'))) {
+            if (ts[2].tag !== 'List' || ts[2].bracket !== '(')
+                return utils_1.serr(`import needs a list`);
+            imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
+                if (ts.length === 0)
+                    return null;
+                if (ts.length > 1)
+                    return utils_1.serr(`import list must only contain variables`);
+                if (ts[0].tag !== 'Name')
+                    return utils_1.serr(`import list must only contain variables`);
+                return ts[0].name;
+            }).filter(Boolean);
+            if (!isName(ts[3], ';'))
+                return utils_1.serr(`expected ; after import list`);
+            j++;
+        }
+        const body = exprs(ts.slice(j), '(', fromRepl);
+        return surface_1.Import(term, imports, body);
     }
     const i = ts.findIndex(x => isName(x, ':'));
     if (i >= 0) {
@@ -1272,7 +1302,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Import = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1297,6 +1327,8 @@ const IndSigma = (usage, motive, scrut, cas) => ({ tag: 'IndSigma', usage, motiv
 exports.IndSigma = IndSigma;
 const Proj = (term, proj) => ({ tag: 'Proj', term, proj });
 exports.Proj = Proj;
+const Import = (term, imports, body) => ({ tag: 'Import', term, imports, body });
+exports.Import = Import;
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -1395,6 +1427,8 @@ const show = (t) => {
     }
     if (t.tag === 'Let')
         return `let ${t.usage === usage_1.many ? '' : `${t.usage} `}${t.name}${t.type ? ` : ${showP(t.type.tag === 'Let', t.type)}` : ''} = ${showP(t.val.tag === 'Let', t.val)}; ${exports.show(t.body)}`;
+    if (t.tag === 'Import')
+        return `import ${showS(t.term)}${t.imports ? ` (${t.imports.join(', ')})` : ''}; ${exports.show(t.body)}`;
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
         return `${params.map(([u, x, t]) => u === usage_1.many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
@@ -1513,7 +1547,7 @@ const synth = (local, tm) => {
     if (tm.tag === 'Let') {
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
-        const uv = check(local, tm.val, ty);
+        const uv = check(tm.usage === usage_1.zero ? local.inType() : local, tm.val, ty);
         const v = values_1.evaluate(tm.val, local.vs);
         const [rty, ub] = synth(local.define(tm.usage, tm.name, ty, v), tm.body);
         const [ux, urest] = ub.uncons();
@@ -1559,7 +1593,7 @@ const synth = (local, tm) => {
         return [values_1.vapp(motive, mode_1.Expl, values_1.evaluate(tm.scrut, local.vs)), usage_1.multiplyUses(tm.usage, usage_1.addUses(u1, u2))];
     }
     if (tm.tag === 'Proj') {
-        const [sigma_, u1] = synth(local, tm.term);
+        const [sigma_, u] = synth(local, tm.term);
         if (tm.proj.tag === 'PProj') {
             const sigma = values_1.force(sigma_);
             if (sigma.tag !== 'VSigma')
@@ -1567,10 +1601,10 @@ const synth = (local, tm) => {
             if (local.usage === usage_1.one && (sigma.usage === usage_1.one || (sigma.usage === usage_1.zero && tm.proj.proj === 'fst')))
                 return utils_1.terr(`cannot project ${core_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
             const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
-            return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), fst)), u1];
+            return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), fst)), u];
         }
         else
-            return [project(local, tm, values_1.evaluate(tm.term, local.vs), sigma_, tm.proj.index), u1];
+            return [project(local, tm, values_1.evaluate(tm.term, local.vs), sigma_, tm.proj.index), u];
     }
     return tm;
 };

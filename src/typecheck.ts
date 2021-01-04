@@ -57,7 +57,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   if (tm.tag === 'Let') {
     check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
-    const uv = check(local, tm.val, ty);
+    const uv = check(tm.usage === zero ? local.inType() : local, tm.val, ty);
     const v = evaluate(tm.val, local.vs);
     const [rty, ub] = synth(local.define(tm.usage, tm.name, ty, v), tm.body);
     const [ux, urest] = ub.uncons();
@@ -101,15 +101,15 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     return [vapp(motive, Expl, evaluate(tm.scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
   }
   if (tm.tag === 'Proj') {
-    const [sigma_, u1] = synth(local, tm.term);
+    const [sigma_, u] = synth(local, tm.term);
     if (tm.proj.tag === 'PProj') {
       const sigma = force(sigma_);
       if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
       if (local.usage === one && (sigma.usage === one || (sigma.usage === zero && tm.proj.proj === 'fst')))
         return terr(`cannot project ${show(tm)}, usage must be * or 0 with a second projection: ${showVal(local, sigma_)}`);
       const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
-      return [tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(tm.term, local.vs), fst)), u1];
-    } else return [project(local, tm, evaluate(tm.term, local.vs), sigma_, tm.proj.index), u1];
+      return [tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(tm.term, local.vs), fst)), u];
+    } else return [project(local, tm, evaluate(tm.term, local.vs), sigma_, tm.proj.index), u];
   }
   return tm;
 };

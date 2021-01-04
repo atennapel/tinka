@@ -2,14 +2,14 @@ import { log } from './config';
 import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VSigma, VType, VVar } from './values';
-import { Surface } from './surface';
-import { show } from './surface';
+import { Surface, show } from './surface';
+import * as S from './surface';
 import { conv } from './conversion';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
+import { addUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { globalLoad } from './globals';
-import { Ix, Name } from './names';
+import { Ix, Lvl, Name } from './names';
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
@@ -48,9 +48,9 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
     if (tm.type) {
       [vtype] = check(local.inType(), tm.type, VType);
       vty = evaluate(vtype, local.vs);
-      [val, uv] = check(local, tm.val, ty);
+      [val, uv] = check(tm.usage === zero ? local.inType() : local, tm.val, ty);
     } else {
-      [val, vty, uv] = synth(local, tm.val);
+      [val, vty, uv] = synth(tm.usage === zero ? local.inType() : local, tm.val);
       vtype = quote(vty, local.level);
     }
     const v = evaluate(val, local.vs);
@@ -115,9 +115,9 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     if (tm.type) {
       [type] = check(local.inType(), tm.type, VType);
       ty = evaluate(type, local.vs);
-      [val, uv] = check(local, tm.val, ty);
+      [val, uv] = check(tm.usage === zero ? local.inType() : local, tm.val, ty);
     } else {
-      [val, ty, uv] = synth(local, tm.val);
+      [val, ty, uv] = synth(tm.usage === zero ? local.inType() : local, tm.val);
       type = quote(ty, local.level);
     }
     const v = evaluate(val, local.vs);
@@ -152,20 +152,43 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     return [IndSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
   }
   if (tm.tag === 'Proj') {
-    const [term, sigma_, u1] = synth(local, tm.term);
+    const [term, sigma_, u] = synth(local, tm.term);
     if (tm.proj.tag === 'PProj') {
       const sigma = force(sigma_);
       if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
       if (local.usage === one && (sigma.usage === one || (sigma.usage === zero && tm.proj.proj === 'fst')))
         return terr(`cannot project ${show(tm)}, usage must be * or 0 with a second projection: ${showVal(local, sigma_)}`);
       const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
-      return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), fst)), u1];
+      return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), fst)), u];
     } else if (tm.proj.tag === 'PName') {
       const [ty, ix] = projectName(local, tm, evaluate(term, local.vs), sigma_, tm.proj.name, 0);
-      return [Proj(term, PIndex(tm.proj.name, ix)), ty, u1];
-    } else return [Proj(term, PIndex(null, tm.proj.index)), projectIndex(local, tm, evaluate(term, local.vs), sigma_, tm.proj.index), u1];
+      return [Proj(term, PIndex(tm.proj.name, ix)), ty, u];
+    } else return [Proj(term, PIndex(null, tm.proj.index)), projectIndex(local, tm, evaluate(term, local.vs), sigma_, tm.proj.index), u];
+  }
+  if (tm.tag === 'Import') {
+    const [, sigma_,] = synth(local, tm.term);
+    const sigma = force(sigma_);
+    if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+    const [imports, all] = getAllNamesFromSigma(local.level, sigma, tm.imports);
+    if (tm.imports) for (const i of tm.imports) if (!all.includes(i))
+       return terr(`import includes name not included in module (${i}) in ${show(tm)}: ${showVal(local, sigma_)}`);
+    const v = '$import';
+    const vv = tm.term.tag === 'Var' ? tm.term : S.Var(v);
+    const lets = imports.reduceRight((t, [x, u]) => S.Let(u, x, null, S.Proj(vv, S.PName(x)), t), tm.body);
+    const lets2 = tm.term.tag === 'Var' ? lets : S.Let(many, v, null, tm.term, lets);
+    return synth(local, lets2); // TODO: improve this elaboration
   }
   return terr(`unable to synth ${show(tm)}`);
+};
+
+const getAllNamesFromSigma = (k: Lvl, ty_: Val, ns: string[] | null, a: [string, Usage][] = [], all: string[] = []): [[string, Usage][], string[]] => {
+  const ty = force(ty_);
+  if (ty.tag === 'VSigma') {
+    if (!ns || ns.includes(ty.name)) a.push([ty.name, ty.usage]);
+    all.push(ty.name);
+    return getAllNamesFromSigma(k + 1, vinst(ty, VVar(k)), ns, a, all);
+  }
+  return [a, all];
 };
 
 const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix): Val => {

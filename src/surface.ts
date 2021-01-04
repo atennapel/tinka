@@ -7,7 +7,7 @@ import { impossible } from './utils/utils';
 import { quote, Val } from './values';
 
 export type Surface =
-  Var | Let |
+  Var | Let | Import |
   Type |
   Pi | Abs | App |
   Sigma | Pair | IndSigma | Proj;
@@ -34,6 +34,8 @@ export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; rea
 export const IndSigma = (usage: Usage, motive: Surface | null, scrut: Surface, cas: Surface): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
 export interface Proj { readonly tag: 'Proj'; readonly term: Surface; readonly proj: ProjType }
 export const Proj = (term: Surface, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
+export interface Import { readonly tag: 'Import'; readonly term: Surface; readonly imports: string[] | null; readonly body: Surface }
+export const Import = (term: Surface, imports: string[] | null, body: Surface): Import => ({ tag: 'Import', term, imports, body });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -126,6 +128,8 @@ export const show = (t: Surface): string => {
   }
   if (t.tag === 'Let')
     return `let ${t.usage === many ? '' : `${t.usage} `}${t.name}${t.type ? ` : ${showP(t.type.tag === 'Let', t.type)}` : ''} = ${showP(t.val.tag === 'Let', t.val)}; ${show(t.body)}`;
+  if (t.tag === 'Import')
+    return `import ${showS(t.term)}${t.imports ? ` (${t.imports.join(', ')})` : ''}; ${show(t.body)}`
   if (t.tag === 'Sigma') {
     const [params, ret] = flattenSigma(t);
     return `${params.map(([u, x, t]) => u === many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === many ? '' : `${u} `}${x} : ${show(t)})`).join(' ** ')} ** ${show(ret)}`;
