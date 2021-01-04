@@ -321,12 +321,6 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     const body = exprs(ts.slice(j), '(', fromRepl);
     return Import(term, imports, body);
   }
-  const i = ts.findIndex(x => isName(x, ':'));
-  if (i >= 0) {
-    const a = ts.slice(0, i);
-    const b = ts.slice(i + 1);
-    return Let(many, 'x', exprs(b, '(', fromRepl), exprs(a, '(', fromRepl), Var('x'));
-  }
   if (isName(ts[0], '\\')) {
     const args: [Usage, Name, Mode, Surface | null][] = [];
     let found = false;
@@ -361,6 +355,12 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     }
     const cas = exprs(ts.slice(j + 1), '(', fromRepl);
     return IndSigma(u, motive, scrut, cas);
+  }
+  const i = ts.findIndex(x => isName(x, ':'));
+  if (i >= 0) {
+    const a = ts.slice(0, i);
+    const b = ts.slice(i + 1);
+    return Let(many, 'x', exprs(b, '(', fromRepl), exprs(a, '(', fromRepl), Var('x'));
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {

@@ -1036,12 +1036,6 @@ const exprs = (ts, br, fromRepl) => {
         const body = exprs(ts.slice(j), '(', fromRepl);
         return surface_1.Import(term, imports, body);
     }
-    const i = ts.findIndex(x => isName(x, ':'));
-    if (i >= 0) {
-        const a = ts.slice(0, i);
-        const b = ts.slice(i + 1);
-        return surface_1.Let(usage_1.many, 'x', exprs(b, '(', fromRepl), exprs(a, '(', fromRepl), surface_1.Var('x'));
-    }
     if (isName(ts[0], '\\')) {
         const args = [];
         let found = false;
@@ -1084,6 +1078,12 @@ const exprs = (ts, br, fromRepl) => {
         }
         const cas = exprs(ts.slice(j + 1), '(', fromRepl);
         return surface_1.IndSigma(u, motive, scrut, cas);
+    }
+    const i = ts.findIndex(x => isName(x, ':'));
+    if (i >= 0) {
+        const a = ts.slice(0, i);
+        const b = ts.slice(i + 1);
+        return surface_1.Let(usage_1.many, 'x', exprs(b, '(', fromRepl), exprs(a, '(', fromRepl), surface_1.Var('x'));
     }
     const j = ts.findIndex(x => isName(x, '->'));
     if (j >= 0) {
