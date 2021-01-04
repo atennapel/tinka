@@ -12,12 +12,17 @@ yarn start example.p
 
 ```
 todo:
-- sigma projections
+- parser: projections on arbitrary expressions
 - sigma named projections
-- eta law for (some) sigmas
+- sigma indexed projections
+- local glued values
 - metas
 - elaboration with metas
-- local glued values
 - importing
 - add primitives: void, unit, bool
+```
+
+```
+questions:
+- is eta-law for sigmas consistent for linear/erased sigmas?
 ```

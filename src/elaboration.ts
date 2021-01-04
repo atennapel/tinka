@@ -1,7 +1,7 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VSigma, VType, VVar } from './values';
 import { Surface } from './surface';
 import { show } from './surface';
 import { conv } from './conversion';
@@ -149,6 +149,14 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const vmotive = evaluate(motive, local.vs);
     const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
     return [IndSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'Proj') {
+    const [term, sigma_, u1] = synth(local, tm.term);
+    const sigma = force(sigma_);
+    if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+    if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+      return terr(`cannot project ${show(tm)}, usage must be *: ${showVal(local, sigma_)}`);
+    return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), 'fst')), u1];
   }
   return terr(`unable to synth ${show(tm)}`);
 };

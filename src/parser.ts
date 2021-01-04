@@ -1,7 +1,8 @@
 import { log } from './config';
+import { PFst, ProjType, PSnd } from './core';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, IndSigma, Let, Pair, Pi, show, Sigma, Surface, Type, Var } from './surface';
+import { Abs, App, IndSigma, Let, Pair, Pi, Proj, show, Sigma, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -62,7 +63,7 @@ const tokenize = (sc: string): Token[] => {
       else if (/\s/.test(c)) continue;
       else return serr(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
-      if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9]/i.test(next)))) {
+      if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9\_]/i.test(next)))) {
         r.push(TName(t));
         t = '', i--, state = START;
       } else t += c;
@@ -183,6 +184,12 @@ const numToNat = (n: number, orig: string): Surface => {
   return c;
 };
 
+const proj = (p: string): ProjType => {
+  if (p === '_1') return PFst;
+  if (p === '_2') return PSnd;
+  return serr(`invalid projection: ${p}`);
+};
+
 const expr = (t: Token, fromRepl: boolean): [Surface, boolean] => {
   if (t.tag === 'List')
     return [exprs(t.list, '(', fromRepl), t.bracket === '{'];
@@ -196,7 +203,10 @@ const expr = (t: Token, fromRepl: boolean): [Surface, boolean] => {
     const x = t.name;
     if (x === 'Type') return [Type, false];
     if (x === '*') return [Var('Unit'), false];
-    if (/[a-z]/i.test(x[0])) return [Var(x), false];
+    if (/[a-z]/i.test(x[0])) {
+      const parts = x.split('.');
+      return [parts.slice(1).reduce((t, p) => Proj(t, proj(p)), Var(parts[0]) as Surface), false];
+    }
     return serr(`invalid name: ${x}`);
   }
   if (t.tag === 'Num') {

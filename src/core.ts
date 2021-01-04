@@ -6,7 +6,7 @@ export type Core =
   Var | Global | Let |
   Type |
   Pi | Abs | App |
-  Sigma | Pair | IndSigma;
+  Sigma | Pair | IndSigma | Proj;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -30,6 +30,15 @@ export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: 
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
 export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
 export const IndSigma = (usage: Usage, motive: Core, scrut: Core, cas: Core): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
+export interface Proj { readonly tag: 'Proj'; readonly term: Core; readonly proj: ProjType }
+export const Proj = (term: Core, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
+
+export type ProjType = PProj;
+
+export interface PProj { readonly tag: 'PProj'; readonly proj: 'fst' | 'snd' }
+export const PProj = (proj: 'fst' | 'snd'): PProj => ({ tag: 'PProj', proj });
+export const PFst = PProj('fst');
+export const PSnd = PProj('snd');
 
 export const flattenPi = (t: Core): [[Usage, Mode, Name, Core][], Core] => {
   const params: [Usage, Mode, Name, Core][] = [];
@@ -76,10 +85,22 @@ export const flattenPair = (t: Core): Core[] => {
   r.push(t);
   return r;
 };
+export const flattenProj = (t: Core): [Core, ProjType[]] => {
+  const r: ProjType[] = [];
+  while (t.tag === 'Proj') {
+    r.push(t.proj);
+    t = t.term;
+  }
+  return [t, r.reverse()];
+};
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global';
 const showS = (t: Core) => showP(!isSimple(t), t);
+export const showProjType = (p: ProjType): string => {
+  if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
+  return p.tag;
+};
 export const show = (t: Core): string => {
   if (t.tag === 'Type') return 'Type';
   if (t.tag === 'Var') return `${t.index}`;
@@ -108,5 +129,9 @@ export const show = (t: Core): string => {
   }
   if (t.tag === 'IndSigma')
     return `indSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'Proj') {
+    const [hd, ps] = flattenProj(t);
+    return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
+  }
   return t;
 };

@@ -2,7 +2,7 @@ import { log } from './config';
 import { eqMode } from './mode';
 import { Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Elim, Head, Val, show, VVar, vinst, vapp } from './values';
+import { Elim, Head, Val, show, VVar, vinst, vapp, vproj } from './values';
 
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
@@ -16,6 +16,7 @@ const convElim = (k: Lvl, a: Elim, b: Elim, x: Val, y: Val): void => {
     conv(k, a.motive, b.motive);
     return conv(k, a.cas, b.cas);
   }
+  if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
   return terr(`conv failed (${k}): ${show(x, k)} ~ ${show(y, k)}`);
 };
 export const conv = (k: Lvl, a: Val, b: Val): void => {
@@ -47,6 +48,18 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   if (b.tag === 'VAbs') {
     const v = VVar(k);
     return conv(k + 1, vapp(a, b.mode, v), vinst(b, v));
+  }
+
+  // TODO: is this correct for linear/erased sigmas?
+  if (a.tag === 'VPair') {
+    conv(k, a.fst, vproj(b, 'fst'));
+    conv(k, a.snd, vproj(b, 'snd'));
+    return;
+  }
+  if (b.tag === 'VPair') {
+    conv(k, vproj(a, 'fst'), b.fst);
+    conv(k, vproj(a, 'snd'), b.snd);
+    return;
   }
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))

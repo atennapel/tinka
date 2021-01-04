@@ -1,4 +1,4 @@
-import { Core } from './core';
+import { Core, ProjType, showProjType } from './core';
 import { Mode } from './mode';
 import { chooseName, Lvl, Name } from './names';
 import { many, Usage } from './usage';
@@ -10,7 +10,7 @@ export type Surface =
   Var | Let |
   Type |
   Pi | Abs | App |
-  Sigma | Pair | IndSigma;
+  Sigma | Pair | IndSigma | Proj;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -32,6 +32,8 @@ export interface Pair { readonly tag: 'Pair'; readonly fst: Surface; readonly sn
 export const Pair = (fst: Surface, snd: Surface): Pair => ({ tag: 'Pair', fst, snd });
 export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Surface | null; readonly scrut: Surface, readonly cas: Surface }
 export const IndSigma = (usage: Usage, motive: Surface | null, scrut: Surface, cas: Surface): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
+export interface Proj { readonly tag: 'Proj'; readonly term: Surface; readonly proj: ProjType }
+export const Proj = (term: Surface, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
 
 export const flattenPi = (t: Surface): [[Usage, Mode, Name, Surface][], Surface] => {
   const params: [Usage, Mode, Name, Surface][] = [];
@@ -78,6 +80,14 @@ export const flattenPair = (t: Surface): Surface[] => {
   r.push(t);
   return r;
 };
+export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
+  const r: ProjType[] = [];
+  while (t.tag === 'Proj') {
+    r.push(t.proj);
+    t = t.term;
+  }
+  return [t, r.reverse()];
+};
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var';
@@ -109,6 +119,10 @@ export const show = (t: Surface): string => {
   }
   if (t.tag === 'IndSigma')
     return `indSigma ${t.usage === many ? '' : `${t.usage} `}${t.motive ? `{${show(t.motive)}} ` : ''}${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'Proj') {
+    const [hd, ps] = flattenProj(t);
+    return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
+  }
   return t;
 };
 
@@ -135,6 +149,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   }
   if (t.tag === 'Pair') return Pair(fromCore(t.fst, ns), fromCore(t.snd, ns));
   if (t.tag === 'IndSigma') return IndSigma(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.cas, ns));
+  if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj);
   return t;
 };
 
