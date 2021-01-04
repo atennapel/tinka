@@ -1,23 +1,50 @@
 import { log } from './config';
+import { PFst, PSnd } from './core';
 import { eqMode } from './mode';
-import { Lvl } from './names';
+import { Ix, Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Elim, Head, Val, show, VVar, vinst, vapp, vproj } from './values';
+import { Head, Val, show, VVar, vinst, vapp, vproj, Spine } from './values';
 
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.level === b.level;
   return a.tag;
 };
-const convElim = (k: Lvl, a: Elim, b: Elim, x: Val, y: Val): void => {
-  if (a === b) return;
-  if (a.tag === 'EApp' && b.tag === 'EApp' && eqMode(a.mode, b.mode)) return conv(k, a.arg, b.arg);
-  if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
-    conv(k, a.motive, b.motive);
-    return conv(k, a.cas, b.cas);
+const convPIndex = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine, index: Ix): void => {
+  if (index === 0) return convSpines(k, va, vb, sa, sb);
+  if (sa.isCons() && sa.head.tag === 'EProj' && sa.head.proj.tag === 'PProj' && sa.head.proj.proj === 'snd')
+    return convPIndex(k, va, vb, sa.tail, sb, index - 1);
+  return terr(`conv failed (${k}): ${show(va, k)} ~ ${show(vb, k)}`);
+}; 
+const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
+  if (sa.isNil() && sb.isNil()) return;
+  if (sa.isCons() && sb.isCons()) {
+    const a = sa.head;
+    const b = sb.head;
+    if (a === b) return convSpines(k, va, vb, sa.tail, sb.tail);
+    if (a.tag === 'EApp' && b.tag === 'EApp' && eqMode(a.mode, b.mode)) {
+      conv(k, a.arg, b.arg);
+      return convSpines(k, va, vb, sa.tail, sb.tail);
+    }
+    if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
+      conv(k, a.motive, b.motive);
+      conv(k, a.cas, b.cas);
+      return convSpines(k, va, vb, sa.tail, sb.tail);
+    }
+    if (a.tag === 'EProj' && b.tag === 'EProj') {
+      if (a.proj === b.proj)
+        return convSpines(k, va, vb, sa.tail, sb.tail);
+      if (a.proj.tag === 'PProj' && b.proj.tag === 'PProj' && a.proj.proj === b.proj.proj)
+        return convSpines(k, va, vb, sa.tail, sb.tail);
+      if (a.proj.tag === 'PIndex' && b.proj.tag === 'PIndex' && a.proj.index === b.proj.index)
+        return convSpines(k, va, vb, sa.tail, sb.tail);
+      if (a.proj.tag === 'PProj' && a.proj.proj === 'fst' && b.proj.tag === 'PIndex')
+        return convPIndex(k, va, vb, sa.tail, sb.tail, b.proj.index);
+      if (b.proj.tag === 'PProj' && b.proj.proj === 'fst' && a.proj.tag === 'PIndex')
+        return convPIndex(k, va, vb, sb.tail, sa.tail, a.proj.index);
+    }
   }
-  if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj) return;
-  return terr(`conv failed (${k}): ${show(x, k)} ~ ${show(y, k)}`);
+  return terr(`conv failed (${k}): ${show(va, k)} ~ ${show(vb, k)}`);
 };
 export const conv = (k: Lvl, a: Val, b: Val): void => {
   log(() => `conv(${k}): ${show(a, k)} ~ ${show(b, k)}`);
@@ -52,23 +79,21 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
 
   // TODO: is this correct for linear/erased sigmas?
   if (a.tag === 'VPair') {
-    conv(k, a.fst, vproj(b, 'fst'));
-    conv(k, a.snd, vproj(b, 'snd'));
+    conv(k, a.fst, vproj(b, PFst));
+    conv(k, a.snd, vproj(b, PSnd));
     return;
   }
   if (b.tag === 'VPair') {
-    conv(k, vproj(a, 'fst'), b.fst);
-    conv(k, vproj(a, 'snd'), b.snd);
+    conv(k, vproj(a, PFst), b.fst);
+    conv(k, vproj(a, PSnd), b.snd);
     return;
   }
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))
-    return a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b));
+    return convSpines(k, a, b, a.spine, b.spine);
 
-  if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head) {
-    return tryT(() => a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b)),
-      () => conv(k, a.val.get(), b.val.get()));
-  }
+  if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head)
+    return tryT(() => convSpines(k, a, b, a.spine, b.spine), () => conv(k, a.val.get(), b.val.get()));
   if (a.tag === 'VGlobal') return conv(k, a.val.get(), b);
   if (b.tag === 'VGlobal') return conv(k, a, b.val.get());
 

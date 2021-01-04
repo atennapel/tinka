@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, IndSigma, Proj, PSnd, PFst } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, IndSigma, Proj, ProjType, PIndex } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -18,8 +18,8 @@ export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg:
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
 export interface EIndSigma { readonly tag: 'EIndSigma'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
 export const EIndSigma = (usage: Usage, motive: Val, cas: Val): EIndSigma => ({ tag: 'EIndSigma', usage, motive, cas });
-export interface EProj { readonly tag: 'EProj'; readonly proj: 'fst' | 'snd' }
-export const EProj = (proj: 'fst' | 'snd'): EProj => ({ tag: 'EProj', proj });
+export interface EProj { readonly tag: 'EProj'; readonly proj: ProjType }
+export const EProj = (proj: ProjType): EProj => ({ tag: 'EProj', proj });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
@@ -65,8 +65,15 @@ export const vindsigma = (usage: Usage, motive: Val, scrut: Val, cas: Val): Val 
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EIndSigma(usage, motive, cas), scrut.spine), scrut.val.map(v => vindsigma(usage, motive, v, cas)));
   return impossible(`vindsigma: ${scrut.tag}`);
 };
-export const vproj = (scrut: Val, proj: 'fst' | 'snd'): Val => {
-  if (scrut.tag === 'VPair') return proj === 'fst' ? scrut.fst : scrut.snd;
+export const vproj = (scrut: Val, proj: ProjType): Val => {
+  if (scrut.tag === 'VPair') {
+    if (proj.tag === 'PProj') return proj.proj === 'fst' ? scrut.fst : scrut.snd;
+    if (proj.tag === 'PIndex') {
+      if (proj.index === 0) return scrut.fst;
+      return vproj(scrut.snd, PIndex(proj.name, proj.index - 1));
+    }
+    return proj;
+  }
   if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EProj(proj), scrut.spine));
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EProj(proj), scrut.spine), scrut.val.map(v => vproj(v, proj)));
   return impossible(`vindsigma: ${scrut.tag}`);
@@ -95,7 +102,7 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'IndSigma')
     return vindsigma(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
   if (t.tag === 'Proj')
-    return vproj(evaluate(t.term, vs), t.proj.proj);
+    return vproj(evaluate(t.term, vs), t.proj);
   return t;
 };
 
@@ -106,7 +113,7 @@ const quoteHead = (h: Head, k: Lvl): Core => {
 const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full));
   if (e.tag === 'EIndSigma') return IndSigma(e.usage, quote(e.motive, k), t, quote(e.cas, k));
-  if (e.tag === 'EProj') return Proj(t, e.proj === 'fst' ? PFst : PSnd);
+  if (e.tag === 'EProj') return Proj(t, e.proj);
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {

@@ -33,12 +33,14 @@ export const IndSigma = (usage: Usage, motive: Core, scrut: Core, cas: Core): In
 export interface Proj { readonly tag: 'Proj'; readonly term: Core; readonly proj: ProjType }
 export const Proj = (term: Core, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
 
-export type ProjType = PProj;
+export type ProjType = PProj | PIndex;
 
 export interface PProj { readonly tag: 'PProj'; readonly proj: 'fst' | 'snd' }
 export const PProj = (proj: 'fst' | 'snd'): PProj => ({ tag: 'PProj', proj });
 export const PFst = PProj('fst');
 export const PSnd = PProj('snd');
+export interface PIndex { readonly tag: 'PIndex'; readonly name: Name | null; readonly index: Ix }
+export const PIndex = (name: Name | null, index: Ix): PIndex => ({ tag: 'PIndex', name, index });
 
 export const flattenPi = (t: Core): [[Usage, Mode, Name, Core][], Core] => {
   const params: [Usage, Mode, Name, Core][] = [];
@@ -97,9 +99,10 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj';
 const showS = (t: Core) => showP(!isSimple(t), t);
-export const showProjType = (p: ProjType): string => {
+const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
-  return p.tag;
+  if (p.tag === 'PIndex') return p.name ? `${p.name}` : `${p.index}`;
+  return p;
 };
 export const show = (t: Core): string => {
   if (t.tag === 'Type') return 'Type';

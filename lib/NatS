@@ -1,0 +1,5 @@
+let NatSig
+  : Type
+  = (0 Nat : Type) ** (Z : Nat) ** (S : Nat -> Nat) ** (cataNat : {0 A : Type} -> Nat -> A -> (A -> A) -> A) ** ();
+
+NatSig

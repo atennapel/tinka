@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VSigma, VType, VVar } from './values';
 import { Surface } from './surface';
@@ -9,6 +9,7 @@ import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from '.
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { globalLoad } from './globals';
+import { Ix, Name } from './names';
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
@@ -152,13 +153,42 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u1] = synth(local, tm.term);
-    const sigma = force(sigma_);
-    if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-    if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
-      return terr(`cannot project ${show(tm)}, usage must be *: ${showVal(local, sigma_)}`);
-    return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), 'fst')), u1];
+    if (tm.proj.tag === 'PProj') {
+      const sigma = force(sigma_);
+      if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+      if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+        return terr(`cannot project ${show(tm)}, usage must be * or 0 with a second projection: ${showVal(local, sigma_)}`);
+      const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
+      return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), fst)), u1];
+    } else if (tm.proj.tag === 'PName') {
+      const [ty, ix] = projectName(local, tm, evaluate(term, local.vs), sigma_, tm.proj.name, 0);
+      return [Proj(term, PIndex(tm.proj.name, ix)), ty, u1];
+    } else return [Proj(term, PIndex(null, tm.proj.index)), projectIndex(local, tm, evaluate(term, local.vs), sigma_, tm.proj.index), u1];
   }
   return terr(`unable to synth ${show(tm)}`);
+};
+
+const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix): Val => {
+  const ty = force(ty_);
+  if (ty.tag === 'VSigma') {
+    if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+      return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
+    if (index === 0) return ty.type;
+    const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?
+    return projectIndex(local, full, vproj(tm, PSnd), vinst(ty, vproj(tm, fst)), index - 1);
+  }
+  return terr(`failed to project, ${show(full)}: ${showVal(local, ty_)}`);
+};
+const projectName = (local: Local, full: Surface, tm: Val, ty_: Val, x: Name, ix: Ix): [Val, Ix] => {
+  const ty = force(ty_);
+  if (ty.tag === 'VSigma') {
+    if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && ty.name === x)))
+      return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
+    if (ty.name === x) return [ty.type, ix];
+    const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?
+    return projectName(local, full, vproj(tm, PSnd), vinst(ty, vproj(tm, fst)), x, ix + 1);
+  }
+  return terr(`failed to project, ${show(full)}: ${showVal(local, ty_)}`);
 };
 
 const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Surface): [Core, Val, Uses] => {

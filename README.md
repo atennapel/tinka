@@ -12,12 +12,10 @@ yarn start example.p
 
 ```
 todo:
-- sigma named projections
-- sigma indexed projections
+- importing
 - local glued values
 - metas
 - elaboration with metas
-- importing
 - add primitives: void, unit, bool
 - rewrite parser, include locations
 ```

@@ -1,0 +1,5 @@
+let NatM
+  : NatS
+  = (Nat, Z, S, cataNat, *);
+
+NatM

@@ -22,6 +22,7 @@ exports.log = log;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.conv = exports.eqHead = void 0;
 const config_1 = require("./config");
+const core_1 = require("./core");
 const mode_1 = require("./mode");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
@@ -33,18 +34,44 @@ const eqHead = (a, b) => {
     return a.tag;
 };
 exports.eqHead = eqHead;
-const convElim = (k, a, b, x, y) => {
-    if (a === b)
+const convPIndex = (k, va, vb, sa, sb, index) => {
+    if (index === 0)
+        return convSpines(k, va, vb, sa, sb);
+    if (sa.isCons() && sa.head.tag === 'EProj' && sa.head.proj.tag === 'PProj' && sa.head.proj.proj === 'snd')
+        return convPIndex(k, va, vb, sa.tail, sb, index - 1);
+    return utils_1.terr(`conv failed (${k}): ${values_1.show(va, k)} ~ ${values_1.show(vb, k)}`);
+};
+const convSpines = (k, va, vb, sa, sb) => {
+    if (sa.isNil() && sb.isNil())
         return;
-    if (a.tag === 'EApp' && b.tag === 'EApp' && mode_1.eqMode(a.mode, b.mode))
-        return exports.conv(k, a.arg, b.arg);
-    if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
-        exports.conv(k, a.motive, b.motive);
-        return exports.conv(k, a.cas, b.cas);
+    if (sa.isCons() && sb.isCons()) {
+        const a = sa.head;
+        const b = sb.head;
+        if (a === b)
+            return convSpines(k, va, vb, sa.tail, sb.tail);
+        if (a.tag === 'EApp' && b.tag === 'EApp' && mode_1.eqMode(a.mode, b.mode)) {
+            exports.conv(k, a.arg, b.arg);
+            return convSpines(k, va, vb, sa.tail, sb.tail);
+        }
+        if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
+            exports.conv(k, a.motive, b.motive);
+            exports.conv(k, a.cas, b.cas);
+            return convSpines(k, va, vb, sa.tail, sb.tail);
+        }
+        if (a.tag === 'EProj' && b.tag === 'EProj') {
+            if (a.proj === b.proj)
+                return convSpines(k, va, vb, sa.tail, sb.tail);
+            if (a.proj.tag === 'PProj' && b.proj.tag === 'PProj' && a.proj.proj === b.proj.proj)
+                return convSpines(k, va, vb, sa.tail, sb.tail);
+            if (a.proj.tag === 'PIndex' && b.proj.tag === 'PIndex' && a.proj.index === b.proj.index)
+                return convSpines(k, va, vb, sa.tail, sb.tail);
+            if (a.proj.tag === 'PProj' && a.proj.proj === 'fst' && b.proj.tag === 'PIndex')
+                return convPIndex(k, va, vb, sa.tail, sb.tail, b.proj.index);
+            if (b.proj.tag === 'PProj' && b.proj.proj === 'fst' && a.proj.tag === 'PIndex')
+                return convPIndex(k, va, vb, sb.tail, sa.tail, a.proj.index);
+        }
     }
-    if (a.tag === 'EProj' && b.tag === 'EProj' && a.proj === b.proj)
-        return;
-    return utils_1.terr(`conv failed (${k}): ${values_1.show(x, k)} ~ ${values_1.show(y, k)}`);
+    return utils_1.terr(`conv failed (${k}): ${values_1.show(va, k)} ~ ${values_1.show(vb, k)}`);
 };
 const conv = (k, a, b) => {
     config_1.log(() => `conv(${k}): ${values_1.show(a, k)} ~ ${values_1.show(b, k)}`);
@@ -78,20 +105,19 @@ const conv = (k, a, b) => {
     }
     // TODO: is this correct for linear/erased sigmas?
     if (a.tag === 'VPair') {
-        exports.conv(k, a.fst, values_1.vproj(b, 'fst'));
-        exports.conv(k, a.snd, values_1.vproj(b, 'snd'));
+        exports.conv(k, a.fst, values_1.vproj(b, core_1.PFst));
+        exports.conv(k, a.snd, values_1.vproj(b, core_1.PSnd));
         return;
     }
     if (b.tag === 'VPair') {
-        exports.conv(k, values_1.vproj(a, 'fst'), b.fst);
-        exports.conv(k, values_1.vproj(a, 'snd'), b.snd);
+        exports.conv(k, values_1.vproj(a, core_1.PFst), b.fst);
+        exports.conv(k, values_1.vproj(a, core_1.PSnd), b.snd);
         return;
     }
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head))
-        return a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b));
-    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head) {
-        return utils_1.tryT(() => a.spine.zipWithR_(b.spine, (x, y) => convElim(k, x, y, a, b)), () => exports.conv(k, a.val.get(), b.val.get()));
-    }
+        return convSpines(k, a, b, a.spine, b.spine);
+    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head)
+        return utils_1.tryT(() => convSpines(k, a, b, a.spine, b.spine), () => exports.conv(k, a.val.get(), b.val.get()));
     if (a.tag === 'VGlobal')
         return exports.conv(k, a.val.get(), b);
     if (b.tag === 'VGlobal')
@@ -100,10 +126,10 @@ const conv = (k, a, b) => {
 };
 exports.conv = conv;
 
-},{"./config":1,"./mode":7,"./utils/utils":16,"./values":17}],3:[function(require,module,exports){
+},{"./config":1,"./core":3,"./mode":7,"./utils/utils":16,"./values":17}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.showProjType = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PSnd = exports.PFst = exports.PProj = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
+exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -130,6 +156,8 @@ const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
 exports.PSnd = exports.PProj('snd');
+const PIndex = (name, index) => ({ tag: 'PIndex', name, index });
+exports.PIndex = PIndex;
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -195,9 +223,10 @@ const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
         return p.proj === 'fst' ? '_1' : '_2';
-    return p.tag;
+    if (p.tag === 'PIndex')
+        return p.name ? `${p.name}` : `${p.index}`;
+    return p;
 };
-exports.showProjType = showProjType;
 const show = (t) => {
     if (t.tag === 'Type')
         return 'Type';
@@ -231,7 +260,7 @@ const show = (t) => {
         return `indSigma ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     if (t.tag === 'Proj') {
         const [hd, ps] = exports.flattenProj(t);
-        return `${showS(hd)}.${ps.map(exports.showProjType).join('.')}`;
+        return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
     }
     return t;
 };
@@ -401,14 +430,47 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Proj') {
         const [term, sigma_, u1] = synth(local, tm.term);
-        const sigma = values_1.force(sigma_);
-        if (sigma.tag !== 'VSigma')
-            return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
-        if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
-            return utils_1.terr(`cannot project ${surface_1.show(tm)}, usage must be *: ${local_1.showVal(local, sigma_)}`);
-        return [core_1.Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(term, local.vs), 'fst')), u1];
+        if (tm.proj.tag === 'PProj') {
+            const sigma = values_1.force(sigma_);
+            if (sigma.tag !== 'VSigma')
+                return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+            if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+                return utils_1.terr(`cannot project ${surface_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
+            const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
+            return [core_1.Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(term, local.vs), fst)), u1];
+        }
+        else if (tm.proj.tag === 'PName') {
+            const [ty, ix] = projectName(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.name, 0);
+            return [core_1.Proj(term, core_1.PIndex(tm.proj.name, ix)), ty, u1];
+        }
+        else
+            return [core_1.Proj(term, core_1.PIndex(null, tm.proj.index)), projectIndex(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.index), u1];
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
+};
+const projectIndex = (local, full, tm, ty_, index) => {
+    const ty = values_1.force(ty_);
+    if (ty.tag === 'VSigma') {
+        if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+            return utils_1.terr(`cannot project ${surface_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
+        if (index === 0)
+            return ty.type;
+        const fst = ty.name !== '_' ? core_1.PIndex(ty.name, 0) : core_1.PFst; // TODO: is this nice?
+        return projectIndex(local, full, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, values_1.vproj(tm, fst)), index - 1);
+    }
+    return utils_1.terr(`failed to project, ${surface_1.show(full)}: ${local_1.showVal(local, ty_)}`);
+};
+const projectName = (local, full, tm, ty_, x, ix) => {
+    const ty = values_1.force(ty_);
+    if (ty.tag === 'VSigma') {
+        if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && ty.name === x)))
+            return utils_1.terr(`cannot project ${surface_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
+        if (ty.name === x)
+            return [ty.type, ix];
+        const fst = ty.name !== '_' ? core_1.PIndex(ty.name, 0) : core_1.PFst; // TODO: is this nice?
+        return projectName(local, full, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, values_1.vproj(tm, fst)), x, ix + 1);
+    }
+    return utils_1.terr(`failed to project, ${surface_1.show(full)}: ${local_1.showVal(local, ty_)}`);
 };
 const synthapp = (local, ty_, mode, arg) => {
     config_1.log(() => `synthapp (${local.level}) ${local_1.showVal(local, ty_)} @ ${surface_1.show(arg)}`);
@@ -559,7 +621,6 @@ exports.chooseName = chooseName;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parse = void 0;
 const config_1 = require("./config");
-const core_1 = require("./core");
 const mode_1 = require("./mode");
 const surface_1 = require("./surface");
 const usage_1 = require("./usage");
@@ -775,9 +836,17 @@ const numToNat = (n, orig) => {
 };
 const proj = (p) => {
     if (p === '_1')
-        return core_1.PFst;
+        return surface_1.PFst;
     if (p === '_2')
-        return core_1.PSnd;
+        return surface_1.PSnd;
+    const i = +p;
+    if (!isNaN(i)) {
+        if (i < 0 || Math.floor(i) !== i)
+            return utils_1.serr(`invalid projection: ${p}`);
+        return surface_1.PIndex(i);
+    }
+    if (/[a-z]/i.test(p[0]))
+        return surface_1.PName(p);
     return utils_1.serr(`invalid projection: ${p}`);
 };
 const projs = (ps) => {
@@ -1048,7 +1117,7 @@ const parse = (s, fromRepl = false) => {
 };
 exports.parse = parse;
 
-},{"./config":1,"./core":3,"./mode":7,"./surface":11,"./usage":13,"./utils/utils":16}],10:[function(require,module,exports){
+},{"./config":1,"./mode":7,"./surface":11,"./usage":13,"./utils/utils":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -1178,8 +1247,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
-const core_1 = require("./core");
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1204,6 +1272,14 @@ const IndSigma = (usage, motive, scrut, cas) => ({ tag: 'IndSigma', usage, motiv
 exports.IndSigma = IndSigma;
 const Proj = (term, proj) => ({ tag: 'Proj', term, proj });
 exports.Proj = Proj;
+const PProj = (proj) => ({ tag: 'PProj', proj });
+exports.PProj = PProj;
+exports.PFst = exports.PProj('fst');
+exports.PSnd = exports.PProj('snd');
+const PName = (name) => ({ tag: 'PName', name });
+exports.PName = PName;
+const PIndex = (index) => ({ tag: 'PIndex', index });
+exports.PIndex = PIndex;
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -1266,6 +1342,15 @@ exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
 const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj';
 const showS = (t) => showP(!isSimple(t), t);
+const showProjType = (p) => {
+    if (p.tag === 'PProj')
+        return p.proj === 'fst' ? '_1' : '_2';
+    if (p.tag === 'PName')
+        return `${p.name}`;
+    if (p.tag === 'PIndex')
+        return `${p.index}`;
+    return p;
+};
 const show = (t) => {
     if (t.tag === 'Type')
         return 'Type';
@@ -1297,7 +1382,7 @@ const show = (t) => {
         return `indSigma ${t.usage === usage_1.many ? '' : `${t.usage} `}${t.motive ? `{${exports.show(t.motive)}} ` : ''}${showS(t.scrut)} ${showS(t.cas)}`;
     if (t.tag === 'Proj') {
         const [hd, ps] = exports.flattenProj(t);
-        return `${showS(hd)}.${ps.map(core_1.showProjType).join('.')}`;
+        return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
     }
     return t;
 };
@@ -1332,7 +1417,7 @@ const fromCore = (t, ns = List_1.nil) => {
     if (t.tag === 'IndSigma')
         return exports.IndSigma(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), exports.fromCore(t.cas, ns));
     if (t.tag === 'Proj')
-        return exports.Proj(exports.fromCore(t.term, ns), t.proj);
+        return exports.Proj(exports.fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? exports.PName(t.proj.name) : exports.PIndex(t.proj.index));
     return t;
 };
 exports.fromCore = fromCore;
@@ -1341,7 +1426,7 @@ exports.showCore = showCore;
 const showVal = (v, k = 0, ns = List_1.nil) => exports.show(exports.fromCore(values_1.quote(v, k), ns));
 exports.showVal = showVal;
 
-},{"./core":3,"./names":8,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],12:[function(require,module,exports){
+},{"./names":8,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.typecheck = void 0;
@@ -1450,14 +1535,31 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Proj') {
         const [sigma_, u1] = synth(local, tm.term);
-        const sigma = values_1.force(sigma_);
-        if (sigma.tag !== 'VSigma')
-            return utils_1.terr(`not a sigma type in ${core_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
-        if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
-            return utils_1.terr(`cannot project ${core_1.show(tm)}, usage must be *: ${local_1.showVal(local, sigma_)}`);
-        return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), 'fst')), u1];
+        if (tm.proj.tag === 'PProj') {
+            const sigma = values_1.force(sigma_);
+            if (sigma.tag !== 'VSigma')
+                return utils_1.terr(`not a sigma type in ${core_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+            if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+                return utils_1.terr(`cannot project ${core_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
+            const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
+            return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), fst)), u1];
+        }
+        else
+            return [project(local, tm, values_1.evaluate(tm.term, local.vs), sigma_, tm.proj.index), u1];
     }
     return tm;
+};
+const project = (local, full, tm, ty_, index) => {
+    const ty = values_1.force(ty_);
+    if (ty.tag === 'VSigma') {
+        if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+            return utils_1.terr(`cannot project ${core_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
+        if (index === 0)
+            return ty.type;
+        const fst = ty.name !== '_' ? core_1.PIndex(ty.name, 0) : core_1.PFst; // TODO: is this nice?
+        return project(local, full, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, values_1.vproj(tm, fst)), index - 1);
+    }
+    return utils_1.terr(`failed to project, ${core_1.show(full)}: ${local_1.showVal(local, ty_)}`);
 };
 const synthapp = (local, ty_, mode, arg) => {
     config_1.log(() => `synthapp ${local_1.showValCore(local, ty_)} @ ${core_1.show(arg)}`);
@@ -1905,8 +2007,16 @@ const vindsigma = (usage, motive, scrut, cas) => {
 };
 exports.vindsigma = vindsigma;
 const vproj = (scrut, proj) => {
-    if (scrut.tag === 'VPair')
-        return proj === 'fst' ? scrut.fst : scrut.snd;
+    if (scrut.tag === 'VPair') {
+        if (proj.tag === 'PProj')
+            return proj.proj === 'fst' ? scrut.fst : scrut.snd;
+        if (proj.tag === 'PIndex') {
+            if (proj.index === 0)
+                return scrut.fst;
+            return exports.vproj(scrut.snd, core_1.PIndex(proj.name, proj.index - 1));
+        }
+        return proj;
+    }
     if (scrut.tag === 'VNe')
         return exports.VNe(scrut.head, List_1.cons(exports.EProj(proj), scrut.spine));
     if (scrut.tag === 'VGlobal')
@@ -1941,7 +2051,7 @@ const evaluate = (t, vs) => {
     if (t.tag === 'IndSigma')
         return exports.vindsigma(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), exports.evaluate(t.cas, vs));
     if (t.tag === 'Proj')
-        return exports.vproj(exports.evaluate(t.term, vs), t.proj.proj);
+        return exports.vproj(exports.evaluate(t.term, vs), t.proj);
     return t;
 };
 exports.evaluate = evaluate;
@@ -1956,7 +2066,7 @@ const quoteElim = (t, e, k, full) => {
     if (e.tag === 'EIndSigma')
         return core_1.IndSigma(e.usage, exports.quote(e.motive, k), t, exports.quote(e.cas, k));
     if (e.tag === 'EProj')
-        return core_1.Proj(t, e.proj === 'fst' ? core_1.PFst : core_1.PSnd);
+        return core_1.Proj(t, e.proj);
     return e;
 };
 const quote = (v, k, full = false) => {

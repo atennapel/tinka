@@ -1,6 +1,6 @@
-import { Core, ProjType, showProjType } from './core';
+import { Core } from './core';
 import { Mode } from './mode';
-import { chooseName, Lvl, Name } from './names';
+import { chooseName, Ix, Lvl, Name } from './names';
 import { many, Usage } from './usage';
 import { cons, List, nil } from './utils/List';
 import { impossible } from './utils/utils';
@@ -34,6 +34,17 @@ export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; rea
 export const IndSigma = (usage: Usage, motive: Surface | null, scrut: Surface, cas: Surface): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
 export interface Proj { readonly tag: 'Proj'; readonly term: Surface; readonly proj: ProjType }
 export const Proj = (term: Surface, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
+
+export type ProjType = PProj | PName | PIndex;
+
+export interface PProj { readonly tag: 'PProj'; readonly proj: 'fst' | 'snd' }
+export const PProj = (proj: 'fst' | 'snd'): PProj => ({ tag: 'PProj', proj });
+export const PFst = PProj('fst');
+export const PSnd = PProj('snd');
+export interface PName { readonly tag: 'PName'; readonly name: Name }
+export const PName = (name: Name): PName => ({ tag: 'PName', name });
+export interface PIndex { readonly tag: 'PIndex'; readonly index: Ix }
+export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 
 export const flattenPi = (t: Surface): [[Usage, Mode, Name, Surface][], Surface] => {
   const params: [Usage, Mode, Name, Surface][] = [];
@@ -92,6 +103,12 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj';
 const showS = (t: Surface) => showP(!isSimple(t), t);
+const showProjType = (p: ProjType): string => {
+  if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
+  if (p.tag === 'PName') return `${p.name}`;
+  if (p.tag === 'PIndex') return `${p.index}`;
+  return p;
+};
 export const show = (t: Surface): string => {
   if (t.tag === 'Type') return 'Type';
   if (t.tag === 'Var') return `${t.name}`;
@@ -149,7 +166,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   }
   if (t.tag === 'Pair') return Pair(fromCore(t.fst, ns), fromCore(t.snd, ns));
   if (t.tag === 'IndSigma') return IndSigma(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.cas, ns));
-  if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj);
+  if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? PName(t.proj.name) : PIndex(t.proj.index));
   return t;
 };
 

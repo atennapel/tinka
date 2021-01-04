@@ -1,8 +1,7 @@
 import { log } from './config';
-import { PFst, ProjType, PSnd } from './core';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, IndSigma, Let, Pair, Pi, Proj, show, Sigma, Surface, Type, Var } from './surface';
+import { Abs, App, IndSigma, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -187,6 +186,12 @@ const numToNat = (n: number, orig: string): Surface => {
 const proj = (p: string): ProjType => {
   if (p === '_1') return PFst;
   if (p === '_2') return PSnd;
+  const i = +p;
+  if (!isNaN(i)) {
+    if (i < 0 || Math.floor(i) !== i) return serr(`invalid projection: ${p}`);
+    return PIndex(i);
+  }
+  if (/[a-z]/i.test(p[0])) return PName(p);
   return serr(`invalid projection: ${p}`);
 };
 const projs = (ps: string): ProjType[] => {

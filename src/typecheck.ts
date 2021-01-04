@@ -1,9 +1,10 @@
 import { log } from './config';
 import { conv } from './conversion';
-import { Core, Pi, show } from './core';
+import { Core, PFst, Pi, PIndex, PSnd, show } from './core';
 import { globalLoad } from './globals';
 import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
+import { Ix } from './names';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from './usage';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VType } from './values';
@@ -101,13 +102,28 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   }
   if (tm.tag === 'Proj') {
     const [sigma_, u1] = synth(local, tm.term);
-    const sigma = force(sigma_);
-    if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-    if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
-      return terr(`cannot project ${show(tm)}, usage must be *: ${showVal(local, sigma_)}`);
-    return [tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(tm.term, local.vs), 'fst')), u1];
+    if (tm.proj.tag === 'PProj') {
+      const sigma = force(sigma_);
+      if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+      if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+        return terr(`cannot project ${show(tm)}, usage must be * or 0 with a second projection: ${showVal(local, sigma_)}`);
+      const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
+      return [tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(tm.term, local.vs), fst)), u1];
+    } else return [project(local, tm, evaluate(tm.term, local.vs), sigma_, tm.proj.index), u1];
   }
   return tm;
+};
+
+const project = (local: Local, full: Core, tm: Val, ty_: Val, index: Ix): Val => {
+  const ty = force(ty_);
+  if (ty.tag === 'VSigma') {
+    if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+      return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
+    if (index === 0) return ty.type;
+    const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?
+    return project(local, full, vproj(tm, PSnd), vinst(ty, vproj(tm, fst)), index - 1);
+  }
+  return terr(`failed to project, ${show(full)}: ${showVal(local, ty_)}`);
 };
 
 const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Core): [Val, Uses] => {
