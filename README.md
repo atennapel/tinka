@@ -12,11 +12,12 @@ yarn start example.p
 
 ```
 todo:
-- importing
+- import in repl
+- importing elaboration (allow import of 0, 1 usages)
 - local glued values
+- add primitives: void, unit, bool
 - metas
 - elaboration with metas
-- add primitives: void, unit, bool
 - rewrite parser, include locations
 ```
 

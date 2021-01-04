@@ -434,7 +434,7 @@ const synth = (local, tm) => {
             const sigma = values_1.force(sigma_);
             if (sigma.tag !== 'VSigma')
                 return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
-            if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+            if (local.usage === usage_1.one && (sigma.usage === usage_1.one || (sigma.usage === usage_1.zero && tm.proj.proj === 'fst')))
                 return utils_1.terr(`cannot project ${surface_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
             const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
             return [core_1.Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(term, local.vs), fst)), u1];
@@ -451,7 +451,7 @@ const synth = (local, tm) => {
 const projectIndex = (local, full, tm, ty_, index) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VSigma') {
-        if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+        if (local.usage === usage_1.one && (ty.usage === usage_1.one || (ty.usage === usage_1.zero && index === 0)))
             return utils_1.terr(`cannot project ${surface_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
         if (index === 0)
             return ty.type;
@@ -463,7 +463,7 @@ const projectIndex = (local, full, tm, ty_, index) => {
 const projectName = (local, full, tm, ty_, x, ix) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VSigma') {
-        if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && ty.name === x)))
+        if (local.usage === usage_1.one && (ty.usage === usage_1.one || (ty.usage === usage_1.zero && ty.name === x)))
             return utils_1.terr(`cannot project ${surface_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
         if (ty.name === x)
             return [ty.type, ix];
@@ -530,6 +530,7 @@ exports.globalLoad = globalLoad;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showVal = exports.showValCore = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
 const mode_1 = require("./mode");
+const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
 const values_1 = require("./values");
 const S = require("./surface");
@@ -580,7 +581,7 @@ class Local {
         return new Local(this.usage, this.level - 1, this.ns.tail, this.nsSurface.tail, this.ts.tail, this.vs.tail);
     }
     inType() {
-        return new Local('0', this.level, this.ns, this.nsSurface, this.ts, this.vs);
+        return new Local(usage_1.zero, this.level, this.ns, this.nsSurface, this.ts, this.vs);
     }
 }
 exports.Local = Local;
@@ -589,7 +590,7 @@ exports.showValCore = showValCore;
 const showVal = (local, val) => S.showVal(val, local.level, local.ns);
 exports.showVal = showVal;
 
-},{"./mode":7,"./surface":11,"./utils/List":15,"./values":17}],7:[function(require,module,exports){
+},{"./mode":7,"./surface":11,"./usage":13,"./utils/List":15,"./values":17}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.eqMode = exports.Impl = exports.Expl = void 0;
@@ -980,6 +981,30 @@ const exprs = (ts, br, fromRepl) => {
         }
         const body = exprs(ts.slice(i + 1), '(', fromRepl);
         return surface_1.Let(u, name, ty || null, val, body);
+    }
+    if (isName(ts[0], 'import')) {
+        if (!ts[1])
+            return utils_1.serr(`import needs a term`);
+        const [term, i] = expr(ts[1], fromRepl);
+        if (i)
+            return utils_1.serr(`import term cannot be implicit`);
+        if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(')
+            return utils_1.serr(`import needs a list`);
+        const imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
+            if (ts.length === 0)
+                return null;
+            if (ts.length > 1)
+                return utils_1.serr(`import list must only contain variables`);
+            if (ts[0].tag !== 'Name')
+                return utils_1.serr(`import list must only contain variables`);
+            return ts[0].name;
+        }).filter(Boolean);
+        if (!isName(ts[3], ';'))
+            return utils_1.serr(`expected ; after import list`);
+        const body = exprs(ts.slice(4), '(', fromRepl);
+        const vr = '$import';
+        const vvr = surface_1.Var(vr);
+        return surface_1.Let(usage_1.many, vr, null, term, imports.reduceRight((e, s) => surface_1.Let(usage_1.many, s, null, surface_1.Proj(vvr, surface_1.PName(s)), e), body));
     }
     const i = ts.findIndex(x => isName(x, ':'));
     if (i >= 0) {
@@ -1539,7 +1564,7 @@ const synth = (local, tm) => {
             const sigma = values_1.force(sigma_);
             if (sigma.tag !== 'VSigma')
                 return utils_1.terr(`not a sigma type in ${core_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
-            if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+            if (local.usage === usage_1.one && (sigma.usage === usage_1.one || (sigma.usage === usage_1.zero && tm.proj.proj === 'fst')))
                 return utils_1.terr(`cannot project ${core_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
             const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
             return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), fst)), u1];
@@ -1552,7 +1577,7 @@ const synth = (local, tm) => {
 const project = (local, full, tm, ty_, index) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VSigma') {
-        if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+        if (local.usage === usage_1.one && (ty.usage === usage_1.one || (ty.usage === usage_1.zero && index === 0)))
             return utils_1.terr(`cannot project ${core_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
         if (index === 0)
             return ty.type;
@@ -1589,26 +1614,26 @@ exports.zero = '0';
 exports.one = '1';
 exports.many = '*';
 const add = (a, b) => {
-    if (a === '*' || b === '*')
-        return '*';
-    if (a === '1')
-        return b === '1' ? '*' : '1';
+    if (a === exports.many || b === exports.many)
+        return exports.many;
+    if (a === exports.one)
+        return b === exports.one ? exports.many : exports.one;
     return b;
 };
 exports.add = add;
 const multiply = (a, b) => {
-    if (a === '0' || b === '0')
-        return '0';
+    if (a === exports.zero || b === exports.zero)
+        return exports.zero;
     if (a === '1')
         return b;
     if (b === '1')
         return a;
-    return '*';
+    return exports.many;
 };
 exports.multiply = multiply;
-const sub = (a, b) => (a === b) || ((a === '0' || a === '1') && b === '*');
+const sub = (a, b) => (a === b) || ((a === exports.zero || a === exports.one) && b === exports.many);
 exports.sub = sub;
-const lub = (a, b) => a === b ? a : '*';
+const lub = (a, b) => a === b ? a : exports.many;
 exports.lub = lub;
 const noUses = (size) => List_1.List.range(size).map(() => exports.zero);
 exports.noUses = noUses;

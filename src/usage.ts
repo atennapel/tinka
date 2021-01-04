@@ -4,28 +4,28 @@ export type Usage = '0' | '1' | '*';
 export type Subusage = '0' | '1';
 export const usages: string[] = ['0', '1', '*'];
 
-export const zero: Usage = '0';
-export const one: Usage = '1';
+export const zero: Subusage = '0';
+export const one: Subusage = '1';
 export const many: Usage = '*';
 
 export const add = (a: Usage, b: Usage): Usage => {
-  if (a === '*' || b === '*') return '*';
-  if (a === '1') return b === '1' ? '*' : '1';
+  if (a === many || b === many) return many;
+  if (a === one) return b === one ? many : one;
   return b;
 };
 
 export const multiply = (a: Usage, b: Usage): Usage => {
-  if (a === '0' || b === '0') return '0';
+  if (a === zero || b === zero) return zero;
   if (a === '1') return b;
   if (b === '1') return a;
-  return '*';
+  return many;
 };
 
 export const sub = (a: Usage, b: Usage): boolean =>
-  (a === b) || ((a === '0' || a === '1') && b === '*');
+  (a === b) || ((a === zero || a === one) && b === many);
 
 export const lub = (a: Usage, b: Usage): Usage =>
-  a === b ? a : '*';
+  a === b ? a : many;
 
 export type Uses = List<Usage>;
 

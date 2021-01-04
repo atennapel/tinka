@@ -5,7 +5,7 @@ import { globalLoad } from './globals';
 import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from './usage';
+import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VType } from './values';
 
@@ -105,7 +105,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     if (tm.proj.tag === 'PProj') {
       const sigma = force(sigma_);
       if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-      if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+      if (local.usage === one && (sigma.usage === one || (sigma.usage === zero && tm.proj.proj === 'fst')))
         return terr(`cannot project ${show(tm)}, usage must be * or 0 with a second projection: ${showVal(local, sigma_)}`);
       const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
       return [tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(tm.term, local.vs), fst)), u1];
@@ -117,7 +117,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
 const project = (local: Local, full: Core, tm: Val, ty_: Val, index: Ix): Val => {
   const ty = force(ty_);
   if (ty.tag === 'VSigma') {
-    if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+    if (local.usage === one && (ty.usage === one || (ty.usage === zero && index === 0)))
       return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
     if (index === 0) return ty.type;
     const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?

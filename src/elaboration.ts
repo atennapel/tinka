@@ -5,7 +5,7 @@ import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VSigma, VT
 import { Surface } from './surface';
 import { show } from './surface';
 import { conv } from './conversion';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses } from './usage';
+import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { globalLoad } from './globals';
@@ -156,7 +156,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     if (tm.proj.tag === 'PProj') {
       const sigma = force(sigma_);
       if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-      if (local.usage === '1' && (sigma.usage === '1' || (sigma.usage === '0' && tm.proj.proj === 'fst')))
+      if (local.usage === one && (sigma.usage === one || (sigma.usage === zero && tm.proj.proj === 'fst')))
         return terr(`cannot project ${show(tm)}, usage must be * or 0 with a second projection: ${showVal(local, sigma_)}`);
       const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
       return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), fst)), u1];
@@ -171,7 +171,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
 const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix): Val => {
   const ty = force(ty_);
   if (ty.tag === 'VSigma') {
-    if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && index === 0)))
+    if (local.usage === one && (ty.usage === one || (ty.usage === zero && index === 0)))
       return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
     if (index === 0) return ty.type;
     const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?
@@ -182,7 +182,7 @@ const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix)
 const projectName = (local: Local, full: Surface, tm: Val, ty_: Val, x: Name, ix: Ix): [Val, Ix] => {
   const ty = force(ty_);
   if (ty.tag === 'VSigma') {
-    if (local.usage === '1' && (ty.usage === '1' || (ty.usage === '0' && ty.name === x)))
+    if (local.usage === one && (ty.usage === one || (ty.usage === zero && ty.name === x)))
       return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
     if (ty.name === x) return [ty.type, ix];
     const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?

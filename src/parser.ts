@@ -301,6 +301,23 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     const body = exprs(ts.slice(i + 1), '(', fromRepl);
     return Let(u, name, ty || null, val, body);
   }
+  if (isName(ts[0], 'import')) {
+    if (!ts[1]) return serr(`import needs a term`);
+    const [term, i] = expr(ts[1], fromRepl);
+    if (i) return serr(`import term cannot be implicit`);
+    if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(') return serr(`import needs a list`);
+    const imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
+      if (ts.length === 0) return null;
+      if (ts.length > 1) return serr(`import list must only contain variables`);
+      if (ts[0].tag !== 'Name') return serr(`import list must only contain variables`);
+      return ts[0].name;
+    }).filter(Boolean) as string[];
+    if (!isName(ts[3], ';')) return serr(`expected ; after import list`);
+    const body = exprs(ts.slice(4), '(', fromRepl);
+    const vr = '$import';
+    const vvr = Var(vr);
+    return Let(many, vr, null, term, imports.reduceRight((e, s) => Let(many, s, null, Proj(vvr, PName(s)), e), body));
+  }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {
     const a = ts.slice(0, i);

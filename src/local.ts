@@ -1,6 +1,6 @@
 import { Expl, Mode } from './mode';
 import { Ix, Lvl, Name } from './names';
-import { Subusage, Usage } from './usage';
+import { Subusage, Usage, zero } from './usage';
 import { cons, List, nil } from './utils/List';
 import { EnvV, show, Val, VVar } from './values';
 import * as S from './surface';
@@ -109,7 +109,7 @@ export class Local {
 
   inType(): Local {
     return new Local(
-      '0',
+      zero,
       this.level,
       this.ns,
       this.nsSurface,
