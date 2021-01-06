@@ -1,5 +1,6 @@
-let NatM
-  : NatS
-  = (Nat, Z, S, cataNat, *);
-
-NatM
+mod {
+  def 0 Nat = {0 A : Type} -> A -> (A -> A) -> A
+  def Z : Nat = \{A} z s. z
+  def S : Nat -> Nat = \n {A} z s. s (n {A} z s)
+  def cataNat : {0 A : Type} -> Nat -> A -> (A -> A) -> A = \{A} n z s. n {A} z s
+} : NatS

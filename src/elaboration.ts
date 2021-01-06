@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
@@ -10,6 +10,7 @@ import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { globalLoad } from './globals';
 import { Ix, Lvl, Name } from './names';
+import { List } from './utils/List';
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
@@ -197,7 +198,42 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.usage, e.name, type, t), Global('UnitType') as Core);
     return [stype, VType, noUses(local.level)];
   }
+  if (tm.tag === 'Module') {
+    const defs = List.from(tm.defs);
+    const [term, type, u] = createModuleTerm(local, defs);
+    return [term, evaluate(type, local.vs), u];
+  }
   return terr(`unable to synth ${show(tm)}`);
+};
+
+const createModuleTerm = (local: Local, entries: List<S.ModEntry>): [Core, Core, Uses] => {
+  if (entries.isCons()) {
+    const e = entries.head;
+    const rest = entries.tail;
+    let type: Core;
+    let ty: Val;
+    let val: Core;
+    let u: Uses;
+    if (e.type) {
+      [type] = check(local.inType(), e.type, VType);
+      ty = evaluate(type, local.vs);
+      [val, u] = check(e.usage === zero ? local.inType() : local, e.val, ty);
+    } else {
+      [val, ty, u] = synth(e.usage === zero ? local.inType() : local, e.val);
+      type = quote(ty, local.level);
+    }
+    const v = evaluate(val, local.vs);
+    const nextlocal = local.define(e.usage, e.name, ty, v);
+    const [nextterm, nexttype, u2] = createModuleTerm(nextlocal, rest);
+    const nextuses = addUses(multiplyUses(e.usage, u), u2);
+    if (e.priv) {
+      return [Let(e.usage, e.name, type, val, nextterm), subst(nexttype, val), nextuses];
+    } else {
+      const sigma = Sigma(e.usage, e.name, type, nexttype);
+      return [Let(e.usage, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma, nextuses];
+    }
+  }
+  return [Global('Unit'), Global('UnitType'), noUses(local.level)];
 };
 
 const getAllNamesFromSigma = (k: Lvl, ty_: Val, ns: string[] | null, a: [string, Usage][] = [], all: string[] = []): [[string, Usage][], string[]] => {

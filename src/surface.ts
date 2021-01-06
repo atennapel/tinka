@@ -11,7 +11,7 @@ export type Surface =
   Type |
   Pi | Abs | App |
   Sigma | Pair | IndSigma | Proj |
-  Signature | Import;
+  Signature | Module | Import;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -41,6 +41,10 @@ export interface SigEntry { readonly usage: Usage; readonly name: Name; readonly
 export const SigEntry = (usage: Usage, name: Name, type: Surface | null): SigEntry => ({ usage, name, type });
 export interface Signature { readonly tag: 'Signature'; readonly defs: SigEntry[] }
 export const Signature = (defs: SigEntry[]): Signature => ({ tag: 'Signature', defs });
+export interface ModEntry { readonly priv: boolean; readonly usage: Usage; readonly name: Name; readonly type: Surface | null; readonly val: Surface }
+export const ModEntry = (priv: boolean, usage: Usage, name: Name, type: Surface | null, val: Surface): ModEntry => ({ priv, usage, name, type, val });
+export interface Module { readonly tag: 'Module'; readonly defs: ModEntry[] }
+export const Module = (defs: ModEntry[]): Module => ({ tag: 'Module', defs });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -150,7 +154,10 @@ export const show = (t: Surface): string => {
     return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
   }
   if (t.tag === 'Signature')
-    return `sig { ${t.defs.map(({usage, name, type}) => `pub ${usage === many ? '' : `${usage} `}${name}${type ? ` : ${show(type)}` : ''}`).join(' ')} }`;
+    return `sig { ${t.defs.map(({usage, name, type}) => `def ${usage === many ? '' : `${usage} `}${name}${type ? ` : ${show(type)}` : ''}`).join(' ')} }`;
+  if (t.tag === 'Module')
+    return `mod { ${t.defs.map(({priv, usage, name, type, val}) =>
+      `${priv ? 'private ' : ''}def ${usage === many ? '' : `${usage} `}${name}${type ? ` : ${show(type)}` : ''} = ${show(val)}`).join(' ')} }`;
   return t;
 };
 

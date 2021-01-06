@@ -14,7 +14,6 @@ yarn start example.p
 todo:
 - local glued values
 - fix linear let values
-- add module
 - add primitives: void, unit, bool (or Nat and Fin?)
 - metas
 - fix importing in web repl
