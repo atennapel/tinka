@@ -604,7 +604,9 @@ class Local {
     define(usage, name, ty, val) {
         return new Local(this.usage, this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, usage, mode_1.Expl, false, false), this.ts), List_1.cons(val, this.vs));
     }
-    unsafeUndo() {
+    undo() {
+        if (this.level === 0)
+            return this;
         return new Local(this.usage, this.level - 1, this.ns.tail, this.nsSurface.tail, this.ts.tail, this.vs.tail);
     }
     inType() {
@@ -757,7 +759,7 @@ const tokenize = (sc) => {
         return utils_1.serr(`escape is true after tokenize`);
     return r;
 };
-const isName = (t, x) => t.tag === 'Name' && t.name === x;
+const isName = (t, x) => t && t.tag === 'Name' && t.name === x;
 const isNames = (t) => t.map(x => {
     if (x.tag !== 'Name')
         return utils_1.serr(`expected name`);
@@ -785,7 +787,7 @@ const usage = (t) => {
         return t.num;
     return null;
 };
-const lambdaParams = (t, fromRepl) => {
+const lambdaParams = (t) => {
     if (t.tag === 'Name')
         return [[usage_1.many, t.name, mode_1.Expl, null]];
     if (t.tag === 'List') {
@@ -806,14 +808,14 @@ const lambdaParams = (t, fromRepl) => {
         }
         const ns = a.slice(start, i);
         const rest = a.slice(i + 1);
-        const ty = exprs(rest, '(', fromRepl);
+        const ty = exprs(rest, '(');
         return isNames(ns).map(x => [u, x, impl, ty]);
     }
     return utils_1.serr(`invalid lambda param`);
 };
-const piParams = (t, fromRepl) => {
+const piParams = (t) => {
     if (t.tag === 'Name')
-        return [[usage_1.many, '_', mode_1.Expl, expr(t, fromRepl)[0]]];
+        return [[usage_1.many, '_', mode_1.Expl, expr(t)[0]]];
     if (t.tag === 'List') {
         const impl = t.bracket === '{' ? mode_1.Impl : mode_1.Expl;
         const a = t.list;
@@ -821,7 +823,7 @@ const piParams = (t, fromRepl) => {
             return [[usage_1.many, '_', impl, surface_1.Var('UnitType')]];
         const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
         if (i === -1)
-            return [[usage_1.many, '_', impl, expr(t, fromRepl)[0]]];
+            return [[usage_1.many, '_', impl, expr(t)[0]]];
         let start = 0;
         const n = a[0];
         const pu = usage(n);
@@ -832,7 +834,7 @@ const piParams = (t, fromRepl) => {
         }
         const ns = a.slice(start, i);
         const rest = a.slice(i + 1);
-        const ty = exprs(rest, '(', fromRepl);
+        const ty = exprs(rest, '(');
         return isNames(ns).map(x => [u, x, impl, ty]);
     }
     return utils_1.serr(`invalid pi param`);
@@ -881,9 +883,9 @@ const projs = (ps) => {
     const parts = ps.split('.');
     return parts.map(proj);
 };
-const expr = (t, fromRepl) => {
+const expr = (t) => {
     if (t.tag === 'List')
-        return [exprs(t.list, '(', fromRepl), t.bracket === '{'];
+        return [exprs(t.list, '('), t.bracket === '{'];
     if (t.tag === 'Str') {
         const s = codepoints(t.str).reverse();
         const Cons = surface_1.Var('Cons');
@@ -940,13 +942,13 @@ const expr = (t, fromRepl) => {
     }
     return t;
 };
-const exprs = (ts, br, fromRepl) => {
+const exprs = (ts, br, fromRepl = false) => {
     if (br === '{')
         return utils_1.serr(`{} cannot be used here`);
     if (ts.length === 0)
         return surface_1.Var('UnitType');
     if (ts.length === 1)
-        return expr(ts[0], fromRepl)[0];
+        return expr(ts[0])[0];
     if (isName(ts[0], 'let')) {
         let x = ts[1];
         let j = 2;
@@ -983,7 +985,7 @@ const exprs = (ts, br, fromRepl) => {
                 else
                     tyts.push(v);
             }
-            ty = exprs(tyts, '(', fromRepl);
+            ty = exprs(tyts, '(');
         }
         if (!isName(ts[j], '='))
             return utils_1.serr(`no = after name in let`);
@@ -1000,26 +1002,33 @@ const exprs = (ts, br, fromRepl) => {
         }
         if (vals.length === 0)
             return utils_1.serr(`empty val in let`);
-        const val = exprs(vals, '(', fromRepl);
+        const val = exprs(vals, '(');
         if (!found) {
             if (!fromRepl)
                 return utils_1.serr(`no ; after let`);
+            if (ts.slice(i + 1).length > 0)
+                return utils_1.serr(`no ; after let`);
             return surface_1.Let(u, name, ty || null, val, null);
         }
-        const body = exprs(ts.slice(i + 1), '(', fromRepl);
+        const body = exprs(ts.slice(i + 1), '(');
         return surface_1.Let(u, name, ty || null, val, body);
     }
     if (isName(ts[0], 'import')) {
         if (!ts[1])
             return utils_1.serr(`import needs a term`);
-        const [term, i] = expr(ts[1], fromRepl);
+        const [term, i] = expr(ts[1]);
         if (i)
             return utils_1.serr(`import term cannot be implicit`);
         let j = 3;
         let imports = null;
-        if (!(ts[2] && isName(ts[2], ';'))) {
-            if (ts[2].tag !== 'List' || ts[2].bracket !== '(')
-                return utils_1.serr(`import needs a list`);
+        if (!isName(ts[2], ';')) {
+            if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(') {
+                if (!fromRepl)
+                    return utils_1.serr(`import needs a list or ;`);
+                if (ts.slice(j).length > 0)
+                    return utils_1.serr(`expected ; after import list`);
+                return surface_1.Import(term, null, null);
+            }
             imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
                 if (ts.length === 0)
                     return null;
@@ -1029,11 +1038,16 @@ const exprs = (ts, br, fromRepl) => {
                     return utils_1.serr(`import list must only contain variables`);
                 return ts[0].name;
             }).filter(Boolean);
-            if (!isName(ts[3], ';'))
-                return utils_1.serr(`expected ; after import list`);
+            if (!isName(ts[3], ';')) {
+                if (!fromRepl)
+                    return utils_1.serr(`expected ; after import list`);
+                if (ts.slice(j).length > 0)
+                    return utils_1.serr(`expected ; after import list`);
+                return surface_1.Import(term, imports, null);
+            }
             j++;
         }
-        const body = exprs(ts.slice(j), '(', fromRepl);
+        const body = exprs(ts.slice(j), '(');
         return surface_1.Import(term, imports, body);
     }
     if (isName(ts[0], '\\')) {
@@ -1046,11 +1060,11 @@ const exprs = (ts, br, fromRepl) => {
                 found = true;
                 break;
             }
-            lambdaParams(c, fromRepl).forEach(x => args.push(x));
+            lambdaParams(c).forEach(x => args.push(x));
         }
         if (!found)
             return utils_1.serr(`. not found after \\ or there was no whitespace after .`);
-        const body = exprs(ts.slice(i + 1), '(', fromRepl);
+        const body = exprs(ts.slice(i + 1), '(');
         return args.reduceRight((x, [u, name, mode, ty]) => surface_1.Abs(u, mode, name, ty, x), body);
     }
     if (isName(ts[0], 'indSigma')) {
@@ -1064,10 +1078,10 @@ const exprs = (ts, br, fromRepl) => {
         }
         let motive = null;
         let scrut;
-        const [maybemotive, impl] = expr(ts[j], fromRepl);
+        const [maybemotive, impl] = expr(ts[j]);
         if (impl) {
             motive = maybemotive;
-            const [scrut2, impl2] = expr(ts[j + 1], fromRepl);
+            const [scrut2, impl2] = expr(ts[j + 1]);
             if (impl2)
                 return utils_1.serr(`indSigma scrutinee cannot be implicit`);
             scrut = scrut2;
@@ -1076,14 +1090,14 @@ const exprs = (ts, br, fromRepl) => {
         else {
             scrut = maybemotive;
         }
-        const cas = exprs(ts.slice(j + 1), '(', fromRepl);
+        const cas = exprs(ts.slice(j + 1), '(');
         return surface_1.IndSigma(u, motive, scrut, cas);
     }
     const i = ts.findIndex(x => isName(x, ':'));
     if (i >= 0) {
         const a = ts.slice(0, i);
         const b = ts.slice(i + 1);
-        return surface_1.Let(usage_1.many, 'x', exprs(b, '(', fromRepl), exprs(a, '(', fromRepl), surface_1.Var('x'));
+        return surface_1.Let(usage_1.many, 'x', exprs(b, '('), exprs(a, '('), surface_1.Var('x'));
     }
     const j = ts.findIndex(x => isName(x, '->'));
     if (j >= 0) {
@@ -1091,9 +1105,9 @@ const exprs = (ts, br, fromRepl) => {
         if (s.length < 2)
             return utils_1.serr(`parsing failed with ->`);
         const args = s.slice(0, -1)
-            .map(p => p.length === 1 ? piParams(p[0], fromRepl) : [[usage_1.many, '_', mode_1.Expl, exprs(p, '(', fromRepl)]])
+            .map(p => p.length === 1 ? piParams(p[0]) : [[usage_1.many, '_', mode_1.Expl, exprs(p, '(')]])
             .reduce((x, y) => x.concat(y), []);
-        const body = exprs(s[s.length - 1], '(', fromRepl);
+        const body = exprs(s[s.length - 1], '(');
         return args.reduceRight((x, [u, name, impl, ty]) => surface_1.Pi(u, impl, name, ty, x), body);
     }
     const jp = ts.findIndex(x => isName(x, ','));
@@ -1105,9 +1119,9 @@ const exprs = (ts, br, fromRepl) => {
             if (x.length === 1) {
                 const h = x[0];
                 if (h.tag === 'List' && h.bracket === '{')
-                    return expr(h, fromRepl);
+                    return expr(h);
             }
-            return [exprs(x, '(', fromRepl), false];
+            return [exprs(x, '('), false];
         });
         if (args.length === 0)
             return utils_1.serr(`empty pair`);
@@ -1124,9 +1138,9 @@ const exprs = (ts, br, fromRepl) => {
         if (s.length < 2)
             return utils_1.serr(`parsing failed with **`);
         const args = s.slice(0, -1)
-            .map(p => p.length === 1 ? piParams(p[0], fromRepl) : [[usage_1.many, '_', mode_1.Expl, exprs(p, '(', fromRepl)]])
+            .map(p => p.length === 1 ? piParams(p[0]) : [[usage_1.many, '_', mode_1.Expl, exprs(p, '(')]])
             .reduce((x, y) => x.concat(y), []);
-        const body = exprs(s[s.length - 1], '(', fromRepl);
+        const body = exprs(s[s.length - 1], '(');
         return args.reduceRight((x, [u, name, mode, ty]) => {
             if (mode.tag !== 'Expl')
                 return utils_1.serr(`sigma cannot be implicit`);
@@ -1136,12 +1150,12 @@ const exprs = (ts, br, fromRepl) => {
     const l = ts.findIndex(x => isName(x, '\\'));
     let all = [];
     if (l >= 0) {
-        const first = ts.slice(0, l).map(t => appPart(t, fromRepl));
-        const rest = exprs(ts.slice(l), '(', fromRepl);
+        const first = ts.slice(0, l).map(t => appPart(t));
+        const rest = exprs(ts.slice(l), '(');
         all = first.concat([{ tag: 'Expr', expr: rest, impl: false }]);
     }
     else {
-        all = ts.map(t => appPart(t, fromRepl));
+        all = ts.map(t => appPart(t));
     }
     if (all.length === 0)
         return utils_1.serr(`empty application`);
@@ -1156,10 +1170,10 @@ const exprs = (ts, br, fromRepl) => {
         return surface_1.App(x, a.impl ? mode_1.Impl : mode_1.Expl, a.expr);
     }, hd.expr);
 };
-const appPart = (t, fromRepl) => {
+const appPart = (t) => {
     if (t.tag === 'Name' && t.name[0] === '.')
         return { tag: 'Proj', proj: projs(t.name.slice(1)) };
-    const [ex, impl] = expr(t, fromRepl);
+    const [ex, impl] = expr(t);
     return { tag: 'Expr', expr: ex, impl };
 };
 const parse = (s, fromRepl = false) => {
@@ -1200,11 +1214,9 @@ COMMANDS
 [:load name] load a global
 `.trim();
 let showStackTrace = false;
-let defs = [];
 let local = local_1.Local.empty();
 const initREPL = () => {
     showStackTrace = false;
-    defs = [];
     local = local_1.Local.empty();
 };
 exports.initREPL = initREPL;
@@ -1222,18 +1234,27 @@ const runREPL = (s_, cb) => {
             showStackTrace = !showStackTrace;
             return cb(`showStackTrace: ${showStackTrace}`);
         }
-        if (s === ':defs')
-            return cb(defs.map(([u, x, t, v]) => `let ${u === '*' ? '' : `${u} `}${x}${t ? ` : ${surface_1.show(t)}` : ''} = ${surface_1.show(v)}`).join('\n'));
+        if (s === ':defs') {
+            const defs = [];
+            for (let i = local.level - 1; i >= 0; i--) {
+                const x = local.ns.index(i);
+                const entry = local.ts.index(i);
+                const u = entry.usage;
+                const t = values_1.quote(entry.type, local.level);
+                const v = values_1.quote(local.vs.index(i), local.level);
+                defs.push(`${u === '*' ? '' : `${u} `}${x} : ${surface_1.showCore(t, local.ns)} = ${surface_1.showCore(v, local.ns)}`);
+            }
+            return cb(defs.join('\n'));
+        }
         if (s === ':clear') {
-            defs = [];
             local = local_1.Local.empty();
             return cb(`cleared definitions`);
         }
         if (s === ':undoDef') {
-            if (defs.length > 0) {
-                const [u, x, t, v] = defs.pop();
-                local = local.unsafeUndo();
-                return cb(`undid let ${u === '*' ? '' : `${u} `}${x}${t ? ` : ${surface_1.show(t)}` : ''} = ${surface_1.show(v)}`);
+            if (local.level > 0) {
+                const name = local.ns.head;
+                local = local.undo();
+                return cb(`removed definition ${name}`);
             }
             cb(`no def to undo`);
         }
@@ -1266,6 +1287,10 @@ const runREPL = (s_, cb) => {
             usage = term.usage;
             term = surface_1.Let(term.usage === usage_1.zero ? usage_1.many : term.usage, term.name, term.type, term.val, surface_1.Var(term.name));
         }
+        else if (term.tag === 'Import' && term.body === null) {
+            isDef = true;
+            term = surface_1.Import(term.term, term.imports, term.term);
+        }
         config_1.log(() => surface_1.show(term));
         config_1.log(() => 'ELABORATE');
         const [eterm, etype] = elaboration_1.elaborate(term, local);
@@ -1284,10 +1309,20 @@ const runREPL = (s_, cb) => {
             normstr = `\nnorm: ${surface_1.showCore(norm)}`;
         }
         const etermstr = surface_1.showCore(eterm, local.ns);
-        if (isDef && term.tag === 'Let') {
-            defs.push([usage, term.name, term.type, term.val]);
-            const value = values_1.evaluate(eterm, local.vs);
-            local = local.define(usage, term.name, values_1.evaluate(etype, local.vs), value);
+        if (isDef) {
+            if (term.tag === 'Let') {
+                const value = values_1.evaluate(eterm, local.vs);
+                local = local.define(usage, term.name, values_1.evaluate(etype, local.vs), value);
+            }
+            else if (term.tag === 'Import') {
+                let c = eterm;
+                while (c && c.tag === 'Let') {
+                    local = local.define(c.usage, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs));
+                    c = c.body;
+                }
+            }
+            else
+                throw new Error(`invalid definition: ${term.tag}`);
         }
         return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype)}\netrm: ${etermstr}${normstr}`);
     }

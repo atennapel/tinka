@@ -90,7 +90,7 @@ const tokenize = (sc: string): Token[] => {
 };
 
 const isName = (t: Token, x: Name): boolean =>
-  t.tag === 'Name' && t.name === x;
+  t && t.tag === 'Name' && t.name === x;
 const isNames = (t: Token[]): Name[] =>
   t.map(x => {
     if (x.tag !== 'Name') return serr(`expected name`);
@@ -117,7 +117,7 @@ const usage = (t: Token): Usage | null => {
   return null;
 };
 
-const lambdaParams = (t: Token, fromRepl: boolean): [Usage, Name, Mode, Surface | null][] => {
+const lambdaParams = (t: Token): [Usage, Name, Mode, Surface | null][] => {
   if (t.tag === 'Name') return [[many, t.name, Expl, null]];
   if (t.tag === 'List') {
     const impl = t.bracket === '{' ? Impl : Expl;
@@ -132,19 +132,19 @@ const lambdaParams = (t: Token, fromRepl: boolean): [Usage, Name, Mode, Surface 
     if (pu !== null) { u = pu; start = 1 }
     const ns = a.slice(start, i);
     const rest = a.slice(i + 1);
-    const ty = exprs(rest, '(', fromRepl);
+    const ty = exprs(rest, '(');
     return isNames(ns).map(x => [u, x, impl, ty]);
   }
   return serr(`invalid lambda param`);
 };
-const piParams = (t: Token, fromRepl: boolean): [Usage, Name, Mode, Surface][] => {
-  if (t.tag === 'Name') return [[many, '_', Expl, expr(t, fromRepl)[0]]];
+const piParams = (t: Token): [Usage, Name, Mode, Surface][] => {
+  if (t.tag === 'Name') return [[many, '_', Expl, expr(t)[0]]];
   if (t.tag === 'List') {
     const impl = t.bracket === '{' ? Impl : Expl;
     const a = t.list;
     if (a.length === 0) return [[many, '_', impl, Var('UnitType')]];
     const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
-    if (i === -1) return [[many, '_', impl, expr(t, fromRepl)[0]]];
+    if (i === -1) return [[many, '_', impl, expr(t)[0]]];
     let start = 0;
     const n = a[0];
     const pu = usage(n);
@@ -152,7 +152,7 @@ const piParams = (t: Token, fromRepl: boolean): [Usage, Name, Mode, Surface][] =
     if (pu !== null) { u = pu; start = 1 }
     const ns = a.slice(start, i);
     const rest = a.slice(i + 1);
-    const ty = exprs(rest, '(', fromRepl);
+    const ty = exprs(rest, '(');
     return isNames(ns).map(x => [u, x, impl, ty]);
   }
   return serr(`invalid pi param`);
@@ -199,9 +199,9 @@ const projs = (ps: string): ProjType[] => {
   return parts.map(proj);
 };
 
-const expr = (t: Token, fromRepl: boolean): [Surface, boolean] => {
+const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
-    return [exprs(t.list, '(', fromRepl), t.bracket === '{'];
+    return [exprs(t.list, '('), t.bracket === '{'];
   if (t.tag === 'Str') {
     const s = codepoints(t.str).reverse();
     const Cons = Var('Cons');
@@ -248,10 +248,10 @@ const expr = (t: Token, fromRepl: boolean): [Surface, boolean] => {
   return t;
 };
 
-const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
+const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface => {
   if (br === '{') return serr(`{} cannot be used here`);
   if (ts.length === 0) return Var('UnitType');
-  if (ts.length === 1) return expr(ts[0], fromRepl)[0];
+  if (ts.length === 1) return expr(ts[0])[0];
   if (isName(ts[0], 'let')) {
     let x = ts[1];
     let j = 2;
@@ -278,7 +278,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
           break;
         else tyts.push(v);
       }
-      ty = exprs(tyts, '(', fromRepl);
+      ty = exprs(tyts, '(');
     }
     if (!isName(ts[j], '=')) return serr(`no = after name in let`);
     const vals: Token[] = [];
@@ -293,32 +293,45 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
       vals.push(c);
     }
     if (vals.length === 0) return serr(`empty val in let`);
-    const val = exprs(vals, '(', fromRepl);
+    const val = exprs(vals, '(');
     if (!found) {
       if (!fromRepl) return serr(`no ; after let`);
+      if (ts.slice(i + 1).length > 0) return serr(`no ; after let`);
       return Let(u, name, ty || null, val, null as any);
     }
-    const body = exprs(ts.slice(i + 1), '(', fromRepl);
+    const body = exprs(ts.slice(i + 1), '(');
     return Let(u, name, ty || null, val, body);
   }
   if (isName(ts[0], 'import')) {
     if (!ts[1]) return serr(`import needs a term`);
-    const [term, i] = expr(ts[1], fromRepl);
+    const [term, i] = expr(ts[1]);
     if (i) return serr(`import term cannot be implicit`);
     let j = 3;
     let imports: string[] | null = null;
-    if (!(ts[2] && isName(ts[2], ';'))) {
-      if (ts[2].tag !== 'List' || ts[2].bracket !== '(') return serr(`import needs a list`);
+    if (!isName(ts[2], ';')) {
+      if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(') {
+        if(!fromRepl)
+          return serr(`import needs a list or ;`);
+        if (ts.slice(j).length > 0)
+          return serr(`expected ; after import list`);
+        return Import(term, null, null as any);
+      }
       imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
         if (ts.length === 0) return null;
         if (ts.length > 1) return serr(`import list must only contain variables`);
         if (ts[0].tag !== 'Name') return serr(`import list must only contain variables`);
         return ts[0].name;
       }).filter(Boolean) as string[];
-      if (!isName(ts[3], ';')) return serr(`expected ; after import list`);
+      if (!isName(ts[3], ';')) {
+        if(!fromRepl)
+          return serr(`expected ; after import list`);
+        if (ts.slice(j).length > 0)
+          return serr(`expected ; after import list`);
+        return Import(term, imports, null as any);
+      }
       j++;
     }
-    const body = exprs(ts.slice(j), '(', fromRepl);
+    const body = exprs(ts.slice(j), '(');
     return Import(term, imports, body);
   }
   if (isName(ts[0], '\\')) {
@@ -331,10 +344,10 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
         found = true;
         break;
       }
-      lambdaParams(c, fromRepl).forEach(x => args.push(x));
+      lambdaParams(c).forEach(x => args.push(x));
     }
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
-    const body = exprs(ts.slice(i + 1), '(', fromRepl);
+    const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [u, name, mode , ty]) => Abs(u, mode, name, ty, x), body);
   }
   if (isName(ts[0], 'indSigma')) {
@@ -343,33 +356,33 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     if (u) { j = 2 } else { u = many }
     let motive: Surface | null = null;
     let scrut: Surface;
-    const [maybemotive, impl] = expr(ts[j], fromRepl);
+    const [maybemotive, impl] = expr(ts[j]);
     if (impl) {
       motive = maybemotive;
-      const [scrut2, impl2] = expr(ts[j + 1], fromRepl);
+      const [scrut2, impl2] = expr(ts[j + 1]);
       if (impl2) return serr(`indSigma scrutinee cannot be implicit`);
       scrut = scrut2;
       j++;
     } else {
       scrut = maybemotive;
     }
-    const cas = exprs(ts.slice(j + 1), '(', fromRepl);
+    const cas = exprs(ts.slice(j + 1), '(');
     return IndSigma(u, motive, scrut, cas);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {
     const a = ts.slice(0, i);
     const b = ts.slice(i + 1);
-    return Let(many, 'x', exprs(b, '(', fromRepl), exprs(a, '(', fromRepl), Var('x'));
+    return Let(many, 'x', exprs(b, '('), exprs(a, '('), Var('x'));
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {
     const s = splitTokens(ts, x => isName(x, '->'));
     if (s.length < 2) return serr(`parsing failed with ->`);
     const args: [Usage, Name, Mode, Surface][] = s.slice(0, -1)
-      .map(p => p.length === 1 ? piParams(p[0], fromRepl) : [[many, '_', Expl, exprs(p, '(', fromRepl)] as [Usage, Name, Mode, Surface]])
+      .map(p => p.length === 1 ? piParams(p[0]) : [[many, '_', Expl, exprs(p, '(')] as [Usage, Name, Mode, Surface]])
       .reduce((x, y) => x.concat(y), []);
-    const body = exprs(s[s.length - 1], '(', fromRepl);
+    const body = exprs(s[s.length - 1], '(');
     return args.reduceRight((x, [u, name, impl, ty]) => Pi(u, impl, name, ty, x), body);
   }
   const jp = ts.findIndex(x => isName(x, ','));
@@ -380,9 +393,9 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
       if (x.length === 1) {
         const h = x[0];
         if (h.tag === 'List' && h.bracket === '{')
-          return expr(h, fromRepl)
+          return expr(h)
       }
-      return [exprs(x, '(', fromRepl), false];
+      return [exprs(x, '('), false];
     });
     if (args.length === 0) return serr(`empty pair`);
     if (args.length === 1) return serr(`singleton pair`);
@@ -396,9 +409,9 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
     const s = splitTokens(ts, x => isName(x, '**'));
     if (s.length < 2) return serr(`parsing failed with **`);
     const args: [Usage, Name, Mode, Surface][] = s.slice(0, -1)
-      .map(p => p.length === 1 ? piParams(p[0], fromRepl) : [[many, '_', Expl, exprs(p, '(', fromRepl)] as [Usage, Name, Mode, Surface]])
+      .map(p => p.length === 1 ? piParams(p[0]) : [[many, '_', Expl, exprs(p, '(')] as [Usage, Name, Mode, Surface]])
       .reduce((x, y) => x.concat(y), []);
-    const body = exprs(s[s.length - 1], '(', fromRepl);
+    const body = exprs(s[s.length - 1], '(');
     return args.reduceRight((x, [u, name, mode, ty]) => {
       if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
       return Sigma(u, name, ty, x)
@@ -407,11 +420,11 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
   const l = ts.findIndex(x => isName(x, '\\'));
   let all: AppPart[] = [];
   if (l >= 0) {
-    const first = ts.slice(0, l).map(t => appPart(t, fromRepl));
-    const rest = exprs(ts.slice(l), '(', fromRepl);
+    const first = ts.slice(0, l).map(t => appPart(t));
+    const rest = exprs(ts.slice(l), '(');
     all = first.concat([{ tag: 'Expr', expr: rest, impl: false }]);
   } else {
-    all = ts.map(t => appPart(t, fromRepl));
+    all = ts.map(t => appPart(t));
   }
   if (all.length === 0) return serr(`empty application`);
   const hd = all[0];
@@ -424,9 +437,9 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean): Surface => {
 };
 
 type AppPart = { tag: 'Expr', expr: Surface, impl: boolean } | { tag: 'Proj', proj: ProjType[] };
-const appPart = (t: Token, fromRepl: boolean): AppPart => {
+const appPart = (t: Token): AppPart => {
   if (t.tag === 'Name' && t.name[0] === '.') return { tag: 'Proj', proj: projs(t.name.slice(1)) };
-  const [ex, impl] = expr(t, fromRepl);
+  const [ex, impl] = expr(t);
   return { tag: 'Expr', expr: ex, impl };
 };
 

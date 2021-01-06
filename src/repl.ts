@@ -1,16 +1,16 @@
 import { config, log, setConfig } from './config';
 import { parse } from './parser';
-import { Let, show, showCore, Surface, Var } from './surface';
-import { many, Usage, zero } from './usage';
+import { Import, Let, show, showCore, Var } from './surface';
+import { many, zero } from './usage';
 import { Name } from './names';
-import { Local } from './local';
+import { EntryT, Local } from './local';
 import { elaborate } from './elaboration';
 import * as C from './core';
 import { typecheck } from './typecheck';
-import { evaluate, normalize } from './values';
+import { evaluate, normalize, quote, Val } from './values';
 import { loadFile } from './utils/utils';
 import { globalSet } from './globals';
-import { nil } from './utils/List';
+import { Cons, nil } from './utils/List';
 
 const help = `
 COMMANDS
@@ -25,12 +25,10 @@ COMMANDS
 `.trim();
 
 let showStackTrace = false;
-let defs: [Usage, Name, Surface | null, Surface][] = [];
 let local: Local = Local.empty();
 
 export const initREPL = () => {
   showStackTrace = false;
-  defs = [];
   local = Local.empty();
 };
 
@@ -48,18 +46,27 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       showStackTrace = !showStackTrace;
       return cb(`showStackTrace: ${showStackTrace}`);
     }
-    if (s === ':defs')
-      return cb(defs.map(([u, x, t, v]) => `let ${u === '*' ? '' : `${u} `}${x}${t ? ` : ${show(t)}` : ''} = ${show(v)}`).join('\n'));
+    if (s === ':defs') {
+      const defs: string[] = [];
+      for (let i = local.level - 1; i >= 0; i--) {
+        const x = local.ns.index(i) as Name;
+        const entry = local.ts.index(i) as EntryT;
+        const u = entry.usage;
+        const t = quote(entry.type, local.level);
+        const v = quote(local.vs.index(i) as Val, local.level);
+        defs.push(`${u === '*' ? '' : `${u} `}${x} : ${showCore(t, local.ns)} = ${showCore(v, local.ns)}`);
+      }
+      return cb(defs.join('\n'));
+    }
     if (s === ':clear') {
-      defs = [];
       local = Local.empty();
       return cb(`cleared definitions`);
     }
     if (s === ':undoDef') {
-      if (defs.length > 0) {
-        const [u, x, t, v] = (defs.pop() as any);
-        local = local.unsafeUndo();
-        return cb(`undid let ${u === '*' ? '' : `${u} `}${x}${t ? ` : ${show(t)}` : ''} = ${show(v)}`);
+      if (local.level > 0) {
+        const name = (local.ns as Cons<Name>).head;
+        local = local.undo();
+        return cb(`removed definition ${name}`);
       }
       cb(`no def to undo`);
     }
@@ -91,6 +98,9 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       isDef = true;
       usage = term.usage;
       term = Let(term.usage === zero ? many : term.usage, term.name, term.type, term.val, Var(term.name));
+    } else if (term.tag === 'Import' && term.body === null) {
+      isDef = true;
+      term = Import(term.term, term.imports, term.term);
     }
     log(() => show(term));
 
@@ -115,10 +125,17 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
 
     const etermstr = showCore(eterm, local.ns);
 
-    if (isDef && term.tag === 'Let') {
-      defs.push([usage, term.name, term.type, term.val]);
-      const value = evaluate(eterm, local.vs);
-      local = local.define(usage, term.name, evaluate(etype, local.vs), value);
+    if (isDef) {
+      if (term.tag === 'Let') {
+        const value = evaluate(eterm, local.vs);
+        local = local.define(usage, term.name, evaluate(etype, local.vs), value);
+      } else if (term.tag === 'Import') {
+        let c: C.Core = eterm;
+        while (c && c.tag === 'Let') {
+          local = local.define(c.usage, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs));
+          c = c.body;
+        }
+      } else throw new Error(`invalid definition: ${term.tag}`);
     }
 
     return cb(`term: ${show(term)}\ntype: ${showCore(etype)}\netrm: ${etermstr}${normstr}`);

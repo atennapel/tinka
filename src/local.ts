@@ -96,7 +96,8 @@ export class Local {
     );
   }
 
-  unsafeUndo(): Local {
+  undo(): Local {
+    if (this.level === 0) return this;
     return new Local(
       this.usage,
       this.level - 1,

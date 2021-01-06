@@ -12,13 +12,13 @@ yarn start example.p
 
 ```
 todo:
-- import in repl
 - local glued values
 - fix linear let values
 - add signature
 - add module
-- add primitives: void, unit, bool
+- add primitives: void, unit, bool (or Nat and Fin?)
 - metas
+- fix importing in web repl
 - elaboration with metas
 - rewrite parser, include locations
 - improve elaboration of import
