@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, IndSigma, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Type, Var } from './surface';
+import { Abs, App, Import, IndSigma, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, SigEntry, Sigma, Signature, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -252,6 +252,42 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
   if (br === '{') return serr(`{} cannot be used here`);
   if (ts.length === 0) return Var('UnitType');
   if (ts.length === 1) return expr(ts[0])[0];
+  if (isName(ts[0], 'sig')) {
+    if (ts.length !== 2) return serr(`invalid signature (1)`);
+    const b = ts[1];
+    if (b.tag !== 'List' || b.bracket !== '{') return serr(`invalid signature (2)`);
+    const bs = b.list;
+    const spl = splitTokens(bs, t => t.tag === 'Name' && t.name === 'pub', true);
+    const entries: SigEntry[] = [];
+    for (let i = 0; i < spl.length; i++) {
+      const c = spl[i];
+      if (c.length === 0) continue;
+      if (c[0].tag !== 'Name') return serr(`invalid signature, pub does not start with pub`);
+      if (c[0].name !== 'pub') return serr(`invalid signature, pub does not start with pub`);
+      let x = c[1];
+      let j = 2;
+      const pu = usage(x);
+      let u: Usage = many;
+      if (pu !== null) { u = pu; x = c[2]; j = 3 }
+      let name = '';
+      if (x.tag === 'Name') {
+        name = x.name;
+      } else return serr(`invalid name for signature def: ${x.tag}`);
+      if (name.length === 0) return serr(`signature definition with empty name`);
+      const sym = c[j];
+      if (!sym) {
+        entries.push(SigEntry(u, name, null));
+        continue;
+      }
+      if (sym.tag !== 'Name') return serr(`signature def: after name should be :`);
+      if (sym.name === ':') {
+        const type = exprs(c.slice(j + 1), '(');
+        entries.push(SigEntry(u, name, type));
+        continue;
+      } else return serr(`def: : or = expected but got ${sym.name}`);
+    }
+    return Signature(entries);
+  }
   if (isName(ts[0], 'let')) {
     let x = ts[1];
     let j = 2;

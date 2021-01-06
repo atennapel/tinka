@@ -463,6 +463,26 @@ const synth = (local, tm) => {
         const lets2 = tm.term.tag === 'Var' ? lets : S.Let(usage_1.many, v, null, tm.term, lets);
         return synth(local, lets2); // TODO: improve this elaboration
     }
+    if (tm.tag === 'Signature') {
+        let clocal = local;
+        const edefs = [];
+        for (let i = 0, l = tm.defs.length; i < l; i++) {
+            const e = tm.defs[i];
+            let type;
+            if (e.type) {
+                [type] = check(clocal.inType(), e.type, values_1.VType);
+            }
+            else {
+                // type = newMeta(clocal, e.erased, VType);
+                return utils_1.terr(`signature definition must have a type: ${surface_1.show(tm)}`);
+            }
+            edefs.push([e, type]);
+            const ty = values_1.evaluate(type, clocal.vs);
+            clocal = clocal.bind(e.usage, mode_1.Expl, e.name, ty);
+        }
+        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.usage, e.name, type, t), core_1.Global('UnitType'));
+        return [stype, values_1.VType, usage_1.noUses(local.level)];
+    }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
 const getAllNamesFromSigma = (k, ty_, ns, a = [], all = []) => {
@@ -949,6 +969,57 @@ const exprs = (ts, br, fromRepl = false) => {
         return surface_1.Var('UnitType');
     if (ts.length === 1)
         return expr(ts[0])[0];
+    if (isName(ts[0], 'sig')) {
+        if (ts.length !== 2)
+            return utils_1.serr(`invalid signature (1)`);
+        const b = ts[1];
+        if (b.tag !== 'List' || b.bracket !== '{')
+            return utils_1.serr(`invalid signature (2)`);
+        const bs = b.list;
+        const spl = splitTokens(bs, t => t.tag === 'Name' && t.name === 'pub', true);
+        const entries = [];
+        for (let i = 0; i < spl.length; i++) {
+            const c = spl[i];
+            if (c.length === 0)
+                continue;
+            if (c[0].tag !== 'Name')
+                return utils_1.serr(`invalid signature, pub does not start with pub`);
+            if (c[0].name !== 'pub')
+                return utils_1.serr(`invalid signature, pub does not start with pub`);
+            let x = c[1];
+            let j = 2;
+            const pu = usage(x);
+            let u = usage_1.many;
+            if (pu !== null) {
+                u = pu;
+                x = c[2];
+                j = 3;
+            }
+            let name = '';
+            if (x.tag === 'Name') {
+                name = x.name;
+            }
+            else
+                return utils_1.serr(`invalid name for signature def: ${x.tag}`);
+            if (name.length === 0)
+                return utils_1.serr(`signature definition with empty name`);
+            const sym = c[j];
+            if (!sym) {
+                entries.push(surface_1.SigEntry(u, name, null));
+                continue;
+            }
+            if (sym.tag !== 'Name')
+                return utils_1.serr(`signature def: after name should be :`);
+            if (sym.name === ':') {
+                const type = exprs(c.slice(j + 1), '(');
+                entries.push(surface_1.SigEntry(u, name, type));
+                continue;
+            }
+            else
+                return utils_1.serr(`def: : or = expected but got ${sym.name}`);
+        }
+        return surface_1.Signature(entries);
+    }
     if (isName(ts[0], 'let')) {
         let x = ts[1];
         let j = 2;
@@ -1337,7 +1408,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Import = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1364,6 +1435,10 @@ const Proj = (term, proj) => ({ tag: 'Proj', term, proj });
 exports.Proj = Proj;
 const Import = (term, imports, body) => ({ tag: 'Import', term, imports, body });
 exports.Import = Import;
+const SigEntry = (usage, name, type) => ({ usage, name, type });
+exports.SigEntry = SigEntry;
+const Signature = (defs) => ({ tag: 'Signature', defs });
+exports.Signature = Signature;
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -1478,6 +1553,8 @@ const show = (t) => {
         const [hd, ps] = exports.flattenProj(t);
         return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
     }
+    if (t.tag === 'Signature')
+        return `sig { ${t.defs.map(({ usage, name, type }) => `pub ${usage === usage_1.many ? '' : `${usage} `}${name}${type ? ` : ${exports.show(type)}` : ''}`).join(' ')} }`;
     return t;
 };
 exports.show = show;

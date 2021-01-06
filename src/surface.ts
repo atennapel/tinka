@@ -7,10 +7,11 @@ import { impossible } from './utils/utils';
 import { quote, Val } from './values';
 
 export type Surface =
-  Var | Let | Import |
+  Var | Let |
   Type |
   Pi | Abs | App |
-  Sigma | Pair | IndSigma | Proj;
+  Sigma | Pair | IndSigma | Proj |
+  Signature | Import;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -36,6 +37,10 @@ export interface Proj { readonly tag: 'Proj'; readonly term: Surface; readonly p
 export const Proj = (term: Surface, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
 export interface Import { readonly tag: 'Import'; readonly term: Surface; readonly imports: string[] | null; readonly body: Surface }
 export const Import = (term: Surface, imports: string[] | null, body: Surface): Import => ({ tag: 'Import', term, imports, body });
+export interface SigEntry { readonly usage: Usage; readonly name: Name; readonly type: Surface | null }
+export const SigEntry = (usage: Usage, name: Name, type: Surface | null): SigEntry => ({ usage, name, type });
+export interface Signature { readonly tag: 'Signature'; readonly defs: SigEntry[] }
+export const Signature = (defs: SigEntry[]): Signature => ({ tag: 'Signature', defs });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -144,6 +149,8 @@ export const show = (t: Surface): string => {
     const [hd, ps] = flattenProj(t);
     return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
   }
+  if (t.tag === 'Signature')
+    return `sig { ${t.defs.map(({usage, name, type}) => `pub ${usage === many ? '' : `${usage} `}${name}${type ? ` : ${show(type)}` : ''}`).join(' ')} }`;
   return t;
 };
 

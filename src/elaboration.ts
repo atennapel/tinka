@@ -178,6 +178,25 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const lets2 = tm.term.tag === 'Var' ? lets : S.Let(many, v, null, tm.term, lets);
     return synth(local, lets2); // TODO: improve this elaboration
   }
+  if (tm.tag === 'Signature') {
+    let clocal = local;
+    const edefs: [S.SigEntry, Core][] = [];
+    for (let i = 0, l = tm.defs.length; i < l; i++) {
+      const e = tm.defs[i];
+      let type: Core;
+      if (e.type) {
+        [type] = check(clocal.inType(), e.type, VType);
+      } else {
+        // type = newMeta(clocal, e.erased, VType);
+        return terr(`signature definition must have a type: ${show(tm)}`);
+      }
+      edefs.push([e, type]);
+      const ty = evaluate(type, clocal.vs);
+      clocal = clocal.bind(e.usage, Expl, e.name, ty);
+    }
+    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.usage, e.name, type, t), Global('UnitType') as Core);
+    return [stype, VType, noUses(local.level)];
+  }
   return terr(`unable to synth ${show(tm)}`);
 };
 
