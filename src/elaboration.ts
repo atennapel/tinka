@@ -1,7 +1,7 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
@@ -40,6 +40,10 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
     const [fst, u1] = check(local, tm.fst, ty.type);
     const [snd, u2] = check(local, tm.snd, vinst(ty, evaluate(fst, local.vs)));
     return [Pair(fst, snd, quote(ty, local.level)), addUses(multiplyUses(ty.usage, u1), u2)];
+  }
+  if (tm.tag === 'Refl' && !tm.type && !tm.val && ty.tag === 'VPropEq') {
+    tryT(() => conv(local.level, ty.left, ty.right), e => terr(`check failed (${show(tm)}): ${showVal(local, ty_)}: ${e}`));
+    return [Refl(quote(ty.type, local.level), quote(ty.left, local.level)), noUses(local.level)];
   }
   if (tm.tag === 'Let') {
     let vtype: Core;
@@ -202,6 +206,26 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const defs = List.from(tm.defs);
     const [term, type, u] = createModuleTerm(local, defs);
     return [term, evaluate(type, local.vs), u];
+  }
+  if (tm.tag === 'PropEq') {
+    if (tm.type) {
+      const [type] = check(local.inType(), tm.type, VType);
+      const ty = evaluate(type, local.vs);
+      const [left, u1] = check(local, tm.left, ty);
+      const [right, u2] = check(local, tm.right, ty);
+      return [PropEq(type, left, right), VType, addUses(u1, u2)];
+    } else {
+      const [left, ty, u1] = synth(local, tm.left);
+      const [right, u2] = check(local, tm.right, ty);
+      return [PropEq(quote(ty, local.level), left, right), VType, addUses(u1, u2)];
+    }
+  }
+  if (tm.tag === 'Refl' && tm.type && tm.val) {
+    const [type] = check(local.inType(), tm.type, VType);
+    const ty = evaluate(type, local.vs);
+    const [val] = check(local.inType(), tm.val, ty);
+    const x = evaluate(val, local.vs);
+    return [Refl(type, val), VPropEq(ty, x, x), noUses(local.level)];
   }
   return terr(`unable to synth ${show(tm)}`);
 };

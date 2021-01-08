@@ -77,6 +77,8 @@ const conv = (k, a, b) => {
     config_1.log(() => `conv(${k}): ${values_1.show(a, k)} ~ ${values_1.show(b, k)}`);
     if (a === b)
         return;
+    if (a.tag === 'VType' && b.tag === 'VType')
+        return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && mode_1.eqMode(a.mode, b.mode)) {
         exports.conv(k, a.type, b.type);
         const v = values_1.VVar(k);
@@ -87,6 +89,11 @@ const conv = (k, a, b) => {
         const v = values_1.VVar(k);
         return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
     }
+    if (a.tag === 'VPropEq' && b.tag === 'VPropEq') {
+        exports.conv(k, a.type, b.type);
+        exports.conv(k, a.left, b.left);
+        return exports.conv(k, a.right, b.right);
+    }
     if (a.tag === 'VAbs' && b.tag === 'VAbs') {
         const v = values_1.VVar(k);
         return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
@@ -94,6 +101,10 @@ const conv = (k, a, b) => {
     if (a.tag === 'VPair' && b.tag === 'VPair') {
         exports.conv(k, a.fst, b.fst);
         return exports.conv(k, a.snd, b.snd);
+    }
+    if (a.tag === 'VRefl' && b.tag === 'VRefl') {
+        exports.conv(k, a.type, b.type);
+        return exports.conv(k, a.val, b.val);
     }
     if (a.tag === 'VAbs') {
         const v = values_1.VVar(k);
@@ -129,7 +140,7 @@ exports.conv = conv;
 },{"./config":1,"./core":3,"./mode":7,"./utils/utils":16,"./values":17}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Refl = exports.PropEq = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -152,6 +163,11 @@ const IndSigma = (usage, motive, scrut, cas) => ({ tag: 'IndSigma', usage, motiv
 exports.IndSigma = IndSigma;
 const Proj = (term, proj) => ({ tag: 'Proj', term, proj });
 exports.Proj = Proj;
+const PropEq = (type, left, right) => ({ tag: 'PropEq', type, left, right });
+exports.PropEq = PropEq;
+;
+const Refl = (type, val) => ({ tag: 'Refl', type, val });
+exports.Refl = Refl;
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -262,6 +278,10 @@ const show = (t) => {
         const [hd, ps] = exports.flattenProj(t);
         return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
     }
+    if (t.tag === 'PropEq')
+        return `{${exports.show(t.type)}} ${exports.show(t.left)} = ${exports.show(t.right)}`;
+    if (t.tag === 'Refl')
+        return `Refl {${exports.show(t.type)}} {${exports.show(t.val)}}`;
     return t;
 };
 exports.show = show;
@@ -286,6 +306,10 @@ const shift = (d, c, t) => {
         return exports.Sigma(t.usage, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
     if (t.tag === 'IndSigma')
         return exports.IndSigma(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut), exports.shift(d, c, t.cas));
+    if (t.tag === 'PropEq')
+        return exports.PropEq(exports.shift(d, c, t.type), exports.shift(d, c, t.left), exports.shift(d, c, t.right));
+    if (t.tag === 'Refl')
+        return exports.Refl(exports.shift(d, c, t.type), exports.shift(d, c, t.val));
     return t;
 };
 exports.shift = shift;
@@ -310,6 +334,10 @@ const substVar = (j, s, t) => {
         return exports.Sigma(t.usage, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
     if (t.tag === 'IndSigma')
         return exports.IndSigma(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut), exports.substVar(j, s, t.cas));
+    if (t.tag === 'PropEq')
+        return exports.PropEq(exports.substVar(j, s, t.type), exports.substVar(j, s, t.left), exports.substVar(j, s, t.right));
+    if (t.tag === 'Refl')
+        return exports.Refl(exports.substVar(j, s, t.type), exports.substVar(j, s, t.val));
     return t;
 };
 exports.substVar = substVar;
@@ -361,6 +389,10 @@ const check = (local, tm, ty_) => {
         const [fst, u1] = check(local, tm.fst, ty.type);
         const [snd, u2] = check(local, tm.snd, values_1.vinst(ty, values_1.evaluate(fst, local.vs)));
         return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
+    }
+    if (tm.tag === 'Refl' && !tm.type && !tm.val && ty.tag === 'VPropEq') {
+        utils_1.tryT(() => conversion_1.conv(local.level, ty.left, ty.right), e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${local_1.showVal(local, ty_)}: ${e}`));
+        return [core_1.Refl(values_1.quote(ty.type, local.level), values_1.quote(ty.left, local.level)), usage_1.noUses(local.level)];
     }
     if (tm.tag === 'Let') {
         let vtype;
@@ -538,6 +570,27 @@ const synth = (local, tm) => {
         const defs = List_1.List.from(tm.defs);
         const [term, type, u] = createModuleTerm(local, defs);
         return [term, values_1.evaluate(type, local.vs), u];
+    }
+    if (tm.tag === 'PropEq') {
+        if (tm.type) {
+            const [type] = check(local.inType(), tm.type, values_1.VType);
+            const ty = values_1.evaluate(type, local.vs);
+            const [left, u1] = check(local, tm.left, ty);
+            const [right, u2] = check(local, tm.right, ty);
+            return [core_1.PropEq(type, left, right), values_1.VType, usage_1.addUses(u1, u2)];
+        }
+        else {
+            const [left, ty, u1] = synth(local, tm.left);
+            const [right, u2] = check(local, tm.right, ty);
+            return [core_1.PropEq(values_1.quote(ty, local.level), left, right), values_1.VType, usage_1.addUses(u1, u2)];
+        }
+    }
+    if (tm.tag === 'Refl' && tm.type && tm.val) {
+        const [type] = check(local.inType(), tm.type, values_1.VType);
+        const ty = values_1.evaluate(type, local.vs);
+        const [val] = check(local.inType(), tm.val, ty);
+        const x = values_1.evaluate(val, local.vs);
+        return [core_1.Refl(type, val), values_1.VPropEq(ty, x, x), usage_1.noUses(local.level)];
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
@@ -778,7 +831,7 @@ const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
 const SYM1 = ['\\', ':', '=', ';', '*', ','];
-const SYM2 = ['->', '**'];
+const SYM2 = ['->', '**', '!='];
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
@@ -1003,6 +1056,8 @@ const expr = (t) => {
         const x = t.name;
         if (x === 'Type')
             return [surface_1.Type, false];
+        if (x === 'Refl')
+            return [surface_1.Refl(null, null), false];
         if (x === '*')
             return [surface_1.Var('Unit'), false];
         if (/[a-z]/i.test(x[0])) {
@@ -1239,6 +1294,26 @@ const exprs = (ts, br, fromRepl = false) => {
         const lastitem = surface_1.Pair(last2[0], last1[0]);
         return args.slice(0, -2).reduceRight((x, [y, _p]) => surface_1.Pair(y, x), lastitem);
     }
+    if (isName(ts[0], 'Refl')) {
+        if (ts.length === 1)
+            return surface_1.Refl(null, null);
+        if (ts.length === 2) {
+            if (ts[1].tag !== 'List' || ts[1].bracket !== '{')
+                return utils_1.serr(`invalid Refl`);
+            const type = exprs(ts[1].list, '(');
+            return surface_1.Refl(type, null);
+        }
+        if (ts.length === 3) {
+            if (ts[1].tag !== 'List' || ts[1].bracket !== '{')
+                return utils_1.serr(`invalid Refl`);
+            if (ts[2].tag !== 'List' || ts[2].bracket !== '{')
+                return utils_1.serr(`invalid Refl`);
+            const type = exprs(ts[1].list, '(');
+            const val = exprs(ts[2].list, '(');
+            return surface_1.Refl(type, val);
+        }
+        return utils_1.serr(`invalid Refl`);
+    }
     const js = ts.findIndex(x => isName(x, '**'));
     if (js >= 0) {
         const s = splitTokens(ts, x => isName(x, '**'));
@@ -1253,6 +1328,40 @@ const exprs = (ts, br, fromRepl = false) => {
                 return utils_1.serr(`sigma cannot be implicit`);
             return surface_1.Sigma(u, name, ty, x);
         }, body);
+    }
+    const jq = ts.findIndex(x => isName(x, '='));
+    if (jq >= 0) {
+        if (ts.length < 3)
+            return utils_1.serr(`invalid equality`);
+        let rest = ts;
+        let type = null;
+        if (ts[0].tag === 'List' && ts[0].bracket === '{') {
+            rest = ts.slice(1);
+            type = exprs(ts[0].list, '(');
+        }
+        const spl = splitTokens(rest, t => isName(t, '='));
+        if (spl.length !== 2)
+            return utils_1.serr(`invalid equality`);
+        const left = exprs(spl[0], '(');
+        const right = exprs(spl[1], '(');
+        return surface_1.PropEq(type, left, right);
+    }
+    const jnq = ts.findIndex(x => isName(x, '!='));
+    if (jnq >= 0) {
+        if (ts.length < 3)
+            return utils_1.serr(`invalid inequality`);
+        let rest = ts;
+        let type = null;
+        if (ts[0].tag === 'List' && ts[0].bracket === '{') {
+            rest = ts.slice(1);
+            type = exprs(ts[0].list, '(');
+        }
+        const spl = splitTokens(rest, t => isName(t, '!='));
+        if (spl.length !== 2)
+            return utils_1.serr(`invalid inequality`);
+        const left = exprs(spl[0], '(');
+        const right = exprs(spl[1], '(');
+        return surface_1.Pi(usage_1.many, mode_1.Expl, '_', surface_1.PropEq(type, left, right), surface_1.Var('Void'));
     }
     if (isName(ts[0], 'sig')) {
         if (ts.length !== 2)
@@ -1569,7 +1678,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.IndSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1604,6 +1713,11 @@ const ModEntry = (priv, usage, name, type, val) => ({ priv, usage, name, type, v
 exports.ModEntry = ModEntry;
 const Module = (defs) => ({ tag: 'Module', defs });
 exports.Module = Module;
+const PropEq = (type, left, right) => ({ tag: 'PropEq', type, left, right });
+exports.PropEq = PropEq;
+;
+const Refl = (type, val) => ({ tag: 'Refl', type, val });
+exports.Refl = Refl;
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -1722,6 +1836,10 @@ const show = (t) => {
         return `sig { ${t.defs.map(({ usage, name, type }) => `def ${usage === usage_1.many ? '' : `${usage} `}${name}${type ? ` : ${exports.show(type)}` : ''}`).join(' ')} }`;
     if (t.tag === 'Module')
         return `mod { ${t.defs.map(({ priv, usage, name, type, val }) => `${priv ? 'private ' : ''}def ${usage === usage_1.many ? '' : `${usage} `}${name}${type ? ` : ${exports.show(type)}` : ''} = ${exports.show(val)}`).join(' ')} }`;
+    if (t.tag === 'PropEq')
+        return `${t.type ? `{${exports.show(t.type)}} ` : ''}${exports.show(t.left)} = ${exports.show(t.right)}`;
+    if (t.tag === 'Refl')
+        return `Refl${t.type ? ` {${exports.show(t.type)}}` : ''}${t.val ? ` {${exports.show(t.val)}}` : ''}`;
     return t;
 };
 exports.show = show;
@@ -1756,6 +1874,10 @@ const fromCore = (t, ns = List_1.nil) => {
         return exports.IndSigma(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), exports.fromCore(t.cas, ns));
     if (t.tag === 'Proj')
         return exports.Proj(exports.fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? exports.PName(t.proj.name) : exports.PIndex(t.proj.index));
+    if (t.tag === 'PropEq')
+        return exports.PropEq(exports.fromCore(t.type, ns), exports.fromCore(t.left, ns), exports.fromCore(t.right, ns));
+    if (t.tag === 'Refl')
+        return exports.Refl(exports.fromCore(t.type, ns), exports.fromCore(t.val, ns));
     return t;
 };
 exports.fromCore = fromCore;
@@ -1884,6 +2006,20 @@ const synth = (local, tm) => {
         }
         else
             return [project(local, tm, values_1.evaluate(tm.term, local.vs), sigma_, tm.proj.index), u];
+    }
+    if (tm.tag === 'PropEq') {
+        check(local.inType(), tm.type, values_1.VType);
+        const ty = values_1.evaluate(tm.type, local.vs);
+        const u1 = check(local, tm.left, ty);
+        const u2 = check(local, tm.right, ty);
+        return [values_1.VType, usage_1.addUses(u1, u2)];
+    }
+    if (tm.tag === 'Refl') {
+        check(local.inType(), tm.type, values_1.VType);
+        const ty = values_1.evaluate(tm.type, local.vs);
+        check(local.inType(), tm.val, ty);
+        const x = values_1.evaluate(tm.val, local.vs);
+        return [values_1.VPropEq(ty, x, x), usage_1.noUses(local.level)];
     }
     return tm;
 };
@@ -2291,7 +2427,7 @@ exports.eqArr = eqArr;
 },{"fs":19}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vproj = exports.vindsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EProj = exports.EIndSigma = exports.EApp = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vproj = exports.vindsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EProj = exports.EIndSigma = exports.EApp = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
@@ -2320,6 +2456,10 @@ const VSigma = (usage, name, type, clos) => ({ tag: 'VSigma', usage, name, type,
 exports.VSigma = VSigma;
 const VPair = (fst, snd, type) => ({ tag: 'VPair', fst, snd, type });
 exports.VPair = VPair;
+const VPropEq = (type, left, right) => ({ tag: 'VPropEq', type, left, right });
+exports.VPropEq = VPropEq;
+const VRefl = (type, val) => ({ tag: 'VRefl', type, val });
+exports.VRefl = VRefl;
 const VVar = (level, spine = List_1.nil) => exports.VNe(exports.HVar(level), spine);
 exports.VVar = VVar;
 const vinst = (val, arg) => val.clos(arg);
@@ -2396,6 +2536,10 @@ const evaluate = (t, vs) => {
         return exports.vindsigma(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), exports.evaluate(t.cas, vs));
     if (t.tag === 'Proj')
         return exports.vproj(exports.evaluate(t.term, vs), t.proj);
+    if (t.tag === 'PropEq')
+        return exports.VPropEq(exports.evaluate(t.type, vs), exports.evaluate(t.left, vs), exports.evaluate(t.right, vs));
+    if (t.tag === 'Refl')
+        return exports.VRefl(exports.evaluate(t.type, vs), exports.evaluate(t.val, vs));
     return t;
 };
 exports.evaluate = evaluate;
@@ -2431,6 +2575,10 @@ const quote = (v, k, full = false) => {
         return core_1.Sigma(v.usage, v.name, exports.quote(v.type, k), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1));
     if (v.tag === 'VPair')
         return core_1.Pair(exports.quote(v.fst, k), exports.quote(v.snd, k), exports.quote(v.type, k));
+    if (v.tag === 'VPropEq')
+        return core_1.PropEq(exports.quote(v.type, k), exports.quote(v.left, k), exports.quote(v.right, k));
+    if (v.tag === 'VRefl')
+        return core_1.Refl(exports.quote(v.type, k), exports.quote(v.val, k));
     return v;
 };
 exports.quote = quote;

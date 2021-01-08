@@ -49,6 +49,7 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
 export const conv = (k: Lvl, a: Val, b: Val): void => {
   log(() => `conv(${k}): ${show(a, k)} ~ ${show(b, k)}`);
   if (a === b) return;
+  if (a.tag === 'VType' && b.tag === 'VType') return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && eqMode(a.mode, b.mode)) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -59,6 +60,11 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     const v = VVar(k);
     return conv(k + 1, vinst(a, v), vinst(b, v));
   }
+  if (a.tag === 'VPropEq' && b.tag === 'VPropEq') {
+    conv(k, a.type, b.type);
+    conv(k, a.left, b.left);
+    return conv(k, a.right, b.right);
+  }
   if (a.tag === 'VAbs' && b.tag === 'VAbs') {
     const v = VVar(k);
     return conv(k + 1, vinst(a, v), vinst(b, v));
@@ -66,6 +72,10 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   if (a.tag === 'VPair' && b.tag === 'VPair') {
     conv(k, a.fst, b.fst);
     return conv(k, a.snd, b.snd);
+  }
+  if (a.tag === 'VRefl' && b.tag === 'VRefl') {
+    conv(k, a.type, b.type);
+    return conv(k, a.val, b.val);
   }
 
   if (a.tag === 'VAbs') {

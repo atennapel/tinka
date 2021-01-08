@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, IndSigma, Proj, ProjType, PIndex } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, IndSigma, Proj, ProjType, PIndex, PropEq, Refl } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -25,7 +25,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNe | VGlobal | VAbs | VPi | VSigma | VPair;
+export type Val = VType | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
 
 export interface VType { readonly tag: 'VType' }
 export const VType: VType = { tag: 'VType' };
@@ -41,6 +41,10 @@ export interface VSigma { readonly tag: 'VSigma'; readonly usage: Usage; readonl
 export const VSigma = (usage: Usage, name: Name, type: Val, clos: Clos): VSigma => ({ tag: 'VSigma', usage, name, type, clos });
 export interface VPair { readonly tag: 'VPair'; readonly fst: Val; readonly snd: Val; readonly type: Val }
 export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
+export interface VPropEq { readonly tag: 'VPropEq'; readonly type: Val; readonly left: Val; readonly right: Val }
+export const VPropEq = (type: Val, left: Val, right: Val): VPropEq => ({ tag: 'VPropEq', type, left, right });
+export interface VRefl { readonly tag: 'VRefl'; readonly type: Val; readonly val: Val }
+export const VRefl = (type: Val, val: Val): VRefl => ({ tag: 'VRefl', type, val });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 
@@ -103,6 +107,10 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return vindsigma(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
   if (t.tag === 'Proj')
     return vproj(evaluate(t.term, vs), t.proj);
+  if (t.tag === 'PropEq')
+    return VPropEq(evaluate(t.type, vs), evaluate(t.left, vs), evaluate(t.right, vs));
+  if (t.tag === 'Refl')
+    return VRefl(evaluate(t.type, vs), evaluate(t.val, vs));
   return t;
 };
 
@@ -138,6 +146,10 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
     return Sigma(v.usage, v.name, quote(v.type, k), quote(vinst(v, VVar(k)), k + 1));
   if (v.tag === 'VPair')
     return Pair(quote(v.fst, k), quote(v.snd, k), quote(v.type, k));
+  if (v.tag === 'VPropEq')
+    return PropEq(quote(v.type, k), quote(v.left, k), quote(v.right, k));
+  if (v.tag === 'VRefl')
+    return Refl(quote(v.type, k), quote(v.val, k));
   return v;
 };
 

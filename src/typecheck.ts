@@ -7,7 +7,7 @@ import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VType } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -110,6 +110,20 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
       const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
       return [tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(tm.term, local.vs), fst)), u];
     } else return [project(local, tm, evaluate(tm.term, local.vs), sigma_, tm.proj.index), u];
+  }
+  if (tm.tag === 'PropEq') {
+    check(local.inType(), tm.type, VType);
+    const ty = evaluate(tm.type, local.vs);
+    const u1 = check(local, tm.left, ty);
+    const u2 = check(local, tm.right, ty);
+    return [VType, addUses(u1, u2)];
+  }
+  if (tm.tag === 'Refl') {
+    check(local.inType(), tm.type, VType);
+    const ty = evaluate(tm.type, local.vs);
+    check(local.inType(), tm.val, ty);
+    const x = evaluate(tm.val, local.vs);
+    return [VPropEq(ty, x, x), noUses(local.level)];
   }
   return tm;
 };

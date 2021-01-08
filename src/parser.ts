@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, IndSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, SigEntry, Sigma, Signature, Surface, Type, Var } from './surface';
+import { Abs, App, Import, IndSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -26,7 +26,7 @@ const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list,
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
 const SYM1: string[] = ['\\', ':', '=', ';', '*', ','];
-const SYM2: string[] = ['->', '**'];
+const SYM2: string[] = ['->', '**', '!='];
 
 const START = 0;
 const NAME = 1;
@@ -211,6 +211,7 @@ const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === 'Type') return [Type, false];
+    if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
     if (/[a-z]/i.test(x[0])) {
       if (x.indexOf('.') >= 0) {
@@ -404,6 +405,22 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const lastitem = Pair(last2[0], last1[0]);
     return args.slice(0, -2).reduceRight((x, [y, _p]) => Pair(y, x), lastitem);
   }
+  if (isName(ts[0], 'Refl')) {
+    if (ts.length === 1) return Refl(null, null);
+    if (ts.length === 2) {
+      if (ts[1].tag !== 'List' || ts[1].bracket !== '{') return serr(`invalid Refl`);
+      const type = exprs(ts[1].list, '(');
+      return Refl(type, null);
+    }
+    if (ts.length === 3) {
+      if (ts[1].tag !== 'List' || ts[1].bracket !== '{') return serr(`invalid Refl`);
+      if (ts[2].tag !== 'List' || ts[2].bracket !== '{') return serr(`invalid Refl`);
+      const type = exprs(ts[1].list, '(');
+      const val = exprs(ts[2].list, '(');
+      return Refl(type, val);
+    }
+    return serr(`invalid Refl`);
+  }
   const js = ts.findIndex(x => isName(x, '**'));
   if (js >= 0) {
     const s = splitTokens(ts, x => isName(x, '**'));
@@ -416,6 +433,36 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
       return Sigma(u, name, ty, x)
     }, body);
+  }
+  const jq = ts.findIndex(x => isName(x, '='));
+  if (jq >= 0) {
+    if (ts.length < 3) return serr(`invalid equality`);
+    let rest = ts;
+    let type: Surface | null = null;
+    if (ts[0].tag === 'List' && ts[0].bracket === '{') {
+      rest = ts.slice(1);
+      type = exprs(ts[0].list, '(');
+    }
+    const spl = splitTokens(rest, t => isName(t, '='));
+    if (spl.length !== 2) return serr(`invalid equality`);
+    const left = exprs(spl[0], '(');
+    const right = exprs(spl[1], '(');
+    return PropEq(type, left, right);
+  }
+  const jnq = ts.findIndex(x => isName(x, '!='));
+  if (jnq >= 0) {
+    if (ts.length < 3) return serr(`invalid inequality`);
+    let rest = ts;
+    let type: Surface | null = null;
+    if (ts[0].tag === 'List' && ts[0].bracket === '{') {
+      rest = ts.slice(1);
+      type = exprs(ts[0].list, '(');
+    }
+    const spl = splitTokens(rest, t => isName(t, '!='));
+    if (spl.length !== 2) return serr(`invalid inequality`);
+    const left = exprs(spl[0], '(');
+    const right = exprs(spl[1], '(');
+    return Pi(many, Expl, '_', PropEq(type, left, right), Var('Void'));
   }
   if (isName(ts[0], 'sig')) {
     if (ts.length !== 2) return serr(`invalid signature (1)`);

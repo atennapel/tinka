@@ -11,7 +11,8 @@ export type Surface =
   Type |
   Pi | Abs | App |
   Sigma | Pair | IndSigma | Proj |
-  Signature | Module | Import;
+  Signature | Module | Import |
+  PropEq | Refl;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -45,6 +46,10 @@ export interface ModEntry { readonly priv: boolean; readonly usage: Usage; reado
 export const ModEntry = (priv: boolean, usage: Usage, name: Name, type: Surface | null, val: Surface): ModEntry => ({ priv, usage, name, type, val });
 export interface Module { readonly tag: 'Module'; readonly defs: ModEntry[] }
 export const Module = (defs: ModEntry[]): Module => ({ tag: 'Module', defs });
+export interface PropEq { readonly tag: 'PropEq'; readonly type: Surface | null; readonly left: Surface; readonly right: Surface }
+export const PropEq = (type: Surface | null, left: Surface, right: Surface): PropEq => ({ tag: 'PropEq', type, left, right });
+export interface Refl { readonly tag: 'Refl'; readonly type: Surface | null; readonly val: Surface | null };
+export const Refl = (type: Surface | null, val: Surface | null): Refl => ({ tag: 'Refl', type, val });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -158,6 +163,9 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Module')
     return `mod { ${t.defs.map(({priv, usage, name, type, val}) =>
       `${priv ? 'private ' : ''}def ${usage === many ? '' : `${usage} `}${name}${type ? ` : ${show(type)}` : ''} = ${show(val)}`).join(' ')} }`;
+  if (t.tag === 'PropEq')
+    return `${t.type ? `{${show(t.type)}} ` : ''}${show(t.left)} = ${show(t.right)}`;
+  if (t.tag === 'Refl') return `Refl${t.type ? ` {${show(t.type)}}` : ''}${t.val ? ` {${show(t.val)}}` : ''}`;
   return t;
 };
 
@@ -185,6 +193,8 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Pair') return Pair(fromCore(t.fst, ns), fromCore(t.snd, ns));
   if (t.tag === 'IndSigma') return IndSigma(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.cas, ns));
   if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? PName(t.proj.name) : PIndex(t.proj.index));
+  if (t.tag === 'PropEq') return PropEq(fromCore(t.type, ns), fromCore(t.left, ns), fromCore(t.right, ns));
+  if (t.tag === 'Refl') return Refl(fromCore(t.type, ns), fromCore(t.val, ns));
   return t;
 };
 

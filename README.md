@@ -12,9 +12,10 @@ yarn start example.p
 
 ```
 todo:
+- equality elimination
+- add primitives: void, unit, bool (or Nat and Fin?)
 - local glued values
 - fix linear let values
-- add primitives: void, unit, bool (or Nat and Fin?)
 - metas
 - fix importing in web repl
 - elaboration with metas
@@ -25,4 +26,5 @@ todo:
 ```
 questions:
 - is eta-law for sigmas consistent for linear/erased sigmas?
+- should I add eta law for equality?
 ```
