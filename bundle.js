@@ -619,7 +619,7 @@ const synthapp = (local, ty_, mode, arg) => {
 };
 const elaborate = (t, local = local_1.Local.empty()) => {
     const [tm, vty] = synth(local, t);
-    const ty = values_1.quote(vty, 0);
+    const ty = values_1.quote(vty, local.level);
     return [tm, ty];
 };
 exports.elaborate = elaborate;
@@ -1912,7 +1912,7 @@ const synthapp = (local, ty_, mode, arg) => {
 };
 const typecheck = (t, local = local_1.Local.empty()) => {
     const [vty] = synth(local, t);
-    const ty = values_1.quote(vty, 0);
+    const ty = values_1.quote(vty, local.level);
     return ty;
 };
 exports.typecheck = typecheck;
@@ -1972,6 +1972,12 @@ class Lazy {
     }
     static of(val) {
         return Lazy.from(() => val);
+    }
+    static value(val) {
+        const l = new Lazy(() => val);
+        l.forced = true;
+        l.value = val;
+        return l;
     }
     get() {
         if (!this.forced) {

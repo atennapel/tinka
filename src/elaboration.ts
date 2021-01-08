@@ -283,6 +283,6 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Surface): [Core, Val,
 
 export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core] => {
   const [tm, vty] = synth(local, t);
-  const ty = quote(vty, 0);
+  const ty = quote(vty, local.level);
   return [tm, ty];
 };

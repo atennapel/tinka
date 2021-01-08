@@ -14,6 +14,12 @@ export class Lazy<T> {
   static of<T>(val: T): Lazy<T> {
     return Lazy.from(() => val);
   }
+  static value<T>(val: T): Lazy<T> {
+    const l = new Lazy(() => val);
+    l.forced = true;
+    l.value = val;
+    return l;
+  }
 
   get(): T {
     if (!this.forced) {

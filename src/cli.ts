@@ -6,18 +6,25 @@ import { elaborate } from './elaboration';
 import { typecheck } from './typecheck';
 import { normalize } from './values';
 import { nil } from './utils/List';
+import { show as showCoreSimple } from './core';
 
 if (process.argv[2]) {
   const option = process.argv[3] || '';
   let typeOnly = false;
+  let showCore_ = false;
   if (option.includes('d')) setConfig({ debug: true });
   if (option.includes('e')) setConfig({ showEnvs: true });
   if (option.includes('t')) typeOnly = true;
+  if (option.includes('c')) showCore_ = true;
   try {
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
     const e = parse(sc);
     console.log(show(e));
     const [tm, ty] = elaborate(e);
+    if (showCore_) {
+      console.log(showCoreSimple(tm));
+      console.log(showCoreSimple(ty));
+    }
     console.log(showCore(tm));
     console.log(showCore(ty));
     typecheck(tm);

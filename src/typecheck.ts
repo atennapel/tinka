@@ -140,6 +140,6 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Core): [Val, Uses] =>
 
 export const typecheck = (t: Core, local: Local = Local.empty()): Core => {
   const [vty] = synth(local, t);
-  const ty = quote(vty, 0);
+  const ty = quote(vty, local.level);
   return ty;
 };
