@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, IndSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -351,7 +351,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [u, name, mode , ty]) => Abs(u, mode, name, ty, x), body);
   }
-  if (isName(ts[0], 'indSigma')) {
+  if (isName(ts[0], 'elimSigma')) {
     let j = 1;
     let u = usage(ts[1]);
     if (u) { j = 2 } else { u = many }
@@ -361,14 +361,14 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (impl) {
       motive = maybemotive;
       const [scrut2, impl2] = expr(ts[j + 1]);
-      if (impl2) return serr(`indSigma scrutinee cannot be implicit`);
+      if (impl2) return serr(`elimSigma scrutinee cannot be implicit`);
       scrut = scrut2;
       j++;
     } else {
       scrut = maybemotive;
     }
     const cas = exprs(ts.slice(j + 1), '(');
-    return IndSigma(u, motive, scrut, cas);
+    return ElimSigma(u, motive, scrut, cas);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {

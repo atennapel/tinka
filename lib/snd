@@ -1,5 +1,5 @@
 let snd
   : {0 A : Type} -> {0 B : A -> Type} -> (s : (x : A) ** B x) -> B (fst {A} {B} s)
-  = \{A} {B} s. indSigma {\s. B (fst {A} {B} s)} s \x y. y;
+  = \{A} {B} s. elimSigma {\s. B (fst {A} {B} s)} s \x y. y;
 
 snd

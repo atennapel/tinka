@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, IndSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
@@ -145,7 +145,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const ty = VSigma(many, '_', ty1, _ => ty2);
     return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
   }
-  if (tm.tag === 'IndSigma' && tm.motive) {
+  if (tm.tag === 'ElimSigma' && tm.motive) {
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)
     const [scrut, sigma_, u1] = synth(local, tm.scrut);
@@ -154,7 +154,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
     const vmotive = evaluate(motive, local.vs);
     const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
-    return [IndSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
+    return [ElimSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

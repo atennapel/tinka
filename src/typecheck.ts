@@ -81,14 +81,14 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const u2 = check(local, tm.snd, vinst(vsigma, evaluate(tm.fst, local.vs)));
     return [vsigma_, addUses(multiplyUses(vsigma.usage, u1), u2)];
   }
-  if (tm.tag === 'IndSigma') {
+  if (tm.tag === 'ElimSigma') {
     /*
       1 <= q
       G |- p : (u x : A) ** B
       G |- P : ((u x : A) ** B x) -> Type
       G |- k : (q * u x : A) -> (q y : B x) -> P (x, y)
       ---------------------------------------------
-      q * G |- indSigma q P p k : P p
+      q * G |- elimSigma q P p k : P p
     */
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)

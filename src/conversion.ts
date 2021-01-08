@@ -26,7 +26,7 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
       conv(k, a.arg, b.arg);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
-    if (a.tag === 'EIndSigma' && b.tag === 'EIndSigma' && a.usage === b.usage) {
+    if (a.tag === 'EElimSigma' && b.tag === 'EElimSigma' && a.usage === b.usage) {
       conv(k, a.motive, b.motive);
       conv(k, a.cas, b.cas);
       return convSpines(k, va, vb, sa.tail, sb.tail);

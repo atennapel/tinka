@@ -6,7 +6,7 @@ export type Core =
   Var | Global | Let |
   Type |
   Pi | Abs | App |
-  Sigma | Pair | IndSigma | Proj |
+  Sigma | Pair | ElimSigma | Proj |
   PropEq | Refl;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
@@ -29,8 +29,8 @@ export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly 
 export const Sigma = (usage: Usage, name: Name, type: Core, body: Core): Sigma => ({ tag: 'Sigma', usage, name, type, body });
 export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: Core; readonly type: Core }
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
-export interface IndSigma { readonly tag: 'IndSigma'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
-export const IndSigma = (usage: Usage, motive: Core, scrut: Core, cas: Core): IndSigma => ({ tag: 'IndSigma', usage, motive, scrut, cas });
+export interface ElimSigma { readonly tag: 'ElimSigma'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
+export const ElimSigma = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimSigma => ({ tag: 'ElimSigma', usage, motive, scrut, cas });
 export interface Proj { readonly tag: 'Proj'; readonly term: Core; readonly proj: ProjType }
 export const Proj = (term: Core, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
 export interface PropEq { readonly tag: 'PropEq'; readonly type: Core; readonly left: Core; readonly right: Core }
@@ -135,8 +135,8 @@ export const show = (t: Core): string => {
     const ps = flattenPair(t);
     return `(${ps.map(t => show(t)).join(', ')} : ${show(t.type)})`;
   }
-  if (t.tag === 'IndSigma')
-    return `indSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'ElimSigma')
+    return `elimSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   if (t.tag === 'Proj') {
     const [hd, ps] = flattenProj(t);
     return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
@@ -157,7 +157,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.usage, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.usage, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
-  if (t.tag === 'IndSigma') return IndSigma(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
+  if (t.tag === 'ElimSigma') return ElimSigma(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
   return t;
@@ -173,7 +173,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.usage, t.name, substVar(j, s, t.type), substVar(j, s, t.val), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Sigma') return Sigma(t.usage, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
-  if (t.tag === 'IndSigma') return IndSigma(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
+  if (t.tag === 'ElimSigma') return ElimSigma(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
   return t;
