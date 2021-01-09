@@ -22,6 +22,7 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
     const a = sa.head;
     const b = sb.head;
     if (a === b) return convSpines(k, va, vb, sa.tail, sb.tail);
+    if (a.tag === 'ENatS' && b.tag === 'ENatS') return convSpines(k, va, vb, sa.tail, sb.tail);
     if (a.tag === 'EApp' && b.tag === 'EApp' && eqMode(a.mode, b.mode)) {
       conv(k, a.arg, b.arg);
       return convSpines(k, va, vb, sa.tail, sb.tail);
@@ -56,6 +57,7 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
   if (a.tag === 'VNat' && b.tag === 'VNat') return;
+  if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && eqMode(a.mode, b.mode)) {
     conv(k, a.type, b.type);
     const v = VVar(k);

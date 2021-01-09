@@ -13,7 +13,7 @@ export type Surface =
   Sigma | Pair | ElimSigma | Proj |
   Signature | Module | Import |
   PropEq | Refl | ElimPropEq |
-  Nat;
+  Nat | NatLit | NatS;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -57,6 +57,10 @@ export interface Hole { readonly tag: 'Hole'; readonly name: Name | null }
 export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
 export interface Nat { readonly tag: 'Nat' }
 export const Nat: Nat = { tag: 'Nat' };
+export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
+export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
+export interface NatS { readonly tag: 'NatS'; readonly term: Surface }
+export const NatS = (term: Surface): NatS => ({ tag: 'NatS', term });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -124,7 +128,7 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'Nat';
+const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'Nat' || t.tag === 'NatLit';
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -135,6 +139,7 @@ const showProjType = (p: ProjType): string => {
 export const show = (t: Surface): string => {
   if (t.tag === 'Type') return 'Type';
   if (t.tag === 'Nat') return 'Nat';
+  if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'Var') return `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Pi') {
@@ -177,6 +182,8 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Refl') return `Refl${t.type ? ` {${show(t.type)}}` : ''}${t.val ? ` {${show(t.val)}}` : ''}`;
   if (t.tag === 'ElimPropEq')
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'NatS')
+    return `S ${showS(t.term)}`;
   return t;
 };
 
@@ -208,6 +215,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? PName(t.proj.name) : PIndex(t.proj.index));
   if (t.tag === 'PropEq') return PropEq(fromCore(t.type, ns), fromCore(t.left, ns), fromCore(t.right, ns));
   if (t.tag === 'Refl') return Refl(fromCore(t.type, ns), fromCore(t.val, ns));
+  if (t.tag === 'NatS') return NatS(fromCore(t.term, ns));
   return t;
 };
 

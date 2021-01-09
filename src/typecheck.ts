@@ -7,7 +7,7 @@ import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VNat, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -23,6 +23,11 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   log(() => `synth ${show(tm)}`);
   if (tm.tag === 'Type') return [VType, noUses(local.level)];
   if (tm.tag === 'Nat') return [VType, noUses(local.level)];
+  if (tm.tag === 'NatLit') return [VNat, noUses(local.level)];
+  if (tm.tag === 'NatS') {
+    const u = check(local, tm.term, VNat);
+    return [VNat, u];
+  }
   if (tm.tag === 'Var') {
     const [entry, j] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
     const uses = noUses(local.level).updateAt(j, _ => local.usage);

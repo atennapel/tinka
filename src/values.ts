@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat, NatS, NatLit } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -12,7 +12,7 @@ export type Head = HVar;
 export interface HVar { readonly tag: 'HVar'; readonly level: Lvl }
 export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 
-export type Elim = EApp | EElimSigma | EProj | EElimPropEq;
+export type Elim = EApp | EElimSigma | EProj | EElimPropEq | ENatS;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
@@ -22,12 +22,14 @@ export interface EProj { readonly tag: 'EProj'; readonly proj: ProjType }
 export const EProj = (proj: ProjType): EProj => ({ tag: 'EProj', proj });
 export interface EElimPropEq { readonly tag: 'EElimPropEq'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
 export const EElimPropEq = (usage: Usage, motive: Val, cas: Val): EElimPropEq => ({ tag: 'EElimPropEq', usage, motive, cas });
+export interface ENatS { readonly tag: 'ENatS' }
+export const ENatS: ENatS = { tag: 'ENatS' };
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNat | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
+export type Val = VType | VNat | VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
 
 export interface VType { readonly tag: 'VType' }
 export const VType: VType = { tag: 'VType' };
@@ -49,6 +51,8 @@ export interface VPropEq { readonly tag: 'VPropEq'; readonly type: Val; readonly
 export const VPropEq = (type: Val, left: Val, right: Val): VPropEq => ({ tag: 'VPropEq', type, left, right });
 export interface VRefl { readonly tag: 'VRefl'; readonly type: Val; readonly val: Val }
 export const VRefl = (type: Val, val: Val): VRefl => ({ tag: 'VRefl', type, val });
+export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
+export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 
@@ -92,10 +96,17 @@ export const velimpropeq = (usage: Usage, motive: Val, scrut: Val, cas: Val): Va
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine), scrut.val.map(v => velimpropeq(usage, motive, v, cas)));
   return impossible(`velimpropeq: ${scrut.tag}`);
 };
+export const vnats = (scrut: Val): Val => {
+  if (scrut.tag === 'VNatLit') return VNatLit(scrut.value + 1n);
+  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(ENatS, scrut.spine));
+  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(ENatS, scrut.spine), scrut.val.map(v => vnats(v)));
+  return impossible(`vnats: ${scrut.tag}`);
+};
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'Type') return VType;
   if (t.tag === 'Nat') return VNat;
+  if (t.tag === 'NatLit') return VNatLit(t.value);
   if (t.tag === 'Abs')
     return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Pi')
@@ -124,6 +135,8 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return VPropEq(evaluate(t.type, vs), evaluate(t.left, vs), evaluate(t.right, vs));
   if (t.tag === 'Refl')
     return VRefl(evaluate(t.type, vs), evaluate(t.val, vs));
+  if (t.tag === 'NatS')
+    return vnats(evaluate(t.term, vs));
   return t;
 };
 
@@ -136,11 +149,13 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EElimSigma') return ElimSigma(e.usage, quote(e.motive, k), t, quote(e.cas, k));
   if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k), t, quote(e.cas, k));
   if (e.tag === 'EProj') return Proj(t, e.proj);
+  if (e.tag === 'ENatS') return NatS(t);
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
   if (v.tag === 'VType') return Type;
   if (v.tag === 'VNat') return Nat;
+  if (v.tag === 'VNatLit') return NatLit(v.value);
   if (v.tag === 'VNe')
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),

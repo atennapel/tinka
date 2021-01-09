@@ -1,7 +1,7 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VNat, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
@@ -17,6 +17,7 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   const ty = force(ty_);
   if (tm.tag === 'Type' && ty.tag === 'VType') return [Type, noUses(local.level)];
   if (tm.tag === 'Nat' && ty.tag === 'VType') return [Nat, noUses(local.level)];
+  if (tm.tag === 'NatLit' && ty.tag === 'VNat') return [NatLit(tm.value), noUses(local.level)];
   if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && eqMode(tm.mode, ty.mode)) {
     const v = VVar(local.level);
     const x = tm.name;
@@ -95,6 +96,11 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   log(() => `synth (${local.level}) ${show(tm)}`);
   if (tm.tag === 'Type') return [Type, VType, noUses(local.level)];
   if (tm.tag === 'Nat') return [Nat, VType, noUses(local.level)];
+  if (tm.tag === 'NatLit') return [NatLit(tm.value), VNat, noUses(local.level)];
+  if (tm.tag === 'NatS') {
+    const [term, u] = check(local, tm.term, VNat);
+    return [NatS(term), VNat, u];
+  }
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);
     if (i < 0) {

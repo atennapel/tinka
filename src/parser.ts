@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -199,6 +199,8 @@ const projs = (ps: string): ProjType[] => {
   return parts.map(proj);
 };
 
+const natSPrim = Abs(many, Expl, 'n', Nat, NatS(Var('n')));
+
 const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
     return [exprs(t.list, '('), t.bracket === '{'];
@@ -206,12 +208,13 @@ const expr = (t: Token): [Surface, boolean] => {
     const s = codepoints(t.str).reverse();
     const Cons = Var('Cons');
     const Nil = Var('Nil');
-    return [s.reduce((t, n) => App(App(Cons, Expl, numToNat(n, `codepoint: ${n}`)), Expl, t), Nil as Surface), false];
+    return [s.reduce((t, n) => App(App(Cons, Expl, NatLit(BigInt(n))), Expl, t), Nil as Surface), false];
   }
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === 'Type') return [Type, false];
     if (x === 'Nat') return [Nat, false];
+    if (x === 'S') return [natSPrim, false];
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
     if (x[0] === '_') return [Hole(x.slice(1)), false];
@@ -245,7 +248,9 @@ const expr = (t: Token): [Surface, boolean] => {
     } else if (t.num.endsWith('n')) {
       return [numToNat(+t.num.slice(0, -1), t.num), false];
     } else {
-      return [numToNat(+t.num, t.num), false];
+      const n = BigInt(t.num);
+      if (n < 0) return serr(`Nat cannot be negative: ${t.num}`);
+      return [NatLit(n), false];
     }
   }
   return t;
@@ -425,6 +430,13 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       return Refl(type, val);
     }
     return serr(`invalid Refl`);
+  }
+  if (isName(ts[0], 'S')) {
+    if (ts.length === 1) return natSPrim;
+    if (ts.length > 2) return serr(`too many arguments for S`);
+    const [term, impl] = expr(ts[1]);
+    if (impl) return serr(`arguments for S cannot be implicit`);
+    return NatS(term);
   }
   const js = ts.findIndex(x => isName(x, '**'));
   if (js >= 0) {
