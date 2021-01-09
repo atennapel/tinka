@@ -1,11 +1,11 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VNat, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
+import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
@@ -194,6 +194,18 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [cas, u2] = check(local, tm.cas, castype);
     const vscrut = evaluate(scrut, local.vs);
     return [ElimPropEq(tm.usage, motive, scrut, cas), vapp(vapp(vapp(vmotive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'ElimNat') {
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
+    const [motive] = check(local, tm.motive, VPi(many, Expl, '_', VNat, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    const [scrut, u1] = check(local, tm.scrut, VNat);
+    const vscrut = evaluate(scrut, local.vs);
+    const [z, u2] = check(local, tm.z, vapp(vmotive, Expl, VNatLit(0n)));
+    const [s, u3] = check(local, tm.s, VPi(many, Expl, '_', VPi(many, Expl, 'm', VNat, m => vapp(vmotive, Expl, m)), _ => VPi(tm.usage, Expl, 'm', VNat, m => vapp(vmotive, Expl, vnats(m)))));
+    const u4 = lubUses(u2, u3);
+    return [ElimNat(tm.usage, motive, scrut, z, s), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

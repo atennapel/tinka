@@ -3,7 +3,7 @@ import { PFst, PSnd } from './core';
 import { eqMode } from './mode';
 import { Ix, Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Head, Val, show, VVar, vinst, vapp, vproj, Spine } from './values';
+import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, VNatLit, VNe } from './values';
 
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
@@ -35,6 +35,12 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
     if (a.tag === 'EElimPropEq' && b.tag === 'EElimPropEq' && a.usage === b.usage) {
       conv(k, a.motive, b.motive);
       conv(k, a.cas, b.cas);
+      return convSpines(k, va, vb, sa.tail, sb.tail);
+    }
+    if (a.tag === 'EElimNat' && b.tag === 'EElimNat' && a.usage === b.usage) {
+      conv(k, a.motive, b.motive);
+      conv(k, a.z, b.z);
+      conv(k, a.s, b.s);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
     if (a.tag === 'EProj' && b.tag === 'EProj') {
@@ -106,6 +112,11 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     conv(k, vproj(a, PSnd), b.snd);
     return;
   }
+
+  if (a.tag === 'VNe' && a.spine.isCons() && a.spine.head.tag === 'ENatS' && b.tag === 'VNatLit' && b.value > 0n)
+    return conv(k, VNe(a.head, a.spine.tail), VNatLit(b.value - 1n));
+  if (b.tag === 'VNe' && b.spine.isCons() && b.spine.head.tag === 'ENatS' && a.tag === 'VNatLit' && a.value > 0n)
+    return conv(k, VNatLit(a.value - 1n), VNe(b.head, b.spine.tail));
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))
     return convSpines(k, a, b, a.spine, b.spine);

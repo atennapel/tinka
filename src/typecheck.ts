@@ -5,9 +5,9 @@ import { globalLoad } from './globals';
 import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
+import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VNat, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -127,6 +127,27 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const u2 = check(local, tm.cas, castype);
     const vscrut = evaluate(tm.scrut, local.vs);
     return [vapp(vapp(vapp(motive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'ElimNat') {
+    /*
+    1 <= q
+    G |- P : Nat -> Type
+    G |- n : Nat
+    G |- z : P 0
+    G |- s : ((m : Nat) -> P m) -> (q m : Nat) -> P (S m)
+    -----------------------------------------------------
+    G |- elimNat q P n z s : P n
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
+    check(local, tm.motive, VPi(many, Expl, '_', VNat, _ => VType));
+    const vmotive = evaluate(tm.motive, local.vs);
+    const u1 = check(local, tm.scrut, VNat);
+    const vscrut = evaluate(tm.scrut, local.vs);
+    const u2 = check(local, tm.z, vapp(vmotive, Expl, VNatLit(0n)));
+    const u3 = check(local, tm.s, VPi(many, Expl, '_', VPi(many, Expl, 'm', VNat, m => vapp(vmotive, Expl, m)), _ => VPi(tm.usage, Expl, 'm', VNat, m => vapp(vmotive, Expl, vnats(m)))));
+    const u4 = lubUses(u2, u3);
+    return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
   }
   if (tm.tag === 'Proj') {
     const [sigma_, u] = synth(local, tm.term);

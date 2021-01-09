@@ -12,8 +12,9 @@ yarn start example.p
 
 ```
 todo:
-- add nat elimination
-- add primitives: void, unit, bool (or Nat and Fin?)
+- fix stack overflow in nat elimination
+- add Fin
+- add primitives
 - local glued values
 - fix linear let values
 - metas

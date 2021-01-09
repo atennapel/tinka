@@ -65,6 +65,12 @@ const convSpines = (k, va, vb, sa, sb) => {
             exports.conv(k, a.cas, b.cas);
             return convSpines(k, va, vb, sa.tail, sb.tail);
         }
+        if (a.tag === 'EElimNat' && b.tag === 'EElimNat' && a.usage === b.usage) {
+            exports.conv(k, a.motive, b.motive);
+            exports.conv(k, a.z, b.z);
+            exports.conv(k, a.s, b.s);
+            return convSpines(k, va, vb, sa.tail, sb.tail);
+        }
         if (a.tag === 'EProj' && b.tag === 'EProj') {
             if (a.proj === b.proj)
                 return convSpines(k, va, vb, sa.tail, sb.tail);
@@ -136,6 +142,10 @@ const conv = (k, a, b) => {
         exports.conv(k, values_1.vproj(a, core_1.PSnd), b.snd);
         return;
     }
+    if (a.tag === 'VNe' && a.spine.isCons() && a.spine.head.tag === 'ENatS' && b.tag === 'VNatLit' && b.value > 0n)
+        return exports.conv(k, values_1.VNe(a.head, a.spine.tail), values_1.VNatLit(b.value - 1n));
+    if (b.tag === 'VNe' && b.spine.isCons() && b.spine.head.tag === 'ENatS' && a.tag === 'VNatLit' && a.value > 0n)
+        return exports.conv(k, values_1.VNatLit(a.value - 1n), values_1.VNe(b.head, b.spine.tail));
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head))
         return convSpines(k, a, b, a.spine, b.spine);
     if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head)
@@ -151,7 +161,7 @@ exports.conv = conv;
 },{"./config":1,"./core":3,"./mode":7,"./utils/utils":16,"./values":17}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.NatS = exports.NatLit = exports.Nat = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.ElimNat = exports.NatS = exports.NatLit = exports.Nat = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -186,6 +196,8 @@ const NatLit = (value) => ({ tag: 'NatLit', value });
 exports.NatLit = NatLit;
 const NatS = (term) => ({ tag: 'NatS', term });
 exports.NatS = NatS;
+const ElimNat = (usage, motive, scrut, z, s) => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
+exports.ElimNat = ElimNat;
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -308,6 +320,8 @@ const show = (t) => {
         return `elimPropEq ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     if (t.tag === 'NatS')
         return `S ${showS(t.term)}`;
+    if (t.tag === 'ElimNat')
+        return `elimNat ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
     return t;
 };
 exports.show = show;
@@ -338,6 +352,8 @@ const shift = (d, c, t) => {
         return exports.Refl(exports.shift(d, c, t.type), exports.shift(d, c, t.val));
     if (t.tag === 'NatS')
         return exports.NatS(exports.shift(d, c, t.term));
+    if (t.tag === 'ElimNat')
+        return exports.ElimNat(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut), exports.shift(d, c, t.z), exports.shift(d, c, t.s));
     return t;
 };
 exports.shift = shift;
@@ -368,6 +384,8 @@ const substVar = (j, s, t) => {
         return exports.Refl(exports.substVar(j, s, t.type), exports.substVar(j, s, t.val));
     if (t.tag === 'NatS')
         return exports.NatS(exports.substVar(j, s, t.term));
+    if (t.tag === 'ElimNat')
+        return exports.ElimNat(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut), exports.substVar(j, s, t.z), exports.substVar(j, s, t.s));
     return t;
 };
 exports.substVar = substVar;
@@ -586,6 +604,18 @@ const synth = (local, tm) => {
         const [cas, u2] = check(local, tm.cas, castype);
         const vscrut = values_1.evaluate(scrut, local.vs);
         return [core_1.ElimPropEq(tm.usage, motive, scrut, cas), values_1.vapp(values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, eq.left), mode_1.Expl, eq.right), mode_1.Expl, vscrut), usage_1.multiplyUses(tm.usage, usage_1.addUses(u1, u2))];
+    }
+    if (tm.tag === 'ElimNat') {
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in nat induction ${surface_1.show(tm)}: ${tm.usage}`);
+        const [motive] = check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VNat, _ => values_1.VType));
+        const vmotive = values_1.evaluate(motive, local.vs);
+        const [scrut, u1] = check(local, tm.scrut, values_1.VNat);
+        const vscrut = values_1.evaluate(scrut, local.vs);
+        const [z, u2] = check(local, tm.z, values_1.vapp(vmotive, mode_1.Expl, values_1.VNatLit(0n)));
+        const [s, u3] = check(local, tm.s, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.many, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(vmotive, mode_1.Expl, m)), _ => values_1.VPi(tm.usage, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)))));
+        const u4 = usage_1.lubUses(u2, u3);
+        return [core_1.ElimNat(tm.usage, motive, scrut, z, s), values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u4)];
     }
     if (tm.tag === 'Proj') {
         const [term, sigma_, u] = synth(local, tm.term);
@@ -1016,6 +1046,8 @@ const splitTokens = (a, fn, keepSymbol = false) => {
     return r;
 };
 const usage = (t) => {
+    if (!t)
+        return null;
     if (t.tag === 'Name' && usage_1.usages.includes(t.name))
         return t.name;
     if (t.tag === 'Num' && usage_1.usages.includes(t.num))
@@ -1323,9 +1355,13 @@ const exprs = (ts, br, fromRepl = false) => {
         else {
             u = usage_1.many;
         }
+        if (!ts[j])
+            return utils_1.serr(`elimSigma: not enough arguments`);
         const [motive, impl] = expr(ts[j]);
         if (impl)
             return utils_1.serr(`elimSigma motive cannot be implicit`);
+        if (!ts[j + 1])
+            return utils_1.serr(`elimSigma: not enough arguments`);
         const [scrut, impl2] = expr(ts[j + 1]);
         if (impl2)
             return utils_1.serr(`elimSigma scrutinee cannot be implicit`);
@@ -1341,14 +1377,45 @@ const exprs = (ts, br, fromRepl = false) => {
         else {
             u = usage_1.many;
         }
+        if (!ts[j])
+            return utils_1.serr(`elimPropEq: not enough arguments`);
         const [motive, impl] = expr(ts[j]);
         if (impl)
             return utils_1.serr(`elimPropEq motive cannot be implicit`);
+        if (!ts[j + 1])
+            return utils_1.serr(`elimPropEq: not enough arguments`);
         const [scrut, impl2] = expr(ts[j + 1]);
         if (impl2)
             return utils_1.serr(`elimPropEq scrutinee cannot be implicit`);
         const cas = exprs(ts.slice(j + 2), '(');
         return surface_1.ElimPropEq(u, motive, scrut, cas);
+    }
+    if (isName(ts[0], 'elimNat')) {
+        let j = 1;
+        let u = usage(ts[1]);
+        if (u) {
+            j = 2;
+        }
+        else {
+            u = usage_1.many;
+        }
+        if (!ts[j])
+            return utils_1.serr(`elimNat: not enough arguments`);
+        const [motive, impl] = expr(ts[j]);
+        if (impl)
+            return utils_1.serr(`elimNat motive cannot be implicit`);
+        if (!ts[j + 1])
+            return utils_1.serr(`elimNat: not enough arguments`);
+        const [scrut, impl2] = expr(ts[j + 1]);
+        if (impl2)
+            return utils_1.serr(`elimNat scrutinee cannot be implicit`);
+        if (!ts[j + 2])
+            return utils_1.serr(`elimNat: not enough arguments`);
+        const [z, impl3] = expr(ts[j + 2]);
+        if (impl3)
+            return utils_1.serr(`elimNat case Z cannot be implicit`);
+        const s = exprs(ts.slice(j + 3), '(');
+        return surface_1.ElimNat(u, motive, scrut, z, s);
     }
     const i = ts.findIndex(x => isName(x, ':'));
     if (i >= 0) {
@@ -1783,7 +1850,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.NatS = exports.NatLit = exports.Nat = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.ElimNat = exports.NatS = exports.NatLit = exports.Nat = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1832,6 +1899,8 @@ const NatLit = (value) => ({ tag: 'NatLit', value });
 exports.NatLit = NatLit;
 const NatS = (term) => ({ tag: 'NatS', term });
 exports.NatS = NatS;
+const ElimNat = (usage, motive, scrut, z, s) => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
+exports.ElimNat = ElimNat;
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -1964,6 +2033,8 @@ const show = (t) => {
         return `elimPropEq ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     if (t.tag === 'NatS')
         return `S ${showS(t.term)}`;
+    if (t.tag === 'ElimNat')
+        return `elimNat ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
     return t;
 };
 exports.show = show;
@@ -2008,6 +2079,8 @@ const fromCore = (t, ns = List_1.nil) => {
         return exports.Refl(exports.fromCore(t.type, ns), exports.fromCore(t.val, ns));
     if (t.tag === 'NatS')
         return exports.NatS(exports.fromCore(t.term, ns));
+    if (t.tag === 'ElimNat')
+        return exports.ElimNat(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), exports.fromCore(t.z, ns), exports.fromCore(t.s, ns));
     return t;
 };
 exports.fromCore = fromCore;
@@ -2153,6 +2226,27 @@ const synth = (local, tm) => {
         const u2 = check(local, tm.cas, castype);
         const vscrut = values_1.evaluate(tm.scrut, local.vs);
         return [values_1.vapp(values_1.vapp(values_1.vapp(motive, mode_1.Expl, eq.left), mode_1.Expl, eq.right), mode_1.Expl, vscrut), usage_1.multiplyUses(tm.usage, usage_1.addUses(u1, u2))];
+    }
+    if (tm.tag === 'ElimNat') {
+        /*
+        1 <= q
+        G |- P : Nat -> Type
+        G |- n : Nat
+        G |- z : P 0
+        G |- s : ((m : Nat) -> P m) -> (q m : Nat) -> P (S m)
+        -----------------------------------------------------
+        G |- elimNat q P n z s : P n
+        */
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in nat induction ${core_1.show(tm)}: ${tm.usage}`);
+        check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VNat, _ => values_1.VType));
+        const vmotive = values_1.evaluate(tm.motive, local.vs);
+        const u1 = check(local, tm.scrut, values_1.VNat);
+        const vscrut = values_1.evaluate(tm.scrut, local.vs);
+        const u2 = check(local, tm.z, values_1.vapp(vmotive, mode_1.Expl, values_1.VNatLit(0n)));
+        const u3 = check(local, tm.s, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.many, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(vmotive, mode_1.Expl, m)), _ => values_1.VPi(tm.usage, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)))));
+        const u4 = usage_1.lubUses(u2, u3);
+        return [values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u4)];
     }
     if (tm.tag === 'Proj') {
         const [sigma_, u] = synth(local, tm.term);
@@ -2588,10 +2682,11 @@ exports.eqArr = eqArr;
 },{"fs":19}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vnats = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VNatLit = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VNat = exports.VType = exports.ENatS = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vdecideS = exports.velimnat = exports.vnats = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VNatLit = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VNat = exports.VType = exports.EElimNat = exports.ENatS = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
+const usage_1 = require("./usage");
 const Lazy_1 = require("./utils/Lazy");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -2606,6 +2701,8 @@ exports.EProj = EProj;
 const EElimPropEq = (usage, motive, cas) => ({ tag: 'EElimPropEq', usage, motive, cas });
 exports.EElimPropEq = EElimPropEq;
 exports.ENatS = { tag: 'ENatS' };
+const EElimNat = (usage, motive, z, s) => ({ tag: 'EElimNat', usage, motive, z, s });
+exports.EElimNat = EElimNat;
 exports.VType = { tag: 'VType' };
 exports.VNat = { tag: 'VNat' };
 const VNe = (head, spine) => ({ tag: 'VNe', head, spine });
@@ -2695,6 +2792,27 @@ const vnats = (scrut) => {
     return utils_1.impossible(`vnats: ${scrut.tag}`);
 };
 exports.vnats = vnats;
+const velimnat = (usage, motive, scrut, z, s) => {
+    const m = exports.vdecideS(scrut);
+    if (m)
+        return exports.vapp(exports.vapp(s, mode_1.Expl, exports.VAbs(usage_1.many, mode_1.Expl, 'm', exports.VNat, m => exports.velimnat(usage, motive, m, z, s))), mode_1.Expl, m);
+    if (scrut.tag === 'VNatLit' && scrut.value === 0n)
+        return z;
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EElimNat(usage, motive, z, s), scrut.spine));
+    if (scrut.tag === 'VGlobal')
+        return exports.VGlobal(scrut.head, List_1.cons(exports.EElimNat(usage, motive, z, s), scrut.spine), scrut.val.map(v => exports.velimnat(usage, motive, v, z, s)));
+    return utils_1.impossible(`velimnat: ${scrut.tag}`);
+};
+exports.velimnat = velimnat;
+const vdecideS = (v) => {
+    if (v.tag === 'VNatLit' && v.value > 0)
+        return exports.VNatLit(v.value - 1n);
+    if (v.tag === 'VNe' && v.spine.isCons() && v.spine.head.tag === 'ENatS')
+        return exports.VNe(v.head, v.spine.tail);
+    return null;
+};
+exports.vdecideS = vdecideS;
 const evaluate = (t, vs) => {
     if (t.tag === 'Type')
         return exports.VType;
@@ -2735,6 +2853,8 @@ const evaluate = (t, vs) => {
         return exports.VRefl(exports.evaluate(t.type, vs), exports.evaluate(t.val, vs));
     if (t.tag === 'NatS')
         return exports.vnats(exports.evaluate(t.term, vs));
+    if (t.tag == 'ElimNat')
+        return exports.velimnat(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), exports.evaluate(t.z, vs), exports.evaluate(t.s, vs));
     return t;
 };
 exports.evaluate = evaluate;
@@ -2754,6 +2874,8 @@ const quoteElim = (t, e, k, full) => {
         return core_1.Proj(t, e.proj);
     if (e.tag === 'ENatS')
         return core_1.NatS(t);
+    if (e.tag === 'EElimNat')
+        return core_1.ElimNat(e.usage, exports.quote(e.motive, k), t, exports.quote(e.z, k), exports.quote(e.s, k));
     return e;
 };
 const quote = (v, k, full = false) => {
@@ -2790,7 +2912,7 @@ exports.normalize = normalize;
 const show = (v, k = 0, full = false) => core_1.show(exports.quote(v, k, full));
 exports.show = show;
 
-},{"./core":3,"./globals":5,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
+},{"./core":3,"./globals":5,"./mode":7,"./usage":13,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");

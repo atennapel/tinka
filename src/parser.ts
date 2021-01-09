@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -112,6 +112,7 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean, keepSymbol: boolean 
 };
 
 const usage = (t: Token): Usage | null => {
+  if (!t) return null;
   if (t.tag === 'Name' && usages.includes(t.name)) return t.name as Usage;
   if (t.tag === 'Num' && usages.includes(t.num)) return t.num as Usage;
   return null;
@@ -362,8 +363,10 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     let j = 1;
     let u = usage(ts[1]);
     if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimSigma: not enough arguments`);
     const [motive, impl] = expr(ts[j]);
     if (impl) return serr(`elimSigma motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimSigma: not enough arguments`);
     const [scrut, impl2] = expr(ts[j + 1]);
     if (impl2) return serr(`elimSigma scrutinee cannot be implicit`);
     const cas = exprs(ts.slice(j + 2), '(');
@@ -373,12 +376,30 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     let j = 1;
     let u = usage(ts[1]);
     if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimPropEq: not enough arguments`);
     const [motive, impl] = expr(ts[j]);
     if (impl) return serr(`elimPropEq motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimPropEq: not enough arguments`);
     const [scrut, impl2] = expr(ts[j + 1]);
     if (impl2) return serr(`elimPropEq scrutinee cannot be implicit`);
     const cas = exprs(ts.slice(j + 2), '(');
     return ElimPropEq(u, motive, scrut, cas);
+  }
+  if (isName(ts[0], 'elimNat')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimNat: not enough arguments`);
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimNat motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimNat: not enough arguments`);
+    const [scrut, impl2] = expr(ts[j + 1]);
+    if (impl2) return serr(`elimNat scrutinee cannot be implicit`);
+    if (!ts[j + 2]) return serr(`elimNat: not enough arguments`);
+    const [z, impl3] = expr(ts[j + 2]);
+    if (impl3) return serr(`elimNat case Z cannot be implicit`);
+    const s = exprs(ts.slice(j + 3), '(');
+    return ElimNat(u, motive, scrut, z, s);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {

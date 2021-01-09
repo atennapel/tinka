@@ -8,7 +8,7 @@ export type Core =
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   PropEq | Refl | ElimPropEq |
-  Nat | NatLit | NatS;
+  Nat | NatLit | NatS | ElimNat;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -46,6 +46,8 @@ export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
 export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
 export interface NatS { readonly tag: 'NatS'; readonly term: Core }
 export const NatS = (term: Core): NatS => ({ tag: 'NatS', term });
+export interface ElimNat { readonly tag: 'ElimNat'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly z: Core; readonly s: Core }
+export const ElimNat = (usage: Usage, motive: Core, scrut: Core, z: Core, s: Core): ElimNat => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
 
 export type ProjType = PProj | PIndex;
 
@@ -159,6 +161,8 @@ export const show = (t: Core): string => {
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   if (t.tag === 'NatS')
     return `S ${showS(t.term)}`;
+  if (t.tag === 'ElimNat')
+    return `elimNat ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
   return t;
 };
 
@@ -176,6 +180,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
   if (t.tag === 'NatS') return NatS(shift(d, c, t.term));
+  if (t.tag === 'ElimNat') return ElimNat(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.z), shift(d, c, t.s));
   return t;
 };
 
@@ -193,6 +198,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
   if (t.tag === 'NatS') return NatS(substVar(j, s, t.term));
+  if (t.tag === 'ElimNat') return ElimNat(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.z), substVar(j, s, t.s));
   return t;
 };
 

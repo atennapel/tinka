@@ -1,18 +1,17 @@
-import boollib;
-
 mod {
-  def 0 Nat = {0 A : Type} -> A -> (A -> A) -> A
-  def Z : Nat = \{A} z s. z
-  def S : Nat -> Nat = \n {A} z s. s (n {A} z s)
+  def paraNat
+    : {0 A : Type} -> Nat -> A -> (Nat -> A -> A) -> A
+    = \{A} n z s. elimNat (\_. A) n z \rec m. s m (rec m)
 
-  def cataNat : {0 A : Type} -> Nat -> A -> (A -> A) -> A
-    = \{A} n z s. n {A} z s
+  def cataNat
+    : {0 A : Type} -> Nat -> A -> (A -> A) -> A
+    = \{A} n z s. paraNat {A} n z (\_. s)
 
-  def add : Nat -> Nat -> Nat
-    = \a b. cataNat {Nat} a b S
-  def mul : Nat -> Nat -> Nat
-    = \a b. cataNat {Nat} a Z (add b)
+  def inc : Nat -> Nat = S
+  def pred : Nat -> Nat = \n. paraNat {Nat} n 0 (\m _. m)
 
-  def isZero : Nat -> Bool
-    = \n. cataNat {Bool} n True (\_. False)
+  def add : Nat -> Nat -> Nat = \a b. cataNat {Nat} a b S
+  def mul : Nat -> Nat -> Nat = \a b. cataNat {Nat} a 0 (add b)
+  def sub : Nat -> Nat -> Nat = \a b. cataNat {Nat} b a pred
+  def pow : Nat -> Nat -> Nat = \a b. cataNat {Nat} b 1 (mul a)
 }
