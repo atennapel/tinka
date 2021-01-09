@@ -7,7 +7,7 @@ import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VType } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -91,7 +91,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
       q * G |- elimSigma q P p k : P p
     */
     if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)
+      return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`);
     const [sigma_, u1] = synth(local, tm.scrut);
     const sigma = force(sigma_);
     if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
@@ -99,6 +99,28 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const motive = evaluate(tm.motive, local.vs);
     const u2 = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(motive, Expl, VPair(x, y, sigma_)))));
     return [vapp(motive, Expl, evaluate(tm.scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'ElimPropEq') {
+    /*
+    1 <= q
+    G |- p : {A} a = b
+    G |- P : (x y : A) -> x = y -> Type
+    G |- c : (0 x : A) -> P x x (Refl {A} {x})
+    ---------------------------------------
+    q * G |- elimPropEq q P p c : P a b p
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in equality induction ${show(tm)}: ${tm.usage}`);
+    const [eq_, u1] = synth(local, tm.scrut);
+    const eq = force(eq_);
+    if (eq.tag !== 'VPropEq') return terr(`not a equality type in ${show(tm)}: ${showVal(local, eq_)}`);
+    const A = eq.type;
+    check(local.inType(), tm.motive, VPi(many, Expl, 'x', A, x => VPi(many, Expl, 'y', A, y => VPi(many, Expl, '_', VPropEq(A, x, y), _ => VType))));
+    const motive = evaluate(tm.motive, local.vs);
+    const castype = VPi(zero, Expl, 'x', A, x => vapp(vapp(vapp(motive, Expl, x), Expl, x), Expl, VRefl(A, x)));
+    const u2 = check(local, tm.cas, castype);
+    const vscrut = evaluate(tm.scrut, local.vs);
+    return [vapp(vapp(vapp(motive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
   }
   if (tm.tag === 'Proj') {
     const [sigma_, u] = synth(local, tm.term);

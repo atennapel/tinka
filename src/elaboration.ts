@@ -1,13 +1,13 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
 import { addUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
 import { indexEnvT, Local, showVal } from './local';
-import { eqMode, Expl, Mode } from './mode';
+import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
 import { Ix, Lvl, Name } from './names';
 import { List } from './utils/List';
@@ -64,6 +64,23 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
     if (!sub(ux, tm.usage))
       return terr(`usage error in ${show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
     return [Let(tm.usage, tm.name, vtype, val, body), addUses(multiplyUses(ux, uv), urest)];
+  }
+  if (tm.tag === 'Hole') {
+    const n = local.level;
+    const ts = local.ts;
+    const ns = local.ns;
+    const vs = local.vs;
+    const usage = local.usage;
+    const r: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const t = ts.index(i);
+      const v = vs.index(i);
+      const x = ns.index(i);
+      if (!t || !v || !x) continue;
+      const type = showVal(local, t.type);
+      r.push(`${t.inserted ? 'inserted ' : ''}${t.usage === many ? '' : `${t.usage} `}${eqMode(t.mode, Impl) ? '{' : ''}${x}${eqMode(t.mode, Impl) ? '}' : ''} : ${type}${t.bound ? '' : ` = ${showVal(local, v)}`}`);
+    }
+    return terr(`hole: ${show(tm)}, expected type: ${showVal(local, ty_)}\nlocal (${usage}):\n${r.join('\n')}`);
   }
   const [Core, ty2, uses] = synth(local, tm);
   return tryT(() => {
@@ -145,7 +162,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const ty = VSigma(many, '_', ty1, _ => ty2);
     return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
   }
-  if (tm.tag === 'ElimSigma' && tm.motive) {
+  if (tm.tag === 'ElimSigma') {
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)
     const [scrut, sigma_, u1] = synth(local, tm.scrut);
@@ -155,6 +172,20 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const vmotive = evaluate(motive, local.vs);
     const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
     return [ElimSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'ElimPropEq') {
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in equality induction ${show(tm)}: ${tm.usage}`);
+    const [scrut, eq_, u1] = synth(local, tm.scrut);
+    const eq = force(eq_);
+    if (eq.tag !== 'VPropEq') return terr(`not a equality type in ${show(tm)}: ${showVal(local, eq_)}`);
+    const A = eq.type;
+    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, 'x', A, x => VPi(many, Expl, 'y', A, y => VPi(many, Expl, '_', VPropEq(A, x, y), _ => VType))));
+    const vmotive = evaluate(motive, local.vs);
+    const castype = VPi(zero, Expl, 'x', A, x => vapp(vapp(vapp(vmotive, Expl, x), Expl, x), Expl, VRefl(A, x)));
+    const [cas, u2] = check(local, tm.cas, castype);
+    const vscrut = evaluate(scrut, local.vs);
+    return [ElimPropEq(tm.usage, motive, scrut, cas), vapp(vapp(vapp(vmotive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

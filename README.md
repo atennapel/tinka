@@ -12,13 +12,13 @@ yarn start example.p
 
 ```
 todo:
-- equality elimination
 - add primitives: void, unit, bool (or Nat and Fin?)
 - local glued values
 - fix linear let values
 - metas
-- fix importing in web repl
 - elaboration with metas
+- remove implicit arguments from primitive constructs
+- fix importing in web repl
 - rewrite parser, include locations
 - improve elaboration of import
 ```

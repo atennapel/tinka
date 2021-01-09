@@ -7,7 +7,7 @@ export type Core =
   Type |
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
-  PropEq | Refl;
+  PropEq | Refl | ElimPropEq;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -37,6 +37,8 @@ export interface PropEq { readonly tag: 'PropEq'; readonly type: Core; readonly 
 export const PropEq = (type: Core, left: Core, right: Core): PropEq => ({ tag: 'PropEq', type, left, right });
 export interface Refl { readonly tag: 'Refl'; readonly type: Core; readonly val: Core };
 export const Refl = (type: Core, val: Core): Refl => ({ tag: 'Refl', type, val });
+export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
+export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 
 export type ProjType = PProj | PIndex;
 
@@ -144,6 +146,8 @@ export const show = (t: Core): string => {
   if (t.tag === 'PropEq')
     return `{${show(t.type)}} ${show(t.left)} = ${show(t.right)}`;
   if (t.tag === 'Refl') return `Refl {${show(t.type)}} {${show(t.val)}}`;
+  if (t.tag === 'ElimPropEq')
+    return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   return t;
 };
 
@@ -158,6 +162,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.usage, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
+  if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
   return t;
@@ -174,6 +179,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Sigma') return Sigma(t.usage, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
+  if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
   return t;

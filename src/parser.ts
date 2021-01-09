@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -213,6 +213,7 @@ const expr = (t: Token): [Surface, boolean] => {
     if (x === 'Type') return [Type, false];
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
+    if (x[0] === '_') return [Hole(x.slice(1)), false];
     if (/[a-z]/i.test(x[0])) {
       if (x.indexOf('.') >= 0) {
         const parts = x.split('.');
@@ -355,20 +356,23 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     let j = 1;
     let u = usage(ts[1]);
     if (u) { j = 2 } else { u = many }
-    let motive: Surface | null = null;
-    let scrut: Surface;
-    const [maybemotive, impl] = expr(ts[j]);
-    if (impl) {
-      motive = maybemotive;
-      const [scrut2, impl2] = expr(ts[j + 1]);
-      if (impl2) return serr(`elimSigma scrutinee cannot be implicit`);
-      scrut = scrut2;
-      j++;
-    } else {
-      scrut = maybemotive;
-    }
-    const cas = exprs(ts.slice(j + 1), '(');
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimSigma motive cannot be implicit`); 
+    const [scrut, impl2] = expr(ts[j + 1]);
+    if (impl2) return serr(`elimSigma scrutinee cannot be implicit`);
+    const cas = exprs(ts.slice(j + 2), '(');
     return ElimSigma(u, motive, scrut, cas);
+  }
+  if (isName(ts[0], 'elimPropEq')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimPropEq motive cannot be implicit`); 
+    const [scrut, impl2] = expr(ts[j + 1]);
+    if (impl2) return serr(`elimPropEq scrutinee cannot be implicit`);
+    const cas = exprs(ts.slice(j + 2), '(');
+    return ElimPropEq(u, motive, scrut, cas);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {

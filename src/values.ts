@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -12,7 +12,7 @@ export type Head = HVar;
 export interface HVar { readonly tag: 'HVar'; readonly level: Lvl }
 export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 
-export type Elim = EApp | EElimSigma | EProj;
+export type Elim = EApp | EElimSigma | EProj | EElimPropEq;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
@@ -20,6 +20,8 @@ export interface EElimSigma { readonly tag: 'EElimSigma'; readonly usage: Usage;
 export const EElimSigma = (usage: Usage, motive: Val, cas: Val): EElimSigma => ({ tag: 'EElimSigma', usage, motive, cas });
 export interface EProj { readonly tag: 'EProj'; readonly proj: ProjType }
 export const EProj = (proj: ProjType): EProj => ({ tag: 'EProj', proj });
+export interface EElimPropEq { readonly tag: 'EElimPropEq'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
+export const EElimPropEq = (usage: Usage, motive: Val, cas: Val): EElimPropEq => ({ tag: 'EElimPropEq', usage, motive, cas });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
@@ -82,6 +84,12 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EProj(proj), scrut.spine), scrut.val.map(v => vproj(v, proj)));
   return impossible(`vproj: ${scrut.tag}`);
 };
+export const velimpropeq = (usage: Usage, motive: Val, scrut: Val, cas: Val): Val => {
+  if (scrut.tag === 'VRefl') return vapp(cas, Expl, scrut.val);
+  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine));
+  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine), scrut.val.map(v => velimpropeq(usage, motive, v, cas)));
+  return impossible(`velimpropeq: ${scrut.tag}`);
+};
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'Type') return VType;
@@ -105,6 +113,8 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'ElimSigma')
     return velimsigma(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
+  if (t.tag === 'ElimPropEq')
+    return velimpropeq(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
   if (t.tag === 'Proj')
     return vproj(evaluate(t.term, vs), t.proj);
   if (t.tag === 'PropEq')
@@ -121,6 +131,7 @@ const quoteHead = (h: Head, k: Lvl): Core => {
 const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full));
   if (e.tag === 'EElimSigma') return ElimSigma(e.usage, quote(e.motive, k), t, quote(e.cas, k));
+  if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k), t, quote(e.cas, k));
   if (e.tag === 'EProj') return Proj(t, e.proj);
   return e;
 };
