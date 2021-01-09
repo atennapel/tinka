@@ -7,7 +7,8 @@ export type Core =
   Type |
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
-  PropEq | Refl | ElimPropEq;
+  PropEq | Refl | ElimPropEq |
+  Nat;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -39,6 +40,8 @@ export interface Refl { readonly tag: 'Refl'; readonly type: Core; readonly val:
 export const Refl = (type: Core, val: Core): Refl => ({ tag: 'Refl', type, val });
 export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
 export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
+export interface Nat { readonly tag: 'Nat' }
+export const Nat: Nat = { tag: 'Nat' };
 
 export type ProjType = PProj | PIndex;
 
@@ -104,7 +107,7 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj';
+const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj' || t.tag === 'Nat';
 const showS = (t: Core) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -113,6 +116,7 @@ const showProjType = (p: ProjType): string => {
 };
 export const show = (t: Core): string => {
   if (t.tag === 'Type') return 'Type';
+  if (t.tag === 'Nat') return 'Nat';
   if (t.tag === 'Var') return `${t.index}`;
   if (t.tag === 'Global') return `${t.name}`;
   if (t.tag === 'Pi') {
@@ -153,7 +157,6 @@ export const show = (t: Core): string => {
 
 export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);
-  if (t.tag === 'Global') return t;
   if (t.tag === 'App') return App(shift(d, c, t.fn), t.mode, shift(d, c, t.arg));
   if (t.tag === 'Abs') return Abs(t.usage, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Pair') return Pair(shift(d, c, t.fst), shift(d, c, t.snd), shift(d, c, t.type));
@@ -170,7 +173,6 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
 
 export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Var') return t.index === j ? s : t;
-  if (t.tag === 'Global') return t;
   if (t.tag === 'App') return App(substVar(j, s, t.fn), t.mode, substVar(j, s, t.arg));
   if (t.tag === 'Abs') return Abs(t.usage, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Pair') return Pair(substVar(j, s, t.fst), substVar(j, s, t.snd), substVar(j, s, t.type));

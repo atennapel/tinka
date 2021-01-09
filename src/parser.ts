@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -211,6 +211,7 @@ const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === 'Type') return [Type, false];
+    if (x === 'Nat') return [Nat, false];
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
     if (x[0] === '_') return [Hole(x.slice(1)), false];

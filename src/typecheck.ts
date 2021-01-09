@@ -22,6 +22,7 @@ const check = (local: Local, tm: Core, ty: Val): Uses => {
 const synth = (local: Local, tm: Core): [Val, Uses] => {
   log(() => `synth ${show(tm)}`);
   if (tm.tag === 'Type') return [VType, noUses(local.level)];
+  if (tm.tag === 'Nat') return [VType, noUses(local.level)];
   if (tm.tag === 'Var') {
     const [entry, j] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
     const uses = noUses(local.level).updateAt(j, _ => local.usage);

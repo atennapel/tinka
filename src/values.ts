@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -27,10 +27,12 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
+export type Val = VType | VNat | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
 
 export interface VType { readonly tag: 'VType' }
 export const VType: VType = { tag: 'VType' };
+export interface VNat { readonly tag: 'VNat' }
+export const VNat: VNat = { tag: 'VNat' };
 export interface VNe { readonly tag: 'VNe'; readonly head: Head; readonly spine: Spine }
 export const VNe = (head: Head, spine: Spine): VNe => ({ tag: 'VNe', head, spine });
 export interface VGlobal { readonly tag: 'VGlobal'; readonly head: Name; readonly spine: Spine; readonly val: Lazy<Val> };
@@ -93,6 +95,7 @@ export const velimpropeq = (usage: Usage, motive: Val, scrut: Val, cas: Val): Va
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'Type') return VType;
+  if (t.tag === 'Nat') return VNat;
   if (t.tag === 'Abs')
     return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Pi')
@@ -137,6 +140,7 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
   if (v.tag === 'VType') return Type;
+  if (v.tag === 'VNat') return Nat;
   if (v.tag === 'VNe')
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),

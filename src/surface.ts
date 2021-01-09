@@ -12,7 +12,8 @@ export type Surface =
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   Signature | Module | Import |
-  PropEq | Refl | ElimPropEq;
+  PropEq | Refl | ElimPropEq |
+  Nat;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -54,6 +55,8 @@ export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage;
 export const ElimPropEq = (usage: Usage, motive: Surface, scrut: Surface, cas: Surface): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 export interface Hole { readonly tag: 'Hole'; readonly name: Name | null }
 export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
+export interface Nat { readonly tag: 'Nat' }
+export const Nat: Nat = { tag: 'Nat' };
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -121,7 +124,7 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole';
+const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'Nat';
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -131,6 +134,7 @@ const showProjType = (p: ProjType): string => {
 };
 export const show = (t: Surface): string => {
   if (t.tag === 'Type') return 'Type';
+  if (t.tag === 'Nat') return 'Nat';
   if (t.tag === 'Var') return `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Pi') {
@@ -178,6 +182,7 @@ export const show = (t: Surface): string => {
 
 export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Type') return Type;
+  if (t.tag === 'Nat') return Nat;
   if (t.tag === 'Var') return Var(ns.index(t.index) || impossible(`var out of scope in fromCore: ${t.index}`));
   if (t.tag === 'Global') return Var(t.name);
   if (t.tag === 'App') return App(fromCore(t.fn, ns), t.mode, fromCore(t.arg, ns));

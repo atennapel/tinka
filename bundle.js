@@ -84,6 +84,8 @@ const conv = (k, a, b) => {
         return;
     if (a.tag === 'VType' && b.tag === 'VType')
         return;
+    if (a.tag === 'VNat' && b.tag === 'VNat')
+        return;
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && mode_1.eqMode(a.mode, b.mode)) {
         exports.conv(k, a.type, b.type);
         const v = values_1.VVar(k);
@@ -145,7 +147,7 @@ exports.conv = conv;
 },{"./config":1,"./core":3,"./mode":7,"./utils/utils":16,"./values":17}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Nat = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -175,6 +177,7 @@ const Refl = (type, val) => ({ tag: 'Refl', type, val });
 exports.Refl = Refl;
 const ElimPropEq = (usage, motive, scrut, cas) => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 exports.ElimPropEq = ElimPropEq;
+exports.Nat = { tag: 'Nat' };
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -241,7 +244,7 @@ const flattenProj = (t) => {
 };
 exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
-const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj';
+const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj' || t.tag === 'Nat';
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -253,6 +256,8 @@ const showProjType = (p) => {
 const show = (t) => {
     if (t.tag === 'Type')
         return 'Type';
+    if (t.tag === 'Nat')
+        return 'Nat';
     if (t.tag === 'Var')
         return `${t.index}`;
     if (t.tag === 'Global')
@@ -297,8 +302,6 @@ exports.show = show;
 const shift = (d, c, t) => {
     if (t.tag === 'Var')
         return t.index < c ? t : exports.Var(t.index + d);
-    if (t.tag === 'Global')
-        return t;
     if (t.tag === 'App')
         return exports.App(exports.shift(d, c, t.fn), t.mode, exports.shift(d, c, t.arg));
     if (t.tag === 'Abs')
@@ -327,8 +330,6 @@ exports.shift = shift;
 const substVar = (j, s, t) => {
     if (t.tag === 'Var')
         return t.index === j ? s : t;
-    if (t.tag === 'Global')
-        return t;
     if (t.tag === 'App')
         return exports.App(exports.substVar(j, s, t.fn), t.mode, exports.substVar(j, s, t.arg));
     if (t.tag === 'Abs')
@@ -378,6 +379,8 @@ const check = (local, tm, ty_) => {
     const ty = values_1.force(ty_);
     if (tm.tag === 'Type' && ty.tag === 'VType')
         return [core_1.Type, usage_1.noUses(local.level)];
+    if (tm.tag === 'Nat' && ty.tag === 'VType')
+        return [core_1.Nat, usage_1.noUses(local.level)];
     if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && mode_1.eqMode(tm.mode, ty.mode)) {
         const v = values_1.VVar(local.level);
         const x = tm.name;
@@ -457,6 +460,8 @@ const synth = (local, tm) => {
     config_1.log(() => `synth (${local.level}) ${surface_1.show(tm)}`);
     if (tm.tag === 'Type')
         return [core_1.Type, values_1.VType, usage_1.noUses(local.level)];
+    if (tm.tag === 'Nat')
+        return [core_1.Nat, values_1.VType, usage_1.noUses(local.level)];
     if (tm.tag === 'Var') {
         const i = local.nsSurface.indexOf(tm.name);
         if (i < 0) {
@@ -1102,6 +1107,8 @@ const expr = (t) => {
         const x = t.name;
         if (x === 'Type')
             return [surface_1.Type, false];
+        if (x === 'Nat')
+            return [surface_1.Nat, false];
         if (x === 'Refl')
             return [surface_1.Refl(null, null), false];
         if (x === '*')
@@ -1736,7 +1743,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":11,"./typecheck":12,"./usage":13,"./utils/List":15,"./utils/utils":16,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Nat = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Type = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1780,6 +1787,7 @@ const ElimPropEq = (usage, motive, scrut, cas) => ({ tag: 'ElimPropEq', usage, m
 exports.ElimPropEq = ElimPropEq;
 const Hole = (name) => ({ tag: 'Hole', name });
 exports.Hole = Hole;
+exports.Nat = { tag: 'Nat' };
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -1848,7 +1856,7 @@ const flattenProj = (t) => {
 };
 exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
-const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole';
+const isSimple = (t) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'Nat';
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -1862,6 +1870,8 @@ const showProjType = (p) => {
 const show = (t) => {
     if (t.tag === 'Type')
         return 'Type';
+    if (t.tag === 'Nat')
+        return 'Nat';
     if (t.tag === 'Var')
         return `${t.name}`;
     if (t.tag === 'Hole')
@@ -1912,6 +1922,8 @@ exports.show = show;
 const fromCore = (t, ns = List_1.nil) => {
     if (t.tag === 'Type')
         return exports.Type;
+    if (t.tag === 'Nat')
+        return exports.Nat;
     if (t.tag === 'Var')
         return exports.Var(ns.index(t.index) || utils_1.impossible(`var out of scope in fromCore: ${t.index}`));
     if (t.tag === 'Global')
@@ -1979,6 +1991,8 @@ const check = (local, tm, ty) => {
 const synth = (local, tm) => {
     config_1.log(() => `synth ${core_1.show(tm)}`);
     if (tm.tag === 'Type')
+        return [values_1.VType, usage_1.noUses(local.level)];
+    if (tm.tag === 'Nat')
         return [values_1.VType, usage_1.noUses(local.level)];
     if (tm.tag === 'Var') {
         const [entry, j] = local_1.indexEnvT(local.ts, tm.index) || utils_1.terr(`var out of scope ${core_1.show(tm)}`);
@@ -2518,7 +2532,7 @@ exports.eqArr = eqArr;
 },{"fs":19}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VType = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.VNat = exports.VType = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
@@ -2536,6 +2550,7 @@ exports.EProj = EProj;
 const EElimPropEq = (usage, motive, cas) => ({ tag: 'EElimPropEq', usage, motive, cas });
 exports.EElimPropEq = EElimPropEq;
 exports.VType = { tag: 'VType' };
+exports.VNat = { tag: 'VNat' };
 const VNe = (head, spine) => ({ tag: 'VNe', head, spine });
 exports.VNe = VNe;
 ;
@@ -2614,6 +2629,8 @@ exports.velimpropeq = velimpropeq;
 const evaluate = (t, vs) => {
     if (t.tag === 'Type')
         return exports.VType;
+    if (t.tag === 'Nat')
+        return exports.VNat;
     if (t.tag === 'Abs')
         return exports.VAbs(t.usage, t.mode, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
     if (t.tag === 'Pi')
@@ -2667,6 +2684,8 @@ const quoteElim = (t, e, k, full) => {
 const quote = (v, k, full = false) => {
     if (v.tag === 'VType')
         return core_1.Type;
+    if (v.tag === 'VNat')
+        return core_1.Nat;
     if (v.tag === 'VNe')
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     if (v.tag === 'VGlobal') {

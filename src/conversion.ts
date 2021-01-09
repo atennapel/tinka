@@ -55,6 +55,7 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   log(() => `conv(${k}): ${show(a, k)} ~ ${show(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VType' && b.tag === 'VType') return;
+  if (a.tag === 'VNat' && b.tag === 'VNat') return;
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && eqMode(a.mode, b.mode)) {
     conv(k, a.type, b.type);
     const v = VVar(k);
