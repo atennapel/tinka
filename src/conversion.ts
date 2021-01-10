@@ -3,7 +3,7 @@ import { PFst, PSnd } from './core';
 import { eqMode } from './mode';
 import { Ix, Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, VNatLit, VNe } from './values';
+import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, vdecideS, vdecideFS } from './values';
 
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
@@ -23,6 +23,7 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
     const b = sb.head;
     if (a === b) return convSpines(k, va, vb, sa.tail, sb.tail);
     if (a.tag === 'ENatS' && b.tag === 'ENatS') return convSpines(k, va, vb, sa.tail, sb.tail);
+    if (a.tag === 'EFinS' && b.tag === 'EFinS') return convSpines(k, va, vb, sa.tail, sb.tail);
     if (a.tag === 'EApp' && b.tag === 'EApp' && eqMode(a.mode, b.mode)) {
       conv(k, a.arg, b.arg);
       return convSpines(k, va, vb, sa.tail, sb.tail);
@@ -65,6 +66,7 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   if (a.tag === 'VNat' && b.tag === 'VNat') return;
   if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
   if (a.tag === 'VFin' && b.tag === 'VFin') return conv(k, a.index, b.index);
+  if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.val === b.val) return conv(k, a.index, b.index);
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && eqMode(a.mode, b.mode)) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -114,10 +116,13 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     return;
   }
 
-  if (a.tag === 'VNe' && a.spine.isCons() && a.spine.head.tag === 'ENatS' && b.tag === 'VNatLit' && b.value > 0n)
-    return conv(k, VNe(a.head, a.spine.tail), VNatLit(b.value - 1n));
-  if (b.tag === 'VNe' && b.spine.isCons() && b.spine.head.tag === 'ENatS' && a.tag === 'VNatLit' && a.value > 0n)
-    return conv(k, VNatLit(a.value - 1n), VNe(b.head, b.spine.tail));
+  const n = vdecideS(a);
+  const m = vdecideS(b);
+  if (n && m) return conv(k, n, m);
+
+  const fn = vdecideFS(a);
+  const fm = vdecideFS(b);
+  if (fn && fm) return conv(k, fn, fm);
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))
     return convSpines(k, a, b, a.spine, b.spine);

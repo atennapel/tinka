@@ -9,7 +9,7 @@ export type Core =
   Sigma | Pair | ElimSigma | Proj |
   PropEq | Refl | ElimPropEq |
   Nat | NatLit | NatS | ElimNat |
-  Fin;
+  Fin | FinLit | FinS;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -51,6 +51,10 @@ export interface ElimNat { readonly tag: 'ElimNat'; readonly usage: Usage; reado
 export const ElimNat = (usage: Usage, motive: Core, scrut: Core, z: Core, s: Core): ElimNat => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
 export interface Fin { readonly tag: 'Fin'; readonly index: Core }
 export const Fin = (index: Core): Fin => ({ tag: 'Fin', index });
+export interface FinLit { readonly tag: 'FinLit'; readonly val: bigint; readonly index: Core }
+export const FinLit = (val: bigint, index: Core): FinLit => ({ tag: 'FinLit', val, index });
+export interface FinS { readonly tag: 'FinS'; readonly term: Core }
+export const FinS = (term: Core): FinS => ({ tag: 'FinS', term });
 
 export type ProjType = PProj | PIndex;
 
@@ -116,7 +120,7 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj' || t.tag === 'Nat';
+const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj' || t.tag === 'Nat' || t.tag === 'NatLit' || t.tag === 'FinLit';
 const showS = (t: Core) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -162,11 +166,12 @@ export const show = (t: Core): string => {
   if (t.tag === 'Refl') return `Refl {${show(t.type)}} {${show(t.val)}}`;
   if (t.tag === 'ElimPropEq')
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
-  if (t.tag === 'NatS')
-    return `S ${showS(t.term)}`;
+  if (t.tag === 'NatS') return `S ${showS(t.term)}`;
+  if (t.tag === 'FinS') return `FS ${showS(t.term)}`;
   if (t.tag === 'ElimNat')
     return `elimNat ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
   if (t.tag === 'Fin') return `Fin ${showS(t.index)}`;
+  if (t.tag === 'FinLit') return `${t.val}/${showS(t.index)}`;
   return t;
 };
 
@@ -184,8 +189,10 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
   if (t.tag === 'NatS') return NatS(shift(d, c, t.term));
+  if (t.tag === 'FinS') return FinS(shift(d, c, t.term));
   if (t.tag === 'ElimNat') return ElimNat(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.z), shift(d, c, t.s));
   if (t.tag === 'Fin') return Fin(shift(d, c, t.index));
+  if (t.tag === 'FinLit') return FinLit(t.val, shift(d, c, t.index));
   return t;
 };
 
@@ -203,8 +210,10 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
   if (t.tag === 'NatS') return NatS(substVar(j, s, t.term));
+  if (t.tag === 'FinS') return FinS(substVar(j, s, t.term));
   if (t.tag === 'ElimNat') return ElimNat(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.z), substVar(j, s, t.s));
   if (t.tag === 'Fin') return Fin(substVar(j, s, t.index));
+  if (t.tag === 'FinLit') return FinLit(t.val, substVar(j, s, t.index));
   return t;
 };
 

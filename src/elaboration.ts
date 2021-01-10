@@ -1,7 +1,7 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat, Fin } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat, Fin, FinLit, FinS } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, vdecideS, VFin, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
@@ -11,6 +11,20 @@ import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
 import { Ix, Lvl, Name } from './names';
 import { List } from './utils/List';
+
+const checkFinIndex = (local: Local, val: bigint, index_: Val, tm: Surface, topty: Val): Val => {
+  const index = force(index_);
+  if (index.tag === 'VNatLit') {
+    if (val >= index.value) return terr(`invalid fin literal: ${show(tm)} : ${showVal(local, topty)}`);
+    return VNatLit(index.value - 1n);
+  } else {
+    const n = vdecideS(index);
+    if (!n) return terr(`invalid fin literal: ${show(tm)} : ${showVal(local, topty)}`);
+    if (val === 0n) return n;
+    checkFinIndex(local, val - 1n, n, tm, topty);
+    return n;
+  }
+};
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
@@ -46,6 +60,17 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   if (tm.tag === 'Refl' && !tm.type && !tm.val && ty.tag === 'VPropEq') {
     tryT(() => conv(local.level, ty.left, ty.right), e => terr(`check failed (${show(tm)}): ${showVal(local, ty_)}: ${e}`));
     return [Refl(quote(ty.type, local.level), quote(ty.left, local.level)), noUses(local.level)];
+  }
+  if (tm.tag === 'NatLit' && ty.tag === 'VFin') {
+    const n = checkFinIndex(local, tm.value, ty.index, tm, ty_);
+    return [FinLit(tm.value, quote(n, local.level)), noUses(local.level)];
+  }
+  if (tm.tag === 'FinS' && ty.tag === 'VFin') {
+    const n = vdecideS(force(ty.index));
+    if (n) {
+      const [term, u] = check(local, tm.term, VFin(n));
+      return [FinS(term), u];
+    }
   }
   if (tm.tag === 'Let') {
     let vtype: Core;
@@ -281,6 +306,12 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   if (tm.tag === 'Fin') {
     const [index] = check(local.inType(), tm.index, VNat);
     return [Fin(index), VType, noUses(local.level)];
+  }
+  if (tm.tag === 'FinS') {
+    const [term, ty_, u] = synth(local, tm.term);
+    const ty = force(ty_);
+    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    return [FinS(term), VFin(vnats(ty.index)), u];  
   }
   return terr(`unable to synth ${show(tm)}`);
 };

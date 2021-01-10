@@ -1,8 +1,8 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat, Fin } from './surface';
-import { many, Usage, usages } from './usage';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat, Fin, FinS } from './surface';
+import { many, Usage, usages, zero } from './usage';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{'
@@ -201,6 +201,7 @@ const projs = (ps: string): ProjType[] => {
 };
 
 const natSPrim = Abs(many, Expl, 'n', Nat, NatS(Var('n')));
+const finSPrim = Abs(zero, Impl, 'n', Nat, Abs(many, Expl, 'f', Fin(Var('n')), FinS(Var('f'))));
 
 const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
@@ -217,6 +218,7 @@ const expr = (t: Token): [Surface, boolean] => {
     if (x === 'Nat') return [Nat, false];
     if (x === 'Fin') return [Abs(many, Expl, 'n', Nat, Fin(Var('n'))), false];
     if (x === 'S') return [natSPrim, false];
+    if (x === 'FS') return [finSPrim, false];
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
     if (x[0] === '_') return [Hole(x.slice(1)), false];
@@ -465,6 +467,22 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const [term, impl] = expr(ts[1]);
     if (impl) return serr(`arguments for S cannot be implicit`);
     return NatS(term);
+  }
+  if (isName(ts[0], 'FS')) {
+    if (ts.length === 1) return finSPrim;
+    if (ts.length === 2) {
+      const [term, impl] = expr(ts[1]);
+      if (impl) return App(finSPrim, Impl, term);
+      return FinS(term);
+    }
+    if (ts.length === 3) {
+      const [n, impl] = expr(ts[1]);
+      if (!impl) return serr(`FS index must be implicit`);
+      const [term, impl2] = expr(ts[2]);
+      if (impl2) return serr(`FS argument cannot be implicit`);
+      return App(App(finSPrim, Impl, n), Expl, term);
+    }
+    return serr(`invalid FS: too many arguments`);
   }
   const js = ts.findIndex(x => isName(x, '**'));
   if (js >= 0) {

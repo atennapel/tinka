@@ -13,7 +13,7 @@ yarn start example.p
 ```
 todo:
 - fix stack overflow in nat elimination
-- add Fin
+- add Fin elimination
 - add primitives
 - local glued values
 - fix linear let values
@@ -23,6 +23,7 @@ todo:
 - fix importing in web repl
 - rewrite parser, include locations
 - improve elaboration of import
+- de-elaborate annotations
 ```
 
 ```

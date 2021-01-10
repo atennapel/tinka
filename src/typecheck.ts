@@ -7,7 +7,7 @@ import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
 import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
+import { evaluate, force, quote, Val, vapp, VFin, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -177,6 +177,16 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
   if (tm.tag === 'Fin') {
     check(local.inType(), tm.index, VNat);
     return [VType, noUses(local.level)];
+  }
+  if (tm.tag === 'FinLit') {
+    check(local.inType(), tm.index, VNat);
+    return [VFin(vnats(evaluate(tm.index, local.vs))), noUses(local.level)];
+  }
+  if (tm.tag === 'FinS') {
+    const [ty_, u] = synth(local, tm.term);
+    const ty = force(ty_);
+    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    return [VFin(vnats(ty.index)), u];
   }
   return tm;
 };
