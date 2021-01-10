@@ -117,7 +117,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     let normstr = '';
     if (!typeOnly) {
       log(() => 'NORMALIZE');
-      const norm = normalize(eterm, local.vs, true);
+      const norm = normalize(eterm, local.level, local.vs, true);
       log(() => C.show(norm));
       log(() => showCore(norm));
       normstr = `\nnorm: ${showCore(norm)}`;

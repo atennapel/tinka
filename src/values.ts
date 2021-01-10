@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat, NatS, NatLit, ElimNat } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat, NatS, NatLit, ElimNat, Fin } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -31,7 +31,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNat | VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
+export type Val = VType | VNat | VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl | VFin;
 
 export interface VType { readonly tag: 'VType' }
 export const VType: VType = { tag: 'VType' };
@@ -55,6 +55,8 @@ export interface VRefl { readonly tag: 'VRefl'; readonly type: Val; readonly val
 export const VRefl = (type: Val, val: Val): VRefl => ({ tag: 'VRefl', type, val });
 export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
 export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
+export interface VFin { readonly tag: 'VFin'; readonly index: Val }
+export const VFin = (index: Val): VFin => ({ tag: 'VFin', index });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 
@@ -156,6 +158,7 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return vnats(evaluate(t.term, vs));
   if (t.tag == 'ElimNat')
     return velimnat(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.z, vs), evaluate(t.s, vs));
+  if (t.tag === 'Fin') return VFin(evaluate(t.index, vs));
   return t;
 };
 
@@ -165,11 +168,11 @@ const quoteHead = (h: Head, k: Lvl): Core => {
 };
 const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full));
-  if (e.tag === 'EElimSigma') return ElimSigma(e.usage, quote(e.motive, k), t, quote(e.cas, k));
-  if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k), t, quote(e.cas, k));
+  if (e.tag === 'EElimSigma') return ElimSigma(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
+  if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
   if (e.tag === 'EProj') return Proj(t, e.proj);
   if (e.tag === 'ENatS') return NatS(t);
-  if (e.tag === 'EElimNat') return ElimNat(e.usage, quote(e.motive, k), t, quote(e.z, k), quote(e.s, k));
+  if (e.tag === 'EElimNat') return ElimNat(e.usage, quote(e.motive, k, full), t, quote(e.z, k, full), quote(e.s, k, full));
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
@@ -193,15 +196,16 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
   if (v.tag === 'VPi')
     return Pi(v.usage, v.mode, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
   if (v.tag === 'VSigma')
-    return Sigma(v.usage, v.name, quote(v.type, k), quote(vinst(v, VVar(k)), k + 1));
+    return Sigma(v.usage, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
-    return Pair(quote(v.fst, k), quote(v.snd, k), quote(v.type, k));
+    return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
   if (v.tag === 'VPropEq')
-    return PropEq(quote(v.type, k), quote(v.left, k), quote(v.right, k));
+    return PropEq(quote(v.type, k, full), quote(v.left, k, full), quote(v.right, k, full));
   if (v.tag === 'VRefl')
-    return Refl(quote(v.type, k), quote(v.val, k));
+    return Refl(quote(v.type, k, full), quote(v.val, k, full));
+  if (v.tag === 'VFin') return Fin(quote(v.index, k, full));
   return v;
 };
 
-export const normalize = (t: Core, vs: EnvV = nil, full: boolean = false): Core => quote(evaluate(t, vs), 0, full);
+export const normalize = (t: Core, k: Lvl = 0, vs: EnvV = nil, full: boolean = false): Core => quote(evaluate(t, vs), k, full);
 export const show = (v: Val, k: Lvl = 0, full: boolean = false): string => showCore(quote(v, k, full));

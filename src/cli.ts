@@ -28,7 +28,7 @@ if (process.argv[2]) {
     console.log(showCore(tm));
     console.log(showCore(ty));
     typecheck(tm);
-    if (!typeOnly) console.log(showCore(normalize(tm, nil, true)));
+    if (!typeOnly) console.log(showCore(normalize(tm, 0, nil, true)));
   } catch(err) {
     console.error(err);
     process.exit();

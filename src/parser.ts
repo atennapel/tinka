@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat, Fin } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -215,6 +215,7 @@ const expr = (t: Token): [Surface, boolean] => {
     const x = t.name;
     if (x === 'Type') return [Type, false];
     if (x === 'Nat') return [Nat, false];
+    if (x === 'Fin') return [Abs(many, Expl, 'n', Nat, Fin(Var('n'))), false];
     if (x === 'S') return [natSPrim, false];
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
@@ -400,6 +401,12 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (impl3) return serr(`elimNat case Z cannot be implicit`);
     const s = exprs(ts.slice(j + 3), '(');
     return ElimNat(u, motive, scrut, z, s);
+  }
+  if (isName(ts[0], 'Fin')) {
+    if (ts.length !== 2) return serr(`Fin: needs exactly one argument`);
+    const [index, impl] = expr(ts[1]);
+    if (impl) return serr(`Fin index cannot be implicit`);
+    return Fin(index);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {

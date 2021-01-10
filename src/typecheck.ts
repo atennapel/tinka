@@ -174,6 +174,10 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const x = evaluate(tm.val, local.vs);
     return [VPropEq(ty, x, x), noUses(local.level)];
   }
+  if (tm.tag === 'Fin') {
+    check(local.inType(), tm.index, VNat);
+    return [VType, noUses(local.level)];
+  }
   return tm;
 };
 

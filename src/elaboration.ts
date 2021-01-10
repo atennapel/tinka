@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat, Fin } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
@@ -277,6 +277,10 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [val] = check(local.inType(), tm.val, ty);
     const x = evaluate(val, local.vs);
     return [Refl(type, val), VPropEq(ty, x, x), noUses(local.level)];
+  }
+  if (tm.tag === 'Fin') {
+    const [index] = check(local.inType(), tm.index, VNat);
+    return [Fin(index), VType, noUses(local.level)];
   }
   return terr(`unable to synth ${show(tm)}`);
 };
