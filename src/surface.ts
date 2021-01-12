@@ -14,7 +14,7 @@ export type Surface =
   Signature | Module | Import |
   PropEq | Refl | ElimPropEq |
   Nat | NatLit | NatS | ElimNat |
-  Fin | FinS | ElimFin;
+  Fin | FinS | ElimFin | ElimFinN;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -70,6 +70,8 @@ export interface FinS { readonly tag: 'FinS'; readonly term: Surface }
 export const FinS = (term: Surface): FinS => ({ tag: 'FinS', term });
 export interface ElimFin { readonly tag: 'ElimFin'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly z: Surface; readonly s: Surface }
 export const ElimFin = (usage: Usage, motive: Surface, scrut: Surface, z: Surface, s: Surface): ElimFin => ({ tag: 'ElimFin', usage, motive, scrut, z, s });
+export interface ElimFinN { readonly tag: 'ElimFinN'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly cs: Surface[] }
+export const ElimFinN = (usage: Usage, motive: Surface, scrut: Surface, cs: Surface[]): ElimFinN => ({ tag: 'ElimFinN', usage, motive, scrut, cs });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -196,6 +198,8 @@ export const show = (t: Surface): string => {
     return `elimNat ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
   if (t.tag === 'ElimFin')
     return `elimFin ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
+  if (t.tag === 'ElimFinN')
+    return `elimFinN ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cs.map(x => ` ${showS(x)}`).join('')}`;
   if (t.tag === 'Fin') return `Fin ${showS(t.index)}`;
   if (t.tag === 'FinS') return `FS ${showS(t.term)}`;
   return t;
@@ -233,6 +237,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'FinS') return FinS(fromCore(t.term, ns));
   if (t.tag === 'ElimNat') return ElimNat(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.z, ns), fromCore(t.s, ns));
   if (t.tag === 'ElimFin') return ElimFin(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.z, ns), fromCore(t.s, ns));
+  if (t.tag === 'ElimFinN') return ElimFinN(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), t.cs.map(x => fromCore(x, ns)));
   if (t.tag === 'Fin') return Fin(fromCore(t.index, ns));
   if (t.tag === 'FinLit') return NatLit(t.val);
   return t;

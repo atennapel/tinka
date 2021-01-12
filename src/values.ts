@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat, NatS, NatLit, ElimNat, Fin, FinLit, FinS, ElimFin } from './core';
+import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat, NatS, NatLit, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -12,7 +12,7 @@ export type Head = HVar;
 export interface HVar { readonly tag: 'HVar'; readonly level: Lvl }
 export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 
-export type Elim = EApp | EElimSigma | EProj | EElimPropEq | ENatS | EElimNat | EFinS | EElimFin;
+export type Elim = EApp | EElimSigma | EProj | EElimPropEq | ENatS | EElimNat | EFinS | EElimFin | EElimFinN;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
@@ -30,6 +30,8 @@ export interface EElimNat { readonly tag: 'EElimNat'; readonly usage: Usage; rea
 export const EElimNat = (usage: Usage, motive: Val, z: Val, s: Val): EElimNat => ({ tag: 'EElimNat', usage, motive, z, s });
 export interface EElimFin { readonly tag: 'EElimFin'; readonly usage: Usage; readonly motive: Val; readonly z: Val; readonly s: Val }
 export const EElimFin = (usage: Usage, motive: Val, z: Val, s: Val): EElimFin => ({ tag: 'EElimFin', usage, motive, z, s });
+export interface EElimFinN { readonly tag: 'EElimFinN'; readonly usage: Usage; readonly motive: Val; readonly cs: Val[] }
+export const EElimFinN = (usage: Usage, motive: Val, cs: Val[]): EElimFinN => ({ tag: 'EElimFinN', usage, motive, cs });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
@@ -136,6 +138,12 @@ export const velimfin = (usage: Usage, motive: Val, scrut: Val, z: Val, s: Val):
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimFin(usage, motive, z, s), scrut.spine), scrut.val.map(v => velimfin(usage, motive, v, z, s)));
   return impossible(`velimfin: ${scrut.tag}`);
 };
+export const velimfinN = (usage: Usage, motive: Val, scrut: Val, cs: Val[]): Val => {
+  if (scrut.tag === 'VFinLit') return cs[Number(scrut.val)];
+  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimFinN(usage, motive, cs), scrut.spine));
+  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimFinN(usage, motive, cs), scrut.spine), scrut.val.map(v => velimfinN(usage, motive, v, cs)));
+  return impossible(`velimfinN: ${scrut.tag}`);
+};
 
 export const vdecideS = (v: Val): Val | null => {
   if (v.tag === 'VNatLit' && v.value > 0) return VNatLit(v.value - 1n);
@@ -192,6 +200,8 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return velimnat(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.z, vs), evaluate(t.s, vs));
   if (t.tag == 'ElimFin')
     return velimfin(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.z, vs), evaluate(t.s, vs));
+  if (t.tag == 'ElimFinN')
+    return velimfinN(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), t.cs.map(x => evaluate(x, vs)));
   if (t.tag === 'Fin') return VFin(evaluate(t.index, vs));
   if (t.tag === 'FinLit') return VFinLit(t.val, evaluate(t.index, vs));
   return t;
@@ -210,6 +220,7 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EFinS') return FinS(quote(e.index, k, full), t);
   if (e.tag === 'EElimNat') return ElimNat(e.usage, quote(e.motive, k, full), t, quote(e.z, k, full), quote(e.s, k, full));
   if (e.tag === 'EElimFin') return ElimFin(e.usage, quote(e.motive, k, full), t, quote(e.z, k, full), quote(e.s, k, full));
+  if (e.tag === 'EElimFinN') return ElimFinN(e.usage, quote(e.motive, k, full), t, e.cs.map(x => quote(x, k, full)));
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {

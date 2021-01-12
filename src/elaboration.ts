@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat, Fin, FinLit, FinS, ElimFin } from './core';
+import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vdecideS, VFin, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar, VFinLit } from './values';
 import { Surface, show } from './surface';
@@ -249,6 +249,28 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
       vapp(vapp(vmotive, Expl, vnats(m)), Expl, vfins(m, y))))));
     const u4 = lubUses(u2, u3);
     return [ElimFin(tm.usage, motive, scrut, z, s), vapp(vapp(vmotive, Expl, ty.index), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
+  }
+  if (tm.tag === 'ElimFinN') {
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
+    const [scrut, ty_, u1] = synth(local, tm.scrut);
+    const ty = force(ty_);
+    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    const n = force(ty.index);
+    if (n.tag !== 'VNatLit') return terr(`Fin index must be a nat literal in ${show(tm)}: ${showVal(local, ty_)}`);
+    if (tm.cs.length !== +Number(n.value)) return terr(`case length mismatch in ${show(tm)}: ${tm.cs.length} != ${n.value}`);
+    const vscrut = evaluate(scrut, local.vs);
+    const [motive] = check(local, tm.motive, VPi(many, Expl, '_', ty_, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    let ufinal: Uses = noUses(local.level);
+    const index = VNatLit(n.value - 1n);
+    const ecs: Core[] = [];
+    for (let i = 0, l = tm.cs.length; i < l; i++) {
+      const [e, u] = check(local, tm.cs[i], vapp(vmotive, Expl, VFinLit(BigInt(i), index)));
+      ecs.push(e);
+      ufinal = lubUses(ufinal, u);
+    }
+    return [ElimFinN(tm.usage, motive, scrut, ecs), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), ufinal)];
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

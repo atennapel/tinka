@@ -176,6 +176,34 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const u4 = lubUses(u2, u3);
     return [vapp(vapp(vmotive, Expl, ty.index), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
   }
+  if (tm.tag === 'ElimFinN') {
+    /*
+    1 <= q
+    G |- x : Fin n
+    G |- P : Fin n -> Type
+    G |- cs_i : P (i/pred n)
+    ----------------------------------------------------------------------------------------------
+    G |- elimFin q P x cs : P x
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
+    const [ty_, u1] = synth(local, tm.scrut);
+    const ty = force(ty_);
+    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    const n = force(ty.index);
+    if (n.tag !== 'VNatLit') return terr(`Fin index must be a nat literal in ${show(tm)}: ${showVal(local, ty_)}`);
+    if (tm.cs.length !== +Number(n.value)) return terr(`case length mismatch in ${show(tm)}: ${tm.cs.length} != ${n.value}`);
+    const vscrut = evaluate(tm.scrut, local.vs);
+    check(local, tm.motive, VPi(many, Expl, '_', ty_, _ => VType));
+    const vmotive = evaluate(tm.motive, local.vs);
+    let ufinal: Uses = noUses(local.level);
+    const index = VNatLit(n.value - 1n);
+    for (let i = 0, l = tm.cs.length; i < l; i++) {
+      const u = check(local, tm.cs[i], vapp(vmotive, Expl, VFinLit(BigInt(i), index)));
+      ufinal = lubUses(ufinal, u);
+    }
+    return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), ufinal)];
+  }
   if (tm.tag === 'Proj') {
     const [sigma_, u] = synth(local, tm.term);
     if (tm.proj.tag === 'PProj') {

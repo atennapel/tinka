@@ -53,6 +53,12 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
       conv(k, a.s, b.s);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
+    if (a.tag === 'EElimFinN' && b.tag === 'EElimFinN' && a.usage === b.usage && a.cs.length === b.cs.length) {
+      conv(k, a.motive, b.motive);
+      for (let i = 0, l = a.cs.length; i < l; i++)
+        conv(k, a.cs[i], b.cs[i]);
+      return convSpines(k, va, vb, sa.tail, sb.tail);
+    }
     if (a.tag === 'EProj' && b.tag === 'EProj') {
       if (a.proj === b.proj)
         return convSpines(k, va, vb, sa.tail, sb.tail);

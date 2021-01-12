@@ -9,7 +9,7 @@ export type Core =
   Sigma | Pair | ElimSigma | Proj |
   PropEq | Refl | ElimPropEq |
   Nat | NatLit | NatS | ElimNat |
-  Fin | FinLit | FinS | ElimFin;
+  Fin | FinLit | FinS | ElimFin | ElimFinN;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -57,6 +57,8 @@ export interface FinS { readonly tag: 'FinS'; readonly index: Core; readonly ter
 export const FinS = (index: Core, term: Core): FinS => ({ tag: 'FinS', index, term });
 export interface ElimFin { readonly tag: 'ElimFin'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly z: Core; readonly s: Core }
 export const ElimFin = (usage: Usage, motive: Core, scrut: Core, z: Core, s: Core): ElimFin => ({ tag: 'ElimFin', usage, motive, scrut, z, s });
+export interface ElimFinN { readonly tag: 'ElimFinN'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cs: Core[] }
+export const ElimFinN = (usage: Usage, motive: Core, scrut: Core, cs: Core[]): ElimFinN => ({ tag: 'ElimFinN', usage, motive, scrut, cs });
 
 export type ProjType = PProj | PIndex;
 
@@ -176,6 +178,8 @@ export const show = (t: Core): string => {
   if (t.tag === 'FinLit') return `${t.val}/${showS(t.index)}`;
   if (t.tag === 'ElimFin')
     return `elimFin ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
+  if (t.tag === 'ElimFinN')
+    return `elimFinN ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cs.map(x => ` ${showS(x)}`).join('')}`;
   return t;
 };
 
@@ -196,6 +200,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'FinS') return FinS(shift(d, c, t.index), shift(d, c, t.term));
   if (t.tag === 'ElimNat') return ElimNat(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.z), shift(d, c, t.s));
   if (t.tag === 'ElimFin') return ElimFin(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.z), shift(d, c, t.s));
+  if (t.tag === 'ElimFinN') return ElimFinN(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), t.cs.map(x => shift(d, c, x)));
   if (t.tag === 'Fin') return Fin(shift(d, c, t.index));
   if (t.tag === 'FinLit') return FinLit(t.val, shift(d, c, t.index));
   return t;
@@ -218,6 +223,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'FinS') return FinS(substVar(j, s, t.index), substVar(j, s, t.term));
   if (t.tag === 'ElimNat') return ElimNat(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.z), substVar(j, s, t.s));
   if (t.tag === 'ElimFin') return ElimFin(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.z), substVar(j, s, t.s));
+  if (t.tag === 'ElimFinN') return ElimFinN(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), t.cs.map(x => substVar(j, s, x)));
   if (t.tag === 'Fin') return Fin(substVar(j, s, t.index));
   if (t.tag === 'FinLit') return FinLit(t.val, substVar(j, s, t.index));
   return t;

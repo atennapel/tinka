@@ -13,7 +13,7 @@ yarn start example.p
 ```
 todo:
 - fix stack overflow in nat elimination
-- add Fin case elimination
+- glue sigma named projection better
 - add primitives
 - local glued values
 - fix linear let values

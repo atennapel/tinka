@@ -1,14 +1,10 @@
 mod {
-  def 0 Bool = Fin 2
-  def True : Bool = 1
-  def False : Bool = 0
-
-  def indBool
-    : {0 P : Bool -> Type} -> (b : Bool) -> P True -> P False -> P b
-    = \{P} b t f. elimFinN P b f t
+  def 0 Bool = {0 A : Type} -> A -> A -> A
+  def True : Bool = \{A} t f. t
+  def False : Bool = \{A} t f. f
 
   def if : {0 A : Type} -> Bool -> A -> A -> A
-    = \{A} b t f. indBool {\_. A} b t f
+    = \{A} c a b. c {A} a b
 
   def not : Bool -> Bool
     = \b. if {Bool} b False True

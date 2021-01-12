@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat, Fin, FinS, ElimFin } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat, Fin, FinS, ElimFin, ElimFinN } from './surface';
 import { many, Usage, usages, zero } from './usage';
 import { serr } from './utils/utils';
 
@@ -419,6 +419,23 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (impl3) return serr(`elimFin case Z cannot be implicit`);
     const s = exprs(ts.slice(j + 3), '(');
     return ElimFin(u, motive, scrut, z, s);
+  }
+  if (isName(ts[0], 'elimFinN')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimFinN: not enough arguments`);
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimFinN motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimFinN: not enough arguments`);
+    const [scrut, impl2] = expr(ts[j + 1]);
+    if (impl2) return serr(`elimFinN scrutinee cannot be implicit`);
+    const cs = ts.slice(j + 2).map(x => {
+      const [c, impl] = expr(x);
+      if (impl) return serr(`elimFinN case cannot be implicit`);
+      return c;
+    });
+    return ElimFinN(u, motive, scrut, cs);
   }
   if (isName(ts[0], 'Fin')) {
     if (ts.length !== 2) return serr(`Fin: needs exactly one argument`);
