@@ -8,20 +8,17 @@ import { quote, Val } from './values';
 
 export type Surface =
   Var | Let | Hole |
-  Type |
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   Signature | Module | Import |
   PropEq | Refl | ElimPropEq |
-  Nat | NatLit | NatS | ElimNat |
+  NatLit | NatS | ElimNat |
   Fin | FinS | ElimFin | ElimFinN;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
 export interface Let { readonly tag: 'Let'; readonly usage: Usage; readonly name: Name; readonly type: Surface | null; readonly val: Surface; readonly body: Surface }
 export const Let = (usage: Usage, name: Name, type: Surface | null, val: Surface, body: Surface): Let => ({ tag: 'Let', usage, name, type, val, body });
-export interface Type { readonly tag: 'Type' }
-export const Type: Type = { tag: 'Type' };
 export interface Pi { readonly tag: 'Pi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Surface; readonly body: Surface }
 export const Pi = (usage: Usage, mode: Mode, name: Name, type: Surface, body: Surface): Pi =>
   ({ tag: 'Pi', usage, mode, name, type, body });
@@ -56,8 +53,6 @@ export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage;
 export const ElimPropEq = (usage: Usage, motive: Surface, scrut: Surface, cas: Surface): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 export interface Hole { readonly tag: 'Hole'; readonly name: Name | null }
 export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
-export interface Nat { readonly tag: 'Nat' }
-export const Nat: Nat = { tag: 'Nat' };
 export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
 export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
 export interface NatS { readonly tag: 'NatS'; readonly term: Surface }
@@ -139,7 +134,7 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'Nat' || t.tag === 'NatLit';
+const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'NatLit';
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -148,8 +143,6 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Surface): string => {
-  if (t.tag === 'Type') return 'Type';
-  if (t.tag === 'Nat') return 'Nat';
   if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'Var') return `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
@@ -206,10 +199,9 @@ export const show = (t: Surface): string => {
 };
 
 export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
-  if (t.tag === 'Type') return Type;
-  if (t.tag === 'Nat') return Nat;
   if (t.tag === 'Var') return Var(ns.index(t.index) || impossible(`var out of scope in fromCore: ${t.index}`));
   if (t.tag === 'Global') return Var(t.name);
+  if (t.tag === 'Prim') return Var(t.name);
   if (t.tag === 'App') return App(fromCore(t.fn, ns), t.mode, fromCore(t.arg, ns));
   if (t.tag === 'Pi') {
     const x = chooseName(t.name, ns);

@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Type, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Nat, NatLit, NatS, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN } from './core';
+import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, NatLit, NatS, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, vdecideS, VFin, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar, VFinLit } from './values';
 import { Surface, show } from './surface';
@@ -11,6 +11,7 @@ import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
 import { Ix, Lvl, Name } from './names';
 import { List } from './utils/List';
+import { isPrimName, synthPrim } from './prims';
 
 const checkFinIndex = (local: Local, val: bigint, index_: Val, tm: Surface, topty: Val): Val => {
   const index = force(index_);
@@ -29,9 +30,6 @@ const checkFinIndex = (local: Local, val: bigint, index_: Val, tm: Surface, topt
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
   const ty = force(ty_);
-  if (tm.tag === 'Type' && ty.tag === 'VType') return [Type, noUses(local.level)];
-  if (tm.tag === 'Nat' && ty.tag === 'VType') return [Nat, noUses(local.level)];
-  if (tm.tag === 'NatLit' && ty.tag === 'VNat') return [NatLit(tm.value), noUses(local.level)];
   if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && eqMode(tm.mode, ty.mode)) {
     const v = VVar(local.level);
     const x = tm.name;
@@ -119,23 +117,27 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
 
 const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   log(() => `synth (${local.level}) ${show(tm)}`);
-  if (tm.tag === 'Type') return [Type, VType, noUses(local.level)];
-  if (tm.tag === 'Nat') return [Nat, VType, noUses(local.level)];
   if (tm.tag === 'NatLit') return [NatLit(tm.value), VNat, noUses(local.level)];
   if (tm.tag === 'NatS') {
     const [term, u] = check(local, tm.term, VNat);
     return [NatS(term), VNat, u];
   }
   if (tm.tag === 'Var') {
-    const i = local.nsSurface.indexOf(tm.name);
-    if (i < 0) {
-      const e = globalLoad(tm.name);
-      if (!e) return terr(`undefined variable or failed to load global ${tm.name}`);
-      return [Global(tm.name), e.type, noUses(local.level)];
+    if (isPrimName(tm.name)) {
+      const p = synthPrim(tm.name);
+      if (!p) return terr(`undefined primitive ${show(tm)}`);
+      return [Prim(tm.name), p, noUses(local.level)];
     } else {
-      const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
-      const uses = noUses(local.level).updateAt(j, _ => local.usage);
-      return [Var(j), entry.type, uses];
+      const i = local.nsSurface.indexOf(tm.name);
+      if (i < 0) {
+        const e = globalLoad(tm.name);
+        if (e) return [Global(tm.name), e.type, noUses(local.level)];
+        return terr(`undefined global ${tm.name}`);
+      } else {
+        const [entry, j] = indexEnvT(local.ts, i) || terr(`undefined variable ${show(tm)}`);
+        const uses = noUses(local.level).updateAt(j, _ => local.usage);
+        return [Var(j), entry.type, uses];
+      }
     }
   }
   if (tm.tag === 'App') {

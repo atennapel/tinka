@@ -14,7 +14,8 @@ yarn start example.p
 todo:
 - fix stack overflow in nat elimination
 - glue sigma named projection better
-- add primitives
+- translate more to primitives (PropEq, Refl, Fin)
+- add primitive eliminators (NatS, FinS)
 - local glued values
 - fix linear let values
 - metas

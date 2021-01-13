@@ -1,16 +1,19 @@
-import { Abs, App, Core, Global, Pi, Type, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Nat, NatS, NatLit, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN } from './core';
+import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, NatS, NatLit, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
+import { PrimName } from './prims';
 import { many, Usage, zero } from './usage';
 import { Lazy } from './utils/Lazy';
 import { cons, List, nil } from './utils/List';
 import { impossible, terr } from './utils/utils';
 
-export type Head = HVar;
+export type Head = HVar | HPrim;
 
 export interface HVar { readonly tag: 'HVar'; readonly level: Lvl }
 export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
+export interface HPrim { readonly tag: 'HPrim'; readonly name: PrimName }
+export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
 export type Elim = EApp | EElimSigma | EProj | EElimPropEq | ENatS | EElimNat | EFinS | EElimFin | EElimFinN;
 
@@ -37,12 +40,8 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VType | VNat | VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl | VFin | VFinLit;
+export type Val = VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl | VFin | VFinLit;
 
-export interface VType { readonly tag: 'VType' }
-export const VType: VType = { tag: 'VType' };
-export interface VNat { readonly tag: 'VNat' }
-export const VNat: VNat = { tag: 'VNat' };
 export interface VNe { readonly tag: 'VNe'; readonly head: Head; readonly spine: Spine }
 export const VNe = (head: Head, spine: Spine): VNe => ({ tag: 'VNe', head, spine });
 export interface VGlobal { readonly tag: 'VGlobal'; readonly head: Name; readonly spine: Spine; readonly val: Lazy<Val> };
@@ -69,6 +68,10 @@ export const VFinLit = (val: bigint, index: Val): VFinLit => ({ tag: 'VFinLit', 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 
 export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), spine);
+export const VPrim = (name: PrimName, spine: Spine = nil): Val => VNe(HPrim(name), spine);
+
+export const VType = VPrim('Type');
+export const VNat = VPrim('Nat');
 
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 
@@ -163,8 +166,6 @@ export const vdecideFS = (v: Val): [Val, Val]| null => {
 };
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
-  if (t.tag === 'Type') return VType;
-  if (t.tag === 'Nat') return VNat;
   if (t.tag === 'NatLit') return VNatLit(t.value);
   if (t.tag === 'Abs')
     return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
@@ -176,6 +177,7 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     if (!e) return terr(`failed to load global ${t.name}`);
     return e.val;
   }));
+  if (t.tag === 'Prim') return VPrim(t.name);
   if (t.tag === 'App')
     return vapp(evaluate(t.fn, vs), t.mode, evaluate(t.arg, vs));
   if (t.tag === 'Let')
@@ -209,7 +211,8 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
 
 const quoteHead = (h: Head, k: Lvl): Core => {
   if (h.tag === 'HVar') return Var(k - (h.level + 1));
-  return h.tag;
+  if (h.tag === 'HPrim') return Prim(h.name);
+  return h;
 };
 const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full));
@@ -224,8 +227,6 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
-  if (v.tag === 'VType') return Type;
-  if (v.tag === 'VNat') return Nat;
   if (v.tag === 'VNatLit') return NatLit(v.value);
   if (v.tag === 'VNe')
     return v.spine.foldr(

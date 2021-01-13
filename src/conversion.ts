@@ -8,7 +8,8 @@ import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, vdecideS, vdecideFS }
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.level === b.level;
-  return a.tag;
+  if (a.tag === 'HPrim') return b.tag === 'HPrim' && a.name === b.name;
+  return a;
 };
 const convPIndex = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine, index: Ix): void => {
   if (index === 0) return convSpines(k, va, vb, sa, sb);
@@ -77,8 +78,6 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
 export const conv = (k: Lvl, a: Val, b: Val): void => {
   log(() => `conv(${k}): ${show(a, k)} ~ ${show(b, k)}`);
   if (a === b) return;
-  if (a.tag === 'VType' && b.tag === 'VType') return;
-  if (a.tag === 'VNat' && b.tag === 'VNat') return;
   if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
   if (a.tag === 'VFin' && b.tag === 'VFin') return conv(k, a.index, b.index);
   if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.val === b.val) return conv(k, a.index, b.index);

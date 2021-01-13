@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Type, Var, ElimPropEq, Hole, Nat, NatS, NatLit, ElimNat, Fin, FinS, ElimFin, ElimFinN } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, NatS, NatLit, ElimNat, Fin, FinS, ElimFin, ElimFinN } from './surface';
 import { many, Usage, usages, zero } from './usage';
 import { serr } from './utils/utils';
 
@@ -200,6 +200,7 @@ const projs = (ps: string): ProjType[] => {
   return parts.map(proj);
 };
 
+const Nat = Var('Nat');
 const natSPrim = Abs(many, Expl, 'n', Nat, NatS(Var('n')));
 const finSPrim = Abs(zero, Impl, 'n', Nat, Abs(many, Expl, 'f', Fin(Var('n')), FinS(Var('f'))));
 
@@ -214,8 +215,6 @@ const expr = (t: Token): [Surface, boolean] => {
   }
   if (t.tag === 'Name') {
     const x = t.name;
-    if (x === 'Type') return [Type, false];
-    if (x === 'Nat') return [Nat, false];
     if (x === 'Fin') return [Abs(many, Expl, 'n', Nat, Fin(Var('n'))), false];
     if (x === 'S') return [natSPrim, false];
     if (x === 'FS') return [finSPrim, false];

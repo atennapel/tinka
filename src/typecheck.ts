@@ -5,6 +5,7 @@ import { globalLoad } from './globals';
 import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
+import { synthPrim } from './prims';
 import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, VFin, VFinLit, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
@@ -21,9 +22,12 @@ const check = (local: Local, tm: Core, ty: Val): Uses => {
 
 const synth = (local: Local, tm: Core): [Val, Uses] => {
   log(() => `synth ${show(tm)}`);
-  if (tm.tag === 'Type') return [VType, noUses(local.level)];
-  if (tm.tag === 'Nat') return [VType, noUses(local.level)];
   if (tm.tag === 'NatLit') return [VNat, noUses(local.level)];
+  if (tm.tag === 'Prim') {
+    const ty = synthPrim(tm.name);
+    if (!ty) return terr(`undefined primitive ${tm.name}`);
+    return [ty, noUses(local.level)];
+  }
   if (tm.tag === 'NatS') {
     const u = check(local, tm.term, VNat);
     return [VNat, u];

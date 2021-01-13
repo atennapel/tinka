@@ -1,24 +1,24 @@
 import { Mode } from './mode';
 import { Ix, Name } from './names';
+import { PrimName } from './prims';
 import { many, Usage } from './usage';
 
 export type Core =
-  Var | Global | Let |
-  Type |
+  Var | Global | Prim | Let |
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   PropEq | Refl | ElimPropEq |
-  Nat | NatLit | NatS | ElimNat |
+  NatLit | NatS | ElimNat |
   Fin | FinLit | FinS | ElimFin | ElimFinN;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
 export interface Global { readonly tag: 'Global'; readonly name: Name }
 export const Global = (name: Name): Global => ({ tag: 'Global', name });
+export interface Prim { readonly tag: 'Prim'; readonly name: PrimName }
+export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
 export interface Let { readonly tag: 'Let'; readonly usage: Usage; readonly name: Name; readonly type: Core; readonly val: Core; readonly body: Core }
 export const Let = (usage: Usage, name: Name, type: Core, val: Core, body: Core): Let => ({ tag: 'Let', usage, name, type, val, body });
-export interface Type { readonly tag: 'Type' }
-export const Type: Type = { tag: 'Type' };
 export interface Pi { readonly tag: 'Pi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Core; readonly body: Core }
 export const Pi = (usage: Usage, mode: Mode, name: Name, type: Core, body: Core): Pi =>
   ({ tag: 'Pi', usage, mode, name, type, body });
@@ -41,8 +41,6 @@ export interface Refl { readonly tag: 'Refl'; readonly type: Core; readonly val:
 export const Refl = (type: Core, val: Core): Refl => ({ tag: 'Refl', type, val });
 export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
 export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
-export interface Nat { readonly tag: 'Nat' }
-export const Nat: Nat = { tag: 'Nat' };
 export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
 export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
 export interface NatS { readonly tag: 'NatS'; readonly term: Core }
@@ -124,7 +122,7 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Core) => t.tag === 'Type' || t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj' || t.tag === 'Nat' || t.tag === 'NatLit' || t.tag === 'FinLit';
+const isSimple = (t: Core) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Proj' || t.tag === 'NatLit' || t.tag === 'FinLit';
 const showS = (t: Core) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -132,11 +130,10 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Core): string => {
-  if (t.tag === 'Type') return 'Type';
-  if (t.tag === 'Nat') return 'Nat';
   if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'Var') return `'${t.index}`;
   if (t.tag === 'Global') return `${t.name}`;
+  if (t.tag === 'Prim') return `${t.name}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
     return `${params.map(([u, m, x, t]) => u === many && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${u === many ? '' : `${u} `}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${show(ret)}`;
