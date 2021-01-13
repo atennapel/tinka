@@ -1,7 +1,7 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, NatLit, NatS, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
+import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, NatLit, NatS, ElimNat, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vdecideS, VFin, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar, VFinLit } from './values';
+import { evaluate, force, quote, Val, vapp, vdecideS, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar, VFinLit, matchVFin, vfin } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
@@ -59,14 +59,14 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
     tryT(() => conv(local.level, ty.left, ty.right), e => terr(`check failed (${show(tm)}): ${showVal(local, ty_)}: ${e}`));
     return [Refl(quote(ty.type, local.level), quote(ty.left, local.level)), noUses(local.level)];
   }
-  if (tm.tag === 'NatLit' && ty.tag === 'VFin') {
-    const n = checkFinIndex(local, tm.value, ty.index, tm, ty_);
+  if (tm.tag === 'NatLit' && matchVFin(ty)) {
+    const n = checkFinIndex(local, tm.value, ty.spine.head.arg, tm, ty_);
     return [FinLit(tm.value, quote(n, local.level)), noUses(local.level)];
   }
-  if (tm.tag === 'FinS' && ty.tag === 'VFin') {
-    const n = vdecideS(force(ty.index));
+  if (tm.tag === 'FinS' && matchVFin(ty)) {
+    const n = vdecideS(force(ty.spine.head.arg));
     if (n) {
-      const [term, u] = check(local, tm.term, VFin(n));
+      const [term, u] = check(local, tm.term, vfin(n));
       return [FinS(quote(n, local.level), term), u];
     }
   }
@@ -237,28 +237,28 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   if (tm.tag === 'ElimFin') {
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in fin induction ${show(tm)}: ${tm.usage}`);
-    const [motive] = check(local, tm.motive, VPi(many, Expl, 'n', VNat, n => VPi(many, Expl, '_', VFin(n), _ => VType)));
+    const [motive] = check(local, tm.motive, VPi(many, Expl, 'n', VNat, n => VPi(many, Expl, '_', vfin(n), _ => VType)));
     const vmotive = evaluate(motive, local.vs);
     const [scrut, ty_, u1] = synth(local, tm.scrut);
     const ty = force(ty_);
-    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
     const vscrut = evaluate(scrut, local.vs);
     const [z, u2] = check(local, tm.z, VPi(zero, Expl, 'm', VNat, m => vapp(vapp(vmotive, Expl, vnats(m)), Expl, VFinLit(0n, m))));
     const [s, u3] = check(local, tm.s,
-      VPi(many, Expl, '_', VPi(zero, Expl, 'm', VNat, m => VPi(many, Expl, 'y', VFin(m), y => vapp(vapp(vmotive, Expl, m), Expl, y))), _ =>
+      VPi(many, Expl, '_', VPi(zero, Expl, 'm', VNat, m => VPi(many, Expl, 'y', vfin(m), y => vapp(vapp(vmotive, Expl, m), Expl, y))), _ =>
       VPi(zero, Expl, 'm', VNat, m =>
-      VPi(many, Expl, 'y', VFin(m), y =>
+      VPi(many, Expl, 'y', vfin(m), y =>
       vapp(vapp(vmotive, Expl, vnats(m)), Expl, vfins(m, y))))));
     const u4 = lubUses(u2, u3);
-    return [ElimFin(tm.usage, motive, scrut, z, s), vapp(vapp(vmotive, Expl, ty.index), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
+    return [ElimFin(tm.usage, motive, scrut, z, s), vapp(vapp(vmotive, Expl, ty.spine.head.arg), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
   }
   if (tm.tag === 'ElimFinN') {
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
     const [scrut, ty_, u1] = synth(local, tm.scrut);
     const ty = force(ty_);
-    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
-    const n = force(ty.index);
+    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    const n = force(ty.spine.head.arg);
     if (n.tag !== 'VNatLit') return terr(`Fin index must be a nat literal in ${show(tm)}: ${showVal(local, ty_)}`);
     if (tm.cs.length !== +Number(n.value)) return terr(`case length mismatch in ${show(tm)}: ${tm.cs.length} != ${n.value}`);
     const vscrut = evaluate(scrut, local.vs);
@@ -345,15 +345,12 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const x = evaluate(val, local.vs);
     return [Refl(type, val), VPropEq(ty, x, x), noUses(local.level)];
   }
-  if (tm.tag === 'Fin') {
-    const [index] = check(local.inType(), tm.index, VNat);
-    return [Fin(index), VType, noUses(local.level)];
-  }
   if (tm.tag === 'FinS') {
     const [term, ty_, u] = synth(local, tm.term);
     const ty = force(ty_);
-    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
-    return [FinS(quote(ty.index, local.level), term), VFin(vnats(ty.index)), u];  
+    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    const n = ty.spine.head.arg;
+    return [FinS(quote(n, local.level), term), vfin(vnats(n)), u];  
   }
   return terr(`unable to synth ${show(tm)}`);
 };

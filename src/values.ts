@@ -1,11 +1,11 @@
-import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, NatS, NatLit, ElimNat, Fin, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
+import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, NatS, NatLit, ElimNat, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
 import { PrimName } from './prims';
 import { many, Usage, zero } from './usage';
 import { Lazy } from './utils/Lazy';
-import { cons, List, nil } from './utils/List';
+import { Cons, cons, List, nil } from './utils/List';
 import { impossible, terr } from './utils/utils';
 
 export type Head = HVar | HPrim;
@@ -40,7 +40,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl | VFin | VFinLit;
+export type Val = VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl | VFinLit;
 
 export interface VNe { readonly tag: 'VNe'; readonly head: Head; readonly spine: Spine }
 export const VNe = (head: Head, spine: Spine): VNe => ({ tag: 'VNe', head, spine });
@@ -60,8 +60,6 @@ export interface VRefl { readonly tag: 'VRefl'; readonly type: Val; readonly val
 export const VRefl = (type: Val, val: Val): VRefl => ({ tag: 'VRefl', type, val });
 export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
 export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
-export interface VFin { readonly tag: 'VFin'; readonly index: Val }
-export const VFin = (index: Val): VFin => ({ tag: 'VFin', index });
 export interface VFinLit { readonly tag: 'VFinLit'; readonly val: bigint; readonly index: Val }
 export const VFinLit = (val: bigint, index: Val): VFinLit => ({ tag: 'VFinLit', val, index });
 
@@ -72,6 +70,10 @@ export const VPrim = (name: PrimName, spine: Spine = nil): Val => VNe(HPrim(name
 
 export const VType = VPrim('Type');
 export const VNat = VPrim('Nat');
+export const VFin = VPrim('Fin');
+export const vfin = (n: Val): Val => vapp(VFin, Expl, n);
+export const matchVFin = (v: Val): v is VNe & { head: HPrim & { name: 'Fin' }, spine: Cons<EApp> } =>
+  v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'Fin' && v.spine.isCons() && v.spine.head.tag === 'EApp';
 
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 
@@ -134,7 +136,7 @@ export const vfins = (index: Val, scrut: Val): Val => {
 export const velimfin = (usage: Usage, motive: Val, scrut: Val, z: Val, s: Val): Val => {
   const m = vdecideFS(scrut);
   // elimFin q P (FS {n} {x}) z s ~> s (\_ v. elimFin q P v z s) n x
-  if (m) return vapp(vapp(vapp(s, Expl, VAbs(zero, Expl, 'n', VNat, n => VAbs(many, Expl, 'v', VFin(n), v => velimfin(usage, motive, v, z, s)))), Expl, m[1]), Expl, m[0]);
+  if (m) return vapp(vapp(vapp(s, Expl, VAbs(zero, Expl, 'n', VNat, n => VAbs(many, Expl, 'v', vfin(n), v => velimfin(usage, motive, v, z, s)))), Expl, m[1]), Expl, m[0]);
   // elimFin q P (0/n) z s ~> z n
   if (scrut.tag === 'VFinLit' && scrut.val === 0n) return vapp(z, Expl, scrut.index);
   if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimFin(usage, motive, z, s), scrut.spine));
@@ -204,7 +206,6 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return velimfin(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.z, vs), evaluate(t.s, vs));
   if (t.tag == 'ElimFinN')
     return velimfinN(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), t.cs.map(x => evaluate(x, vs)));
-  if (t.tag === 'Fin') return VFin(evaluate(t.index, vs));
   if (t.tag === 'FinLit') return VFinLit(t.val, evaluate(t.index, vs));
   return t;
 };
@@ -252,7 +253,6 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
     return PropEq(quote(v.type, k, full), quote(v.left, k, full), quote(v.right, k, full));
   if (v.tag === 'VRefl')
     return Refl(quote(v.type, k, full), quote(v.val, k, full));
-  if (v.tag === 'VFin') return Fin(quote(v.index, k, full));
   if (v.tag === 'VFinLit') return FinLit(v.val, quote(v.index, k, full));
   return v;
 };

@@ -8,7 +8,7 @@ import { Ix } from './names';
 import { synthPrim } from './prims';
 import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, VFin, VFinLit, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
+import { evaluate, force, matchVFin, quote, Val, vapp, vfin, VFinLit, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -165,20 +165,20 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     */
     if (!sub(one, tm.usage))
       return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
-    check(local, tm.motive, VPi(many, Expl, 'n', VNat, n => VPi(many, Expl, '_', VFin(n), _ => VType)));
+    check(local, tm.motive, VPi(many, Expl, 'n', VNat, n => VPi(many, Expl, '_', vfin(n), _ => VType)));
     const vmotive = evaluate(tm.motive, local.vs);
     const [ty_, u1] = synth(local, tm.scrut);
     const ty = force(ty_);
-    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
     const vscrut = evaluate(tm.scrut, local.vs);
     const u2 = check(local, tm.z, VPi(zero, Expl, 'm', VNat, m => vapp(vapp(vmotive, Expl, vnats(m)), Expl, VFinLit(0n, m))));
     const u3 = check(local, tm.s,
-      VPi(many, Expl, '_', VPi(zero, Expl, 'm', VNat, m => VPi(many, Expl, 'y', VFin(m), y => vapp(vapp(vmotive, Expl, m), Expl, y))), _ =>
+      VPi(many, Expl, '_', VPi(zero, Expl, 'm', VNat, m => VPi(many, Expl, 'y', vfin(m), y => vapp(vapp(vmotive, Expl, m), Expl, y))), _ =>
       VPi(zero, Expl, 'm', VNat, m =>
-      VPi(many, Expl, 'y', VFin(m), y =>
+      VPi(many, Expl, 'y', vfin(m), y =>
       vapp(vapp(vmotive, Expl, vnats(m)), Expl, vfins(m, y))))));
     const u4 = lubUses(u2, u3);
-    return [vapp(vapp(vmotive, Expl, ty.index), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
+    return [vapp(vapp(vmotive, Expl, ty.spine.head.arg), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
   }
   if (tm.tag === 'ElimFinN') {
     /*
@@ -193,8 +193,8 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
       return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
     const [ty_, u1] = synth(local, tm.scrut);
     const ty = force(ty_);
-    if (ty.tag !== 'VFin') return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
-    const n = force(ty.index);
+    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
+    const n = force(ty.spine.head.arg);
     if (n.tag !== 'VNatLit') return terr(`Fin index must be a nat literal in ${show(tm)}: ${showVal(local, ty_)}`);
     if (tm.cs.length !== +Number(n.value)) return terr(`case length mismatch in ${show(tm)}: ${tm.cs.length} != ${n.value}`);
     const vscrut = evaluate(tm.scrut, local.vs);
@@ -233,19 +233,15 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const x = evaluate(tm.val, local.vs);
     return [VPropEq(ty, x, x), noUses(local.level)];
   }
-  if (tm.tag === 'Fin') {
-    check(local.inType(), tm.index, VNat);
-    return [VType, noUses(local.level)];
-  }
   if (tm.tag === 'FinLit') {
     check(local.inType(), tm.index, VNat);
-    return [VFin(vnats(evaluate(tm.index, local.vs))), noUses(local.level)];
+    return [vfin(vnats(evaluate(tm.index, local.vs))), noUses(local.level)];
   }
   if (tm.tag === 'FinS') {
     check(local, tm.index, VNat);
     const vindex = evaluate(tm.index, local.vs);
-    const u = check(local, tm.term, VFin(vindex));
-    return [VFin(vnats(vindex)), u];
+    const u = check(local, tm.term, vfin(vindex));
+    return [vfin(vnats(vindex)), u];
   }
   return tm;
 };

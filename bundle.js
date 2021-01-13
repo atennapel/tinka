@@ -110,8 +110,6 @@ const conv = (k, a, b) => {
         return;
     if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value)
         return;
-    if (a.tag === 'VFin' && b.tag === 'VFin')
-        return exports.conv(k, a.index, b.index);
     if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.val === b.val)
         return exports.conv(k, a.index, b.index);
     if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && mode_1.eqMode(a.mode, b.mode)) {
@@ -185,7 +183,7 @@ exports.conv = conv;
 },{"./config":1,"./core":3,"./mode":7,"./utils/utils":17,"./values":18}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.ElimFinN = exports.ElimFin = exports.FinS = exports.FinLit = exports.Fin = exports.ElimNat = exports.NatS = exports.NatLit = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.ElimFinN = exports.ElimFin = exports.FinS = exports.FinLit = exports.ElimNat = exports.NatS = exports.NatLit = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -222,8 +220,6 @@ const NatS = (term) => ({ tag: 'NatS', term });
 exports.NatS = NatS;
 const ElimNat = (usage, motive, scrut, z, s) => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
 exports.ElimNat = ElimNat;
-const Fin = (index) => ({ tag: 'Fin', index });
-exports.Fin = Fin;
 const FinLit = (val, index) => ({ tag: 'FinLit', val, index });
 exports.FinLit = FinLit;
 const FinS = (index, term) => ({ tag: 'FinS', index, term });
@@ -356,8 +352,6 @@ const show = (t) => {
         return `FS ${showS(t.term)}`;
     if (t.tag === 'ElimNat')
         return `elimNat ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
-    if (t.tag === 'Fin')
-        return `Fin ${showS(t.index)}`;
     if (t.tag === 'FinLit')
         return `${t.val}/${showS(t.index)}`;
     if (t.tag === 'ElimFin')
@@ -402,8 +396,6 @@ const shift = (d, c, t) => {
         return exports.ElimFin(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut), exports.shift(d, c, t.z), exports.shift(d, c, t.s));
     if (t.tag === 'ElimFinN')
         return exports.ElimFinN(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut), t.cs.map(x => exports.shift(d, c, x)));
-    if (t.tag === 'Fin')
-        return exports.Fin(exports.shift(d, c, t.index));
     if (t.tag === 'FinLit')
         return exports.FinLit(t.val, exports.shift(d, c, t.index));
     return t;
@@ -444,8 +436,6 @@ const substVar = (j, s, t) => {
         return exports.ElimFin(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut), exports.substVar(j, s, t.z), exports.substVar(j, s, t.s));
     if (t.tag === 'ElimFinN')
         return exports.ElimFinN(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut), t.cs.map(x => exports.substVar(j, s, x)));
-    if (t.tag === 'Fin')
-        return exports.Fin(exports.substVar(j, s, t.index));
     if (t.tag === 'FinLit')
         return exports.FinLit(t.val, exports.substVar(j, s, t.index));
     return t;
@@ -520,14 +510,14 @@ const check = (local, tm, ty_) => {
         utils_1.tryT(() => conversion_1.conv(local.level, ty.left, ty.right), e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${local_1.showVal(local, ty_)}: ${e}`));
         return [core_1.Refl(values_1.quote(ty.type, local.level), values_1.quote(ty.left, local.level)), usage_1.noUses(local.level)];
     }
-    if (tm.tag === 'NatLit' && ty.tag === 'VFin') {
-        const n = checkFinIndex(local, tm.value, ty.index, tm, ty_);
+    if (tm.tag === 'NatLit' && values_1.matchVFin(ty)) {
+        const n = checkFinIndex(local, tm.value, ty.spine.head.arg, tm, ty_);
         return [core_1.FinLit(tm.value, values_1.quote(n, local.level)), usage_1.noUses(local.level)];
     }
-    if (tm.tag === 'FinS' && ty.tag === 'VFin') {
-        const n = values_1.vdecideS(values_1.force(ty.index));
+    if (tm.tag === 'FinS' && values_1.matchVFin(ty)) {
+        const n = values_1.vdecideS(values_1.force(ty.spine.head.arg));
         if (n) {
-            const [term, u] = check(local, tm.term, values_1.VFin(n));
+            const [term, u] = check(local, tm.term, values_1.vfin(n));
             return [core_1.FinS(values_1.quote(n, local.level), term), u];
         }
     }
@@ -709,26 +699,26 @@ const synth = (local, tm) => {
     if (tm.tag === 'ElimFin') {
         if (!usage_1.sub(usage_1.one, tm.usage))
             return utils_1.terr(`usage must be 1 <= q in fin induction ${surface_1.show(tm)}: ${tm.usage}`);
-        const [motive] = check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, 'n', values_1.VNat, n => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VFin(n), _ => values_1.VType)));
+        const [motive] = check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, 'n', values_1.VNat, n => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.vfin(n), _ => values_1.VType)));
         const vmotive = values_1.evaluate(motive, local.vs);
         const [scrut, ty_, u1] = synth(local, tm.scrut);
         const ty = values_1.force(ty_);
-        if (ty.tag !== 'VFin')
+        if (!values_1.matchVFin(ty))
             return utils_1.terr(`not a Fin in ${surface_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
         const vscrut = values_1.evaluate(scrut, local.vs);
         const [z, u2] = check(local, tm.z, values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)), mode_1.Expl, values_1.VFinLit(0n, m))));
-        const [s, u3] = check(local, tm.s, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.VFin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, m), mode_1.Expl, y))), _ => values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.VFin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)), mode_1.Expl, values_1.vfins(m, y))))));
+        const [s, u3] = check(local, tm.s, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.vfin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, m), mode_1.Expl, y))), _ => values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.vfin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)), mode_1.Expl, values_1.vfins(m, y))))));
         const u4 = usage_1.lubUses(u2, u3);
-        return [core_1.ElimFin(tm.usage, motive, scrut, z, s), values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, ty.index), mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u4)];
+        return [core_1.ElimFin(tm.usage, motive, scrut, z, s), values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, ty.spine.head.arg), mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u4)];
     }
     if (tm.tag === 'ElimFinN') {
         if (!usage_1.sub(usage_1.one, tm.usage))
             return utils_1.terr(`usage must be 1 <= q in nat induction ${surface_1.show(tm)}: ${tm.usage}`);
         const [scrut, ty_, u1] = synth(local, tm.scrut);
         const ty = values_1.force(ty_);
-        if (ty.tag !== 'VFin')
+        if (!values_1.matchVFin(ty))
             return utils_1.terr(`not a Fin in ${surface_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
-        const n = values_1.force(ty.index);
+        const n = values_1.force(ty.spine.head.arg);
         if (n.tag !== 'VNatLit')
             return utils_1.terr(`Fin index must be a nat literal in ${surface_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
         if (tm.cs.length !== +Number(n.value))
@@ -826,16 +816,13 @@ const synth = (local, tm) => {
         const x = values_1.evaluate(val, local.vs);
         return [core_1.Refl(type, val), values_1.VPropEq(ty, x, x), usage_1.noUses(local.level)];
     }
-    if (tm.tag === 'Fin') {
-        const [index] = check(local.inType(), tm.index, values_1.VNat);
-        return [core_1.Fin(index), values_1.VType, usage_1.noUses(local.level)];
-    }
     if (tm.tag === 'FinS') {
         const [term, ty_, u] = synth(local, tm.term);
         const ty = values_1.force(ty_);
-        if (ty.tag !== 'VFin')
+        if (!values_1.matchVFin(ty))
             return utils_1.terr(`not a Fin in ${surface_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
-        return [core_1.FinS(values_1.quote(ty.index, local.level), term), values_1.VFin(values_1.vnats(ty.index)), u];
+        const n = ty.spine.head.arg;
+        return [core_1.FinS(values_1.quote(n, local.level), term), values_1.vfin(values_1.vnats(n)), u];
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
@@ -1292,7 +1279,7 @@ const projs = (ps) => {
 };
 const Nat = surface_1.Var('Nat');
 const natSPrim = surface_1.Abs(usage_1.many, mode_1.Expl, 'n', Nat, surface_1.NatS(surface_1.Var('n')));
-const finSPrim = surface_1.Abs(usage_1.zero, mode_1.Impl, 'n', Nat, surface_1.Abs(usage_1.many, mode_1.Expl, 'f', surface_1.Fin(surface_1.Var('n')), surface_1.FinS(surface_1.Var('f'))));
+const finSPrim = surface_1.Abs(usage_1.zero, mode_1.Impl, 'n', Nat, surface_1.Abs(usage_1.many, mode_1.Expl, 'f', surface_1.App(surface_1.Var('Fin'), mode_1.Expl, surface_1.Var('n')), surface_1.FinS(surface_1.Var('f'))));
 const expr = (t) => {
     if (t.tag === 'List')
         return [exprs(t.list, '('), t.bracket === '{'];
@@ -1304,8 +1291,6 @@ const expr = (t) => {
     }
     if (t.tag === 'Name') {
         const x = t.name;
-        if (x === 'Fin')
-            return [surface_1.Abs(usage_1.many, mode_1.Expl, 'n', Nat, surface_1.Fin(surface_1.Var('n'))), false];
         if (x === 'S')
             return [natSPrim, false];
         if (x === 'FS')
@@ -1613,14 +1598,6 @@ const exprs = (ts, br, fromRepl = false) => {
         });
         return surface_1.ElimFinN(u, motive, scrut, cs);
     }
-    if (isName(ts[0], 'Fin')) {
-        if (ts.length !== 2)
-            return utils_1.serr(`Fin: needs exactly one argument`);
-        const [index, impl] = expr(ts[1]);
-        if (impl)
-            return utils_1.serr(`Fin index cannot be implicit`);
-        return surface_1.Fin(index);
-    }
     const i = ts.findIndex(x => isName(x, ':'));
     if (i >= 0) {
         const a = ts.slice(0, i);
@@ -1927,13 +1904,16 @@ exports.parse = parse;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.synthPrim = exports.isPrimName = exports.PrimNames = void 0;
+const mode_1 = require("./mode");
+const usage_1 = require("./usage");
 const Lazy_1 = require("./utils/Lazy");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
-exports.PrimNames = ['Type', 'Nat'];
+exports.PrimNames = ['Type', 'Nat', 'Fin'];
 const primTypes = utils_1.mapObj({
     Type: () => values_1.VType,
     Nat: () => values_1.VType,
+    Fin: () => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VNat, _ => values_1.VType),
 }, Lazy_1.Lazy.from);
 const isPrimName = (name) => exports.PrimNames.includes(name);
 exports.isPrimName = isPrimName;
@@ -1943,7 +1923,7 @@ const synthPrim = (name) => {
 };
 exports.synthPrim = synthPrim;
 
-},{"./utils/Lazy":15,"./utils/utils":17,"./values":18}],11:[function(require,module,exports){
+},{"./mode":7,"./usage":14,"./utils/Lazy":15,"./utils/utils":17,"./values":18}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -2094,7 +2074,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.ElimFinN = exports.ElimFin = exports.FinS = exports.Fin = exports.ElimNat = exports.NatS = exports.NatLit = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.ElimFinN = exports.ElimFin = exports.FinS = exports.ElimNat = exports.NatS = exports.NatLit = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -2143,8 +2123,6 @@ const NatS = (term) => ({ tag: 'NatS', term });
 exports.NatS = NatS;
 const ElimNat = (usage, motive, scrut, z, s) => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
 exports.ElimNat = ElimNat;
-const Fin = (index) => ({ tag: 'Fin', index });
-exports.Fin = Fin;
 const FinS = (term) => ({ tag: 'FinS', term });
 exports.FinS = FinS;
 const ElimFin = (usage, motive, scrut, z, s) => ({ tag: 'ElimFin', usage, motive, scrut, z, s });
@@ -2285,8 +2263,6 @@ const show = (t) => {
         return `elimFin ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
     if (t.tag === 'ElimFinN')
         return `elimFinN ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cs.map(x => ` ${showS(x)}`).join('')}`;
-    if (t.tag === 'Fin')
-        return `Fin ${showS(t.index)}`;
     if (t.tag === 'FinS')
         return `FS ${showS(t.term)}`;
     return t;
@@ -2339,8 +2315,6 @@ const fromCore = (t, ns = List_1.nil) => {
         return exports.ElimFin(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), exports.fromCore(t.z, ns), exports.fromCore(t.s, ns));
     if (t.tag === 'ElimFinN')
         return exports.ElimFinN(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), t.cs.map(x => exports.fromCore(x, ns)));
-    if (t.tag === 'Fin')
-        return exports.Fin(exports.fromCore(t.index, ns));
     if (t.tag === 'FinLit')
         return exports.NatLit(t.val);
     return t;
@@ -2525,17 +2499,17 @@ const synth = (local, tm) => {
         */
         if (!usage_1.sub(usage_1.one, tm.usage))
             return utils_1.terr(`usage must be 1 <= q in nat induction ${core_1.show(tm)}: ${tm.usage}`);
-        check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, 'n', values_1.VNat, n => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VFin(n), _ => values_1.VType)));
+        check(local, tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, 'n', values_1.VNat, n => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.vfin(n), _ => values_1.VType)));
         const vmotive = values_1.evaluate(tm.motive, local.vs);
         const [ty_, u1] = synth(local, tm.scrut);
         const ty = values_1.force(ty_);
-        if (ty.tag !== 'VFin')
+        if (!values_1.matchVFin(ty))
             return utils_1.terr(`not a Fin in ${core_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
         const vscrut = values_1.evaluate(tm.scrut, local.vs);
         const u2 = check(local, tm.z, values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)), mode_1.Expl, values_1.VFinLit(0n, m))));
-        const u3 = check(local, tm.s, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.VFin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, m), mode_1.Expl, y))), _ => values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.VFin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)), mode_1.Expl, values_1.vfins(m, y))))));
+        const u3 = check(local, tm.s, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.vfin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, m), mode_1.Expl, y))), _ => values_1.VPi(usage_1.zero, mode_1.Expl, 'm', values_1.VNat, m => values_1.VPi(usage_1.many, mode_1.Expl, 'y', values_1.vfin(m), y => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, values_1.vnats(m)), mode_1.Expl, values_1.vfins(m, y))))));
         const u4 = usage_1.lubUses(u2, u3);
-        return [values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, ty.index), mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u4)];
+        return [values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, ty.spine.head.arg), mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u4)];
     }
     if (tm.tag === 'ElimFinN') {
         /*
@@ -2550,9 +2524,9 @@ const synth = (local, tm) => {
             return utils_1.terr(`usage must be 1 <= q in nat induction ${core_1.show(tm)}: ${tm.usage}`);
         const [ty_, u1] = synth(local, tm.scrut);
         const ty = values_1.force(ty_);
-        if (ty.tag !== 'VFin')
+        if (!values_1.matchVFin(ty))
             return utils_1.terr(`not a Fin in ${core_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
-        const n = values_1.force(ty.index);
+        const n = values_1.force(ty.spine.head.arg);
         if (n.tag !== 'VNatLit')
             return utils_1.terr(`Fin index must be a nat literal in ${core_1.show(tm)}: ${local_1.showVal(local, ty_)}`);
         if (tm.cs.length !== +Number(n.value))
@@ -2596,19 +2570,15 @@ const synth = (local, tm) => {
         const x = values_1.evaluate(tm.val, local.vs);
         return [values_1.VPropEq(ty, x, x), usage_1.noUses(local.level)];
     }
-    if (tm.tag === 'Fin') {
-        check(local.inType(), tm.index, values_1.VNat);
-        return [values_1.VType, usage_1.noUses(local.level)];
-    }
     if (tm.tag === 'FinLit') {
         check(local.inType(), tm.index, values_1.VNat);
-        return [values_1.VFin(values_1.vnats(values_1.evaluate(tm.index, local.vs))), usage_1.noUses(local.level)];
+        return [values_1.vfin(values_1.vnats(values_1.evaluate(tm.index, local.vs))), usage_1.noUses(local.level)];
     }
     if (tm.tag === 'FinS') {
         check(local, tm.index, values_1.VNat);
         const vindex = values_1.evaluate(tm.index, local.vs);
-        const u = check(local, tm.term, values_1.VFin(vindex));
-        return [values_1.VFin(values_1.vnats(vindex)), u];
+        const u = check(local, tm.term, values_1.vfin(vindex));
+        return [values_1.vfin(values_1.vnats(vindex)), u];
     }
     return tm;
 };
@@ -3016,7 +2986,7 @@ exports.eqArr = eqArr;
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vdecideFS = exports.vdecideS = exports.velimfinN = exports.velimfin = exports.vfins = exports.velimnat = exports.vnats = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.VNat = exports.VType = exports.VPrim = exports.VVar = exports.VFinLit = exports.VFin = exports.VNatLit = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EElimFinN = exports.EElimFin = exports.EElimNat = exports.EFinS = exports.ENatS = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vdecideFS = exports.vdecideS = exports.velimfinN = exports.velimfin = exports.vfins = exports.velimnat = exports.vnats = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.matchVFin = exports.vfin = exports.VFin = exports.VNat = exports.VType = exports.VPrim = exports.VVar = exports.VFinLit = exports.VNatLit = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EElimFinN = exports.EElimFin = exports.EElimNat = exports.EFinS = exports.ENatS = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
@@ -3064,8 +3034,6 @@ const VRefl = (type, val) => ({ tag: 'VRefl', type, val });
 exports.VRefl = VRefl;
 const VNatLit = (value) => ({ tag: 'VNatLit', value });
 exports.VNatLit = VNatLit;
-const VFin = (index) => ({ tag: 'VFin', index });
-exports.VFin = VFin;
 const VFinLit = (val, index) => ({ tag: 'VFinLit', val, index });
 exports.VFinLit = VFinLit;
 const VVar = (level, spine = List_1.nil) => exports.VNe(exports.HVar(level), spine);
@@ -3074,6 +3042,11 @@ const VPrim = (name, spine = List_1.nil) => exports.VNe(exports.HPrim(name), spi
 exports.VPrim = VPrim;
 exports.VType = exports.VPrim('Type');
 exports.VNat = exports.VPrim('Nat');
+exports.VFin = exports.VPrim('Fin');
+const vfin = (n) => exports.vapp(exports.VFin, mode_1.Expl, n);
+exports.vfin = vfin;
+const matchVFin = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'Fin' && v.spine.isCons() && v.spine.head.tag === 'EApp';
+exports.matchVFin = matchVFin;
 const vinst = (val, arg) => val.clos(arg);
 exports.vinst = vinst;
 const force = (v) => {
@@ -3167,7 +3140,7 @@ const velimfin = (usage, motive, scrut, z, s) => {
     const m = exports.vdecideFS(scrut);
     // elimFin q P (FS {n} {x}) z s ~> s (\_ v. elimFin q P v z s) n x
     if (m)
-        return exports.vapp(exports.vapp(exports.vapp(s, mode_1.Expl, exports.VAbs(usage_1.zero, mode_1.Expl, 'n', exports.VNat, n => exports.VAbs(usage_1.many, mode_1.Expl, 'v', exports.VFin(n), v => exports.velimfin(usage, motive, v, z, s)))), mode_1.Expl, m[1]), mode_1.Expl, m[0]);
+        return exports.vapp(exports.vapp(exports.vapp(s, mode_1.Expl, exports.VAbs(usage_1.zero, mode_1.Expl, 'n', exports.VNat, n => exports.VAbs(usage_1.many, mode_1.Expl, 'v', exports.vfin(n), v => exports.velimfin(usage, motive, v, z, s)))), mode_1.Expl, m[1]), mode_1.Expl, m[0]);
     // elimFin q P (0/n) z s ~> z n
     if (scrut.tag === 'VFinLit' && scrut.val === 0n)
         return exports.vapp(z, mode_1.Expl, scrut.index);
@@ -3254,8 +3227,6 @@ const evaluate = (t, vs) => {
         return exports.velimfin(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), exports.evaluate(t.z, vs), exports.evaluate(t.s, vs));
     if (t.tag == 'ElimFinN')
         return exports.velimfinN(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), t.cs.map(x => exports.evaluate(x, vs)));
-    if (t.tag === 'Fin')
-        return exports.VFin(exports.evaluate(t.index, vs));
     if (t.tag === 'FinLit')
         return exports.VFinLit(t.val, exports.evaluate(t.index, vs));
     return t;
@@ -3311,8 +3282,6 @@ const quote = (v, k, full = false) => {
         return core_1.PropEq(exports.quote(v.type, k, full), exports.quote(v.left, k, full), exports.quote(v.right, k, full));
     if (v.tag === 'VRefl')
         return core_1.Refl(exports.quote(v.type, k, full), exports.quote(v.val, k, full));
-    if (v.tag === 'VFin')
-        return core_1.Fin(exports.quote(v.index, k, full));
     if (v.tag === 'VFinLit')
         return core_1.FinLit(v.val, exports.quote(v.index, k, full));
     return v;

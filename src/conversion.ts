@@ -79,7 +79,6 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   log(() => `conv(${k}): ${show(a, k)} ~ ${show(b, k)}`);
   if (a === b) return;
   if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
-  if (a.tag === 'VFin' && b.tag === 'VFin') return conv(k, a.index, b.index);
   if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.val === b.val) return conv(k, a.index, b.index);
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && eqMode(a.mode, b.mode)) {
     conv(k, a.type, b.type);

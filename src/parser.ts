@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, NatS, NatLit, ElimNat, Fin, FinS, ElimFin, ElimFinN } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, NatS, NatLit, ElimNat, FinS, ElimFin, ElimFinN } from './surface';
 import { many, Usage, usages, zero } from './usage';
 import { serr } from './utils/utils';
 
@@ -202,7 +202,7 @@ const projs = (ps: string): ProjType[] => {
 
 const Nat = Var('Nat');
 const natSPrim = Abs(many, Expl, 'n', Nat, NatS(Var('n')));
-const finSPrim = Abs(zero, Impl, 'n', Nat, Abs(many, Expl, 'f', Fin(Var('n')), FinS(Var('f'))));
+const finSPrim = Abs(zero, Impl, 'n', Nat, Abs(many, Expl, 'f', App(Var('Fin'), Expl, Var('n')), FinS(Var('f'))));
 
 const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
@@ -215,7 +215,6 @@ const expr = (t: Token): [Surface, boolean] => {
   }
   if (t.tag === 'Name') {
     const x = t.name;
-    if (x === 'Fin') return [Abs(many, Expl, 'n', Nat, Fin(Var('n'))), false];
     if (x === 'S') return [natSPrim, false];
     if (x === 'FS') return [finSPrim, false];
     if (x === 'Refl') return [Refl(null, null), false];
@@ -435,12 +434,6 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       return c;
     });
     return ElimFinN(u, motive, scrut, cs);
-  }
-  if (isName(ts[0], 'Fin')) {
-    if (ts.length !== 2) return serr(`Fin: needs exactly one argument`);
-    const [index, impl] = expr(ts[1]);
-    if (impl) return serr(`Fin index cannot be implicit`);
-    return Fin(index);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {
