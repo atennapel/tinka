@@ -1,8 +1,8 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, NatS, NatLit, ElimNat, FinS, ElimFin, ElimFinN } from './surface';
-import { many, Usage, usages, zero } from './usage';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole } from './surface';
+import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{'
@@ -200,10 +200,6 @@ const projs = (ps: string): ProjType[] => {
   return parts.map(proj);
 };
 
-const Nat = Var('Nat');
-const natSPrim = Abs(many, Expl, 'n', Nat, NatS(Var('n')));
-const finSPrim = Abs(zero, Impl, 'n', Nat, Abs(many, Expl, 'f', App(Var('Fin'), Expl, Var('n')), FinS(Var('f'))));
-
 const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
     return [exprs(t.list, '('), t.bracket === '{'];
@@ -211,12 +207,10 @@ const expr = (t: Token): [Surface, boolean] => {
     const s = codepoints(t.str).reverse();
     const Cons = Var('Cons');
     const Nil = Var('Nil');
-    return [s.reduce((t, n) => App(App(Cons, Expl, NatLit(BigInt(n))), Expl, t), Nil as Surface), false];
+    return [s.reduce((t, n) => App(App(Cons, Expl, numToNat(n, `codepoint: ${n}`)), Expl, t), Nil as Surface), false];
   }
   if (t.tag === 'Name') {
     const x = t.name;
-    if (x === 'S') return [natSPrim, false];
-    if (x === 'FS') return [finSPrim, false];
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Var('Unit'), false];
     if (x[0] === '_') return [Hole(x.slice(1)), false];
@@ -250,9 +244,7 @@ const expr = (t: Token): [Surface, boolean] => {
     } else if (t.num.endsWith('n')) {
       return [numToNat(+t.num.slice(0, -1), t.num), false];
     } else {
-      const n = BigInt(t.num);
-      if (n < 0) return serr(`Nat cannot be negative: ${t.num}`);
-      return [NatLit(n), false];
+      return [numToNat(+t.num, t.num), false];
     }
   }
   return t;
@@ -386,55 +378,6 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const cas = exprs(ts.slice(j + 2), '(');
     return ElimPropEq(u, motive, scrut, cas);
   }
-  if (isName(ts[0], 'elimNat')) {
-    let j = 1;
-    let u = usage(ts[1]);
-    if (u) { j = 2 } else { u = many }
-    if (!ts[j]) return serr(`elimNat: not enough arguments`);
-    const [motive, impl] = expr(ts[j]);
-    if (impl) return serr(`elimNat motive cannot be implicit`); 
-    if (!ts[j + 1]) return serr(`elimNat: not enough arguments`);
-    const [scrut, impl2] = expr(ts[j + 1]);
-    if (impl2) return serr(`elimNat scrutinee cannot be implicit`);
-    if (!ts[j + 2]) return serr(`elimNat: not enough arguments`);
-    const [z, impl3] = expr(ts[j + 2]);
-    if (impl3) return serr(`elimNat case Z cannot be implicit`);
-    const s = exprs(ts.slice(j + 3), '(');
-    return ElimNat(u, motive, scrut, z, s);
-  }
-  if (isName(ts[0], 'elimFin')) {
-    let j = 1;
-    let u = usage(ts[1]);
-    if (u) { j = 2 } else { u = many }
-    if (!ts[j]) return serr(`elimFin: not enough arguments`);
-    const [motive, impl] = expr(ts[j]);
-    if (impl) return serr(`elimFin motive cannot be implicit`); 
-    if (!ts[j + 1]) return serr(`elimFin: not enough arguments`);
-    const [scrut, impl2] = expr(ts[j + 1]);
-    if (impl2) return serr(`elimFin scrutinee cannot be implicit`);
-    if (!ts[j + 2]) return serr(`elimFin: not enough arguments`);
-    const [z, impl3] = expr(ts[j + 2]);
-    if (impl3) return serr(`elimFin case Z cannot be implicit`);
-    const s = exprs(ts.slice(j + 3), '(');
-    return ElimFin(u, motive, scrut, z, s);
-  }
-  if (isName(ts[0], 'elimFinN')) {
-    let j = 1;
-    let u = usage(ts[1]);
-    if (u) { j = 2 } else { u = many }
-    if (!ts[j]) return serr(`elimFinN: not enough arguments`);
-    const [motive, impl] = expr(ts[j]);
-    if (impl) return serr(`elimFinN motive cannot be implicit`); 
-    if (!ts[j + 1]) return serr(`elimFinN: not enough arguments`);
-    const [scrut, impl2] = expr(ts[j + 1]);
-    if (impl2) return serr(`elimFinN scrutinee cannot be implicit`);
-    const cs = ts.slice(j + 2).map(x => {
-      const [c, impl] = expr(x);
-      if (impl) return serr(`elimFinN case cannot be implicit`);
-      return c;
-    });
-    return ElimFinN(u, motive, scrut, cs);
-  }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {
     const a = ts.slice(0, i);
@@ -485,29 +428,6 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       return Refl(type, val);
     }
     return serr(`invalid Refl`);
-  }
-  if (isName(ts[0], 'S')) {
-    if (ts.length === 1) return natSPrim;
-    if (ts.length > 2) return serr(`too many arguments for S`);
-    const [term, impl] = expr(ts[1]);
-    if (impl) return serr(`arguments for S cannot be implicit`);
-    return NatS(term);
-  }
-  if (isName(ts[0], 'FS')) {
-    if (ts.length === 1) return finSPrim;
-    if (ts.length === 2) {
-      const [term, impl] = expr(ts[1]);
-      if (impl) return App(finSPrim, Impl, term);
-      return FinS(term);
-    }
-    if (ts.length === 3) {
-      const [n, impl] = expr(ts[1]);
-      if (!impl) return serr(`FS index must be implicit`);
-      const [term, impl2] = expr(ts[2]);
-      if (impl2) return serr(`FS argument cannot be implicit`);
-      return App(App(finSPrim, Impl, n), Expl, term);
-    }
-    return serr(`invalid FS: too many arguments`);
   }
   const js = ts.findIndex(x => isName(x, '**'));
   if (js >= 0) {

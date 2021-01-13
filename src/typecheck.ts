@@ -6,9 +6,9 @@ import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
 import { synthPrim } from './prims';
-import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
+import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, matchVFin, quote, Val, vapp, vfin, VFinLit, vfins, vinst, VNat, VNatLit, vnats, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
+import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -22,15 +22,10 @@ const check = (local: Local, tm: Core, ty: Val): Uses => {
 
 const synth = (local: Local, tm: Core): [Val, Uses] => {
   log(() => `synth ${show(tm)}`);
-  if (tm.tag === 'NatLit') return [VNat, noUses(local.level)];
   if (tm.tag === 'Prim') {
     const ty = synthPrim(tm.name);
     if (!ty) return terr(`undefined primitive ${tm.name}`);
     return [ty, noUses(local.level)];
-  }
-  if (tm.tag === 'NatS') {
-    const u = check(local, tm.term, VNat);
-    return [VNat, u];
   }
   if (tm.tag === 'Var') {
     const [entry, j] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
@@ -132,82 +127,6 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const vscrut = evaluate(tm.scrut, local.vs);
     return [vapp(vapp(vapp(motive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
   }
-  if (tm.tag === 'ElimNat') {
-    /*
-    1 <= q
-    G |- P : Nat -> Type
-    G |- n : Nat
-    G |- z : P 0
-    G |- s : ((m : Nat) -> P m) -> (q m : Nat) -> P (S m)
-    -----------------------------------------------------
-    G |- elimNat q P n z s : P n
-    */
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
-    check(local, tm.motive, VPi(many, Expl, '_', VNat, _ => VType));
-    const vmotive = evaluate(tm.motive, local.vs);
-    const u1 = check(local, tm.scrut, VNat);
-    const vscrut = evaluate(tm.scrut, local.vs);
-    const u2 = check(local, tm.z, vapp(vmotive, Expl, VNatLit(0n)));
-    const u3 = check(local, tm.s, VPi(many, Expl, '_', VPi(many, Expl, 'm', VNat, m => vapp(vmotive, Expl, m)), _ => VPi(tm.usage, Expl, 'm', VNat, m => vapp(vmotive, Expl, vnats(m)))));
-    const u4 = lubUses(u2, u3);
-    return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
-  }
-  if (tm.tag === 'ElimFin') {
-    /*
-    1 <= q
-    G |- P : (n : Nat) -> Fin n -> Type
-    G |- x : Fin n
-    G |- z : ((0 m : Nat) -> P (S m) (0/m))
-    G |- s : ((0 m : Nat) -> (y : Fin m) -> P m y) -> (0 m : Nat) -> (y : Fin m) -> P (S m) (FS m y)
-    ----------------------------------------------------------------------------------------------
-    G |- elimFin q P x z s : P n x
-    */
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
-    check(local, tm.motive, VPi(many, Expl, 'n', VNat, n => VPi(many, Expl, '_', vfin(n), _ => VType)));
-    const vmotive = evaluate(tm.motive, local.vs);
-    const [ty_, u1] = synth(local, tm.scrut);
-    const ty = force(ty_);
-    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
-    const vscrut = evaluate(tm.scrut, local.vs);
-    const u2 = check(local, tm.z, VPi(zero, Expl, 'm', VNat, m => vapp(vapp(vmotive, Expl, vnats(m)), Expl, VFinLit(0n, m))));
-    const u3 = check(local, tm.s,
-      VPi(many, Expl, '_', VPi(zero, Expl, 'm', VNat, m => VPi(many, Expl, 'y', vfin(m), y => vapp(vapp(vmotive, Expl, m), Expl, y))), _ =>
-      VPi(zero, Expl, 'm', VNat, m =>
-      VPi(many, Expl, 'y', vfin(m), y =>
-      vapp(vapp(vmotive, Expl, vnats(m)), Expl, vfins(m, y))))));
-    const u4 = lubUses(u2, u3);
-    return [vapp(vapp(vmotive, Expl, ty.spine.head.arg), Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u4)];
-  }
-  if (tm.tag === 'ElimFinN') {
-    /*
-    1 <= q
-    G |- x : Fin n
-    G |- P : Fin n -> Type
-    G |- cs_i : P (i/pred n)
-    ----------------------------------------------------------------------------------------------
-    G |- elimFin q P x cs : P x
-    */
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in nat induction ${show(tm)}: ${tm.usage}`);
-    const [ty_, u1] = synth(local, tm.scrut);
-    const ty = force(ty_);
-    if (!matchVFin(ty)) return terr(`not a Fin in ${show(tm)}: ${showVal(local, ty_)}`);
-    const n = force(ty.spine.head.arg);
-    if (n.tag !== 'VNatLit') return terr(`Fin index must be a nat literal in ${show(tm)}: ${showVal(local, ty_)}`);
-    if (tm.cs.length !== +Number(n.value)) return terr(`case length mismatch in ${show(tm)}: ${tm.cs.length} != ${n.value}`);
-    const vscrut = evaluate(tm.scrut, local.vs);
-    check(local, tm.motive, VPi(many, Expl, '_', ty_, _ => VType));
-    const vmotive = evaluate(tm.motive, local.vs);
-    let ufinal: Uses = noUses(local.level);
-    const index = VNatLit(n.value - 1n);
-    for (let i = 0, l = tm.cs.length; i < l; i++) {
-      const u = check(local, tm.cs[i], vapp(vmotive, Expl, VFinLit(BigInt(i), index)));
-      ufinal = lubUses(ufinal, u);
-    }
-    return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), ufinal)];
-  }
   if (tm.tag === 'Proj') {
     const [sigma_, u] = synth(local, tm.term);
     if (tm.proj.tag === 'PProj') {
@@ -232,16 +151,6 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     check(local.inType(), tm.val, ty);
     const x = evaluate(tm.val, local.vs);
     return [VPropEq(ty, x, x), noUses(local.level)];
-  }
-  if (tm.tag === 'FinLit') {
-    check(local.inType(), tm.index, VNat);
-    return [vfin(vnats(evaluate(tm.index, local.vs))), noUses(local.level)];
-  }
-  if (tm.tag === 'FinS') {
-    check(local, tm.index, VNat);
-    const vindex = evaluate(tm.index, local.vs);
-    const u = check(local, tm.term, vfin(vindex));
-    return [vfin(vnats(vindex)), u];
   }
   return tm;
 };

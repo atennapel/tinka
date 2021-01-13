@@ -11,9 +11,7 @@ export type Surface =
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   Signature | Module | Import |
-  PropEq | Refl | ElimPropEq |
-  NatLit | NatS | ElimNat |
-  FinS | ElimFin | ElimFinN;
+  PropEq | Refl | ElimPropEq;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -53,18 +51,6 @@ export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage;
 export const ElimPropEq = (usage: Usage, motive: Surface, scrut: Surface, cas: Surface): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 export interface Hole { readonly tag: 'Hole'; readonly name: Name | null }
 export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
-export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
-export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
-export interface NatS { readonly tag: 'NatS'; readonly term: Surface }
-export const NatS = (term: Surface): NatS => ({ tag: 'NatS', term });
-export interface ElimNat { readonly tag: 'ElimNat'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly z: Surface; readonly s: Surface }
-export const ElimNat = (usage: Usage, motive: Surface, scrut: Surface, z: Surface, s: Surface): ElimNat => ({ tag: 'ElimNat', usage, motive, scrut, z, s });
-export interface FinS { readonly tag: 'FinS'; readonly term: Surface }
-export const FinS = (term: Surface): FinS => ({ tag: 'FinS', term });
-export interface ElimFin { readonly tag: 'ElimFin'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly z: Surface; readonly s: Surface }
-export const ElimFin = (usage: Usage, motive: Surface, scrut: Surface, z: Surface, s: Surface): ElimFin => ({ tag: 'ElimFin', usage, motive, scrut, z, s });
-export interface ElimFinN { readonly tag: 'ElimFinN'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly cs: Surface[] }
-export const ElimFinN = (usage: Usage, motive: Surface, scrut: Surface, cs: Surface[]): ElimFinN => ({ tag: 'ElimFinN', usage, motive, scrut, cs });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -132,7 +118,7 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole' || t.tag === 'NatLit';
+const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Proj' || t.tag === 'Hole';
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -141,7 +127,6 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Surface): string => {
-  if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'Var') return `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name || ''}`;
   if (t.tag === 'Pi') {
@@ -184,14 +169,6 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Refl') return `Refl${t.type ? ` {${show(t.type)}}` : ''}${t.val ? ` {${show(t.val)}}` : ''}`;
   if (t.tag === 'ElimPropEq')
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
-  if (t.tag === 'NatS') return `S ${showS(t.term)}`;
-  if (t.tag === 'ElimNat')
-    return `elimNat ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
-  if (t.tag === 'ElimFin')
-    return `elimFin ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.z)} ${showS(t.s)}`;
-  if (t.tag === 'ElimFinN')
-    return `elimFinN ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cs.map(x => ` ${showS(x)}`).join('')}`;
-  if (t.tag === 'FinS') return `FS ${showS(t.term)}`;
   return t;
 };
 
@@ -222,12 +199,6 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? PName(t.proj.name) : PIndex(t.proj.index));
   if (t.tag === 'PropEq') return PropEq(fromCore(t.type, ns), fromCore(t.left, ns), fromCore(t.right, ns));
   if (t.tag === 'Refl') return Refl(fromCore(t.type, ns), fromCore(t.val, ns));
-  if (t.tag === 'NatS') return NatS(fromCore(t.term, ns));
-  if (t.tag === 'FinS') return FinS(fromCore(t.term, ns));
-  if (t.tag === 'ElimNat') return ElimNat(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.z, ns), fromCore(t.s, ns));
-  if (t.tag === 'ElimFin') return ElimFin(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.z, ns), fromCore(t.s, ns));
-  if (t.tag === 'ElimFinN') return ElimFinN(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), t.cs.map(x => fromCore(x, ns)));
-  if (t.tag === 'FinLit') return NatLit(t.val);
   return t;
 };
 

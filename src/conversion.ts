@@ -3,7 +3,7 @@ import { PFst, PSnd } from './core';
 import { eqMode } from './mode';
 import { Ix, Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, vdecideS, vdecideFS } from './values';
+import { Head, Val, show, VVar, vinst, vapp, vproj, Spine } from './values';
 
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
@@ -23,11 +23,6 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
     const a = sa.head;
     const b = sb.head;
     if (a === b) return convSpines(k, va, vb, sa.tail, sb.tail);
-    if (a.tag === 'ENatS' && b.tag === 'ENatS') return convSpines(k, va, vb, sa.tail, sb.tail);
-    if (a.tag === 'EFinS' && b.tag === 'EFinS') {
-      conv(k, a.index, b.index);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
     if (a.tag === 'EApp' && b.tag === 'EApp' && eqMode(a.mode, b.mode)) {
       conv(k, a.arg, b.arg);
       return convSpines(k, va, vb, sa.tail, sb.tail);
@@ -40,24 +35,6 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
     if (a.tag === 'EElimPropEq' && b.tag === 'EElimPropEq' && a.usage === b.usage) {
       conv(k, a.motive, b.motive);
       conv(k, a.cas, b.cas);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimNat' && b.tag === 'EElimNat' && a.usage === b.usage) {
-      conv(k, a.motive, b.motive);
-      conv(k, a.z, b.z);
-      conv(k, a.s, b.s);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimFin' && b.tag === 'EElimFin' && a.usage === b.usage) {
-      conv(k, a.motive, b.motive);
-      conv(k, a.z, b.z);
-      conv(k, a.s, b.s);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimFinN' && b.tag === 'EElimFinN' && a.usage === b.usage && a.cs.length === b.cs.length) {
-      conv(k, a.motive, b.motive);
-      for (let i = 0, l = a.cs.length; i < l; i++)
-        conv(k, a.cs[i], b.cs[i]);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
     if (a.tag === 'EProj' && b.tag === 'EProj') {
@@ -78,8 +55,6 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
 export const conv = (k: Lvl, a: Val, b: Val): void => {
   log(() => `conv(${k}): ${show(a, k)} ~ ${show(b, k)}`);
   if (a === b) return;
-  if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
-  if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.val === b.val) return conv(k, a.index, b.index);
   if (a.tag === 'VPi' && b.tag === 'VPi' && a.usage === b.usage && eqMode(a.mode, b.mode)) {
     conv(k, a.type, b.type);
     const v = VVar(k);
@@ -127,17 +102,6 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     conv(k, vproj(a, PFst), b.fst);
     conv(k, vproj(a, PSnd), b.snd);
     return;
-  }
-
-  const n = vdecideS(a);
-  const m = vdecideS(b);
-  if (n && m) return conv(k, n, m);
-
-  const fn = vdecideFS(a);
-  const fm = vdecideFS(b);
-  if (fn && fm) {
-    conv(k, fn[1], fm[1]);
-    return conv(k, fn[0], fm[0]);
   }
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))

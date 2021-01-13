@@ -1,11 +1,11 @@
-import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, NatS, NatLit, ElimNat, FinLit, FinS, ElimFin, ElimFinN, Prim } from './core';
+import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Prim } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
 import { PrimName } from './prims';
-import { many, Usage, zero } from './usage';
+import { Usage } from './usage';
 import { Lazy } from './utils/Lazy';
-import { Cons, cons, List, nil } from './utils/List';
+import { cons, List, nil } from './utils/List';
 import { impossible, terr } from './utils/utils';
 
 export type Head = HVar | HPrim;
@@ -15,7 +15,7 @@ export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 export interface HPrim { readonly tag: 'HPrim'; readonly name: PrimName }
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EElimSigma | EProj | EElimPropEq | ENatS | EElimNat | EFinS | EElimFin | EElimFinN;
+export type Elim = EApp | EElimSigma | EProj | EElimPropEq;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
@@ -25,22 +25,12 @@ export interface EProj { readonly tag: 'EProj'; readonly proj: ProjType }
 export const EProj = (proj: ProjType): EProj => ({ tag: 'EProj', proj });
 export interface EElimPropEq { readonly tag: 'EElimPropEq'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
 export const EElimPropEq = (usage: Usage, motive: Val, cas: Val): EElimPropEq => ({ tag: 'EElimPropEq', usage, motive, cas });
-export interface ENatS { readonly tag: 'ENatS' }
-export const ENatS: ENatS = { tag: 'ENatS' };
-export interface EFinS { readonly tag: 'EFinS'; readonly index: Val }
-export const EFinS = (index: Val): EFinS => ({ tag: 'EFinS', index });
-export interface EElimNat { readonly tag: 'EElimNat'; readonly usage: Usage; readonly motive: Val; readonly z: Val; readonly s: Val }
-export const EElimNat = (usage: Usage, motive: Val, z: Val, s: Val): EElimNat => ({ tag: 'EElimNat', usage, motive, z, s });
-export interface EElimFin { readonly tag: 'EElimFin'; readonly usage: Usage; readonly motive: Val; readonly z: Val; readonly s: Val }
-export const EElimFin = (usage: Usage, motive: Val, z: Val, s: Val): EElimFin => ({ tag: 'EElimFin', usage, motive, z, s });
-export interface EElimFinN { readonly tag: 'EElimFinN'; readonly usage: Usage; readonly motive: Val; readonly cs: Val[] }
-export const EElimFinN = (usage: Usage, motive: Val, cs: Val[]): EElimFinN => ({ tag: 'EElimFinN', usage, motive, cs });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VNatLit | VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl | VFinLit;
+export type Val = VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
 
 export interface VNe { readonly tag: 'VNe'; readonly head: Head; readonly spine: Spine }
 export const VNe = (head: Head, spine: Spine): VNe => ({ tag: 'VNe', head, spine });
@@ -58,10 +48,6 @@ export interface VPropEq { readonly tag: 'VPropEq'; readonly type: Val; readonly
 export const VPropEq = (type: Val, left: Val, right: Val): VPropEq => ({ tag: 'VPropEq', type, left, right });
 export interface VRefl { readonly tag: 'VRefl'; readonly type: Val; readonly val: Val }
 export const VRefl = (type: Val, val: Val): VRefl => ({ tag: 'VRefl', type, val });
-export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
-export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
-export interface VFinLit { readonly tag: 'VFinLit'; readonly val: bigint; readonly index: Val }
-export const VFinLit = (val: bigint, index: Val): VFinLit => ({ tag: 'VFinLit', val, index });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 
@@ -69,11 +55,6 @@ export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), sp
 export const VPrim = (name: PrimName, spine: Spine = nil): Val => VNe(HPrim(name), spine);
 
 export const VType = VPrim('Type');
-export const VNat = VPrim('Nat');
-export const VFin = VPrim('Fin');
-export const vfin = (n: Val): Val => vapp(VFin, Expl, n);
-export const matchVFin = (v: Val): v is VNe & { head: HPrim & { name: 'Fin' }, spine: Cons<EApp> } =>
-  v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'Fin' && v.spine.isCons() && v.spine.head.tag === 'EApp';
 
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 
@@ -113,62 +94,8 @@ export const velimpropeq = (usage: Usage, motive: Val, scrut: Val, cas: Val): Va
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine), scrut.val.map(v => velimpropeq(usage, motive, v, cas)));
   return impossible(`velimpropeq: ${scrut.tag}`);
 };
-export const vnats = (scrut: Val): Val => {
-  if (scrut.tag === 'VNatLit') return VNatLit(scrut.value + 1n);
-  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(ENatS, scrut.spine));
-  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(ENatS, scrut.spine), scrut.val.map(v => vnats(v)));
-  return impossible(`vnats: ${scrut.tag}`);
-};
-export const velimnat = (usage: Usage, motive: Val, scrut: Val, z: Val, s: Val): Val => {
-  const m = vdecideS(scrut);
-  if (m) return vapp(vapp(s, Expl, VAbs(many, Expl, 'm', VNat, m => velimnat(usage, motive, m, z, s))), Expl, m);
-  if (scrut.tag === 'VNatLit' && scrut.value === 0n) return z;
-  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimNat(usage, motive, z, s), scrut.spine));
-  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimNat(usage, motive, z, s), scrut.spine), scrut.val.map(v => velimnat(usage, motive, v, z, s)));
-  return impossible(`velimnat: ${scrut.tag}`);
-};
-export const vfins = (index: Val, scrut: Val): Val => {
-  if (scrut.tag === 'VFinLit') return VFinLit(scrut.val + 1n, vnats(scrut.index));
-  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EFinS(index), scrut.spine));
-  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EFinS(index), scrut.spine), scrut.val.map(v => vfins(index, v)));
-  return impossible(`vfins: ${scrut.tag}`);
-};
-export const velimfin = (usage: Usage, motive: Val, scrut: Val, z: Val, s: Val): Val => {
-  const m = vdecideFS(scrut);
-  // elimFin q P (FS {n} {x}) z s ~> s (\_ v. elimFin q P v z s) n x
-  if (m) return vapp(vapp(vapp(s, Expl, VAbs(zero, Expl, 'n', VNat, n => VAbs(many, Expl, 'v', vfin(n), v => velimfin(usage, motive, v, z, s)))), Expl, m[1]), Expl, m[0]);
-  // elimFin q P (0/n) z s ~> z n
-  if (scrut.tag === 'VFinLit' && scrut.val === 0n) return vapp(z, Expl, scrut.index);
-  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimFin(usage, motive, z, s), scrut.spine));
-  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimFin(usage, motive, z, s), scrut.spine), scrut.val.map(v => velimfin(usage, motive, v, z, s)));
-  return impossible(`velimfin: ${scrut.tag}`);
-};
-export const velimfinN = (usage: Usage, motive: Val, scrut: Val, cs: Val[]): Val => {
-  if (scrut.tag === 'VFinLit') return cs[Number(scrut.val)];
-  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimFinN(usage, motive, cs), scrut.spine));
-  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimFinN(usage, motive, cs), scrut.spine), scrut.val.map(v => velimfinN(usage, motive, v, cs)));
-  return impossible(`velimfinN: ${scrut.tag}`);
-};
-
-export const vdecideS = (v: Val): Val | null => {
-  if (v.tag === 'VNatLit' && v.value > 0) return VNatLit(v.value - 1n);
-  if (v.tag === 'VNe' && v.spine.isCons() && v.spine.head.tag === 'ENatS')
-     return VNe(v.head, v.spine.tail);
-  return null;
-};
-export const vdecideFS = (v: Val): [Val, Val]| null => {
-  if (v.tag === 'VFinLit' && v.val > 0) {
-    const n = vdecideS(force(v.index));
-    if (!n) return null;
-    return [VFinLit(v.val - 1n, n), n];
-  }
-  if (v.tag === 'VNe' && v.spine.isCons() && v.spine.head.tag === 'EFinS')
-     return [VNe(v.head, v.spine.tail), v.spine.head.index];
-  return null;
-};
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
-  if (t.tag === 'NatLit') return VNatLit(t.value);
   if (t.tag === 'Abs')
     return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Pi')
@@ -198,15 +125,6 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return VPropEq(evaluate(t.type, vs), evaluate(t.left, vs), evaluate(t.right, vs));
   if (t.tag === 'Refl')
     return VRefl(evaluate(t.type, vs), evaluate(t.val, vs));
-  if (t.tag === 'NatS') return vnats(evaluate(t.term, vs));
-  if (t.tag === 'FinS') return vfins(evaluate(t.index, vs), evaluate(t.term, vs));
-  if (t.tag == 'ElimNat')
-    return velimnat(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.z, vs), evaluate(t.s, vs));
-  if (t.tag == 'ElimFin')
-    return velimfin(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.z, vs), evaluate(t.s, vs));
-  if (t.tag == 'ElimFinN')
-    return velimfinN(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), t.cs.map(x => evaluate(x, vs)));
-  if (t.tag === 'FinLit') return VFinLit(t.val, evaluate(t.index, vs));
   return t;
 };
 
@@ -220,15 +138,9 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EElimSigma') return ElimSigma(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
   if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
   if (e.tag === 'EProj') return Proj(t, e.proj);
-  if (e.tag === 'ENatS') return NatS(t);
-  if (e.tag === 'EFinS') return FinS(quote(e.index, k, full), t);
-  if (e.tag === 'EElimNat') return ElimNat(e.usage, quote(e.motive, k, full), t, quote(e.z, k, full), quote(e.s, k, full));
-  if (e.tag === 'EElimFin') return ElimFin(e.usage, quote(e.motive, k, full), t, quote(e.z, k, full), quote(e.s, k, full));
-  if (e.tag === 'EElimFinN') return ElimFinN(e.usage, quote(e.motive, k, full), t, e.cs.map(x => quote(x, k, full)));
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
-  if (v.tag === 'VNatLit') return NatLit(v.value);
   if (v.tag === 'VNe')
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
@@ -253,7 +165,6 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
     return PropEq(quote(v.type, k, full), quote(v.left, k, full), quote(v.right, k, full));
   if (v.tag === 'VRefl')
     return Refl(quote(v.type, k, full), quote(v.val, k, full));
-  if (v.tag === 'VFinLit') return FinLit(v.val, quote(v.index, k, full));
   return v;
 };
 
