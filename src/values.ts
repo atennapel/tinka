@@ -42,8 +42,8 @@ export interface VAbs { readonly tag: 'VAbs'; readonly usage: Usage; readonly mo
 export const VAbs = (usage: Usage, mode: Mode, name: Name, type: Val, clos: Clos): VAbs => ({ tag: 'VAbs', usage, mode, name, type, clos });
 export interface VPi { readonly tag: 'VPi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Val; readonly clos: Clos }
 export const VPi = (usage: Usage, mode: Mode, name: Name, type: Val, clos: Clos): VPi => ({ tag: 'VPi', usage, mode, name, type, clos });
-export interface VSigma { readonly tag: 'VSigma'; readonly usage: Usage; readonly name: Name; readonly type: Val; readonly clos: Clos }
-export const VSigma = (usage: Usage, name: Name, type: Val, clos: Clos): VSigma => ({ tag: 'VSigma', usage, name, type, clos });
+export interface VSigma { readonly tag: 'VSigma'; readonly usage: Usage; readonly exclusive: boolean; readonly name: Name; readonly type: Val; readonly clos: Clos }
+export const VSigma = (usage: Usage, exclusive: boolean, name: Name, type: Val, clos: Clos): VSigma => ({ tag: 'VSigma', usage, exclusive, name, type, clos });
 export interface VPair { readonly tag: 'VPair'; readonly fst: Val; readonly snd: Val; readonly type: Val }
 export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
 export interface VPropEq { readonly tag: 'VPropEq'; readonly type: Val; readonly left: Val; readonly right: Val }
@@ -133,7 +133,7 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
   if (t.tag === 'Let')
     return evaluate(t.body, cons(evaluate(t.val, vs), vs));
   if (t.tag === 'Sigma')
-    return VSigma(t.usage, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
+    return VSigma(t.usage, t.exclusive, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
   if (t.tag === 'Pair')
     return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
   if (t.tag === 'ElimSigma')
@@ -182,7 +182,7 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
   if (v.tag === 'VPi')
     return Pi(v.usage, v.mode, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
   if (v.tag === 'VSigma')
-    return Sigma(v.usage, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
+    return Sigma(v.usage, v.exclusive, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
   if (v.tag === 'VPair')
     return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
   if (v.tag === 'VPropEq')

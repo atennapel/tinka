@@ -1,6 +1,12 @@
 mod {
+  def indBool : {0 P : Bool -> Type} -> (b : Bool) -> P True -> P False -> P b
+    = \{P} c a b. elimBool P c a b
+
   def if : {0 A : Type} -> Bool -> A -> A -> A
     = \{A} c a b. elimBool (\_. A) c a b
+
+  def if1 : {0 A : Type} -> Bool -> (1 _ : A || A) -> A
+    = \{A} c b. elimBool (\_. A) c b._1 b._2
 
   def not : Bool -> Bool
     = \b. if {Bool} b False True

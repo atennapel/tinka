@@ -26,8 +26,8 @@ export const Abs = (usage: Usage, mode: Mode, name: Name, type: Core, body: Core
   ({ tag: 'Abs', usage, mode, name, type, body });
 export interface App { readonly tag: 'App'; readonly fn: Core; readonly mode: Mode; readonly arg: Core }
 export const App = (fn: Core, mode: Mode, arg: Core): App => ({ tag: 'App', fn, mode, arg });
-export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly name: Name; readonly type: Core; readonly body: Core }
-export const Sigma = (usage: Usage, name: Name, type: Core, body: Core): Sigma => ({ tag: 'Sigma', usage, name, type, body });
+export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly exclusive: boolean; readonly name: Name; readonly type: Core; readonly body: Core }
+export const Sigma = (usage: Usage, exclusive: boolean, name: Name, type: Core, body: Core): Sigma => ({ tag: 'Sigma', usage, exclusive, name, type, body });
 export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: Core; readonly type: Core }
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
 export interface ElimSigma { readonly tag: 'ElimSigma'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
@@ -79,11 +79,11 @@ export const flattenApp = (t: Core): [Core, [Mode, Core][]] => {
   }
   return [c, args.reverse()];
 };
-export const flattenSigma = (t: Core): [[Usage, Name, Core][], Core] => {
-  const params: [Usage, Name, Core][] = [];
+export const flattenSigma = (t: Core): [[Usage, boolean, Name, Core][], Core] => {
+  const params: [Usage, boolean, Name, Core][] = [];
   let c = t;  
   while (c.tag === 'Sigma') {
-    params.push([c.usage, c.name, c.type]);
+    params.push([c.usage, c.exclusive, c.name, c.type]);
     c = c.body;
   }
   return [params, c];
@@ -134,7 +134,11 @@ export const show = (t: Core): string => {
     return `let ${t.usage === many ? '' : `${t.usage} `}${t.name} : ${showP(t.type.tag === 'Let', t.type)} = ${showP(t.val.tag === 'Let', t.val)}; ${show(t.body)}`;
   if (t.tag === 'Sigma') {
     const [params, ret] = flattenSigma(t);
-    return `${params.map(([u, x, t]) => u === many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === many ? '' : `${u} `}${x} : ${show(t)})`).join(' ** ')} ** ${show(ret)}`;
+    const ps = params.map(([u, e, x, ty]) => {
+      const param = u === many && x === '_' ? showP(ty.tag === 'Pi' || ty.tag === 'Sigma' || ty.tag === 'Let', ty) : `(${u === many ? '' : `${u} `}${x} : ${show(ty)})`;
+      return `${param} ${e ? '||' : '**'} `;
+    }).join('');
+    return `${ps}${show(ret)}`;
   }
   if (t.tag === 'Pair') {
     const ps = flattenPair(t);
@@ -164,7 +168,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Proj') return Proj(shift(d, c, t.term), t.proj);
   if (t.tag === 'Let') return Let(t.usage, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
-  if (t.tag === 'Sigma') return Sigma(t.usage, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Sigma') return Sigma(t.usage, t.exclusive, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
   if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
   if (t.tag === 'ElimBool') return ElimBool(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.trueBranch), shift(d, c, t.falseBranch));
@@ -181,7 +185,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Proj') return Proj(substVar(j, s, t.term), t.proj);
   if (t.tag === 'Let') return Let(t.usage, t.name, substVar(j, s, t.type), substVar(j, s, t.val), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
-  if (t.tag === 'Sigma') return Sigma(t.usage, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
+  if (t.tag === 'Sigma') return Sigma(t.usage, t.exclusive, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
   if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
   if (t.tag === 'ElimBool') return ElimBool(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.trueBranch), substVar(j, s, t.falseBranch));

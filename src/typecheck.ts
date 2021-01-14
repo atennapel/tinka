@@ -84,6 +84,8 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     if (vsigma.tag !== 'VSigma') return terr(`pair without sigma type: ${show(tm)}`);
     const u1 = check(local, tm.fst, vsigma.type);
     const u2 = check(local, tm.snd, vinst(vsigma, evaluate(tm.fst, local.vs)));
+    if (vsigma.exclusive)
+      return [vsigma_, lubUses(u1, u2)]; // TODO: do I need to use the sigma usage?
     return [vsigma_, addUses(multiplyUses(vsigma.usage, u1), u2)];
   }
   if (tm.tag === 'ElimSigma') {
@@ -100,6 +102,7 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const [sigma_, u1] = synth(local, tm.scrut);
     const sigma = force(sigma_);
     if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+    if (sigma.exclusive) return terr(`cannot call elimSigma on exclusive sigma in ${show(tm)}: ${showVal(local, sigma_)}`);
     check(local.inType(), tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
     const motive = evaluate(tm.motive, local.vs);
     const u2 = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(motive, Expl, VPair(x, y, sigma_)))));

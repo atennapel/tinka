@@ -95,7 +95,7 @@ const conv = (k, a, b) => {
         const v = values_1.VVar(k);
         return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
     }
-    if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.usage === b.usage) {
+    if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.usage === b.usage && a.exclusive === b.exclusive) {
         exports.conv(k, a.type, b.type);
         const v = values_1.VVar(k);
         return exports.conv(k + 1, values_1.vinst(a, v), values_1.vinst(b, v));
@@ -167,7 +167,7 @@ const Abs = (usage, mode, name, type, body) => ({ tag: 'Abs', usage, mode, name,
 exports.Abs = Abs;
 const App = (fn, mode, arg) => ({ tag: 'App', fn, mode, arg });
 exports.App = App;
-const Sigma = (usage, name, type, body) => ({ tag: 'Sigma', usage, name, type, body });
+const Sigma = (usage, exclusive, name, type, body) => ({ tag: 'Sigma', usage, exclusive, name, type, body });
 exports.Sigma = Sigma;
 const Pair = (fst, snd, type) => ({ tag: 'Pair', fst, snd, type });
 exports.Pair = Pair;
@@ -224,7 +224,7 @@ const flattenSigma = (t) => {
     const params = [];
     let c = t;
     while (c.tag === 'Sigma') {
-        params.push([c.usage, c.name, c.type]);
+        params.push([c.usage, c.exclusive, c.name, c.type]);
         c = c.body;
     }
     return [params, c];
@@ -282,7 +282,11 @@ const show = (t) => {
         return `let ${t.usage === usage_1.many ? '' : `${t.usage} `}${t.name} : ${showP(t.type.tag === 'Let', t.type)} = ${showP(t.val.tag === 'Let', t.val)}; ${exports.show(t.body)}`;
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
-        return `${params.map(([u, x, t]) => u === usage_1.many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
+        const ps = params.map(([u, e, x, ty]) => {
+            const param = u === usage_1.many && x === '_' ? showP(ty.tag === 'Pi' || ty.tag === 'Sigma' || ty.tag === 'Let', ty) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(ty)})`;
+            return `${param} ${e ? '||' : '**'} `;
+        }).join('');
+        return `${ps}${exports.show(ret)}`;
     }
     if (t.tag === 'Pair') {
         const ps = exports.flattenPair(t);
@@ -321,7 +325,7 @@ const shift = (d, c, t) => {
     if (t.tag === 'Pi')
         return exports.Pi(t.usage, t.mode, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
     if (t.tag === 'Sigma')
-        return exports.Sigma(t.usage, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+        return exports.Sigma(t.usage, t.exclusive, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
     if (t.tag === 'ElimSigma')
         return exports.ElimSigma(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut), exports.shift(d, c, t.cas));
     if (t.tag === 'ElimPropEq')
@@ -351,7 +355,7 @@ const substVar = (j, s, t) => {
     if (t.tag === 'Pi')
         return exports.Pi(t.usage, t.mode, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
     if (t.tag === 'Sigma')
-        return exports.Sigma(t.usage, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
+        return exports.Sigma(t.usage, t.exclusive, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
     if (t.tag === 'ElimSigma')
         return exports.ElimSigma(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut), exports.substVar(j, s, t.cas));
     if (t.tag === 'ElimPropEq')
@@ -411,6 +415,8 @@ const check = (local, tm, ty_) => {
     if (tm.tag === 'Pair' && ty.tag === 'VSigma') {
         const [fst, u1] = check(local, tm.fst, ty.type);
         const [snd, u2] = check(local, tm.snd, values_1.vinst(ty, values_1.evaluate(fst, local.vs)));
+        if (ty.exclusive)
+            return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), usage_1.lubUses(u1, u2)]; // TODO
         return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
     }
     if (tm.tag === 'Refl' && !tm.type && !tm.val && ty.tag === 'VPropEq') {
@@ -539,12 +545,12 @@ const synth = (local, tm) => {
         const ty = values_1.evaluate(type, local.vs);
         const [body, u2] = check(local.bind(usage_1.many, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);
         const [, urest] = u2.uncons();
-        return [core_1.Sigma(tm.usage, tm.name, type, body), values_1.VType, usage_1.addUses(u1, urest)];
+        return [core_1.Sigma(tm.usage, tm.exclusive, tm.name, type, body), values_1.VType, usage_1.addUses(u1, urest)];
     }
     if (tm.tag === 'Pair') {
         const [fst, ty1, u1] = synth(local, tm.fst);
         const [snd, ty2, u2] = synth(local, tm.snd);
-        const ty = values_1.VSigma(usage_1.many, '_', ty1, _ => ty2);
+        const ty = values_1.VSigma(usage_1.many, false, '_', ty1, _ => ty2);
         return [core_1.Pair(fst, snd, values_1.quote(ty, local.level)), ty, usage_1.addUses(usage_1.multiplyUses(ty.usage, u1), u2)];
     }
     if (tm.tag === 'ElimSigma') {
@@ -554,6 +560,8 @@ const synth = (local, tm) => {
         const sigma = values_1.force(sigma_);
         if (sigma.tag !== 'VSigma')
             return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+        if (sigma.exclusive)
+            return utils_1.terr(`cannot call elimSigma on exclusive sigma in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
         const [motive] = check(local.inType(), tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', sigma_, _ => values_1.VType));
         const vmotive = values_1.evaluate(motive, local.vs);
         const [cas, u2] = check(local, tm.cas, values_1.VPi(usage_1.multiply(tm.usage, sigma.usage), mode_1.Expl, 'x', sigma.type, x => values_1.VPi(tm.usage, mode_1.Expl, 'y', values_1.vinst(sigma, x), y => values_1.vapp(vmotive, mode_1.Expl, values_1.VPair(x, y, sigma_)))));
@@ -636,7 +644,7 @@ const synth = (local, tm) => {
             const ty = values_1.evaluate(type, clocal.vs);
             clocal = clocal.bind(e.usage, mode_1.Expl, e.name, ty);
         }
-        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.usage, e.name, type, t), core_1.Global('UnitType'));
+        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.usage, false, e.name, type, t), core_1.Global('UnitType'));
         return [stype, values_1.VType, usage_1.noUses(local.level)];
     }
     if (tm.tag === 'Module') {
@@ -692,7 +700,7 @@ const createModuleTerm = (local, entries) => {
             return [core_1.Let(e.usage, e.name, type, val, nextterm), core_1.subst(nexttype, val), nextuses];
         }
         else {
-            const sigma = core_1.Sigma(e.usage, e.name, type, nexttype);
+            const sigma = core_1.Sigma(e.usage, false, e.name, type, nexttype);
             return [core_1.Let(e.usage, e.name, type, val, core_1.Pair(core_1.Var(0), nextterm, core_1.shift(1, 0, sigma))), sigma, nextuses];
         }
     }
@@ -904,7 +912,7 @@ const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
 const SYM1 = ['\\', ':', '=', ';', '*', ','];
-const SYM2 = ['->', '**', '!='];
+const SYM2 = ['->', '**', '!=', '||'];
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
@@ -1436,6 +1444,21 @@ const exprs = (ts, br, fromRepl = false) => {
         }
         return utils_1.serr(`invalid Refl`);
     }
+    const jse = ts.findIndex(x => isName(x, '||'));
+    if (jse >= 0) {
+        const s = splitTokens(ts, x => isName(x, '||'));
+        if (s.length < 2)
+            return utils_1.serr(`parsing failed with ||`);
+        const args = s.slice(0, -1)
+            .map(p => p.length === 1 ? piParams(p[0]) : [[usage_1.many, '_', mode_1.Expl, exprs(p, '(')]])
+            .reduce((x, y) => x.concat(y), []);
+        const body = exprs(s[s.length - 1], '(');
+        return args.reduceRight((x, [u, name, mode, ty]) => {
+            if (mode.tag !== 'Expl')
+                return utils_1.serr(`sigma cannot be implicit`);
+            return surface_1.Sigma(u, true, name, ty, x);
+        }, body);
+    }
     const js = ts.findIndex(x => isName(x, '**'));
     if (js >= 0) {
         const s = splitTokens(ts, x => isName(x, '**'));
@@ -1448,7 +1471,7 @@ const exprs = (ts, br, fromRepl = false) => {
         return args.reduceRight((x, [u, name, mode, ty]) => {
             if (mode.tag !== 'Expl')
                 return utils_1.serr(`sigma cannot be implicit`);
-            return surface_1.Sigma(u, name, ty, x);
+            return surface_1.Sigma(u, false, name, ty, x);
         }, body);
     }
     const jq = ts.findIndex(x => isName(x, '='));
@@ -1838,7 +1861,7 @@ const Abs = (usage, mode, name, type, body) => ({ tag: 'Abs', usage, mode, name,
 exports.Abs = Abs;
 const App = (fn, mode, arg) => ({ tag: 'App', fn, mode, arg });
 exports.App = App;
-const Sigma = (usage, name, type, body) => ({ tag: 'Sigma', usage, name, type, body });
+const Sigma = (usage, exclusive, name, type, body) => ({ tag: 'Sigma', usage, exclusive, name, type, body });
 exports.Sigma = Sigma;
 const Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
 exports.Pair = Pair;
@@ -1909,7 +1932,7 @@ const flattenSigma = (t) => {
     const params = [];
     let c = t;
     while (c.tag === 'Sigma') {
-        params.push([c.usage, c.name, c.type]);
+        params.push([c.usage, c.exclusive, c.name, c.type]);
         c = c.body;
     }
     return [params, c];
@@ -1969,7 +1992,11 @@ const show = (t) => {
         return `import ${showS(t.term)}${t.imports ? ` (${t.imports.join(', ')})` : ''}; ${exports.show(t.body)}`;
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
-        return `${params.map(([u, x, t]) => u === usage_1.many && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
+        const ps = params.map(([u, e, x, ty]) => {
+            const param = u === usage_1.many && x === '_' ? showP(ty.tag === 'Pi' || ty.tag === 'Sigma' || ty.tag === 'Let', ty) : `(${u === usage_1.many ? '' : `${u} `}${x} : ${exports.show(ty)})`;
+            return `${param} ${e ? '||' : '**'} `;
+        }).join('');
+        return `${ps}${exports.show(ret)}`;
     }
     if (t.tag === 'Pair') {
         const ps = exports.flattenPair(t);
@@ -2019,7 +2046,7 @@ const fromCore = (t, ns = List_1.nil) => {
     }
     if (t.tag === 'Sigma') {
         const x = names_1.chooseName(t.name, ns);
-        return exports.Sigma(t.usage, x, exports.fromCore(t.type, ns), exports.fromCore(t.body, List_1.cons(x, ns)));
+        return exports.Sigma(t.usage, t.exclusive, x, exports.fromCore(t.type, ns), exports.fromCore(t.body, List_1.cons(x, ns)));
     }
     if (t.tag === 'Pair')
         return exports.Pair(exports.fromCore(t.fst, ns), exports.fromCore(t.snd, ns));
@@ -2133,6 +2160,8 @@ const synth = (local, tm) => {
             return utils_1.terr(`pair without sigma type: ${core_1.show(tm)}`);
         const u1 = check(local, tm.fst, vsigma.type);
         const u2 = check(local, tm.snd, values_1.vinst(vsigma, values_1.evaluate(tm.fst, local.vs)));
+        if (vsigma.exclusive)
+            return [vsigma_, usage_1.lubUses(u1, u2)]; // TODO: do I need to use the sigma usage?
         return [vsigma_, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2)];
     }
     if (tm.tag === 'ElimSigma') {
@@ -2150,6 +2179,8 @@ const synth = (local, tm) => {
         const sigma = values_1.force(sigma_);
         if (sigma.tag !== 'VSigma')
             return utils_1.terr(`not a sigma type in ${core_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
+        if (sigma.exclusive)
+            return utils_1.terr(`cannot call elimSigma on exclusive sigma in ${core_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
         check(local.inType(), tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', sigma_, _ => values_1.VType));
         const motive = values_1.evaluate(tm.motive, local.vs);
         const u2 = check(local, tm.cas, values_1.VPi(usage_1.multiply(tm.usage, sigma.usage), mode_1.Expl, 'x', sigma.type, x => values_1.VPi(tm.usage, mode_1.Expl, 'y', values_1.vinst(sigma, x), y => values_1.vapp(motive, mode_1.Expl, values_1.VPair(x, y, sigma_)))));
@@ -2662,7 +2693,7 @@ const VAbs = (usage, mode, name, type, clos) => ({ tag: 'VAbs', usage, mode, nam
 exports.VAbs = VAbs;
 const VPi = (usage, mode, name, type, clos) => ({ tag: 'VPi', usage, mode, name, type, clos });
 exports.VPi = VPi;
-const VSigma = (usage, name, type, clos) => ({ tag: 'VSigma', usage, name, type, clos });
+const VSigma = (usage, exclusive, name, type, clos) => ({ tag: 'VSigma', usage, exclusive, name, type, clos });
 exports.VSigma = VSigma;
 const VPair = (fst, snd, type) => ({ tag: 'VPair', fst, snd, type });
 exports.VPair = VPair;
@@ -2771,7 +2802,7 @@ const evaluate = (t, vs) => {
     if (t.tag === 'Let')
         return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs), vs));
     if (t.tag === 'Sigma')
-        return exports.VSigma(t.usage, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
+        return exports.VSigma(t.usage, t.exclusive, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
     if (t.tag === 'Pair')
         return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs), exports.evaluate(t.type, vs));
     if (t.tag === 'ElimSigma')
@@ -2822,7 +2853,7 @@ const quote = (v, k, full = false) => {
     if (v.tag === 'VPi')
         return core_1.Pi(v.usage, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
     if (v.tag === 'VSigma')
-        return core_1.Sigma(v.usage, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
+        return core_1.Sigma(v.usage, v.exclusive, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
     if (v.tag === 'VPair')
         return core_1.Pair(exports.quote(v.fst, k, full), exports.quote(v.snd, k, full), exports.quote(v.type, k, full));
     if (v.tag === 'VPropEq')

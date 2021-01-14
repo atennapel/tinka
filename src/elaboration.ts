@@ -39,6 +39,8 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   if (tm.tag === 'Pair' && ty.tag === 'VSigma') {
     const [fst, u1] = check(local, tm.fst, ty.type);
     const [snd, u2] = check(local, tm.snd, vinst(ty, evaluate(fst, local.vs)));
+    if (ty.exclusive)
+      return [Pair(fst, snd, quote(ty, local.level)), lubUses(u1, u2)]; // TODO
     return [Pair(fst, snd, quote(ty, local.level)), addUses(multiplyUses(ty.usage, u1), u2)];
   }
   if (tm.tag === 'Refl' && !tm.type && !tm.val && ty.tag === 'VPropEq') {
@@ -159,12 +161,12 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const ty = evaluate(type, local.vs);
     const [body, u2] = check(local.bind(many, Expl, tm.name, ty), tm.body, VType);
     const [, urest] = u2.uncons();
-    return [Sigma(tm.usage, tm.name, type, body), VType, addUses(u1, urest)];
+    return [Sigma(tm.usage, tm.exclusive, tm.name, type, body), VType, addUses(u1, urest)];
   }
   if (tm.tag === 'Pair') {
     const [fst, ty1, u1] = synth(local, tm.fst);
     const [snd, ty2, u2] = synth(local, tm.snd);
-    const ty = VSigma(many, '_', ty1, _ => ty2);
+    const ty = VSigma(many, false, '_', ty1, _ => ty2);
     return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
   }
   if (tm.tag === 'ElimSigma') {
@@ -173,6 +175,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [scrut, sigma_, u1] = synth(local, tm.scrut);
     const sigma = force(sigma_);
     if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
+    if (sigma.exclusive) return terr(`cannot call elimSigma on exclusive sigma in ${show(tm)}: ${showVal(local, sigma_)}`);
     const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
     const vmotive = evaluate(motive, local.vs);
     const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
@@ -246,7 +249,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
       const ty = evaluate(type, clocal.vs);
       clocal = clocal.bind(e.usage, Expl, e.name, ty);
     }
-    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.usage, e.name, type, t), Global('UnitType') as Core);
+    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.usage, false, e.name, type, t), Global('UnitType') as Core);
     return [stype, VType, noUses(local.level)];
   }
   if (tm.tag === 'Module') {
@@ -300,7 +303,7 @@ const createModuleTerm = (local: Local, entries: List<S.ModEntry>): [Core, Core,
     if (e.priv) {
       return [Let(e.usage, e.name, type, val, nextterm), subst(nexttype, val), nextuses];
     } else {
-      const sigma = Sigma(e.usage, e.name, type, nexttype);
+      const sigma = Sigma(e.usage, false, e.name, type, nexttype);
       return [Let(e.usage, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma, nextuses];
     }
   }

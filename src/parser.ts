@@ -26,7 +26,7 @@ const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list,
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
 const SYM1: string[] = ['\\', ':', '=', ';', '*', ','];
-const SYM2: string[] = ['->', '**', '!='];
+const SYM2: string[] = ['->', '**', '!=', '||'];
 
 const START = 0;
 const NAME = 1;
@@ -446,6 +446,19 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     }
     return serr(`invalid Refl`);
   }
+  const jse = ts.findIndex(x => isName(x, '||'));
+  if (jse >= 0) {
+    const s = splitTokens(ts, x => isName(x, '||'));
+    if (s.length < 2) return serr(`parsing failed with ||`);
+    const args: [Usage, Name, Mode, Surface][] = s.slice(0, -1)
+      .map(p => p.length === 1 ? piParams(p[0]) : [[many, '_', Expl, exprs(p, '(')] as [Usage, Name, Mode, Surface]])
+      .reduce((x, y) => x.concat(y), []);
+    const body = exprs(s[s.length - 1], '(');
+    return args.reduceRight((x, [u, name, mode, ty]) => {
+      if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
+      return Sigma(u, true, name, ty, x)
+    }, body);
+  }
   const js = ts.findIndex(x => isName(x, '**'));
   if (js >= 0) {
     const s = splitTokens(ts, x => isName(x, '**'));
@@ -456,7 +469,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const body = exprs(s[s.length - 1], '(');
     return args.reduceRight((x, [u, name, mode, ty]) => {
       if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
-      return Sigma(u, name, ty, x)
+      return Sigma(u, false, name, ty, x)
     }, body);
   }
   const jq = ts.findIndex(x => isName(x, '='));

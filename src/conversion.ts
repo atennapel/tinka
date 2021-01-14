@@ -66,7 +66,7 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     const v = VVar(k);
     return conv(k + 1, vinst(a, v), vinst(b, v));
   }
-  if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.usage === b.usage) {
+  if (a.tag === 'VSigma' && b.tag === 'VSigma' && a.usage === b.usage && a.exclusive === b.exclusive) {
     conv(k, a.type, b.type);
     const v = VVar(k);
     return conv(k + 1, vinst(a, v), vinst(b, v));
