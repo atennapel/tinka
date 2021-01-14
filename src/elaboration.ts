@@ -1,5 +1,5 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim, ElimBool } from './core';
+import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim, ElimBool, UnitType, Unit } from './core';
 import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VTrue, VType, VVar } from './values';
 import { Surface, show } from './surface';
@@ -249,7 +249,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
       const ty = evaluate(type, clocal.vs);
       clocal = clocal.bind(e.usage, Expl, e.name, ty);
     }
-    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.usage, false, e.name, type, t), Global('UnitType') as Core);
+    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.usage, false, e.name, type, t), UnitType as Core);
     return [stype, VType, noUses(local.level)];
   }
   if (tm.tag === 'Module') {
@@ -307,7 +307,7 @@ const createModuleTerm = (local: Local, entries: List<S.ModEntry>): [Core, Core,
       return [Let(e.usage, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma, nextuses];
     }
   }
-  return [Global('Unit'), Global('UnitType'), noUses(local.level)];
+  return [Unit, UnitType, noUses(local.level)];
 };
 
 const getAllNamesFromSigma = (k: Lvl, ty_: Val, ns: string[] | null, a: [string, Usage][] = [], all: string[] = []): [[string, Usage][], string[]] => {

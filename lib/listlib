@@ -1,0 +1,9 @@
+mod {
+  def 0 List : Type -> Type
+    = \A. {0 R : Type} -> R -> (A -> R -> R) -> R
+  def Nil : {0 A : Type} -> List A
+    = \{A} {R} nil cons. nil
+  def Cons
+    : {0 A : Type} -> A -> List A -> List A
+    = \{A} hd tl {R} nil cons. cons hd (tl {R} nil cons)
+}

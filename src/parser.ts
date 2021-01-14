@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, ElimBool } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, ElimBool, UnitType, Unit } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -123,7 +123,7 @@ const lambdaParams = (t: Token): [Usage, Name, Mode, Surface | null][] => {
   if (t.tag === 'List') {
     const impl = t.bracket === '{' ? Impl : Expl;
     const a = t.list;
-    if (a.length === 0) return [[many, '_', impl, Var('UnitType')]];
+    if (a.length === 0) return [[many, '_', impl, UnitType]];
     const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
     if (i === -1) return isNames(a).map(x => [many, x, impl, null]);
     let start = 0;
@@ -143,7 +143,7 @@ const piParams = (t: Token): [Usage, Name, Mode, Surface][] => {
   if (t.tag === 'List') {
     const impl = t.bracket === '{' ? Impl : Expl;
     const a = t.list;
-    if (a.length === 0) return [[many, '_', impl, Var('UnitType')]];
+    if (a.length === 0) return [[many, '_', impl, UnitType]];
     const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
     if (i === -1) return [[many, '_', impl, expr(t)[0]]];
     let start = 0;
@@ -212,7 +212,7 @@ const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === 'Refl') return [Refl(null, null), false];
-    if (x === '*') return [Var('Unit'), false];
+    if (x === '*') return [Unit, false];
     if (x[0] === '_') return [Hole(x.slice(1)), false];
     if (/[a-z]/i.test(x[0])) {
       if (x.indexOf('.') >= 0) {
@@ -252,7 +252,7 @@ const expr = (t: Token): [Surface, boolean] => {
 
 const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface => {
   if (br === '{') return serr(`{} cannot be used here`);
-  if (ts.length === 0) return Var('UnitType');
+  if (ts.length === 0) return UnitType;
   if (ts.length === 1) return expr(ts[0])[0];
   if (isName(ts[0], 'let')) {
     let x = ts[1];

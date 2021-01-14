@@ -1,5 +1,0 @@
-let id
-  : {0 A : Type} -> A -> A
-  = \{A} x. x;
-
-id

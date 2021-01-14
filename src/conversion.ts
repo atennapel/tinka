@@ -3,7 +3,7 @@ import { PFst, PSnd } from './core';
 import { eqMode } from './mode';
 import { Ix, Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Head, Val, show, VVar, vinst, vapp, vproj, Spine } from './values';
+import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, isVUnit } from './values';
 
 export const eqHead = (a: Head, b: Head): boolean => {
   if (a === b) return true;
@@ -109,6 +109,9 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
     conv(k, vproj(a, PSnd), b.snd);
     return;
   }
+
+  if (isVUnit(a)) return;
+  if (isVUnit(b)) return;
 
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))
     return convSpines(k, a, b, a.spine, b.spine);

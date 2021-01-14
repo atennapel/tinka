@@ -55,6 +55,9 @@ export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
 export interface ElimBool { readonly tag: 'ElimBool'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface; readonly trueBranch: Surface; readonly falseBranch: Surface }
 export const ElimBool = (usage: Usage, motive: Surface, scrut: Surface, trueBranch: Surface, falseBranch: Surface): ElimBool => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 
+export const UnitType = Var('()');
+export const Unit = Var('*');
+
 export type ProjType = PProj | PName | PIndex;
 
 export interface PProj { readonly tag: 'PProj'; readonly proj: 'fst' | 'snd' }

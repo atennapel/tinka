@@ -1,6 +1,0 @@
-sig {
-  def 0 Nat : Type
-  def Z : Nat
-  def S : Nat -> Nat
-  def cataNat : {0 A : Type} -> Nat -> A -> (A -> A) -> A
-}

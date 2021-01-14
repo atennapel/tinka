@@ -43,6 +43,9 @@ export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): 
 export interface ElimBool { readonly tag: 'ElimBool'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly trueBranch: Core; readonly falseBranch: Core }
 export const ElimBool = (usage: Usage, motive: Core, scrut: Core, trueBranch: Core, falseBranch: Core): ElimBool => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 
+export const UnitType = Prim('()');
+export const Unit = Prim('*');
+
 export type ProjType = PProj | PIndex;
 
 export interface PProj { readonly tag: 'PProj'; readonly proj: 'fst' | 'snd' }

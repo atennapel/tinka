@@ -1,5 +1,0 @@
-let Z
-  : Nat
-  = \{A} z s. z;
-
-Z

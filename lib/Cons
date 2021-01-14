@@ -1,5 +1,0 @@
-let Cons
-  : {0 A : Type} -> A -> List A -> List A
-  = \{A} hd tl {R} nil cons. cons hd (tl {R} nil cons);
-
-Cons

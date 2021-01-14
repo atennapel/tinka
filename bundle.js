@@ -136,6 +136,10 @@ const conv = (k, a, b) => {
         exports.conv(k, values_1.vproj(a, core_1.PSnd), b.snd);
         return;
     }
+    if (values_1.isVUnit(a))
+        return;
+    if (values_1.isVUnit(b))
+        return;
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head))
         return convSpines(k, a, b, a.spine, b.spine);
     if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head)
@@ -151,7 +155,7 @@ exports.conv = conv;
 },{"./config":1,"./core":3,"./mode":7,"./utils/utils":17,"./values":18}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.ElimBool = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.ElimBool = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -184,6 +188,8 @@ const ElimPropEq = (usage, motive, scrut, cas) => ({ tag: 'ElimPropEq', usage, m
 exports.ElimPropEq = ElimPropEq;
 const ElimBool = (usage, motive, scrut, trueBranch, falseBranch) => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 exports.ElimBool = ElimBool;
+exports.UnitType = exports.Prim('()');
+exports.Unit = exports.Prim('*');
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -644,7 +650,7 @@ const synth = (local, tm) => {
             const ty = values_1.evaluate(type, clocal.vs);
             clocal = clocal.bind(e.usage, mode_1.Expl, e.name, ty);
         }
-        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.usage, false, e.name, type, t), core_1.Global('UnitType'));
+        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.usage, false, e.name, type, t), core_1.UnitType);
         return [stype, values_1.VType, usage_1.noUses(local.level)];
     }
     if (tm.tag === 'Module') {
@@ -704,7 +710,7 @@ const createModuleTerm = (local, entries) => {
             return [core_1.Let(e.usage, e.name, type, val, core_1.Pair(core_1.Var(0), nextterm, core_1.shift(1, 0, sigma))), sigma, nextuses];
         }
     }
-    return [core_1.Global('Unit'), core_1.Global('UnitType'), usage_1.noUses(local.level)];
+    return [core_1.Unit, core_1.UnitType, usage_1.noUses(local.level)];
 };
 const getAllNamesFromSigma = (k, ty_, ns, a = [], all = []) => {
     const ty = values_1.force(ty_);
@@ -1037,7 +1043,7 @@ const lambdaParams = (t) => {
         const impl = t.bracket === '{' ? mode_1.Impl : mode_1.Expl;
         const a = t.list;
         if (a.length === 0)
-            return [[usage_1.many, '_', impl, surface_1.Var('UnitType')]];
+            return [[usage_1.many, '_', impl, surface_1.UnitType]];
         const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
         if (i === -1)
             return isNames(a).map(x => [usage_1.many, x, impl, null]);
@@ -1063,7 +1069,7 @@ const piParams = (t) => {
         const impl = t.bracket === '{' ? mode_1.Impl : mode_1.Expl;
         const a = t.list;
         if (a.length === 0)
-            return [[usage_1.many, '_', impl, surface_1.Var('UnitType')]];
+            return [[usage_1.many, '_', impl, surface_1.UnitType]];
         const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
         if (i === -1)
             return [[usage_1.many, '_', impl, expr(t)[0]]];
@@ -1140,7 +1146,7 @@ const expr = (t) => {
         if (x === 'Refl')
             return [surface_1.Refl(null, null), false];
         if (x === '*')
-            return [surface_1.Var('Unit'), false];
+            return [surface_1.Unit, false];
         if (x[0] === '_')
             return [surface_1.Hole(x.slice(1)), false];
         if (/[a-z]/i.test(x[0])) {
@@ -1191,7 +1197,7 @@ const exprs = (ts, br, fromRepl = false) => {
     if (br === '{')
         return utils_1.serr(`{} cannot be used here`);
     if (ts.length === 0)
-        return surface_1.Var('UnitType');
+        return surface_1.UnitType;
     if (ts.length === 1)
         return expr(ts[0])[0];
     if (isName(ts[0], 'let')) {
@@ -1679,9 +1685,12 @@ exports.synthPrim = exports.isPrimName = exports.PrimNames = void 0;
 const Lazy_1 = require("./utils/Lazy");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
-exports.PrimNames = ['Type', 'Bool', 'True', 'False'];
+exports.PrimNames = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False'];
 const primTypes = utils_1.mapObj({
     Type: () => values_1.VType,
+    Void: () => values_1.VType,
+    '()': () => values_1.VType,
+    '*': () => values_1.VUnitType,
     Bool: () => values_1.VType,
     True: () => values_1.VBool,
     False: () => values_1.VBool,
@@ -1845,7 +1854,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.ElimBool = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.ElimBool = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1890,6 +1899,8 @@ const Hole = (name) => ({ tag: 'Hole', name });
 exports.Hole = Hole;
 const ElimBool = (usage, motive, scrut, trueBranch, falseBranch) => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 exports.ElimBool = ElimBool;
+exports.UnitType = exports.Var('()');
+exports.Unit = exports.Var('*');
 const PProj = (proj) => ({ tag: 'PProj', proj });
 exports.PProj = PProj;
 exports.PFst = exports.PProj('fst');
@@ -2663,7 +2674,7 @@ exports.eqArr = eqArr;
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimbool = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.VFalse = exports.VTrue = exports.VBool = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EElimBool = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimbool = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EElimBool = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
@@ -2706,9 +2717,13 @@ exports.VVar = VVar;
 const VPrim = (name, spine = List_1.nil) => exports.VNe(exports.HPrim(name), spine);
 exports.VPrim = VPrim;
 exports.VType = exports.VPrim('Type');
+exports.VUnitType = exports.VPrim('()');
+exports.VUnit = exports.VPrim('*');
 exports.VBool = exports.VPrim('Bool');
 exports.VTrue = exports.VPrim('True');
 exports.VFalse = exports.VPrim('False');
+const isVUnit = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === '*' && v.spine.isNil();
+exports.isVUnit = isVUnit;
 const isVTrue = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'True' && v.spine.isNil();
 exports.isVTrue = isVTrue;
 const isVFalse = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'False' && v.spine.isNil();

@@ -1,5 +1,0 @@
-let S
-  : Nat -> Nat
-  = \n {A} z s. s (n {A} z s);
-
-S

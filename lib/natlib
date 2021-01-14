@@ -15,4 +15,20 @@ mod {
 
   def isZero : Nat -> Bool
     = \n. cataNat {Bool} n True (\_. False)
+
+  def 0 natsig = 
+    sig {
+      def 0 Nat : Type
+      def Z : Nat
+      def S : Nat -> Nat
+      def cataNat : {0 A : Type} -> Nat -> A -> (A -> A) -> A
+    }
+
+  def natmod : natsig = 
+    mod {
+      def 0 Nat = {0 A : Type} -> A -> (A -> A) -> A
+      def Z : Nat = \{A} z s. z
+      def S : Nat -> Nat = \n {A} z s. s (n {A} z s)
+      def cataNat : {0 A : Type} -> Nat -> A -> (A -> A) -> A = \{A} n z s. n {A} z s
+    }
 }

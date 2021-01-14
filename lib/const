@@ -1,5 +1,0 @@
-let const
-  : {0 A B : Type} -> A -> B -> A
-  = \{A} {B} x y. x;
-
-const

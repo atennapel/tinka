@@ -57,10 +57,14 @@ export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), sp
 export const VPrim = (name: PrimName, spine: Spine = nil): Val => VNe(HPrim(name), spine);
 
 export const VType = VPrim('Type');
+export const VUnitType = VPrim('()');
+export const VUnit = VPrim('*');
 export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
 
+export const isVUnit = (v: Val): v is VNe & { head: HPrim & { name: '*' }, spine: Nil } =>
+  v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === '*' && v.spine.isNil();
 export const isVTrue = (v: Val): v is VNe & { head: HPrim & { name: 'True' }, spine: Nil } =>
   v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'True' && v.spine.isNil();
 export const isVFalse = (v: Val): v is VNe & { head: HPrim & { name: 'False' }, spine: Nil } =>

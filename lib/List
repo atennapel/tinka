@@ -1,5 +1,0 @@
-let List
-  : Type -> Type
-  = \A. {0 R : Type} -> R -> (A -> R -> R) -> R;
-
-List

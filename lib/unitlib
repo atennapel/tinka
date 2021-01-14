@@ -1,0 +1,4 @@
+mod {
+  def indUnit : {0 P : () -> Type} -> (u : ()) -> P * -> P u
+    = \{P} u p. p
+}

@@ -12,7 +12,7 @@ yarn start example.p
 
 ```
 todo:
-- add choice
+- add Void and Unit eliminators
 - add fix
 - glue sigma named projection better
 - local glued values

@@ -1,5 +1,0 @@
-let cataNat
-  : {0 A : Type} -> Nat -> A -> (A -> A) -> A
-  = \{A} n z s. n {A} z s;
-
-cataNat
