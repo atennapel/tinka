@@ -1,0 +1,23 @@
+mod {
+  def 0 Either : Type -> Type -> Type
+    = \A B. (1 tag : Bool) ** elimBool 1 (\_. Type) tag A B
+  def Left : {0 A B : Type} -> A -> Either A B
+    = \{A} {B} x. (True, x)
+  def Right : {0 A B : Type} -> B -> Either A B
+    = \{A} {B} x. (False, x)
+
+  def indEither
+    : {0 A B : Type} ->
+      {0 P : Either A B -> Type} ->
+      (e : Either A B) ->
+      ((x : A) -> P (Left {A} {B} x)) ->
+      ((x : B) -> P (Right {A} {B} x)) ->
+      P e
+    = \{A} {B} {P} e l r.
+        elimSigma P e \tag.
+          elimBool (\b. (x : elimBool 1 (\_. Type) b A B) -> P (b, x)) tag l r
+
+  def caseEither
+    : {0 A B R : Type} -> Either A B -> (A -> R) -> (B -> R) -> R
+    = \{A} {B} {R} e l r. indEither {A} {B} {\_. R} e l r
+}
