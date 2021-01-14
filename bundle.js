@@ -65,6 +65,15 @@ const convSpines = (k, va, vb, sa, sb) => {
             exports.conv(k, a.cas, b.cas);
             return convSpines(k, va, vb, sa.tail, sb.tail);
         }
+        if (a.tag === 'EElimUnit' && b.tag === 'EElimUnit' && a.usage === b.usage) {
+            exports.conv(k, a.motive, b.motive);
+            exports.conv(k, a.cas, b.cas);
+            return convSpines(k, va, vb, sa.tail, sb.tail);
+        }
+        if (a.tag === 'EElimVoid' && b.tag === 'EElimVoid' && a.usage === b.usage) {
+            exports.conv(k, a.motive, b.motive);
+            return convSpines(k, va, vb, sa.tail, sb.tail);
+        }
         if (a.tag === 'EElimBool' && b.tag === 'EElimBool' && a.usage === b.usage) {
             exports.conv(k, a.motive, b.motive);
             exports.conv(k, a.trueBranch, b.trueBranch);
@@ -155,7 +164,7 @@ exports.conv = conv;
 },{"./config":1,"./core":3,"./mode":7,"./utils/utils":17,"./values":18}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.ElimBool = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.ElimBool = exports.ElimUnit = exports.ElimVoid = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
 const usage_1 = require("./usage");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -186,6 +195,10 @@ const Refl = (type, val) => ({ tag: 'Refl', type, val });
 exports.Refl = Refl;
 const ElimPropEq = (usage, motive, scrut, cas) => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 exports.ElimPropEq = ElimPropEq;
+const ElimVoid = (usage, motive, scrut) => ({ tag: 'ElimVoid', usage, motive, scrut });
+exports.ElimVoid = ElimVoid;
+const ElimUnit = (usage, motive, scrut, cas) => ({ tag: 'ElimUnit', usage, motive, scrut, cas });
+exports.ElimUnit = ElimUnit;
 const ElimBool = (usage, motive, scrut, trueBranch, falseBranch) => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 exports.ElimBool = ElimBool;
 exports.UnitType = exports.Prim('()');
@@ -312,6 +325,10 @@ const show = (t) => {
         return `elimPropEq ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     if (t.tag === 'ElimBool')
         return `elimBool ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.trueBranch)} ${showS(t.falseBranch)}`;
+    if (t.tag === 'ElimVoid')
+        return `elimVoid ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}`;
+    if (t.tag === 'ElimUnit')
+        return `elimUnit ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     return t;
 };
 exports.show = show;
@@ -342,6 +359,10 @@ const shift = (d, c, t) => {
         return exports.PropEq(exports.shift(d, c, t.type), exports.shift(d, c, t.left), exports.shift(d, c, t.right));
     if (t.tag === 'Refl')
         return exports.Refl(exports.shift(d, c, t.type), exports.shift(d, c, t.val));
+    if (t.tag === 'ElimVoid')
+        return exports.ElimVoid(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut));
+    if (t.tag === 'ElimUnit')
+        return exports.ElimUnit(t.usage, exports.shift(d, c, t.motive), exports.shift(d, c, t.scrut), exports.shift(d, c, t.cas));
     return t;
 };
 exports.shift = shift;
@@ -372,6 +393,10 @@ const substVar = (j, s, t) => {
         return exports.PropEq(exports.substVar(j, s, t.type), exports.substVar(j, s, t.left), exports.substVar(j, s, t.right));
     if (t.tag === 'Refl')
         return exports.Refl(exports.substVar(j, s, t.type), exports.substVar(j, s, t.val));
+    if (t.tag === 'ElimVoid')
+        return exports.ElimVoid(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut));
+    if (t.tag === 'ElimUnit')
+        return exports.ElimUnit(t.usage, exports.substVar(j, s, t.motive), exports.substVar(j, s, t.scrut), exports.substVar(j, s, t.cas));
     return t;
 };
 exports.substVar = substVar;
@@ -598,6 +623,40 @@ const synth = (local, tm) => {
         const [falseBranch, u3] = check(local, tm.falseBranch, values_1.vapp(vmotive, mode_1.Expl, values_1.VFalse));
         const vscrut = values_1.evaluate(scrut, local.vs);
         return [core_1.ElimBool(tm.usage, motive, scrut, trueBranch, falseBranch), values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), usage_1.lubUses(u2, u3))];
+    }
+    if (tm.tag === 'ElimUnit') {
+        /*
+        1 <= q
+        G |- P : () -> Type
+        G |- u : ()
+        G |- p : P *
+        ---------------------------------------
+        q * G |- elimUnit q P u p : P u
+        */
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in Unit induction ${surface_1.show(tm)}: ${tm.usage}`);
+        const [scrut, u1] = check(local, tm.scrut, values_1.VUnitType);
+        const [motive] = check(local.inType(), tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VUnitType, _ => values_1.VType));
+        const vmotive = values_1.evaluate(motive, local.vs);
+        const [cas, u2] = check(local, tm.cas, values_1.vapp(vmotive, mode_1.Expl, values_1.VUnit));
+        const vscrut = values_1.evaluate(scrut, local.vs);
+        return [core_1.ElimUnit(tm.usage, motive, scrut, cas), values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u2)];
+    }
+    if (tm.tag === 'ElimVoid') {
+        /*
+        1 <= q
+        G |- P : Void -> Type
+        G |- v : Void
+        ---------------------------------------
+        q * G |- elimUnit q P v : P v
+        */
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in Unit induction ${surface_1.show(tm)}: ${tm.usage}`);
+        const [scrut, u1] = check(local, tm.scrut, values_1.VVoid);
+        const [motive] = check(local.inType(), tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VVoid, _ => values_1.VType));
+        const vmotive = values_1.evaluate(motive, local.vs);
+        const vscrut = values_1.evaluate(scrut, local.vs);
+        return [core_1.ElimVoid(tm.usage, motive, scrut), values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.multiplyUses(tm.usage, u1)];
     }
     if (tm.tag === 'Proj') {
         const [term, sigma_, u] = synth(local, tm.term);
@@ -1362,6 +1421,47 @@ const exprs = (ts, br, fromRepl = false) => {
         const cas = exprs(ts.slice(j + 2), '(');
         return surface_1.ElimPropEq(u, motive, scrut, cas);
     }
+    if (isName(ts[0], 'elimUnit')) {
+        let j = 1;
+        let u = usage(ts[1]);
+        if (u) {
+            j = 2;
+        }
+        else {
+            u = usage_1.many;
+        }
+        if (!ts[j])
+            return utils_1.serr(`elimUnit: not enough arguments`);
+        const [motive, impl] = expr(ts[j]);
+        if (impl)
+            return utils_1.serr(`elimUnit motive cannot be implicit`);
+        if (!ts[j + 1])
+            return utils_1.serr(`elimUnit: not enough arguments`);
+        const [scrut, impl2] = expr(ts[j + 1]);
+        if (impl2)
+            return utils_1.serr(`elimUnit scrutinee cannot be implicit`);
+        const cas = exprs(ts.slice(j + 2), '(');
+        return surface_1.ElimUnit(u, motive, scrut, cas);
+    }
+    if (isName(ts[0], 'elimVoid')) {
+        let j = 1;
+        let u = usage(ts[1]);
+        if (u) {
+            j = 2;
+        }
+        else {
+            u = usage_1.many;
+        }
+        if (!ts[j])
+            return utils_1.serr(`elimVoid: not enough arguments`);
+        const [motive, impl] = expr(ts[j]);
+        if (impl)
+            return utils_1.serr(`elimVoid motive cannot be implicit`);
+        if (!ts[j + 1])
+            return utils_1.serr(`elimVoid: not enough arguments`);
+        const scrut = exprs(ts.slice(j + 1), '(');
+        return surface_1.ElimVoid(u, motive, scrut);
+    }
     if (isName(ts[0], 'elimBool')) {
         let j = 1;
         let u = usage(ts[1]);
@@ -1854,7 +1954,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.ElimBool = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.ElimBool = exports.ElimUnit = exports.ElimVoid = exports.Hole = exports.ElimPropEq = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.ElimSigma = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
@@ -1897,6 +1997,10 @@ const ElimPropEq = (usage, motive, scrut, cas) => ({ tag: 'ElimPropEq', usage, m
 exports.ElimPropEq = ElimPropEq;
 const Hole = (name) => ({ tag: 'Hole', name });
 exports.Hole = Hole;
+const ElimVoid = (usage, motive, scrut) => ({ tag: 'ElimVoid', usage, motive, scrut });
+exports.ElimVoid = ElimVoid;
+const ElimUnit = (usage, motive, scrut, cas) => ({ tag: 'ElimUnit', usage, motive, scrut, cas });
+exports.ElimUnit = ElimUnit;
 const ElimBool = (usage, motive, scrut, trueBranch, falseBranch) => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 exports.ElimBool = ElimBool;
 exports.UnitType = exports.Var('()');
@@ -2031,6 +2135,10 @@ const show = (t) => {
         return `elimPropEq ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     if (t.tag === 'ElimBool')
         return `elimBool ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.trueBranch)} ${showS(t.falseBranch)}`;
+    if (t.tag === 'ElimVoid')
+        return `elimVoid ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}`;
+    if (t.tag === 'ElimUnit')
+        return `elimUnit ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
     return t;
 };
 exports.show = show;
@@ -2073,6 +2181,10 @@ const fromCore = (t, ns = List_1.nil) => {
         return exports.PropEq(exports.fromCore(t.type, ns), exports.fromCore(t.left, ns), exports.fromCore(t.right, ns));
     if (t.tag === 'Refl')
         return exports.Refl(exports.fromCore(t.type, ns), exports.fromCore(t.val, ns));
+    if (t.tag === 'ElimVoid')
+        return exports.ElimVoid(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns));
+    if (t.tag === 'ElimUnit')
+        return exports.ElimUnit(t.usage, exports.fromCore(t.motive, ns), exports.fromCore(t.scrut, ns), exports.fromCore(t.cas, ns));
     return t;
 };
 exports.fromCore = fromCore;
@@ -2239,6 +2351,40 @@ const synth = (local, tm) => {
         const u3 = check(local, tm.falseBranch, values_1.vapp(vmotive, mode_1.Expl, values_1.VFalse));
         const vscrut = values_1.evaluate(tm.scrut, local.vs);
         return [values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), usage_1.lubUses(u2, u3))];
+    }
+    if (tm.tag === 'ElimUnit') {
+        /*
+        1 <= q
+        G |- P : () -> Type
+        G |- u : ()
+        G |- p : P *
+        ---------------------------------------
+        q * G |- elimUnit q P u p : P u
+        */
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in Unit induction ${core_1.show(tm)}: ${tm.usage}`);
+        const u1 = check(local, tm.scrut, values_1.VUnitType);
+        check(local.inType(), tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VUnitType, _ => values_1.VType));
+        const vmotive = values_1.evaluate(tm.motive, local.vs);
+        const u2 = check(local, tm.cas, values_1.vapp(vmotive, mode_1.Expl, values_1.VUnit));
+        const vscrut = values_1.evaluate(tm.scrut, local.vs);
+        return [values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.addUses(usage_1.multiplyUses(tm.usage, u1), u2)];
+    }
+    if (tm.tag === 'ElimVoid') {
+        /*
+        1 <= q
+        G |- P : Void -> Type
+        G |- v : Void
+        ---------------------------------------
+        q * G |- elimUnit q P v : P v
+        */
+        if (!usage_1.sub(usage_1.one, tm.usage))
+            return utils_1.terr(`usage must be 1 <= q in Unit induction ${core_1.show(tm)}: ${tm.usage}`);
+        const u1 = check(local, tm.scrut, values_1.VVoid);
+        check(local.inType(), tm.motive, values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VVoid, _ => values_1.VType));
+        const vmotive = values_1.evaluate(tm.motive, local.vs);
+        const vscrut = values_1.evaluate(tm.scrut, local.vs);
+        return [values_1.vapp(vmotive, mode_1.Expl, vscrut), usage_1.multiplyUses(tm.usage, u1)];
     }
     if (tm.tag === 'Proj') {
         const [sigma_, u] = synth(local, tm.term);
@@ -2674,7 +2820,7 @@ exports.eqArr = eqArr;
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimbool = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EElimBool = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimbool = exports.velimvoid = exports.velimunit = exports.velimpropeq = exports.vproj = exports.velimsigma = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EElimVoid = exports.EElimUnit = exports.EElimBool = exports.EElimPropEq = exports.EProj = exports.EElimSigma = exports.EApp = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
@@ -2695,6 +2841,10 @@ const EElimPropEq = (usage, motive, cas) => ({ tag: 'EElimPropEq', usage, motive
 exports.EElimPropEq = EElimPropEq;
 const EElimBool = (usage, motive, trueBranch, falseBranch) => ({ tag: 'EElimBool', usage, motive, trueBranch, falseBranch });
 exports.EElimBool = EElimBool;
+const EElimUnit = (usage, motive, cas) => ({ tag: 'EElimUnit', usage, motive, cas });
+exports.EElimUnit = EElimUnit;
+const EElimVoid = (usage, motive) => ({ tag: 'EElimVoid', usage, motive });
+exports.EElimVoid = EElimVoid;
 const VNe = (head, spine) => ({ tag: 'VNe', head, spine });
 exports.VNe = VNe;
 ;
@@ -2717,6 +2867,7 @@ exports.VVar = VVar;
 const VPrim = (name, spine = List_1.nil) => exports.VNe(exports.HPrim(name), spine);
 exports.VPrim = VPrim;
 exports.VType = exports.VPrim('Type');
+exports.VVoid = exports.VPrim('Void');
 exports.VUnitType = exports.VPrim('()');
 exports.VUnit = exports.VPrim('*');
 exports.VBool = exports.VPrim('Bool');
@@ -2784,6 +2935,24 @@ const velimpropeq = (usage, motive, scrut, cas) => {
     return utils_1.impossible(`velimpropeq: ${scrut.tag}`);
 };
 exports.velimpropeq = velimpropeq;
+const velimunit = (usage, motive, scrut, cas) => {
+    if (exports.isVUnit(scrut))
+        return cas;
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EElimUnit(usage, motive, cas), scrut.spine));
+    if (scrut.tag === 'VGlobal')
+        return exports.VGlobal(scrut.head, List_1.cons(exports.EElimUnit(usage, motive, cas), scrut.spine), scrut.val.map(v => exports.velimunit(usage, motive, v, cas)));
+    return utils_1.impossible(`velimunit: ${scrut.tag}`);
+};
+exports.velimunit = velimunit;
+const velimvoid = (usage, motive, scrut) => {
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EElimVoid(usage, motive), scrut.spine));
+    if (scrut.tag === 'VGlobal')
+        return exports.VGlobal(scrut.head, List_1.cons(exports.EElimVoid(usage, motive), scrut.spine), scrut.val.map(v => exports.velimvoid(usage, motive, v)));
+    return utils_1.impossible(`velimvoid: ${scrut.tag}`);
+};
+exports.velimvoid = velimvoid;
 const velimbool = (usage, motive, scrut, trueBranch, falseBranch) => {
     if (exports.isVTrue(scrut))
         return trueBranch;
@@ -2832,6 +3001,10 @@ const evaluate = (t, vs) => {
         return exports.VPropEq(exports.evaluate(t.type, vs), exports.evaluate(t.left, vs), exports.evaluate(t.right, vs));
     if (t.tag === 'Refl')
         return exports.VRefl(exports.evaluate(t.type, vs), exports.evaluate(t.val, vs));
+    if (t.tag === 'ElimUnit')
+        return exports.velimunit(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), exports.evaluate(t.cas, vs));
+    if (t.tag === 'ElimVoid')
+        return exports.velimvoid(t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs));
     return t;
 };
 exports.evaluate = evaluate;
@@ -2853,6 +3026,10 @@ const quoteElim = (t, e, k, full) => {
         return core_1.Proj(t, e.proj);
     if (e.tag === 'EElimBool')
         return core_1.ElimBool(e.usage, exports.quote(e.motive, k, full), t, exports.quote(e.trueBranch, k, full), exports.quote(e.falseBranch, k, full));
+    if (e.tag === 'EElimUnit')
+        return core_1.ElimUnit(e.usage, exports.quote(e.motive, k, full), t, exports.quote(e.cas, k, full));
+    if (e.tag === 'EElimVoid')
+        return core_1.ElimVoid(e.usage, exports.quote(e.motive, k, full), t);
     return e;
 };
 const quote = (v, k, full = false) => {

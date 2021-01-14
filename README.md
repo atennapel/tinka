@@ -12,8 +12,8 @@ yarn start example.p
 
 ```
 todo:
-- add Void and Unit eliminators
 - add fix
+- combine eliminators syntactically where possible
 - glue sigma named projection better
 - local glued values
 - fix linear let values
@@ -30,4 +30,5 @@ todo:
 questions:
 - is eta-law for sigmas consistent for linear/erased sigmas?
 - should I add eta law for equality?
+- is eta law for unit consistent?
 ```

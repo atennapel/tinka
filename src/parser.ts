@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, ElimBool, UnitType, Unit } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, ElimBool, UnitType, Unit, ElimUnit, ElimVoid } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -377,6 +377,30 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (impl2) return serr(`elimPropEq scrutinee cannot be implicit`);
     const cas = exprs(ts.slice(j + 2), '(');
     return ElimPropEq(u, motive, scrut, cas);
+  }
+  if (isName(ts[0], 'elimUnit')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimUnit: not enough arguments`);
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimUnit motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimUnit: not enough arguments`);
+    const [scrut, impl2] = expr(ts[j + 1]);
+    if (impl2) return serr(`elimUnit scrutinee cannot be implicit`);
+    const cas = exprs(ts.slice(j + 2), '(');
+    return ElimUnit(u, motive, scrut, cas);
+  }
+  if (isName(ts[0], 'elimVoid')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimVoid: not enough arguments`);
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimVoid motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimVoid: not enough arguments`);
+    const scrut = exprs(ts.slice(j + 1), '(');
+    return ElimVoid(u, motive, scrut);
   }
   if (isName(ts[0], 'elimBool')) {
     let j = 1;

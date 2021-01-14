@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Prim, ElimBool } from './core';
+import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Prim, ElimBool, ElimVoid, ElimUnit } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
@@ -15,7 +15,7 @@ export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 export interface HPrim { readonly tag: 'HPrim'; readonly name: PrimName }
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EElimSigma | EProj | EElimPropEq | EElimBool;
+export type Elim = EApp | EElimSigma | EProj | EElimPropEq | EElimVoid | EElimUnit | EElimBool;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
@@ -27,6 +27,10 @@ export interface EElimPropEq { readonly tag: 'EElimPropEq'; readonly usage: Usag
 export const EElimPropEq = (usage: Usage, motive: Val, cas: Val): EElimPropEq => ({ tag: 'EElimPropEq', usage, motive, cas });
 export interface EElimBool { readonly tag: 'EElimBool'; readonly usage: Usage; readonly motive: Val; readonly trueBranch: Val; readonly falseBranch: Val }
 export const EElimBool = (usage: Usage, motive: Val, trueBranch: Val, falseBranch: Val): EElimBool => ({ tag: 'EElimBool', usage, motive, trueBranch, falseBranch });
+export interface EElimUnit { readonly tag: 'EElimUnit'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
+export const EElimUnit = (usage: Usage, motive: Val, cas: Val): EElimUnit => ({ tag: 'EElimUnit', usage, motive, cas });
+export interface EElimVoid { readonly tag: 'EElimVoid'; readonly usage: Usage; readonly motive: Val }
+export const EElimVoid = (usage: Usage, motive: Val): EElimVoid => ({ tag: 'EElimVoid', usage, motive });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
@@ -57,6 +61,7 @@ export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), sp
 export const VPrim = (name: PrimName, spine: Spine = nil): Val => VNe(HPrim(name), spine);
 
 export const VType = VPrim('Type');
+export const VVoid = VPrim('Void');
 export const VUnitType = VPrim('()');
 export const VUnit = VPrim('*');
 export const VBool = VPrim('Bool');
@@ -110,6 +115,21 @@ export const velimpropeq = (usage: Usage, motive: Val, scrut: Val, cas: Val): Va
     return VGlobal(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine), scrut.val.map(v => velimpropeq(usage, motive, v, cas)));
   return impossible(`velimpropeq: ${scrut.tag}`);
 };
+export const velimunit = (usage: Usage, motive: Val, scrut: Val, cas: Val): Val => {
+  if (isVUnit(scrut)) return cas;
+  if (scrut.tag === 'VNe')
+    return VNe(scrut.head, cons(EElimUnit(usage, motive, cas), scrut.spine));
+  if (scrut.tag === 'VGlobal')
+    return VGlobal(scrut.head, cons(EElimUnit(usage, motive, cas), scrut.spine), scrut.val.map(v => velimunit(usage, motive, v, cas)));
+  return impossible(`velimunit: ${scrut.tag}`);
+};
+export const velimvoid = (usage: Usage, motive: Val, scrut: Val): Val => {
+  if (scrut.tag === 'VNe')
+    return VNe(scrut.head, cons(EElimVoid(usage, motive), scrut.spine));
+  if (scrut.tag === 'VGlobal')
+    return VGlobal(scrut.head, cons(EElimVoid(usage, motive), scrut.spine), scrut.val.map(v => velimvoid(usage, motive, v)));
+  return impossible(`velimvoid: ${scrut.tag}`);
+};
 export const velimbool = (usage: Usage, motive: Val, scrut: Val, trueBranch: Val, falseBranch: Val): Val => {
   if (isVTrue(scrut)) return trueBranch;
   if (isVFalse(scrut)) return falseBranch;
@@ -152,6 +172,10 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return VPropEq(evaluate(t.type, vs), evaluate(t.left, vs), evaluate(t.right, vs));
   if (t.tag === 'Refl')
     return VRefl(evaluate(t.type, vs), evaluate(t.val, vs));
+  if (t.tag === 'ElimUnit')
+    return velimunit(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
+  if (t.tag === 'ElimVoid')
+    return velimvoid(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs));
   return t;
 };
 
@@ -166,6 +190,8 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
   if (e.tag === 'EProj') return Proj(t, e.proj);
   if (e.tag === 'EElimBool') return ElimBool(e.usage, quote(e.motive, k, full), t, quote(e.trueBranch, k, full), quote(e.falseBranch, k, full));
+  if (e.tag === 'EElimUnit') return ElimUnit(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
+  if (e.tag === 'EElimVoid') return ElimVoid(e.usage, quote(e.motive, k, full), t);
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {

@@ -1,4 +1,7 @@
 mod {
-  def indUnit : {0 P : () -> Type} -> (u : ()) -> P * -> P u
+  def indUnit0 : {0 P : () -> Type} -> (0 u : ()) -> (1 _ : P *) -> P u
     = \{P} u p. p
+
+  def indUnit1 : {0 P : () -> Type} -> (1 u : ()) -> (1 _ : P *) -> P u
+    = \{P} u p. elimUnit 1 P u p
 }

@@ -37,6 +37,15 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
       conv(k, a.cas, b.cas);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
+    if (a.tag === 'EElimUnit' && b.tag === 'EElimUnit' && a.usage === b.usage) {
+      conv(k, a.motive, b.motive);
+      conv(k, a.cas, b.cas);
+      return convSpines(k, va, vb, sa.tail, sb.tail);
+    }
+    if (a.tag === 'EElimVoid' && b.tag === 'EElimVoid' && a.usage === b.usage) {
+      conv(k, a.motive, b.motive);
+      return convSpines(k, va, vb, sa.tail, sb.tail);
+    }
     if (a.tag === 'EElimBool' && b.tag === 'EElimBool' && a.usage === b.usage) {
       conv(k, a.motive, b.motive);
       conv(k, a.trueBranch, b.trueBranch);

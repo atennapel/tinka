@@ -8,7 +8,7 @@ export type Core =
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   PropEq | Refl | ElimPropEq |
-  ElimBool;
+  ElimVoid | ElimUnit | ElimBool;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -40,6 +40,10 @@ export interface Refl { readonly tag: 'Refl'; readonly type: Core; readonly val:
 export const Refl = (type: Core, val: Core): Refl => ({ tag: 'Refl', type, val });
 export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
 export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
+export interface ElimVoid { readonly tag: 'ElimVoid'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core }
+export const ElimVoid = (usage: Usage, motive: Core, scrut: Core): ElimVoid => ({ tag: 'ElimVoid', usage, motive, scrut });
+export interface ElimUnit { readonly tag: 'ElimUnit'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly cas: Core }
+export const ElimUnit = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimUnit => ({ tag: 'ElimUnit', usage, motive, scrut, cas });
 export interface ElimBool { readonly tag: 'ElimBool'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly trueBranch: Core; readonly falseBranch: Core }
 export const ElimBool = (usage: Usage, motive: Core, scrut: Core, trueBranch: Core, falseBranch: Core): ElimBool => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 
@@ -160,6 +164,10 @@ export const show = (t: Core): string => {
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   if (t.tag === 'ElimBool')
     return `elimBool ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.trueBranch)} ${showS(t.falseBranch)}`;
+  if (t.tag === 'ElimVoid')
+    return `elimVoid ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}`;
+  if (t.tag === 'ElimUnit')
+    return `elimUnit ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   return t;
 };
 
@@ -177,6 +185,8 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'ElimBool') return ElimBool(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.trueBranch), shift(d, c, t.falseBranch));
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
+  if (t.tag === 'ElimVoid') return ElimVoid(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut));
+  if (t.tag === 'ElimUnit') return ElimUnit(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
   return t;
 };
 
@@ -194,6 +204,8 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'ElimBool') return ElimBool(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.trueBranch), substVar(j, s, t.falseBranch));
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
+  if (t.tag === 'ElimVoid') return ElimVoid(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut));
+  if (t.tag === 'ElimUnit') return ElimUnit(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
   return t;
 };
 

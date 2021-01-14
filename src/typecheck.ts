@@ -8,7 +8,7 @@ import { Ix } from './names';
 import { synthPrim } from './prims';
 import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VTrue, VType } from './values';
+import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VTrue, VType, VUnit, VUnitType, VVoid } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -149,6 +149,40 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const u3 = check(local, tm.falseBranch, vapp(vmotive, Expl, VFalse));
     const vscrut = evaluate(tm.scrut, local.vs);
     return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), lubUses(u2, u3))];
+  }
+  if (tm.tag === 'ElimUnit') {
+    /*
+    1 <= q
+    G |- P : () -> Type
+    G |- u : ()
+    G |- p : P *
+    ---------------------------------------
+    q * G |- elimUnit q P u p : P u
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in Unit induction ${show(tm)}: ${tm.usage}`);
+    const u1 = check(local, tm.scrut, VUnitType);
+    check(local.inType(), tm.motive, VPi(many, Expl, '_', VUnitType, _ => VType));
+    const vmotive = evaluate(tm.motive, local.vs);
+    const u2 = check(local, tm.cas, vapp(vmotive, Expl, VUnit));
+    const vscrut = evaluate(tm.scrut, local.vs);
+    return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u2)];
+  }
+  if (tm.tag === 'ElimVoid') {
+    /*
+    1 <= q
+    G |- P : Void -> Type
+    G |- v : Void
+    ---------------------------------------
+    q * G |- elimUnit q P v : P v
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in Unit induction ${show(tm)}: ${tm.usage}`);
+    const u1 = check(local, tm.scrut, VVoid);
+    check(local.inType(), tm.motive, VPi(many, Expl, '_', VVoid, _ => VType));
+    const vmotive = evaluate(tm.motive, local.vs);
+    const vscrut = evaluate(tm.scrut, local.vs);
+    return [vapp(vmotive, Expl, vscrut), multiplyUses(tm.usage, u1)];
   }
   if (tm.tag === 'Proj') {
     const [sigma_, u] = synth(local, tm.term);

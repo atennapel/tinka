@@ -1,7 +1,7 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim, ElimBool, UnitType, Unit } from './core';
+import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim, ElimBool, UnitType, Unit, ElimUnit, ElimVoid } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VTrue, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VTrue, VType, VUnit, VUnitType, VVar, VVoid } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
@@ -205,6 +205,40 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [falseBranch, u3] = check(local, tm.falseBranch, vapp(vmotive, Expl, VFalse));
     const vscrut = evaluate(scrut, local.vs);
     return [ElimBool(tm.usage, motive, scrut, trueBranch, falseBranch), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), lubUses(u2, u3))];
+  }
+  if (tm.tag === 'ElimUnit') {
+    /*
+    1 <= q
+    G |- P : () -> Type
+    G |- u : ()
+    G |- p : P *
+    ---------------------------------------
+    q * G |- elimUnit q P u p : P u
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in Unit induction ${show(tm)}: ${tm.usage}`);
+    const [scrut, u1] = check(local, tm.scrut, VUnitType);
+    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', VUnitType, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    const [cas, u2] = check(local, tm.cas, vapp(vmotive, Expl, VUnit));
+    const vscrut = evaluate(scrut, local.vs);
+    return [ElimUnit(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u2)];
+  }
+  if (tm.tag === 'ElimVoid') {
+    /*
+    1 <= q
+    G |- P : Void -> Type
+    G |- v : Void
+    ---------------------------------------
+    q * G |- elimUnit q P v : P v
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in Unit induction ${show(tm)}: ${tm.usage}`);
+    const [scrut, u1] = check(local, tm.scrut, VVoid);
+    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', VVoid, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    const vscrut = evaluate(scrut, local.vs);
+    return [ElimVoid(tm.usage, motive, scrut), vapp(vmotive, Expl, vscrut), multiplyUses(tm.usage, u1)];
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

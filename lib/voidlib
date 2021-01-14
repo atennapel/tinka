@@ -1,0 +1,7 @@
+mod {
+  def void : {0 A : Type} -> Void -> A
+    = \{A} v. elimVoid (\_. A) v
+
+  def void1 : {0 A : Type} -> (1 _ : Void) -> A
+    = \{A} v. elimVoid 1 (\_. A) v
+}
