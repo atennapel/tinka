@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole } from './surface';
+import { Abs, App, Import, ElimSigma, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, ElimPropEq, Hole, ElimBool } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -377,6 +377,23 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (impl2) return serr(`elimPropEq scrutinee cannot be implicit`);
     const cas = exprs(ts.slice(j + 2), '(');
     return ElimPropEq(u, motive, scrut, cas);
+  }
+  if (isName(ts[0], 'elimBool')) {
+    let j = 1;
+    let u = usage(ts[1]);
+    if (u) { j = 2 } else { u = many }
+    if (!ts[j]) return serr(`elimBool: not enough arguments`);
+    const [motive, impl] = expr(ts[j]);
+    if (impl) return serr(`elimBool motive cannot be implicit`); 
+    if (!ts[j + 1]) return serr(`elimBool: not enough arguments`);
+    const [scrut, impl2] = expr(ts[j + 1]);
+    if (impl2) return serr(`elimBool scrutinee cannot be implicit`);
+    const [t, impl3] = expr(ts[j + 2]);
+    if (impl3) return serr(`elimBool true branch cannot be implicit`);
+    const [f, impl4] = expr(ts[j + 3]);
+    if (impl4) return serr(`elimBool false branch cannot be implicit`);
+    if (ts[j + 4]) return serr(`elimBool has too many arguments`);
+    return ElimBool(u, motive, scrut, t, f);
   }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {

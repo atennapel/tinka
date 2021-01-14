@@ -1,11 +1,11 @@
-import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Prim } from './core';
+import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, ElimSigma, Proj, ProjType, PIndex, PropEq, Refl, ElimPropEq, Prim, ElimBool } from './core';
 import { globalLoad } from './globals';
 import { Expl, Mode } from './mode';
 import { Lvl, Name } from './names';
 import { PrimName } from './prims';
 import { Usage } from './usage';
 import { Lazy } from './utils/Lazy';
-import { cons, List, nil } from './utils/List';
+import { cons, List, Nil, nil } from './utils/List';
 import { impossible, terr } from './utils/utils';
 
 export type Head = HVar | HPrim;
@@ -15,7 +15,7 @@ export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 export interface HPrim { readonly tag: 'HPrim'; readonly name: PrimName }
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
 
-export type Elim = EApp | EElimSigma | EProj | EElimPropEq;
+export type Elim = EApp | EElimSigma | EProj | EElimPropEq | EElimBool;
 
 export interface EApp { readonly tag: 'EApp'; readonly mode: Mode; readonly arg: Val }
 export const EApp = (mode: Mode, arg: Val): EApp => ({ tag: 'EApp', mode, arg });
@@ -25,6 +25,8 @@ export interface EProj { readonly tag: 'EProj'; readonly proj: ProjType }
 export const EProj = (proj: ProjType): EProj => ({ tag: 'EProj', proj });
 export interface EElimPropEq { readonly tag: 'EElimPropEq'; readonly usage: Usage; readonly motive: Val; readonly cas: Val }
 export const EElimPropEq = (usage: Usage, motive: Val, cas: Val): EElimPropEq => ({ tag: 'EElimPropEq', usage, motive, cas });
+export interface EElimBool { readonly tag: 'EElimBool'; readonly usage: Usage; readonly motive: Val; readonly trueBranch: Val; readonly falseBranch: Val }
+export const EElimBool = (usage: Usage, motive: Val, trueBranch: Val, falseBranch: Val): EElimBool => ({ tag: 'EElimBool', usage, motive, trueBranch, falseBranch });
 
 export type Spine = List<Elim>;
 export type EnvV = List<Val>;
@@ -55,6 +57,14 @@ export const VVar = (level: Lvl, spine: Spine = nil): Val => VNe(HVar(level), sp
 export const VPrim = (name: PrimName, spine: Spine = nil): Val => VNe(HPrim(name), spine);
 
 export const VType = VPrim('Type');
+export const VBool = VPrim('Bool');
+export const VTrue = VPrim('True');
+export const VFalse = VPrim('False');
+
+export const isVTrue = (v: Val): v is VNe & { head: HPrim & { name: 'True' }, spine: Nil } =>
+  v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'True' && v.spine.isNil();
+export const isVFalse = (v: Val): v is VNe & { head: HPrim & { name: 'False' }, spine: Nil } =>
+  v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'False' && v.spine.isNil();
 
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 
@@ -90,9 +100,20 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
 };
 export const velimpropeq = (usage: Usage, motive: Val, scrut: Val, cas: Val): Val => {
   if (scrut.tag === 'VRefl') return vapp(cas, Expl, scrut.val);
-  if (scrut.tag === 'VNe') return VNe(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine));
-  if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine), scrut.val.map(v => velimpropeq(usage, motive, v, cas)));
+  if (scrut.tag === 'VNe')
+    return VNe(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine));
+  if (scrut.tag === 'VGlobal')
+    return VGlobal(scrut.head, cons(EElimPropEq(usage, motive, cas), scrut.spine), scrut.val.map(v => velimpropeq(usage, motive, v, cas)));
   return impossible(`velimpropeq: ${scrut.tag}`);
+};
+export const velimbool = (usage: Usage, motive: Val, scrut: Val, trueBranch: Val, falseBranch: Val): Val => {
+  if (isVTrue(scrut)) return trueBranch;
+  if (isVFalse(scrut)) return falseBranch;
+  if (scrut.tag === 'VNe')
+    return VNe(scrut.head, cons(EElimBool(usage, motive, trueBranch, falseBranch), scrut.spine));
+  if (scrut.tag === 'VGlobal')
+    return VGlobal(scrut.head, cons(EElimBool(usage, motive, trueBranch, falseBranch), scrut.spine), scrut.val.map(v => velimbool(usage, motive, v, trueBranch, falseBranch)));
+  return impossible(`velimbool: ${scrut.tag}`);
 };
 
 export const evaluate = (t: Core, vs: EnvV): Val => {
@@ -119,6 +140,8 @@ export const evaluate = (t: Core, vs: EnvV): Val => {
     return velimsigma(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
   if (t.tag === 'ElimPropEq')
     return velimpropeq(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.cas, vs));
+  if (t.tag === 'ElimBool')
+    return velimbool(t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), evaluate(t.trueBranch, vs), evaluate(t.falseBranch, vs));
   if (t.tag === 'Proj')
     return vproj(evaluate(t.term, vs), t.proj);
   if (t.tag === 'PropEq')
@@ -138,6 +161,7 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
   if (e.tag === 'EElimSigma') return ElimSigma(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
   if (e.tag === 'EElimPropEq') return ElimPropEq(e.usage, quote(e.motive, k, full), t, quote(e.cas, k, full));
   if (e.tag === 'EProj') return Proj(t, e.proj);
+  if (e.tag === 'EElimBool') return ElimBool(e.usage, quote(e.motive, k, full), t, quote(e.trueBranch, k, full), quote(e.falseBranch, k, full));
   return e;
 };
 export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {

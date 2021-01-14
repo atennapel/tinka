@@ -1,11 +1,11 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim } from './core';
+import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim, ElimBool } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VType, VVar } from './values';
+import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VTrue, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
+import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
@@ -191,6 +191,17 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const [cas, u2] = check(local, tm.cas, castype);
     const vscrut = evaluate(scrut, local.vs);
     return [ElimPropEq(tm.usage, motive, scrut, cas), vapp(vapp(vapp(vmotive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'ElimBool') {
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in Bool induction ${show(tm)}: ${tm.usage}`);
+    const [scrut, u1] = check(local, tm.scrut, VBool);
+    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', VBool, _ => VType));
+    const vmotive = evaluate(motive, local.vs);
+    const [trueBranch, u2] = check(local, tm.trueBranch, vapp(vmotive, Expl, VTrue));
+    const [falseBranch, u3] = check(local, tm.falseBranch, vapp(vmotive, Expl, VFalse));
+    const vscrut = evaluate(scrut, local.vs);
+    return [ElimBool(tm.usage, motive, scrut, trueBranch, falseBranch), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), lubUses(u2, u3))];
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

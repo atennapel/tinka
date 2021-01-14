@@ -11,7 +11,8 @@ export type Surface =
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
   Signature | Module | Import |
-  PropEq | Refl | ElimPropEq;
+  PropEq | Refl | ElimPropEq |
+  ElimBool;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -47,10 +48,12 @@ export interface PropEq { readonly tag: 'PropEq'; readonly type: Surface | null;
 export const PropEq = (type: Surface | null, left: Surface, right: Surface): PropEq => ({ tag: 'PropEq', type, left, right });
 export interface Refl { readonly tag: 'Refl'; readonly type: Surface | null; readonly val: Surface | null };
 export const Refl = (type: Surface | null, val: Surface | null): Refl => ({ tag: 'Refl', type, val });
-export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface, readonly cas: Surface }
+export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface; readonly cas: Surface }
 export const ElimPropEq = (usage: Usage, motive: Surface, scrut: Surface, cas: Surface): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
 export interface Hole { readonly tag: 'Hole'; readonly name: Name | null }
 export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
+export interface ElimBool { readonly tag: 'ElimBool'; readonly usage: Usage; readonly motive: Surface; readonly scrut: Surface; readonly trueBranch: Surface; readonly falseBranch: Surface }
+export const ElimBool = (usage: Usage, motive: Surface, scrut: Surface, trueBranch: Surface, falseBranch: Surface): ElimBool => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -169,6 +172,8 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Refl') return `Refl${t.type ? ` {${show(t.type)}}` : ''}${t.val ? ` {${show(t.val)}}` : ''}`;
   if (t.tag === 'ElimPropEq')
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'ElimBool')
+    return `elimBool ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.trueBranch)} ${showS(t.falseBranch)}`;
   return t;
 };
 
@@ -196,6 +201,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Pair') return Pair(fromCore(t.fst, ns), fromCore(t.snd, ns));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.cas, ns));
   if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.cas, ns));
+  if (t.tag === 'ElimBool') return ElimBool(t.usage, fromCore(t.motive, ns), fromCore(t.scrut, ns), fromCore(t.trueBranch, ns), fromCore(t.falseBranch, ns));
   if (t.tag === 'Proj') return Proj(fromCore(t.term, ns), t.proj.tag === 'PProj' ? t.proj : t.proj.name ? PName(t.proj.name) : PIndex(t.proj.index));
   if (t.tag === 'PropEq') return PropEq(fromCore(t.type, ns), fromCore(t.left, ns), fromCore(t.right, ns));
   if (t.tag === 'Refl') return Refl(fromCore(t.type, ns), fromCore(t.val, ns));

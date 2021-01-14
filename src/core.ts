@@ -7,7 +7,8 @@ export type Core =
   Var | Global | Prim | Let |
   Pi | Abs | App |
   Sigma | Pair | ElimSigma | Proj |
-  PropEq | Refl | ElimPropEq;
+  PropEq | Refl | ElimPropEq |
+  ElimBool;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -39,6 +40,8 @@ export interface Refl { readonly tag: 'Refl'; readonly type: Core; readonly val:
 export const Refl = (type: Core, val: Core): Refl => ({ tag: 'Refl', type, val });
 export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
 export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
+export interface ElimBool { readonly tag: 'ElimBool'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly trueBranch: Core; readonly falseBranch: Core }
+export const ElimBool = (usage: Usage, motive: Core, scrut: Core, trueBranch: Core, falseBranch: Core): ElimBool => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
 
 export type ProjType = PProj | PIndex;
 
@@ -148,6 +151,8 @@ export const show = (t: Core): string => {
   if (t.tag === 'Refl') return `Refl {${show(t.type)}} {${show(t.val)}}`;
   if (t.tag === 'ElimPropEq')
     return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'ElimBool')
+    return `elimBool ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.trueBranch)} ${showS(t.falseBranch)}`;
   return t;
 };
 
@@ -162,6 +167,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Sigma') return Sigma(t.usage, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
   if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
+  if (t.tag === 'ElimBool') return ElimBool(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.trueBranch), shift(d, c, t.falseBranch));
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
   return t;
@@ -178,6 +184,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Sigma') return Sigma(t.usage, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'ElimSigma') return ElimSigma(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
   if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
+  if (t.tag === 'ElimBool') return ElimBool(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.trueBranch), substVar(j, s, t.falseBranch));
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
   return t;

@@ -12,7 +12,7 @@ yarn start example.p
 
 ```
 todo:
-- add bool
+- add choice
 - add fix
 - glue sigma named projection better
 - local glued values

@@ -6,9 +6,9 @@ import { indexEnvT, Local, showVal, showValCore } from './local';
 import { eqMode, Expl, Mode } from './mode';
 import { Ix } from './names';
 import { synthPrim } from './prims';
-import { addUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
+import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Uses, zero } from './usage';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, vinst, VPair, VPi, vproj, VPropEq, VRefl, VType } from './values';
+import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VTrue, VType } from './values';
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
@@ -126,6 +126,26 @@ const synth = (local: Local, tm: Core): [Val, Uses] => {
     const u2 = check(local, tm.cas, castype);
     const vscrut = evaluate(tm.scrut, local.vs);
     return [vapp(vapp(vapp(motive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
+  }
+  if (tm.tag === 'ElimBool') {
+    /*
+    1 <= q
+    G |- P : Bool -> Type
+    G |- b : Bool
+    G |- t : P True
+    G |- f : P False
+    ---------------------------------------
+    q * G |- elimBool q P b t f : P b
+    */
+    if (!sub(one, tm.usage))
+      return terr(`usage must be 1 <= q in Bool induction ${show(tm)}: ${tm.usage}`);
+    const u1 = check(local, tm.scrut, VBool);
+    check(local.inType(), tm.motive, VPi(many, Expl, '_', VBool, _ => VType));
+    const vmotive = evaluate(tm.motive, local.vs);
+    const u2 = check(local, tm.trueBranch, vapp(vmotive, Expl, VTrue));
+    const u3 = check(local, tm.falseBranch, vapp(vmotive, Expl, VFalse));
+    const vscrut = evaluate(tm.scrut, local.vs);
+    return [vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), lubUses(u2, u3))];
   }
   if (tm.tag === 'Proj') {
     const [sigma_, u] = synth(local, tm.term);

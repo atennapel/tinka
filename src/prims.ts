@@ -1,13 +1,17 @@
 import { Name } from './names';
 import { Lazy } from './utils/Lazy';
 import { mapObj } from './utils/utils';
-import { Val, VType } from './values';
+import { Val, VType, VBool } from './values';
 
-export type PrimName = 'Type';
-export const PrimNames: string[] = ['Type'];
+export type PrimName = 'Type' | 'Bool' | 'True' | 'False';
+export const PrimNames: string[] = ['Type', 'Bool', 'True', 'False'];
 
 const primTypes: { [K in PrimName]: Lazy<Val> } = mapObj({
   Type: () => VType,
+
+  Bool: () => VType,
+  True: () => VBool,
+  False: () => VBool,
 }, Lazy.from);
 
 export const isPrimName = (name: Name): name is PrimName => PrimNames.includes(name);
