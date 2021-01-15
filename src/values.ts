@@ -59,6 +59,8 @@ export const VUnit = VPrim('*');
 export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
+export const VIFix = VPrim('IFix');
+export const VICon = VPrim('ICon');
 
 export const isVUnit = (v: Val): v is VNe & { head: HPrim & { name: '*' }, spine: Nil } =>
   v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === '*' && v.spine.isNil();

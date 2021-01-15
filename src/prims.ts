@@ -3,16 +3,19 @@ import { Name } from './names';
 import { many, multiply, Usage, zero } from './usage';
 import { Lazy } from './utils/Lazy';
 import { mapObj, terr } from './utils/utils';
-import { Val, VType, VUnitType, VBool, isVTrue, isVFalse, isVUnit, vapp, force, VVoid, VPi, VUnit, VTrue, VFalse, vinst, VPair, VPropEq, VRefl } from './values';
+import { Val, VType, VUnitType, VBool, isVTrue, isVFalse, isVUnit, vapp, force, VVoid, VPi, VUnit, VTrue, VFalse, vinst, VPair, VPropEq, VRefl, VIFix } from './values';
 
-export type PrimName = 'Type' | 'Void' | '()' | '*' | 'Bool' | 'True' | 'False';
-export const PrimNames: string[] = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False'];
+export type PrimName = 'Type' | 'Void' | '()' | '*' | 'Bool' | 'True' | 'False' | 'IFix' | 'ICon';
+export const PrimNames: string[] = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False', 'IFix', 'ICon'];
 
 export type PrimElimName = 'elimSigma' | 'elimPropEq' | 'elimVoid' | 'elimUnit' | 'elimBool';
 export const PrimElimNames: string[] = ['elimSigma', 'elimPropEq', 'elimVoid', 'elimUnit', 'elimBool'];
 
 export const isPrimName = (name: Name): name is PrimName => PrimNames.includes(name);
 export const isPrimElimName = (name: Name): name is PrimElimName => PrimElimNames.includes(name);
+
+// I -> Type
+const ifixType = (I: Val): Val => VPi(many, Expl, '_', I, _ => VType);
 
 const primTypes: { [K in PrimName]: Lazy<Val> } = mapObj({
   Type: () => VType,
@@ -25,6 +28,16 @@ const primTypes: { [K in PrimName]: Lazy<Val> } = mapObj({
   Bool: () => VType,
   True: () => VBool,
   False: () => VBool,
+
+  // IFix : (I : Type) -> ((I -> Type) -> (I -> Type)) -> I -> Type
+  IFix: () => VPi(many, Expl, 'I', VType, I => VPi(many, Expl, '_', VPi(many, Expl, '_', ifixType(I), _ => ifixType(I)), _ => ifixType(I))),
+  // ICon : (0 I : Type) -> (0 F : (I -> Type) -> (I -> Type)) -> (0 i : I) -> F (IFix I F) i -> IFix I F i
+  ICon: () =>
+    VPi(zero, Expl, 'I', VType, I =>
+    VPi(zero, Expl, 'F', VPi(many, Expl, '_', ifixType(I), _ => ifixType(I)), F =>
+    VPi(zero, Expl, 'i', I, i =>
+    VPi(many, Expl, '_', vapp(vapp(F, Expl, vapp(vapp(VIFix, Expl, I), Expl, F)), Expl, i), _ =>
+    vapp(vapp(vapp(VIFix, Expl, I), Expl, F), Expl, i))))),
 }, Lazy.from);
 
 export const primElim = (name: PrimElimName, usage: Usage, motive: Val, scrut: Val, cases: Val[]): Val | null => {

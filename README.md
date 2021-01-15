@@ -12,7 +12,7 @@ yarn start example.p
 
 ```
 todo:
-- add fix
+- add fix elimination
 - glue sigma named projection better
 - local glued values
 - fix linear let values
@@ -23,6 +23,7 @@ todo:
 - rewrite parser, include locations
 - improve elaboration of import
 - de-elaborate annotations
+- erasure
 ```
 
 ```

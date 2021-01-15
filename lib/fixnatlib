@@ -1,0 +1,9 @@
+import eitherlib;
+import fixlib;
+
+mod {
+  def 0 NatF : Type -> Type = \R. Either () R
+  def 0 Nat = Fix NatF
+  def Z : Nat = Con NatF (Left {()} {Nat} *)
+  def S : Nat -> Nat = \n. Con NatF (Right {()} {Nat} n)
+}

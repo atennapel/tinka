@@ -107,9 +107,9 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     log(() => 'ELABORATE');
     const [eterm, etype] = elaborate(term, local);
     log(() => C.show(eterm));
-    log(() => showCore(eterm));
+    log(() => showCore(eterm, local.ns));
     log(() => C.show(etype));
-    log(() => showCore(etype));
+    log(() => showCore(etype, local.ns));
 
     log(() => 'VERIFICATION');
     typecheck(eterm, local);
@@ -119,8 +119,8 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       log(() => 'NORMALIZE');
       const norm = normalize(eterm, local.level, local.vs, true);
       log(() => C.show(norm));
-      log(() => showCore(norm));
-      normstr = `\nnorm: ${showCore(norm)}`;
+      log(() => showCore(norm, local.ns));
+      normstr = `\nnorm: ${showCore(norm, local.ns)}`;
     }
 
     const etermstr = showCore(eterm, local.ns);
@@ -138,7 +138,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       } else throw new Error(`invalid definition: ${term.tag}`);
     }
 
-    return cb(`term: ${show(term)}\ntype: ${showCore(etype)}\netrm: ${etermstr}${normstr}`);
+    return cb(`term: ${show(term)}\ntype: ${showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
   } catch (err) {
     if (showStackTrace) console.error(err);
     return cb(`${err}`, true);

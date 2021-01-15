@@ -1600,12 +1600,14 @@ const usage_1 = require("./usage");
 const Lazy_1 = require("./utils/Lazy");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
-exports.PrimNames = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False'];
+exports.PrimNames = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False', 'IFix', 'ICon'];
 exports.PrimElimNames = ['elimSigma', 'elimPropEq', 'elimVoid', 'elimUnit', 'elimBool'];
 const isPrimName = (name) => exports.PrimNames.includes(name);
 exports.isPrimName = isPrimName;
 const isPrimElimName = (name) => exports.PrimElimNames.includes(name);
 exports.isPrimElimName = isPrimElimName;
+// I -> Type
+const ifixType = (I) => values_1.VPi(usage_1.many, mode_1.Expl, '_', I, _ => values_1.VType);
 const primTypes = utils_1.mapObj({
     Type: () => values_1.VType,
     Void: () => values_1.VType,
@@ -1614,6 +1616,10 @@ const primTypes = utils_1.mapObj({
     Bool: () => values_1.VType,
     True: () => values_1.VBool,
     False: () => values_1.VBool,
+    // IFix : (I : Type) -> ((I -> Type) -> (I -> Type)) -> I -> Type
+    IFix: () => values_1.VPi(usage_1.many, mode_1.Expl, 'I', values_1.VType, I => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.many, mode_1.Expl, '_', ifixType(I), _ => ifixType(I)), _ => ifixType(I))),
+    // ICon : (0 I : Type) -> (0 F : (I -> Type) -> (I -> Type)) -> (0 i : I) -> F (IFix I F) i -> IFix I F i
+    ICon: () => values_1.VPi(usage_1.zero, mode_1.Expl, 'I', values_1.VType, I => values_1.VPi(usage_1.zero, mode_1.Expl, 'F', values_1.VPi(usage_1.many, mode_1.Expl, '_', ifixType(I), _ => ifixType(I)), F => values_1.VPi(usage_1.zero, mode_1.Expl, 'i', I, i => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.vapp(values_1.vapp(F, mode_1.Expl, values_1.vapp(values_1.vapp(values_1.VIFix, mode_1.Expl, I), mode_1.Expl, F)), mode_1.Expl, i), _ => values_1.vapp(values_1.vapp(values_1.vapp(values_1.VIFix, mode_1.Expl, I), mode_1.Expl, F), mode_1.Expl, i))))),
 }, Lazy_1.Lazy.from);
 const primElim = (name, usage, motive, scrut, cases) => {
     if (name === 'elimUnit') {
@@ -1807,9 +1813,9 @@ const runREPL = (s_, cb) => {
         config_1.log(() => 'ELABORATE');
         const [eterm, etype] = elaboration_1.elaborate(term, local);
         config_1.log(() => C.show(eterm));
-        config_1.log(() => surface_1.showCore(eterm));
+        config_1.log(() => surface_1.showCore(eterm, local.ns));
         config_1.log(() => C.show(etype));
-        config_1.log(() => surface_1.showCore(etype));
+        config_1.log(() => surface_1.showCore(etype, local.ns));
         config_1.log(() => 'VERIFICATION');
         typecheck_1.typecheck(eterm, local);
         let normstr = '';
@@ -1817,8 +1823,8 @@ const runREPL = (s_, cb) => {
             config_1.log(() => 'NORMALIZE');
             const norm = values_1.normalize(eterm, local.level, local.vs, true);
             config_1.log(() => C.show(norm));
-            config_1.log(() => surface_1.showCore(norm));
-            normstr = `\nnorm: ${surface_1.showCore(norm)}`;
+            config_1.log(() => surface_1.showCore(norm, local.ns));
+            normstr = `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
         }
         const etermstr = surface_1.showCore(eterm, local.ns);
         if (isDef) {
@@ -1836,7 +1842,7 @@ const runREPL = (s_, cb) => {
             else
                 throw new Error(`invalid definition: ${term.tag}`);
         }
-        return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype)}\netrm: ${etermstr}${normstr}`);
+        return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
     }
     catch (err) {
         if (showStackTrace)
@@ -2616,7 +2622,7 @@ exports.eqArr = eqArr;
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VICon = exports.VIFix = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const prims_1 = require("./prims");
@@ -2661,6 +2667,8 @@ exports.VUnit = exports.VPrim('*');
 exports.VBool = exports.VPrim('Bool');
 exports.VTrue = exports.VPrim('True');
 exports.VFalse = exports.VPrim('False');
+exports.VIFix = exports.VPrim('IFix');
+exports.VICon = exports.VPrim('ICon');
 const isVUnit = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === '*' && v.spine.isNil();
 exports.isVUnit = isVUnit;
 const isVTrue = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'True' && v.spine.isNil();

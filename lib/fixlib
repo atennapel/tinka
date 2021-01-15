@@ -1,0 +1,10 @@
+mod {
+  private def 0 indexF : (Type -> Type) -> (() -> Type) -> () -> Type
+    = \F R _. F (R *)
+
+  def 0 Fix : (Type -> Type) -> Type
+    = \F. IFix () (indexF F) *
+
+  def Con : (0 F : Type -> Type) -> F (Fix F) -> Fix F
+    = \F x. ICon () (indexF F) * x
+}
