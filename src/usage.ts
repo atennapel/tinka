@@ -1,4 +1,5 @@
 import { List } from './utils/List';
+import { impossible } from './utils/utils';
 
 export type Usage = '0' | '1' | '*';
 export type Subusage = '0' | '1';
@@ -32,11 +33,15 @@ export type Uses = List<Usage>;
 export const noUses = (size: number): Uses =>
   List.range(size).map(() => zero);
 
-export const addUses = (a: Uses, b: Uses): Uses => a.zipWith(b, add);
+const guardUsesZip = (a: Uses, b: Uses): void => {
+  if (a.length() !== b.length()) return impossible(`trying zip Uses of different length`);
+};
+
+export const addUses = (a: Uses, b: Uses): Uses => { guardUsesZip(a, b); return a.zipWith(b, add) };
 export const multiplyUses = (a: Usage, b: Uses): Uses =>
   b.map(x => multiply(a, x));
 
-export const lubUses = (a: Uses, b: Uses): Uses => a.zipWith(b, lub);
+export const lubUses = (a: Uses, b: Uses): Uses => { guardUsesZip(a, b); return a.zipWith(b, lub) };
 
 // a must not be empty
 export const lubUsesAll = (a: Uses[]): Uses => a.reduce(lubUses);

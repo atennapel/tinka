@@ -3,7 +3,7 @@ import { setConfig } from './config';
 import { show, showCore } from './surface';
 import { parse } from './parser';
 import { elaborate } from './elaboration';
-import { typecheck } from './typecheck';
+//import { typecheck } from './typecheck';
 import { normalize } from './values';
 import { nil } from './utils/List';
 import { show as showCoreSimple } from './core';
@@ -27,7 +27,7 @@ if (process.argv[2]) {
     }
     console.log(showCore(tm));
     console.log(showCore(ty));
-    typecheck(tm);
+    // typecheck(tm);
     if (!typeOnly) console.log(showCore(normalize(tm, 0, nil, true)));
   } catch(err) {
     console.error(err);

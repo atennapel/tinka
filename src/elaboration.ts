@@ -16,7 +16,7 @@ import { isPrimName, synthPrim, synthPrimElim } from './prims';
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
   const ty = force(ty_);
-  if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && eqMode(tm.mode, ty.mode)) {
+  if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && eqMode(tm.mode, ty.mode) && (tm.usage === many || tm.usage === ty.usage)) {
     const v = VVar(local.level);
     const x = tm.name;
     const [body, u] = check(local.bind(ty.usage, ty.mode, x, ty.type), tm.body, vinst(ty, v));
@@ -216,6 +216,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const vv = tm.term.tag === 'Var' ? tm.term : S.Var(v);
     const lets = imports.reduceRight((t, [x, u]) => S.Let(u, x, null, S.Proj(vv, S.PName(x)), t), tm.body);
     const lets2 = tm.term.tag === 'Var' ? lets : S.Let(many, v, null, tm.term, lets);
+    log(() => `import translated: ${show(lets2)}`);
     return synth(local, lets2); // TODO: improve this elaboration
   }
   if (tm.tag === 'Signature') {
@@ -239,7 +240,7 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   }
   if (tm.tag === 'Module') {
     const defs = List.from(tm.defs);
-    const [term, type, u] = createModuleTerm(local, defs);
+    const [term, type, u] = createModuleTerm(local, defs, tm);
     return [term, evaluate(type, local.vs), u];
   }
   if (tm.tag === 'PropEq') {
@@ -265,7 +266,8 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   return terr(`unable to synth ${show(tm)}`);
 };
 
-const createModuleTerm = (local: Local, entries: List<S.ModEntry>): [Core, Core, Uses] => {
+const createModuleTerm = (local: Local, entries: List<S.ModEntry>, full: Surface): [Core, Core, Uses] => {
+  log(() => `createModuleTerm (${local.level}) ${entries.toString(v => `ModEntry(${v.name}, ${v.priv}, ${v.usage}, ${!v.type ? '' : show(v.type)}, ${show(v.val)})`)}`);
   if (entries.isCons()) {
     const e = entries.head;
     const rest = entries.tail;
@@ -283,8 +285,11 @@ const createModuleTerm = (local: Local, entries: List<S.ModEntry>): [Core, Core,
     }
     const v = evaluate(val, local.vs);
     const nextlocal = local.define(e.usage, e.name, ty, v);
-    const [nextterm, nexttype, u2] = createModuleTerm(nextlocal, rest);
-    const nextuses = addUses(multiplyUses(e.usage, u), u2);
+    const [nextterm, nexttype, u2] = createModuleTerm(nextlocal, rest, full);
+    const [ux, urest] = u2.uncons();
+    if (!sub(ux, e.usage))
+      return terr(`usage error in ${show(full)}: expected ${e.usage} for ${e.name} but actual ${ux}`);
+    const nextuses = addUses(multiplyUses(e.usage, u), urest);
     if (e.priv) {
       return [Let(e.usage, e.name, type, val, nextterm), subst(nexttype, val), nextuses];
     } else {

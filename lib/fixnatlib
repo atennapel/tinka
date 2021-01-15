@@ -4,6 +4,26 @@ import fixlib;
 mod {
   def 0 NatF : Type -> Type = \R. Either () R
   def 0 Nat = Fix NatF
-  def Z : Nat = Con NatF (Left {()} {Nat} *)
-  def S : Nat -> Nat = \n. Con NatF (Right {()} {Nat} n)
+  def Z : Nat = Con {NatF} (Left {()} {Nat} *)
+  def S : Nat -> Nat = \n. Con {NatF} (Right {()} {Nat} n)
+
+  def elimNat
+    : {0 P : Nat -> Type} ->
+      (n : Nat) ->
+      P Z ->
+      (((m : Nat) -> P m) -> (m : Nat) -> P (S m)) ->
+      P n
+    = \{P} n z s. elimFix {NatF} {P} n (\rec y.
+        indEither {()} {Nat} {\e. P (Con {NatF} e)} y
+          (\_. z)
+          (\m. s rec m))
+
+  def cataNat
+    : {0 A : Type} -> Nat -> A -> (A -> A) -> A
+    = \{A} n z s. elimNat {\_. A} n z (\rec m. s (rec m))
+
+  def add : Nat -> Nat -> Nat
+    = \a b. cataNat {Nat} a b S
+  def mul : Nat -> Nat -> Nat
+    = \a b. cataNat {Nat} a Z (add b)
 }

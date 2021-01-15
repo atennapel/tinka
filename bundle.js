@@ -372,7 +372,7 @@ const prims_1 = require("./prims");
 const check = (local, tm, ty_) => {
     config_1.log(() => `check (${local.level}) ${surface_1.show(tm)} : ${local_1.showVal(local, ty_)}`);
     const ty = values_1.force(ty_);
-    if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && mode_1.eqMode(tm.mode, ty.mode)) {
+    if (tm.tag === 'Abs' && !tm.type && ty.tag === 'VPi' && mode_1.eqMode(tm.mode, ty.mode) && (tm.usage === usage_1.many || tm.usage === ty.usage)) {
         const v = values_1.VVar(local.level);
         const x = tm.name;
         const [body, u] = check(local.bind(ty.usage, ty.mode, x, ty.type), tm.body, values_1.vinst(ty, v));
@@ -588,6 +588,7 @@ const synth = (local, tm) => {
         const vv = tm.term.tag === 'Var' ? tm.term : S.Var(v);
         const lets = imports.reduceRight((t, [x, u]) => S.Let(u, x, null, S.Proj(vv, S.PName(x)), t), tm.body);
         const lets2 = tm.term.tag === 'Var' ? lets : S.Let(usage_1.many, v, null, tm.term, lets);
+        config_1.log(() => `import translated: ${surface_1.show(lets2)}`);
         return synth(local, lets2); // TODO: improve this elaboration
     }
     if (tm.tag === 'Signature') {
@@ -612,7 +613,7 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Module') {
         const defs = List_1.List.from(tm.defs);
-        const [term, type, u] = createModuleTerm(local, defs);
+        const [term, type, u] = createModuleTerm(local, defs, tm);
         return [term, values_1.evaluate(type, local.vs), u];
     }
     if (tm.tag === 'PropEq') {
@@ -638,7 +639,8 @@ const synth = (local, tm) => {
     }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
-const createModuleTerm = (local, entries) => {
+const createModuleTerm = (local, entries, full) => {
+    config_1.log(() => `createModuleTerm (${local.level}) ${entries.toString(v => `ModEntry(${v.name}, ${v.priv}, ${v.usage}, ${!v.type ? '' : surface_1.show(v.type)}, ${surface_1.show(v.val)})`)}`);
     if (entries.isCons()) {
         const e = entries.head;
         const rest = entries.tail;
@@ -657,8 +659,11 @@ const createModuleTerm = (local, entries) => {
         }
         const v = values_1.evaluate(val, local.vs);
         const nextlocal = local.define(e.usage, e.name, ty, v);
-        const [nextterm, nexttype, u2] = createModuleTerm(nextlocal, rest);
-        const nextuses = usage_1.addUses(usage_1.multiplyUses(e.usage, u), u2);
+        const [nextterm, nexttype, u2] = createModuleTerm(nextlocal, rest, full);
+        const [ux, urest] = u2.uncons();
+        if (!usage_1.sub(ux, e.usage))
+            return utils_1.terr(`usage error in ${surface_1.show(full)}: expected ${e.usage} for ${e.name} but actual ${ux}`);
+        const nextuses = usage_1.addUses(usage_1.multiplyUses(e.usage, u), urest);
         if (e.priv) {
             return [core_1.Let(e.usage, e.name, type, val, nextterm), core_1.subst(nexttype, val), nextuses];
         }
@@ -1601,7 +1606,7 @@ const Lazy_1 = require("./utils/Lazy");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
 exports.PrimNames = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False', 'IFix', 'ICon'];
-exports.PrimElimNames = ['elimSigma', 'elimPropEq', 'elimVoid', 'elimUnit', 'elimBool'];
+exports.PrimElimNames = ['elimSigma', 'elimPropEq', 'elimVoid', 'elimUnit', 'elimBool', 'elimIFix'];
 const isPrimName = (name) => exports.PrimNames.includes(name);
 exports.isPrimName = isPrimName;
 const isPrimElimName = (name) => exports.PrimElimNames.includes(name);
@@ -1639,6 +1644,14 @@ const primElim = (name, usage, motive, scrut, cases) => {
     if (name === 'elimPropEq') {
         if (scrut.tag === 'VRefl')
             return values_1.vapp(cases[0], mode_1.Expl, scrut.val);
+    }
+    if (name === 'elimIFix') {
+        // elimIFix q P (ICon I F i x) c ~> c (\(0 i : I) (v : IFix I F i). elimIFix q P v) i x
+        if (values_1.isVICon(scrut) && scrut.spine.length() === 4) {
+            const [I, F, i, x] = scrut.spine.toMappedArray(e => e.arg).reverse();
+            const rec = values_1.VAbs(usage_1.zero, mode_1.Expl, 'i', I, _ => values_1.VAbs(usage_1.many, mode_1.Expl, 'v', values_1.vapp(values_1.vapp(values_1.vapp(values_1.VIFix, mode_1.Expl, I), mode_1.Expl, F), mode_1.Expl, i), v => values_1.vprimelim(name, usage, motive, v, cases)));
+            return values_1.vapp(values_1.vapp(values_1.vapp(cases[0], mode_1.Expl, rec), mode_1.Expl, i), mode_1.Expl, x);
+        }
     }
     return null;
 };
@@ -1685,7 +1698,7 @@ const primElimTypes = {
                 ],
             ];
         }],
-    elimPropEq: [1, (eq_, usage) => {
+    elimPropEq: [1, eq_ => {
             const eq = values_1.force(eq_);
             if (eq.tag !== 'VPropEq')
                 return utils_1.terr(`not a equality type in elimPropEq`);
@@ -1695,6 +1708,23 @@ const primElimTypes = {
                 (vmotive, vscrut) => [
                     [values_1.VPi(usage_1.zero, mode_1.Expl, 'x', A, x => values_1.vapp(values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, x), mode_1.Expl, x), mode_1.Expl, values_1.VRefl(A, x)))],
                     values_1.vapp(values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, eq.left), mode_1.Expl, eq.right), mode_1.Expl, vscrut),
+                ],
+            ];
+        }],
+    elimIFix: [1, (fix_, usage) => {
+            const fix = values_1.force(fix_);
+            if (!(fix.tag === 'VNe' && fix.head.tag === 'HPrim' && fix.head.name === 'IFix' && fix.spine.length() === 3))
+                return utils_1.terr(`not a IFix type in elimIFix`);
+            const [I, F, i] = fix.spine.toMappedArray(e => e.arg).reverse();
+            return [
+                // (i : I) -> IFix I F i -> Type
+                values_1.VPi(usage_1.many, mode_1.Expl, 'i', I, i => values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.vapp(values_1.vapp(values_1.vapp(values_1.VIFix, mode_1.Expl, I), mode_1.Expl, F), mode_1.Expl, i), _ => values_1.VType)),
+                (vmotive, vscrut) => [
+                    // ((0 i : I) -> (x : IFix I F i) -> P i x) -> (0 i : I) -> (q x : F (IFix I F) i) -> P i (ICon I F i x)
+                    [
+                        values_1.VPi(usage_1.many, mode_1.Expl, '_', values_1.VPi(usage_1.zero, mode_1.Expl, 'i', I, i => values_1.VPi(usage_1.many, mode_1.Expl, 'x', values_1.vapp(values_1.vapp(values_1.vapp(values_1.VIFix, mode_1.Expl, I), mode_1.Expl, F), mode_1.Expl, i), x => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, i), mode_1.Expl, x))), _ => values_1.VPi(usage_1.zero, mode_1.Expl, 'i', I, i => values_1.VPi(usage, mode_1.Expl, 'x', values_1.vapp(values_1.vapp(F, mode_1.Expl, values_1.vapp(values_1.vapp(values_1.VIFix, mode_1.Expl, I), mode_1.Expl, F)), mode_1.Expl, i), x => values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, i), mode_1.Expl, values_1.vapp(values_1.vapp(values_1.vapp(values_1.vapp(values_1.VICon, mode_1.Expl, I), mode_1.Expl, F), mode_1.Expl, i), mode_1.Expl, x))))),
+                    ],
+                    values_1.vapp(values_1.vapp(vmotive, mode_1.Expl, i), mode_1.Expl, vscrut),
                 ],
             ];
         }],
@@ -2250,6 +2280,7 @@ exports.typecheck = typecheck;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lubUsesAll = exports.lubUses = exports.multiplyUses = exports.addUses = exports.noUses = exports.lub = exports.sub = exports.multiply = exports.add = exports.many = exports.one = exports.zero = exports.usages = void 0;
 const List_1 = require("./utils/List");
+const utils_1 = require("./utils/utils");
 exports.usages = ['0', '1', '*'];
 exports.zero = '0';
 exports.one = '1';
@@ -2278,17 +2309,21 @@ const lub = (a, b) => a === b ? a : exports.many;
 exports.lub = lub;
 const noUses = (size) => List_1.List.range(size).map(() => exports.zero);
 exports.noUses = noUses;
-const addUses = (a, b) => a.zipWith(b, exports.add);
+const guardUsesZip = (a, b) => {
+    if (a.length() !== b.length())
+        return utils_1.impossible(`trying zip Uses of different length`);
+};
+const addUses = (a, b) => { guardUsesZip(a, b); return a.zipWith(b, exports.add); };
 exports.addUses = addUses;
 const multiplyUses = (a, b) => b.map(x => exports.multiply(a, x));
 exports.multiplyUses = multiplyUses;
-const lubUses = (a, b) => a.zipWith(b, exports.lub);
+const lubUses = (a, b) => { guardUsesZip(a, b); return a.zipWith(b, exports.lub); };
 exports.lubUses = lubUses;
 // a must not be empty
 const lubUsesAll = (a) => a.reduce(exports.lubUses);
 exports.lubUsesAll = lubUsesAll;
 
-},{"./utils/List":16}],15:[function(require,module,exports){
+},{"./utils/List":16,"./utils/utils":17}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = void 0;
@@ -2622,7 +2657,7 @@ exports.eqArr = eqArr;
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VICon = exports.VIFix = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVICon = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VICon = exports.VIFix = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const prims_1 = require("./prims");
@@ -2675,6 +2710,8 @@ const isVTrue = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name 
 exports.isVTrue = isVTrue;
 const isVFalse = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'False' && v.spine.isNil();
 exports.isVFalse = isVFalse;
+const isVICon = (v) => v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'ICon';
+exports.isVICon = isVICon;
 const vinst = (val, arg) => val.clos(arg);
 exports.vinst = vinst;
 const force = (v) => {

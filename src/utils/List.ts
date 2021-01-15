@@ -55,7 +55,6 @@ export abstract class List<T> {
 
   abstract length(): number;
   abstract uncons(): [T, List<T>];
-
 }
 
 export class Nil extends List<never> {

@@ -5,6 +5,14 @@ mod {
   def 0 Fix : (Type -> Type) -> Type
     = \F. IFix () (indexF F) *
 
-  def Con : (0 F : Type -> Type) -> F (Fix F) -> Fix F
-    = \F x. ICon () (indexF F) * x
+  def Con : {0 F : Type -> Type} -> F (Fix F) -> Fix F
+    = \{F} x. ICon () (indexF F) * x
+
+  def elimFix
+    : {0 F : Type -> Type} ->
+      {0 P : Fix F -> Type} ->
+      (x : Fix F) ->
+      (((z : Fix F) -> P z) -> (y : F (Fix F)) -> P (Con {F} y)) ->
+      P x
+    = \{F} {P} x k. elimIFix (\_. P) x (\rec _ y. k (rec *) y)
 }

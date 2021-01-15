@@ -12,7 +12,6 @@ yarn start example.p
 
 ```
 todo:
-- add fix elimination
 - glue sigma named projection better
 - local glued values
 - fix linear let values

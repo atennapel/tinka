@@ -3,13 +3,13 @@ import { Name } from './names';
 import { many, multiply, Usage, zero } from './usage';
 import { Lazy } from './utils/Lazy';
 import { mapObj, terr } from './utils/utils';
-import { Val, VType, VUnitType, VBool, isVTrue, isVFalse, isVUnit, vapp, force, VVoid, VPi, VUnit, VTrue, VFalse, vinst, VPair, VPropEq, VRefl, VIFix } from './values';
+import { Val, VType, VUnitType, VBool, isVTrue, isVFalse, isVUnit, vapp, force, VVoid, VPi, VUnit, VTrue, VFalse, vinst, VPair, VPropEq, VRefl, VIFix, VICon, isVICon, VAbs, vprimelim, EApp } from './values';
 
 export type PrimName = 'Type' | 'Void' | '()' | '*' | 'Bool' | 'True' | 'False' | 'IFix' | 'ICon';
 export const PrimNames: string[] = ['Type', 'Void', '()', '*', 'Bool', 'True', 'False', 'IFix', 'ICon'];
 
-export type PrimElimName = 'elimSigma' | 'elimPropEq' | 'elimVoid' | 'elimUnit' | 'elimBool';
-export const PrimElimNames: string[] = ['elimSigma', 'elimPropEq', 'elimVoid', 'elimUnit', 'elimBool'];
+export type PrimElimName = 'elimSigma' | 'elimPropEq' | 'elimVoid' | 'elimUnit' | 'elimBool' | 'elimIFix';
+export const PrimElimNames: string[] = ['elimSigma', 'elimPropEq', 'elimVoid', 'elimUnit', 'elimBool', 'elimIFix'];
 
 export const isPrimName = (name: Name): name is PrimName => PrimNames.includes(name);
 export const isPrimElimName = (name: Name): name is PrimElimName => PrimElimNames.includes(name);
@@ -53,6 +53,14 @@ export const primElim = (name: PrimElimName, usage: Usage, motive: Val, scrut: V
   }
   if (name === 'elimPropEq') {
     if (scrut.tag === 'VRefl') return vapp(cases[0], Expl, scrut.val);
+  }
+  if (name === 'elimIFix') {
+    // elimIFix q P (ICon I F i x) c ~> c (\(0 i : I) (v : IFix I F i). elimIFix q P v) i x
+    if (isVICon(scrut) && scrut.spine.length() === 4) {
+      const [I, F, i, x] = scrut.spine.toMappedArray(e => (e as EApp).arg).reverse();
+      const rec = VAbs(zero, Expl, 'i', I, _ => VAbs(many, Expl, 'v', vapp(vapp(vapp(VIFix, Expl, I), Expl, F), Expl, i), v => vprimelim(name, usage, motive, v, cases)));
+      return vapp(vapp(vapp(cases[0], Expl, rec), Expl, i), Expl, x);
+    }
   }
   return null;
 };
@@ -99,7 +107,7 @@ const primElimTypes: { [K in PrimElimName]: PrimElimTypeInfo } = {
       ],
     ];
   }],
-  elimPropEq: [1, (eq_, usage) => {
+  elimPropEq: [1, eq_ => {
     const eq = force(eq_);
     if (eq.tag !== 'VPropEq') return terr(`not a equality type in elimPropEq`);
     const A = eq.type;
@@ -108,6 +116,26 @@ const primElimTypes: { [K in PrimElimName]: PrimElimTypeInfo } = {
       (vmotive, vscrut) => [
         [VPi(zero, Expl, 'x', A, x => vapp(vapp(vapp(vmotive, Expl, x), Expl, x), Expl, VRefl(A, x)))],
         vapp(vapp(vapp(vmotive, Expl, eq.left), Expl, eq.right), Expl, vscrut),
+      ],
+    ];
+  }],
+  elimIFix: [1, (fix_, usage) => {
+    const fix = force(fix_);
+    if (!(fix.tag === 'VNe' && fix.head.tag === 'HPrim' && fix.head.name === 'IFix' && fix.spine.length() === 3))
+      return terr(`not a IFix type in elimIFix`);
+    const [I, F, i] = fix.spine.toMappedArray(e => (e as EApp).arg).reverse();
+    return [
+      // (i : I) -> IFix I F i -> Type
+      VPi(many, Expl, 'i', I, i => VPi(many, Expl, '_', vapp(vapp(vapp(VIFix, Expl, I), Expl, F), Expl, i), _ => VType)),
+      (vmotive, vscrut) => [
+        // ((0 i : I) -> (x : IFix I F i) -> P i x) -> (0 i : I) -> (q x : F (IFix I F) i) -> P i (ICon I F i x)
+        [
+          VPi(many, Expl, '_', VPi(zero, Expl, 'i', I, i => VPi(many, Expl, 'x', vapp(vapp(vapp(VIFix, Expl, I), Expl, F), Expl, i), x => vapp(vapp(vmotive, Expl, i), Expl, x))), _ =>
+          VPi(zero, Expl, 'i', I, i =>
+          VPi(usage, Expl, 'x', vapp(vapp(F, Expl, vapp(vapp(VIFix, Expl, I), Expl, F)), Expl, i), x =>
+          vapp(vapp(vmotive, Expl, i), Expl, vapp(vapp(vapp(vapp(VICon, Expl, I), Expl, F), Expl, i), Expl, x))))),
+        ],
+        vapp(vapp(vmotive, Expl, i), Expl, vscrut),
       ],
     ];
   }],

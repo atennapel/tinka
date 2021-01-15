@@ -68,6 +68,8 @@ export const isVTrue = (v: Val): v is VNe & { head: HPrim & { name: 'True' }, sp
   v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'True' && v.spine.isNil();
 export const isVFalse = (v: Val): v is VNe & { head: HPrim & { name: 'False' }, spine: Nil } =>
   v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'False' && v.spine.isNil();
+export const isVICon = (v: Val): v is VNe & { head: HPrim & { name: 'ICon' } } =>
+  v.tag === 'VNe' && v.head.tag === 'HPrim' && v.head.name === 'ICon';
 
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 
