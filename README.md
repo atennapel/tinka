@@ -13,7 +13,6 @@ yarn start example.p
 ```
 todo:
 - add fix
-- combine eliminators syntactically where possible
 - glue sigma named projection better
 - local glued values
 - fix linear let values

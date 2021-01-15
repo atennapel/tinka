@@ -1,17 +1,17 @@
 import { log } from './config';
-import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, ElimSigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, ElimPropEq, Prim, ElimBool, UnitType, Unit, ElimUnit, ElimVoid } from './core';
+import { Abs, App, Let, Pi, Core, Var, Pair, Sigma, Global, Proj, PFst, PIndex, PSnd, subst, shift, PropEq, Refl, Prim, UnitType, Unit, PrimElim } from './core';
 import { terr, tryT } from './utils/utils';
-import { evaluate, force, quote, Val, vapp, VBool, VFalse, vinst, VPair, VPi, vproj, VPropEq, VRefl, VSigma, VTrue, VType, VUnit, VUnitType, VVar, VVoid } from './values';
+import { evaluate, force, quote, Val, vinst, vproj, VPropEq, VSigma, VType, VVar } from './values';
 import { Surface, show } from './surface';
 import * as S from './surface';
 import { conv } from './conversion';
-import { addUses, lubUses, many, multiply, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
+import { addUses, lubUses, lubUsesAll, many, multiplyUses, noUses, one, sub, Usage, Uses, zero } from './usage';
 import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
 import { Ix, Lvl, Name } from './names';
 import { List } from './utils/List';
-import { isPrimName, synthPrim } from './prims';
+import { isPrimName, synthPrim, synthPrimElim } from './prims';
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
   log(() => `check (${local.level}) ${show(tm)} : ${showVal(local, ty_)}`);
@@ -95,11 +95,9 @@ const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
 const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
   log(() => `synth (${local.level}) ${show(tm)}`);
   if (tm.tag === 'Var') {
-    if (isPrimName(tm.name)) {
-      const p = synthPrim(tm.name);
-      if (!p) return terr(`undefined primitive ${show(tm)}`);
-      return [Prim(tm.name), p, noUses(local.level)];
-    } else {
+    if (isPrimName(tm.name))
+      return [Prim(tm.name), synthPrim(tm.name), noUses(local.level)];
+    else {
       const i = local.nsSurface.indexOf(tm.name);
       if (i < 0) {
         const e = globalLoad(tm.name);
@@ -169,76 +167,29 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const ty = VSigma(many, false, '_', ty1, _ => ty2);
     return [Pair(fst, snd, quote(ty, local.level)), ty, addUses(multiplyUses(ty.usage, u1), u2)];
   }
-  if (tm.tag === 'ElimSigma') {
+  if (tm.tag === 'PrimElim') {
     if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in sigma induction ${show(tm)}: ${tm.usage}`)
-    const [scrut, sigma_, u1] = synth(local, tm.scrut);
-    const sigma = force(sigma_);
-    if (sigma.tag !== 'VSigma') return terr(`not a sigma type in ${show(tm)}: ${showVal(local, sigma_)}`);
-    if (sigma.exclusive) return terr(`cannot call elimSigma on exclusive sigma in ${show(tm)}: ${showVal(local, sigma_)}`);
-    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', sigma_, _ => VType));
-    const vmotive = evaluate(motive, local.vs);
-    const [cas, u2] = check(local, tm.cas, VPi(multiply(tm.usage, sigma.usage), Expl, 'x', sigma.type, x => VPi(tm.usage, Expl, 'y', vinst(sigma, x), y => vapp(vmotive, Expl, VPair(x, y, sigma_)))));
-    return [ElimSigma(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, evaluate(scrut, local.vs)), multiplyUses(tm.usage, addUses(u1, u2))];
-  }
-  if (tm.tag === 'ElimPropEq') {
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in equality induction ${show(tm)}: ${tm.usage}`);
-    const [scrut, eq_, u1] = synth(local, tm.scrut);
-    const eq = force(eq_);
-    if (eq.tag !== 'VPropEq') return terr(`not a equality type in ${show(tm)}: ${showVal(local, eq_)}`);
-    const A = eq.type;
-    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, 'x', A, x => VPi(many, Expl, 'y', A, y => VPi(many, Expl, '_', VPropEq(A, x, y), _ => VType))));
-    const vmotive = evaluate(motive, local.vs);
-    const castype = VPi(zero, Expl, 'x', A, x => vapp(vapp(vapp(vmotive, Expl, x), Expl, x), Expl, VRefl(A, x)));
-    const [cas, u2] = check(local, tm.cas, castype);
-    const vscrut = evaluate(scrut, local.vs);
-    return [ElimPropEq(tm.usage, motive, scrut, cas), vapp(vapp(vapp(vmotive, Expl, eq.left), Expl, eq.right), Expl, vscrut), multiplyUses(tm.usage, addUses(u1, u2))];
-  }
-  if (tm.tag === 'ElimBool') {
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in Bool induction ${show(tm)}: ${tm.usage}`);
-    const [scrut, u1] = check(local, tm.scrut, VBool);
-    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', VBool, _ => VType));
-    const vmotive = evaluate(motive, local.vs);
-    const [trueBranch, u2] = check(local, tm.trueBranch, vapp(vmotive, Expl, VTrue));
-    const [falseBranch, u3] = check(local, tm.falseBranch, vapp(vmotive, Expl, VFalse));
-    const vscrut = evaluate(scrut, local.vs);
-    return [ElimBool(tm.usage, motive, scrut, trueBranch, falseBranch), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), lubUses(u2, u3))];
-  }
-  if (tm.tag === 'ElimUnit') {
-    /*
-    1 <= q
-    G |- P : () -> Type
-    G |- u : ()
-    G |- p : P *
-    ---------------------------------------
-    q * G |- elimUnit q P u p : P u
-    */
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in Unit induction ${show(tm)}: ${tm.usage}`);
-    const [scrut, u1] = check(local, tm.scrut, VUnitType);
-    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', VUnitType, _ => VType));
-    const vmotive = evaluate(motive, local.vs);
-    const [cas, u2] = check(local, tm.cas, vapp(vmotive, Expl, VUnit));
-    const vscrut = evaluate(scrut, local.vs);
-    return [ElimUnit(tm.usage, motive, scrut, cas), vapp(vmotive, Expl, vscrut), addUses(multiplyUses(tm.usage, u1), u2)];
-  }
-  if (tm.tag === 'ElimVoid') {
-    /*
-    1 <= q
-    G |- P : Void -> Type
-    G |- v : Void
-    ---------------------------------------
-    q * G |- elimUnit q P v : P v
-    */
-    if (!sub(one, tm.usage))
-      return terr(`usage must be 1 <= q in Unit induction ${show(tm)}: ${tm.usage}`);
-    const [scrut, u1] = check(local, tm.scrut, VVoid);
-    const [motive] = check(local.inType(), tm.motive, VPi(many, Expl, '_', VVoid, _ => VType));
-    const vmotive = evaluate(motive, local.vs);
-    const vscrut = evaluate(scrut, local.vs);
-    return [ElimVoid(tm.usage, motive, scrut), vapp(vmotive, Expl, vscrut), multiplyUses(tm.usage, u1)];
+      return terr(`usage must be 1 <= q in ${show(tm)} but got ${tm.usage}`);
+    const [scrut, ty_, u1] = synth(local, tm.scrut);
+    const [amount, cont] = synthPrimElim(tm.name);
+    if (tm.cases.length !== amount)
+      return terr(`invalid case amount, expected ${amount} but got ${tm.cases.length} in ${show(tm)}`);
+    try {
+      const [tmotive, contcases] = cont(ty_, tm.usage);
+      const [motive] = check(local.inType(), tm.motive, tmotive);
+      const vmotive = evaluate(motive, local.vs);
+      const vscrut = evaluate(scrut, local.vs);
+      const [tycases, rty] = contcases(vmotive, vscrut);
+      if (tycases.length !== amount) return terr(`invalid ${tm.name}: amount does not match`);
+      const rescases = tycases.map((ty, i) => check(local, tm.cases[i], ty));
+      const uses = rescases.map(([, us]) => us);
+      const scrutu = multiplyUses(tm.usage, u1);
+      const finaluses = uses.length === 0 ? scrutu : addUses(scrutu, lubUsesAll(uses));
+      return [PrimElim(tm.name, tm.usage, motive, scrut, rescases.map(([t]) => t)), rty, finaluses];
+    } catch (err) {
+      if (!(err instanceof TypeError)) throw err;
+      return terr(`synth ${show(tm)} failed: ${err}`);
+    }
   }
   if (tm.tag === 'Proj') {
     const [term, sigma_, u] = synth(local, tm.term);

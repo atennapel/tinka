@@ -27,29 +27,10 @@ const convSpines = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
       conv(k, a.arg, b.arg);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
-    if (a.tag === 'EElimSigma' && b.tag === 'EElimSigma' && a.usage === b.usage) {
+    if (a.tag === 'EPrimElim' && b.tag === 'EPrimElim' && a.usage === b.usage && a.cases.length === b.cases.length) {
       conv(k, a.motive, b.motive);
-      conv(k, a.cas, b.cas);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimPropEq' && b.tag === 'EElimPropEq' && a.usage === b.usage) {
-      conv(k, a.motive, b.motive);
-      conv(k, a.cas, b.cas);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimUnit' && b.tag === 'EElimUnit' && a.usage === b.usage) {
-      conv(k, a.motive, b.motive);
-      conv(k, a.cas, b.cas);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimVoid' && b.tag === 'EElimVoid' && a.usage === b.usage) {
-      conv(k, a.motive, b.motive);
-      return convSpines(k, va, vb, sa.tail, sb.tail);
-    }
-    if (a.tag === 'EElimBool' && b.tag === 'EElimBool' && a.usage === b.usage) {
-      conv(k, a.motive, b.motive);
-      conv(k, a.trueBranch, b.trueBranch);
-      conv(k, a.falseBranch, b.falseBranch);
+      for (let i = 0, l = a.cases.length; i < l; i++)
+        conv(k, a.cases[i], b.cases[i]);
       return convSpines(k, va, vb, sa.tail, sb.tail);
     }
     if (a.tag === 'EProj' && b.tag === 'EProj') {

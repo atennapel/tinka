@@ -14,8 +14,8 @@ mod {
       ((x : B) -> P (Right {A} {B} x)) ->
       P e
     = \{A} {B} {P} e l r.
-        elimSigma P e \tag.
-          elimBool (\b. (x : elimBool 1 (\_. Type) b A B) -> P (b, x)) tag l r
+        elimSigma P e (\tag.
+          elimBool (\b. (x : elimBool 1 (\_. Type) b A B) -> P (b, x)) tag l r)
 
   def caseEither
     : {0 A B R : Type} -> Either A B -> (A -> R) -> (B -> R) -> R

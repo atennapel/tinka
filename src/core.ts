@@ -1,14 +1,14 @@
 import { Mode } from './mode';
 import { Ix, Name } from './names';
-import { PrimName } from './prims';
+import { PrimElimName, PrimName } from './prims';
 import { many, Usage } from './usage';
 
 export type Core =
   Var | Global | Prim | Let |
   Pi | Abs | App |
-  Sigma | Pair | ElimSigma | Proj |
-  PropEq | Refl | ElimPropEq |
-  ElimVoid | ElimUnit | ElimBool;
+  Sigma | Pair | Proj |
+  PropEq | Refl |
+  PrimElim;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
 export const Var = (index: Ix): Var => ({ tag: 'Var', index });
@@ -30,22 +30,14 @@ export interface Sigma { readonly tag: 'Sigma'; readonly usage: Usage; readonly 
 export const Sigma = (usage: Usage, exclusive: boolean, name: Name, type: Core, body: Core): Sigma => ({ tag: 'Sigma', usage, exclusive, name, type, body });
 export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: Core; readonly type: Core }
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
-export interface ElimSigma { readonly tag: 'ElimSigma'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
-export const ElimSigma = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimSigma => ({ tag: 'ElimSigma', usage, motive, scrut, cas });
 export interface Proj { readonly tag: 'Proj'; readonly term: Core; readonly proj: ProjType }
 export const Proj = (term: Core, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
 export interface PropEq { readonly tag: 'PropEq'; readonly type: Core; readonly left: Core; readonly right: Core }
 export const PropEq = (type: Core, left: Core, right: Core): PropEq => ({ tag: 'PropEq', type, left, right });
 export interface Refl { readonly tag: 'Refl'; readonly type: Core; readonly val: Core };
 export const Refl = (type: Core, val: Core): Refl => ({ tag: 'Refl', type, val });
-export interface ElimPropEq { readonly tag: 'ElimPropEq'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core, readonly cas: Core }
-export const ElimPropEq = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimPropEq => ({ tag: 'ElimPropEq', usage, motive, scrut, cas });
-export interface ElimVoid { readonly tag: 'ElimVoid'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core }
-export const ElimVoid = (usage: Usage, motive: Core, scrut: Core): ElimVoid => ({ tag: 'ElimVoid', usage, motive, scrut });
-export interface ElimUnit { readonly tag: 'ElimUnit'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly cas: Core }
-export const ElimUnit = (usage: Usage, motive: Core, scrut: Core, cas: Core): ElimUnit => ({ tag: 'ElimUnit', usage, motive, scrut, cas });
-export interface ElimBool { readonly tag: 'ElimBool'; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly trueBranch: Core; readonly falseBranch: Core }
-export const ElimBool = (usage: Usage, motive: Core, scrut: Core, trueBranch: Core, falseBranch: Core): ElimBool => ({ tag: 'ElimBool', usage, motive, scrut, trueBranch, falseBranch });
+export interface PrimElim { readonly tag: 'PrimElim'; readonly name: PrimElimName; readonly usage: Usage; readonly motive: Core; readonly scrut: Core; readonly cases: Core[] }
+export const PrimElim = (name: PrimElimName, usage: Usage, motive: Core, scrut: Core, cases: Core[]): PrimElim => ({ tag: 'PrimElim', name, usage, motive, scrut, cases });
 
 export const UnitType = Prim('()');
 export const Unit = Prim('*');
@@ -151,8 +143,6 @@ export const show = (t: Core): string => {
     const ps = flattenPair(t);
     return `(${ps.map(t => show(t)).join(', ')} : ${show(t.type)})`;
   }
-  if (t.tag === 'ElimSigma')
-    return `elimSigma ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
   if (t.tag === 'Proj') {
     const [hd, ps] = flattenProj(t);
     return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
@@ -160,14 +150,8 @@ export const show = (t: Core): string => {
   if (t.tag === 'PropEq')
     return `{${show(t.type)}} ${show(t.left)} = ${show(t.right)}`;
   if (t.tag === 'Refl') return `Refl {${show(t.type)}} {${show(t.val)}}`;
-  if (t.tag === 'ElimPropEq')
-    return `elimPropEq ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
-  if (t.tag === 'ElimBool')
-    return `elimBool ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.trueBranch)} ${showS(t.falseBranch)}`;
-  if (t.tag === 'ElimVoid')
-    return `elimVoid ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}`;
-  if (t.tag === 'ElimUnit')
-    return `elimUnit ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)} ${showS(t.cas)}`;
+  if (t.tag === 'PrimElim')
+    return `${t.name} ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cases.map(c => ` ${showS(c)}`).join('')}`;
   return t;
 };
 
@@ -180,13 +164,9 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.usage, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.usage, t.exclusive, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
-  if (t.tag === 'ElimSigma') return ElimSigma(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
-  if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
-  if (t.tag === 'ElimBool') return ElimBool(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.trueBranch), shift(d, c, t.falseBranch));
   if (t.tag === 'PropEq') return PropEq(shift(d, c, t.type), shift(d, c, t.left), shift(d, c, t.right));
   if (t.tag === 'Refl') return Refl(shift(d, c, t.type), shift(d, c, t.val));
-  if (t.tag === 'ElimVoid') return ElimVoid(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut));
-  if (t.tag === 'ElimUnit') return ElimUnit(t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), shift(d, c, t.cas));
+  if (t.tag === 'PrimElim') return PrimElim(t.name, t.usage, shift(d, c, t.motive), shift(d, c, t.scrut), t.cases.map(x => shift(d, c, x)));
   return t;
 };
 
@@ -199,13 +179,9 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.usage, t.name, substVar(j, s, t.type), substVar(j, s, t.val), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Pi') return Pi(t.usage, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Sigma') return Sigma(t.usage, t.exclusive, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
-  if (t.tag === 'ElimSigma') return ElimSigma(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
-  if (t.tag === 'ElimPropEq') return ElimPropEq(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
-  if (t.tag === 'ElimBool') return ElimBool(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.trueBranch), substVar(j, s, t.falseBranch));
   if (t.tag === 'PropEq') return PropEq(substVar(j, s, t.type), substVar(j, s, t.left), substVar(j, s, t.right));
   if (t.tag === 'Refl') return Refl(substVar(j, s, t.type), substVar(j, s, t.val));
-  if (t.tag === 'ElimVoid') return ElimVoid(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut));
-  if (t.tag === 'ElimUnit') return ElimUnit(t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), substVar(j, s, t.cas));
+  if (t.tag === 'PrimElim') return PrimElim(t.name, t.usage, substVar(j, s, t.motive), substVar(j, s, t.scrut), t.cases.map(x => substVar(j, s, x)));
   return t;
 };
 

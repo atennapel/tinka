@@ -4,9 +4,9 @@ mod {
 
   def fst
     : {0 A : Type} -> {0 B : A -> Type} -> ((x : A) ** B x) -> A
-    = \{A} {B} s. elimSigma (\_. A) s \x y. x
+    = \{A} {B} s. elimSigma (\_. A) s (\x y. x)
 
   def snd
     : {0 A : Type} -> {0 B : A -> Type} -> (s : (x : A) ** B x) -> B (fst {A} {B} s)
-    = \{A} {B} s. elimSigma (\s. B (fst {A} {B} s)) s \x y. y
+    = \{A} {B} s. elimSigma (\s. B (fst {A} {B} s)) s (\x y. y)
 }

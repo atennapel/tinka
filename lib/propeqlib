@@ -1,7 +1,7 @@
 mod {
   def rewrite
     : {0 A : Type} -> {0 a b : A} -> {0 P : A -> Type} -> (a = b) -> P a -> P b
-    = \{A} {a} {b} {P} p. elimPropEq (\x y q. P x -> P y) p \_ q. q
+    = \{A} {a} {b} {P} p. elimPropEq (\x y q. P x -> P y) p (\_ q. q)
 
   def cast
     : {0 A B : Type} -> (A = B) -> A -> B
@@ -9,7 +9,7 @@ mod {
 
   def sym
     : {0 A : Type} -> {0 a b : A} -> (a = b) -> (b = a)
-    = \{A} {a} {b} p. elimPropEq (\x y q. y = x) p \_. Refl
+    = \{A} {a} {b} p. elimPropEq (\x y q. y = x) p (\_. Refl)
 
   def trans
     : {0 A : Type} -> {0 a b c : A} -> (a = b) -> (b = c) -> (a = c)

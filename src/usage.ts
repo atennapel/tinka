@@ -37,3 +37,6 @@ export const multiplyUses = (a: Usage, b: Uses): Uses =>
   b.map(x => multiply(a, x));
 
 export const lubUses = (a: Uses, b: Uses): Uses => a.zipWith(b, lub);
+
+// a must not be empty
+export const lubUsesAll = (a: Uses[]): Uses => a.reduce(lubUses);
