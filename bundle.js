@@ -568,7 +568,8 @@ const synth = (local, tm) => {
             return [core_1.Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(term, local.vs), fst)), u];
         }
         else if (tm.proj.tag === 'PName') {
-            const [ty, ix] = projectName(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.name, 0);
+            const orig = values_1.evaluate(term, local.vs);
+            const [ty, ix] = projectName(local, tm, orig, orig, sigma_, tm.proj.name, 0);
             return [core_1.Proj(term, core_1.PIndex(tm.proj.name, ix)), ty, u];
         }
         else
@@ -696,7 +697,8 @@ const projectIndex = (local, full, tm, ty_, index) => {
     }
     return utils_1.terr(`failed to project, ${surface_1.show(full)}: ${local_1.showVal(local, ty_)}`);
 };
-const projectName = (local, full, tm, ty_, x, ix) => {
+const projectName = (local, full, orig, tm, ty_, x, ix, ns = List_1.nil) => {
+    config_1.log(() => `projectName (${local_1.showVal(local, tm)}) (${local_1.showVal(local, ty_)}) ${x} ${ix} ${ns.toString()}`);
     const ty = values_1.force(ty_);
     if (ty.tag === 'VSigma') {
         if (local.usage === usage_1.one && (ty.usage === usage_1.one || (ty.usage === usage_1.zero && ty.name === x)))
@@ -704,7 +706,9 @@ const projectName = (local, full, tm, ty_, x, ix) => {
         if (ty.name === x)
             return [ty.type, ix];
         const fst = ty.name !== '_' ? core_1.PIndex(ty.name, 0) : core_1.PFst; // TODO: is this nice?
-        return projectName(local, full, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, values_1.vproj(tm, fst)), x, ix + 1);
+        const vfst = ty.name !== '_' ? (!ns.contains(ty.name) ? values_1.vproj(orig, core_1.PIndex(ty.name, ix)) : values_1.vproj(tm, core_1.PIndex(ty.name, 0))) : values_1.vproj(tm, fst);
+        config_1.log(() => local_1.showVal(local, vfst));
+        return projectName(local, full, orig, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, vfst), x, ix + 1, List_1.cons(ty.name, ns));
     }
     return utils_1.terr(`failed to project, ${surface_1.show(full)}: ${local_1.showVal(local, ty_)}`);
 };

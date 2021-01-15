@@ -10,7 +10,7 @@ import { indexEnvT, Local, showVal } from './local';
 import { eqMode, Expl, Impl, Mode } from './mode';
 import { globalLoad } from './globals';
 import { Ix, Lvl, Name } from './names';
-import { List } from './utils/List';
+import { cons, List, nil } from './utils/List';
 import { isPrimName, synthPrim, synthPrimElim } from './prims';
 
 const check = (local: Local, tm: Surface, ty_: Val): [Core, Uses] => {
@@ -201,7 +201,8 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
       const fst = sigma.name !== '_'  ? PIndex(sigma.name, 0) : PFst; // TODO: is this nice?
       return [Proj(term, tm.proj), tm.proj.proj === 'fst' ? sigma.type : vinst(sigma, vproj(evaluate(term, local.vs), fst)), u];
     } else if (tm.proj.tag === 'PName') {
-      const [ty, ix] = projectName(local, tm, evaluate(term, local.vs), sigma_, tm.proj.name, 0);
+      const orig = evaluate(term, local.vs);
+      const [ty, ix] = projectName(local, tm, orig, orig, sigma_, tm.proj.name, 0);
       return [Proj(term, PIndex(tm.proj.name, ix)), ty, u];
     } else return [Proj(term, PIndex(null, tm.proj.index)), projectIndex(local, tm, evaluate(term, local.vs), sigma_, tm.proj.index), u];
   }
@@ -321,14 +322,17 @@ const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix)
   }
   return terr(`failed to project, ${show(full)}: ${showVal(local, ty_)}`);
 };
-const projectName = (local: Local, full: Surface, tm: Val, ty_: Val, x: Name, ix: Ix): [Val, Ix] => {
+const projectName = (local: Local, full: Surface, orig: Val, tm: Val, ty_: Val, x: Name, ix: Ix, ns: List<Name> = nil): [Val, Ix] => {
+  log(() => `projectName (${showVal(local, tm)}) (${showVal(local, ty_)}) ${x} ${ix} ${ns.toString()}`);
   const ty = force(ty_);
   if (ty.tag === 'VSigma') {
     if (local.usage === one && (ty.usage === one || (ty.usage === zero && ty.name === x)))
       return terr(`cannot project ${show(full)}, usage must be * or 0 with a second projection: ${showVal(local, ty_)}`);
     if (ty.name === x) return [ty.type, ix];
     const fst = ty.name !== '_'  ? PIndex(ty.name, 0) : PFst; // TODO: is this nice?
-    return projectName(local, full, vproj(tm, PSnd), vinst(ty, vproj(tm, fst)), x, ix + 1);
+    const vfst = ty.name !== '_' ? (!ns.contains(ty.name) ? vproj(orig, PIndex(ty.name, ix)) : vproj(tm, PIndex(ty.name, 0))) : vproj(tm, fst);
+    log(() => showVal(local, vfst));
+    return projectName(local, full, orig, vproj(tm, PSnd), vinst(ty, vfst), x, ix + 1, cons(ty.name, ns));
   }
   return terr(`failed to project, ${show(full)}: ${showVal(local, ty_)}`);
 };
