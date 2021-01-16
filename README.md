@@ -12,7 +12,7 @@ yarn start example.p
 
 ```
 todo:
-- local glued values
+- elaborate imported types better
 - fix linear let values
 - metas
 - elaboration with metas
@@ -22,6 +22,7 @@ todo:
 - improve elaboration of import
 - de-elaborate annotations
 - erasure
+- test local glued values
 ```
 
 ```

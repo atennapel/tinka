@@ -1,7 +1,7 @@
 import { Abs, App, Core, Global, Pi, Var, show as showCore, Sigma, Pair, Proj, ProjType, PIndex, PropEq, Refl, Prim, PrimElim } from './core';
 import { globalLoad } from './globals';
 import { Mode } from './mode';
-import { Lvl, Name } from './names';
+import { Ix, Lvl, Name } from './names';
 import { primElim, PrimElimName, PrimName } from './prims';
 import { Usage } from './usage';
 import { Lazy } from './utils/Lazy';
@@ -14,6 +14,11 @@ export interface HVar { readonly tag: 'HVar'; readonly level: Lvl }
 export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 export interface HPrim { readonly tag: 'HPrim'; readonly name: PrimName }
 export const HPrim = (name: PrimName): HPrim => ({ tag: 'HPrim', name });
+
+export type GHead = HGlobal | HVar;
+
+export interface HGlobal { readonly tag: 'HGlobal'; readonly name: Name }
+export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
 
 export type Elim = EApp | EProj | EPrimElim;
 
@@ -32,8 +37,8 @@ export type Val = VNe | VGlobal | VAbs | VPi | VSigma | VPair | VPropEq | VRefl;
 
 export interface VNe { readonly tag: 'VNe'; readonly head: Head; readonly spine: Spine }
 export const VNe = (head: Head, spine: Spine): VNe => ({ tag: 'VNe', head, spine });
-export interface VGlobal { readonly tag: 'VGlobal'; readonly head: Name; readonly spine: Spine; readonly val: Lazy<Val> };
-export const VGlobal = (head: Name, spine: Spine, val: Lazy<Val>): VGlobal => ({ tag: 'VGlobal', head, spine, val });
+export interface VGlobal { readonly tag: 'VGlobal'; readonly head: GHead; readonly spine: Spine; readonly val: Lazy<Val> };
+export const VGlobal = (head: GHead, spine: Spine, val: Lazy<Val>): VGlobal => ({ tag: 'VGlobal', head, spine, val });
 export interface VAbs { readonly tag: 'VAbs'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Val; readonly clos: Clos }
 export const VAbs = (usage: Usage, mode: Mode, name: Name, type: Val, clos: Clos): VAbs => ({ tag: 'VAbs', usage, mode, name, type, clos });
 export interface VPi { readonly tag: 'VPi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Val; readonly clos: Clos }
@@ -107,40 +112,46 @@ export const vprimelim = (name: PrimElimName, usage: Usage, motive: Val, scrut: 
   return impossible(`velimbool: ${scrut.tag}`);
 };
 
-export const evaluate = (t: Core, vs: EnvV): Val => {
+export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val => {
   if (t.tag === 'Abs')
-    return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
+    return VAbs(t.usage, t.mode, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Pi')
-    return VPi(t.usage, t.mode, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
-  if (t.tag === 'Var') return vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
-  if (t.tag === 'Global') return VGlobal(t.name, nil, Lazy.from(() => {
+    return VPi(t.usage, t.mode, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
+  if (t.tag === 'Var') {
+    const v = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
+    const l = vs.length();
+    if (t.index >= l - glueBefore) return VGlobal(HVar(l - t.index - 1), nil, Lazy.value(v));
+    return v;
+  }
+  if (t.tag === 'Global') return VGlobal(HGlobal(t.name), nil, Lazy.from(() => {
     const e = globalLoad(t.name);
     if (!e) return terr(`failed to load global ${t.name}`);
     return e.val;
   }));
   if (t.tag === 'Prim') return VPrim(t.name);
   if (t.tag === 'App')
-    return vapp(evaluate(t.fn, vs), t.mode, evaluate(t.arg, vs));
+    return vapp(evaluate(t.fn, vs, glueBefore), t.mode, evaluate(t.arg, vs, glueBefore));
   if (t.tag === 'Let')
-    return evaluate(t.body, cons(evaluate(t.val, vs), vs));
+    return evaluate(t.body, cons(evaluate(t.val, vs, glueBefore), vs), glueBefore);
   if (t.tag === 'Sigma')
-    return VSigma(t.usage, t.exclusive, t.name, evaluate(t.type, vs), v => evaluate(t.body, cons(v, vs)));
+    return VSigma(t.usage, t.exclusive, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Pair')
-    return VPair(evaluate(t.fst, vs), evaluate(t.snd, vs), evaluate(t.type, vs));
+    return VPair(evaluate(t.fst, vs, glueBefore), evaluate(t.snd, vs, glueBefore), evaluate(t.type, vs, glueBefore));
   if (t.tag === 'Proj')
-    return vproj(evaluate(t.term, vs), t.proj);
+    return vproj(evaluate(t.term, vs, glueBefore), t.proj);
   if (t.tag === 'PropEq')
-    return VPropEq(evaluate(t.type, vs), evaluate(t.left, vs), evaluate(t.right, vs));
+    return VPropEq(evaluate(t.type, vs, glueBefore), evaluate(t.left, vs, glueBefore), evaluate(t.right, vs, glueBefore));
   if (t.tag === 'Refl')
-    return VRefl(evaluate(t.type, vs), evaluate(t.val, vs));
+    return VRefl(evaluate(t.type, vs, glueBefore), evaluate(t.val, vs, glueBefore));
   if (t.tag === 'PrimElim')
-    return vprimelim(t.name, t.usage, evaluate(t.motive, vs), evaluate(t.scrut, vs), t.cases.map(c => evaluate(c, vs)));
+    return vprimelim(t.name, t.usage, evaluate(t.motive, vs, glueBefore), evaluate(t.scrut, vs, glueBefore), t.cases.map(c => evaluate(c, vs, glueBefore)));
   return t;
 };
 
-const quoteHead = (h: Head, k: Lvl): Core => {
+const quoteHead = (h: Head | GHead, k: Lvl): Core => {
   if (h.tag === 'HVar') return Var(k - (h.level + 1));
   if (h.tag === 'HPrim') return Prim(h.name);
+  if (h.tag === 'HGlobal') return Global(h.name);
   return h;
 };
 const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
@@ -156,10 +167,10 @@ export const quote = (v: Val, k: Lvl, full: boolean = false): Core => {
       quoteHead(v.head, k),
     );
   if (v.tag === 'VGlobal') {
-    if (full) return quote(v.val.get(), k, full);
+    if (full || v.head.tag === 'HVar' && v.head.level >= k) return quote(v.val.get(), k, full);
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
-      Global(v.head) as Core,
+     quoteHead(v.head, k) as Core,
     );
   }
   if (v.tag === 'VAbs')

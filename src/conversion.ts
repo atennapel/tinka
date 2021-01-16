@@ -3,12 +3,13 @@ import { PFst, PSnd } from './core';
 import { eqMode } from './mode';
 import { Ix, Lvl } from './names';
 import { terr, tryT } from './utils/utils';
-import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, isVUnit } from './values';
+import { Head, Val, show, VVar, vinst, vapp, vproj, Spine, isVUnit, GHead } from './values';
 
-export const eqHead = (a: Head, b: Head): boolean => {
+export const eqHead = (a: Head | GHead, b: Head | GHead): boolean => {
   if (a === b) return true;
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.level === b.level;
   if (a.tag === 'HPrim') return b.tag === 'HPrim' && a.name === b.name;
+  if (a.tag === 'HGlobal') return b.tag === 'HGlobal' && a.name === b.name;
   return a;
 };
 const convPIndex = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine, index: Ix): void => {
@@ -106,7 +107,7 @@ export const conv = (k: Lvl, a: Val, b: Val): void => {
   if (a.tag === 'VNe' && b.tag === 'VNe' && eqHead(a.head, b.head))
     return convSpines(k, a, b, a.spine, b.spine);
 
-  if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head)
+  if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && eqHead(a.head, b.head))
     return tryT(() => convSpines(k, a, b, a.spine, b.spine), () => conv(k, a.val.get(), b.val.get()));
   if (a.tag === 'VGlobal') return conv(k, a.val.get(), b);
   if (b.tag === 'VGlobal') return conv(k, a, b.val.get());

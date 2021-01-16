@@ -12,6 +12,7 @@ import { evaluate, force, quote, Val, vinst, vproj, VPropEq, VType } from './val
 
 const check = (local: Local, tm: Core, ty: Val): Uses => {
   log(() => `check ${show(tm)} : ${showValCore(local, ty)}`);
+  log(() => `check ${show(tm)} : ${showValCore(local, force(ty))}`);
   const [ty2, u] = synth(local, tm);
   return tryT(() => {
     log(() => `unify ${showValCore(local, ty2)} ~ ${showValCore(local, ty)}`);

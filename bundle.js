@@ -33,6 +33,8 @@ const eqHead = (a, b) => {
         return b.tag === 'HVar' && a.level === b.level;
     if (a.tag === 'HPrim')
         return b.tag === 'HPrim' && a.name === b.name;
+    if (a.tag === 'HGlobal')
+        return b.tag === 'HGlobal' && a.name === b.name;
     return a;
 };
 exports.eqHead = eqHead;
@@ -132,7 +134,7 @@ const conv = (k, a, b) => {
         return;
     if (a.tag === 'VNe' && b.tag === 'VNe' && exports.eqHead(a.head, b.head))
         return convSpines(k, a, b, a.spine, b.spine);
-    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && a.head === b.head)
+    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && exports.eqHead(a.head, b.head))
         return utils_1.tryT(() => convSpines(k, a, b, a.spine, b.spine), () => exports.conv(k, a.val.get(), b.val.get()));
     if (a.tag === 'VGlobal')
         return exports.conv(k, a.val.get(), b);
@@ -2120,6 +2122,7 @@ const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showValCore(local, ty)}`);
+    config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showValCore(local, values_1.force(ty))}`);
     const [ty2, u] = synth(local, tm);
     return utils_1.tryT(() => {
         config_1.log(() => `unify ${local_1.showValCore(local, ty2)} ~ ${local_1.showValCore(local, ty)}`);
@@ -2661,7 +2664,7 @@ exports.eqArr = eqArr;
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVICon = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VICon = exports.VIFix = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HPrim = exports.HVar = void 0;
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVICon = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VICon = exports.VIFix = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const globals_1 = require("./globals");
 const prims_1 = require("./prims");
@@ -2672,6 +2675,8 @@ const HVar = (level) => ({ tag: 'HVar', level });
 exports.HVar = HVar;
 const HPrim = (name) => ({ tag: 'HPrim', name });
 exports.HPrim = HPrim;
+const HGlobal = (name) => ({ tag: 'HGlobal', name });
+exports.HGlobal = HGlobal;
 const EApp = (mode, arg) => ({ tag: 'EApp', mode, arg });
 exports.EApp = EApp;
 const EProj = (proj) => ({ tag: 'EProj', proj });
@@ -2763,15 +2768,20 @@ const vprimelim = (name, usage, motive, scrut, cases) => {
     return utils_1.impossible(`velimbool: ${scrut.tag}`);
 };
 exports.vprimelim = vprimelim;
-const evaluate = (t, vs) => {
+const evaluate = (t, vs, glueBefore = vs.length()) => {
     if (t.tag === 'Abs')
-        return exports.VAbs(t.usage, t.mode, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
+        return exports.VAbs(t.usage, t.mode, t.name, exports.evaluate(t.type, vs, glueBefore), v => exports.evaluate(t.body, List_1.cons(v, vs), glueBefore));
     if (t.tag === 'Pi')
-        return exports.VPi(t.usage, t.mode, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
-    if (t.tag === 'Var')
-        return vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
+        return exports.VPi(t.usage, t.mode, t.name, exports.evaluate(t.type, vs, glueBefore), v => exports.evaluate(t.body, List_1.cons(v, vs), glueBefore));
+    if (t.tag === 'Var') {
+        const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
+        const l = vs.length();
+        if (t.index >= l - glueBefore)
+            return exports.VGlobal(exports.HVar(l - t.index - 1), List_1.nil, Lazy_1.Lazy.value(v));
+        return v;
+    }
     if (t.tag === 'Global')
-        return exports.VGlobal(t.name, List_1.nil, Lazy_1.Lazy.from(() => {
+        return exports.VGlobal(exports.HGlobal(t.name), List_1.nil, Lazy_1.Lazy.from(() => {
             const e = globals_1.globalLoad(t.name);
             if (!e)
                 return utils_1.terr(`failed to load global ${t.name}`);
@@ -2780,21 +2790,21 @@ const evaluate = (t, vs) => {
     if (t.tag === 'Prim')
         return exports.VPrim(t.name);
     if (t.tag === 'App')
-        return exports.vapp(exports.evaluate(t.fn, vs), t.mode, exports.evaluate(t.arg, vs));
+        return exports.vapp(exports.evaluate(t.fn, vs, glueBefore), t.mode, exports.evaluate(t.arg, vs, glueBefore));
     if (t.tag === 'Let')
-        return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs), vs));
+        return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs, glueBefore), vs), glueBefore);
     if (t.tag === 'Sigma')
-        return exports.VSigma(t.usage, t.exclusive, t.name, exports.evaluate(t.type, vs), v => exports.evaluate(t.body, List_1.cons(v, vs)));
+        return exports.VSigma(t.usage, t.exclusive, t.name, exports.evaluate(t.type, vs, glueBefore), v => exports.evaluate(t.body, List_1.cons(v, vs), glueBefore));
     if (t.tag === 'Pair')
-        return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs), exports.evaluate(t.type, vs));
+        return exports.VPair(exports.evaluate(t.fst, vs, glueBefore), exports.evaluate(t.snd, vs, glueBefore), exports.evaluate(t.type, vs, glueBefore));
     if (t.tag === 'Proj')
-        return exports.vproj(exports.evaluate(t.term, vs), t.proj);
+        return exports.vproj(exports.evaluate(t.term, vs, glueBefore), t.proj);
     if (t.tag === 'PropEq')
-        return exports.VPropEq(exports.evaluate(t.type, vs), exports.evaluate(t.left, vs), exports.evaluate(t.right, vs));
+        return exports.VPropEq(exports.evaluate(t.type, vs, glueBefore), exports.evaluate(t.left, vs, glueBefore), exports.evaluate(t.right, vs, glueBefore));
     if (t.tag === 'Refl')
-        return exports.VRefl(exports.evaluate(t.type, vs), exports.evaluate(t.val, vs));
+        return exports.VRefl(exports.evaluate(t.type, vs, glueBefore), exports.evaluate(t.val, vs, glueBefore));
     if (t.tag === 'PrimElim')
-        return exports.vprimelim(t.name, t.usage, exports.evaluate(t.motive, vs), exports.evaluate(t.scrut, vs), t.cases.map(c => exports.evaluate(c, vs)));
+        return exports.vprimelim(t.name, t.usage, exports.evaluate(t.motive, vs, glueBefore), exports.evaluate(t.scrut, vs, glueBefore), t.cases.map(c => exports.evaluate(c, vs, glueBefore)));
     return t;
 };
 exports.evaluate = evaluate;
@@ -2803,6 +2813,8 @@ const quoteHead = (h, k) => {
         return core_1.Var(k - (h.level + 1));
     if (h.tag === 'HPrim')
         return core_1.Prim(h.name);
+    if (h.tag === 'HGlobal')
+        return core_1.Global(h.name);
     return h;
 };
 const quoteElim = (t, e, k, full) => {
@@ -2818,9 +2830,9 @@ const quote = (v, k, full = false) => {
     if (v.tag === 'VNe')
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     if (v.tag === 'VGlobal') {
-        if (full)
+        if (full || v.head.tag === 'HVar' && v.head.level >= k)
             return exports.quote(v.val.get(), k, full);
-        return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Global(v.head));
+        return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     }
     if (v.tag === 'VAbs')
         return core_1.Abs(v.usage, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
