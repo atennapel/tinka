@@ -578,21 +578,9 @@ const synth = (local, tm) => {
             return [core_1.Proj(term, core_1.PIndex(null, tm.proj.index)), projectIndex(local, tm, values_1.evaluate(term, local.vs), sigma_, tm.proj.index), u];
     }
     if (tm.tag === 'Import') {
-        const [, sigma_,] = synth(local, tm.term);
-        const sigma = values_1.force(sigma_);
-        if (sigma.tag !== 'VSigma')
-            return utils_1.terr(`not a sigma type in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
-        const [imports, all] = getAllNamesFromSigma(local.level, sigma, tm.imports);
-        if (tm.imports)
-            for (const i of tm.imports)
-                if (!all.includes(i))
-                    return utils_1.terr(`import includes name not included in module (${i}) in ${surface_1.show(tm)}: ${local_1.showVal(local, sigma_)}`);
-        const v = '$import';
-        const vv = tm.term.tag === 'Var' ? tm.term : S.Var(v);
-        const lets = imports.reduceRight((t, [x, u]) => S.Let(u, x, null, S.Proj(vv, S.PName(x)), t), tm.body);
-        const lets2 = tm.term.tag === 'Var' ? lets : S.Let(usage_1.many, v, null, tm.term, lets);
-        config_1.log(() => `import translated: ${surface_1.show(lets2)}`);
-        return synth(local, lets2); // TODO: improve this elaboration
+        const [term, sigma_,] = synth(local, tm.term);
+        const vterm = values_1.evaluate(term, local.vs);
+        return createImportTerm(local, term, vterm, sigma_, tm.imports, tm.body);
     }
     if (tm.tag === 'Signature') {
         let clocal = local;
@@ -676,6 +664,46 @@ const createModuleTerm = (local, entries, full) => {
         }
     }
     return [core_1.Unit, core_1.UnitType, usage_1.noUses(local.level)];
+};
+const createImportTerm = (local, term, vterm, sigma_, imports, body, i = 0) => {
+    config_1.log(() => `createImportTerm (${local.level}) ${S.showCore(term, local.ns)} ${local_1.showVal(local, sigma_)}`);
+    const sigma = values_1.force(sigma_);
+    if (sigma.tag === 'VSigma') {
+        let name = sigma.name;
+        let nextimports = imports;
+        let found = false;
+        if (imports) {
+            const nameix = imports.indexOf(sigma.name);
+            if (nameix < 0) {
+                name = '_';
+            }
+            else {
+                nextimports = imports.slice(0);
+                nextimports.splice(nameix, 1);
+                found = true;
+            }
+        }
+        else {
+            found = true;
+        }
+        if (found) {
+            const val = values_1.vproj(vterm, core_1.PIndex(sigma.name, i));
+            const newlocal = local.define(sigma.usage, name, sigma.type, val);
+            const val2 = values_1.evaluate(core_1.Var(0), newlocal.vs);
+            const [rest, ty, u2] = createImportTerm(newlocal, term, vterm, values_1.vinst(sigma, val2), nextimports, body, i + 1);
+            const [ux, urest] = u2.uncons();
+            if (!usage_1.sub(ux, sigma.usage))
+                return utils_1.terr(`usage error in importing ${S.showCore(term, local.ns)}: expected ${sigma.usage} for ${sigma.name} but actual ${ux}`);
+            return [core_1.Let(sigma.usage, name, values_1.quote(sigma.type, local.level), core_1.Proj(term, core_1.PIndex(sigma.name, i)), rest), ty, urest];
+        }
+        else {
+            return createImportTerm(local, term, vterm, values_1.vinst(sigma, values_1.vproj(vterm, core_1.PIndex(sigma.name, i))), nextimports, body, i + 1);
+        }
+    }
+    if (imports && imports.length > 0)
+        return utils_1.terr(`failed to import, names not in module: ${imports.join(' ')}`);
+    config_1.log(() => `names in import body scope: ${local.ns}`);
+    return synth(local, body);
 };
 const getAllNamesFromSigma = (k, ty_, ns, a = [], all = []) => {
     const ty = values_1.force(ty_);

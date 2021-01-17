@@ -12,16 +12,14 @@ yarn start example.p
 
 ```
 todo:
-- elaborate imported types better
 - fix linear let values
+- fix importing in web repl
+- erasure
 - metas
 - elaboration with metas
 - remove implicit arguments from primitive constructs
-- fix importing in web repl
 - rewrite parser, include locations
-- improve elaboration of import
 - de-elaborate annotations
-- erasure
 - test local glued values
 ```
 

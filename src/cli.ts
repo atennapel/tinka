@@ -12,10 +12,12 @@ if (process.argv[2]) {
   const option = process.argv[3] || '';
   let typeOnly = false;
   let showCore_ = false;
+  let verify = true;
   if (option.includes('d')) setConfig({ debug: true });
   if (option.includes('e')) setConfig({ showEnvs: true });
   if (option.includes('t')) typeOnly = true;
   if (option.includes('c')) showCore_ = true;
+  if (option.includes('l')) verify = false;
   try {
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
     const e = parse(sc);
@@ -27,7 +29,7 @@ if (process.argv[2]) {
     }
     console.log(showCore(tm));
     console.log(showCore(ty));
-    typecheck(tm);
+    if (verify) typecheck(tm);
     if (!typeOnly) console.log(showCore(normalize(tm, 0, nil, true)));
   } catch(err) {
     console.error(err);

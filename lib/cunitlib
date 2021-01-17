@@ -1,0 +1,4 @@
+mod {
+  def 0 CUnitType = {0 A : Type} -> A -> A
+  def CUnit : CUnitType = \{A} x. x
+}
