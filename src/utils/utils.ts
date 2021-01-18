@@ -75,3 +75,14 @@ export const eqArr = <T>(a: T[], b: T[], eq: (a: T, b: T) => boolean = (x, y) =>
   for (let i = 0; i < l; i++) if (!eq(a[i], b[i])) return false;
   return true;
 };
+
+export const pushUniq = <T>(a: T[], x: T): T[] => a.includes(x) ? a : (a.push(x), a);
+
+export const remove = <T>(a: T[], x: T): T[] => {
+  const i = a.indexOf(x);
+  return i >= 0 ? a.splice(i, 1) : a;
+};
+export const removeAll = <T>(a: T[], xs: T[]): T[] => {
+  xs.forEach(x => remove(a, x));
+  return a;
+};

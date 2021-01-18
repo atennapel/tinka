@@ -763,9 +763,11 @@ exports.elaborate = elaborate;
 },{"./config":1,"./conversion":2,"./core":3,"./globals":5,"./local":6,"./mode":7,"./prims":10,"./surface":12,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.globalLoad = exports.globalSet = exports.globalGet = exports.globalReset = void 0;
+exports.preload = exports.globalLoad = exports.globalSet = exports.globalGet = exports.globalReset = void 0;
 const elaboration_1 = require("./elaboration");
+const local_1 = require("./local");
 const parser_1 = require("./parser");
+const surface_1 = require("./surface");
 const typecheck_1 = require("./typecheck");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -794,8 +796,22 @@ const globalLoad = (x) => {
     return exports.globalGet(x);
 };
 exports.globalLoad = globalLoad;
+const preload = (t, local = local_1.Local.empty()) => {
+    const vs = surface_1.freeVars(t);
+    const localVars = local.nsSurface.toArray();
+    utils_1.removeAll(vs, localVars);
+    return Promise.all(vs.map(async (v) => {
+        const sc = await utils_1.loadFile(`lib/${v}`);
+        const e = parser_1.parse(sc);
+        const [tm, ty] = elaboration_1.elaborate(e);
+        typecheck_1.typecheck(tm);
+        exports.globalSet(v, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil));
+        return exports.globalGet(v) || utils_1.impossible(`preload failed, unable to get ${v}`);
+    }));
+};
+exports.preload = preload;
 
-},{"./elaboration":4,"./parser":9,"./typecheck":13,"./utils/List":16,"./utils/utils":17,"./values":18}],6:[function(require,module,exports){
+},{"./elaboration":4,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./utils/List":16,"./utils/utils":17,"./values":18}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showVal = exports.showValCore = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
@@ -1140,6 +1156,8 @@ const expr = (t) => {
     }
     if (t.tag === 'Name') {
         const x = t.name;
+        if (prims_1.isPrimElimName(x))
+            return utils_1.serr(`prim elim ${x} used without arguments`);
         if (x === 'Refl')
             return [surface_1.Refl(null, null), false];
         if (x === '*')
@@ -1796,9 +1814,11 @@ COMMANDS
 [:load name] load a global
 `.trim();
 let showStackTrace = false;
+let doPreload = true;
 let local = local_1.Local.empty();
 const initREPL = () => {
     showStackTrace = false;
+    doPreload = true;
     local = local_1.Local.empty();
 };
 exports.initREPL = initREPL;
@@ -1815,6 +1835,10 @@ const runREPL = (s_, cb) => {
         if (s === ':showStackTrace') {
             showStackTrace = !showStackTrace;
             return cb(`showStackTrace: ${showStackTrace}`);
+        }
+        if (s === ':preload') {
+            doPreload = !doPreload;
+            return cb(`preload: ${doPreload}`);
         }
         if (s === ':defs') {
             const defs = [];
@@ -1843,8 +1867,9 @@ const runREPL = (s_, cb) => {
         if (s.startsWith(':load')) {
             const name = `lib/${s.slice(5).trim()}`;
             utils_1.loadFile(name)
-                .then(sc => {
-                const e = parser_1.parse(sc);
+                .then(sc => parser_1.parse(sc))
+                .then(e => doPreload ? globals_1.preload(e, local).then(() => e) : e)
+                .then(e => {
                 const [tm, ty] = elaboration_1.elaborate(e);
                 typecheck_1.typecheck(tm);
                 globals_1.globalSet(name, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil));
@@ -1874,39 +1899,50 @@ const runREPL = (s_, cb) => {
             term = surface_1.Import(term.term, term.imports, term.term);
         }
         config_1.log(() => surface_1.show(term));
-        config_1.log(() => 'ELABORATE');
-        const [eterm, etype] = elaboration_1.elaborate(term, local);
-        config_1.log(() => C.show(eterm));
-        config_1.log(() => surface_1.showCore(eterm, local.ns));
-        config_1.log(() => C.show(etype));
-        config_1.log(() => surface_1.showCore(etype, local.ns));
-        config_1.log(() => 'VERIFICATION');
-        typecheck_1.typecheck(eterm, local);
-        let normstr = '';
-        if (!typeOnly) {
-            config_1.log(() => 'NORMALIZE');
-            const norm = values_1.normalize(eterm, local.level, local.vs, true);
-            config_1.log(() => C.show(norm));
-            config_1.log(() => surface_1.showCore(norm, local.ns));
-            normstr = `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
+        let prom = Promise.resolve();
+        if (doPreload) {
+            config_1.log(() => 'PRELOAD');
+            prom = globals_1.preload(term, local).then(() => { });
         }
-        const etermstr = surface_1.showCore(eterm, local.ns);
-        if (isDef) {
-            if (term.tag === 'Let') {
-                const value = values_1.evaluate(eterm, local.vs);
-                local = local.define(usage, term.name, values_1.evaluate(etype, local.vs), value);
+        prom.then(() => {
+            config_1.log(() => 'ELABORATE');
+            const [eterm, etype] = elaboration_1.elaborate(term, local);
+            config_1.log(() => C.show(eterm));
+            config_1.log(() => surface_1.showCore(eterm, local.ns));
+            config_1.log(() => C.show(etype));
+            config_1.log(() => surface_1.showCore(etype, local.ns));
+            config_1.log(() => 'VERIFICATION');
+            typecheck_1.typecheck(eterm, local);
+            let normstr = '';
+            if (!typeOnly) {
+                config_1.log(() => 'NORMALIZE');
+                const norm = values_1.normalize(eterm, local.level, local.vs, true);
+                config_1.log(() => C.show(norm));
+                config_1.log(() => surface_1.showCore(norm, local.ns));
+                normstr = `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
             }
-            else if (term.tag === 'Import') {
-                let c = eterm;
-                while (c && c.tag === 'Let') {
-                    local = local.define(c.usage, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs));
-                    c = c.body;
+            const etermstr = surface_1.showCore(eterm, local.ns);
+            if (isDef) {
+                if (term.tag === 'Let') {
+                    const value = values_1.evaluate(eterm, local.vs);
+                    local = local.define(usage, term.name, values_1.evaluate(etype, local.vs), value);
                 }
+                else if (term.tag === 'Import') {
+                    let c = eterm;
+                    while (c && c.tag === 'Let') {
+                        local = local.define(c.usage, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs));
+                        c = c.body;
+                    }
+                }
+                else
+                    throw new Error(`invalid definition: ${term.tag}`);
             }
-            else
-                throw new Error(`invalid definition: ${term.tag}`);
-        }
-        return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+            return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+        }).catch(err => {
+            if (showStackTrace)
+                console.error(err);
+            return cb(`${err}`, true);
+        });
     }
     catch (err) {
         if (showStackTrace)
@@ -1919,8 +1955,9 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.PrimElim = exports.Hole = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
+exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.PrimElim = exports.Hole = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
+const prims_1 = require("./prims");
 const usage_1 = require("./usage");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -2133,8 +2170,86 @@ const showCore = (t, ns = List_1.nil) => exports.show(exports.fromCore(t, ns));
 exports.showCore = showCore;
 const showVal = (v, k = 0, ns = List_1.nil) => exports.show(exports.fromCore(values_1.quote(v, k), ns));
 exports.showVal = showVal;
+const freeVarsAll = (t, a = []) => {
+    if (t.tag === 'Var')
+        return utils_1.pushUniq(a, t.name);
+    if (t.tag === 'Hole')
+        return a;
+    if (t.tag === 'Pi') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        return exports.freeVarsAll(t.type, a);
+    }
+    if (t.tag === 'Abs') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        return t.type ? exports.freeVarsAll(t.type, a) : a;
+    }
+    if (t.tag === 'App') {
+        exports.freeVarsAll(t.fn, a);
+        return exports.freeVarsAll(t.arg, a);
+    }
+    if (t.tag === 'Let') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        exports.freeVarsAll(t.val, a);
+        return t.type ? exports.freeVarsAll(t.type, a) : a;
+    }
+    if (t.tag === 'Import')
+        return exports.freeVarsAll(t.term, a);
+    if (t.tag === 'Sigma') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        return exports.freeVarsAll(t.type, a);
+    }
+    if (t.tag === 'Pair') {
+        exports.freeVarsAll(t.fst, a);
+        return exports.freeVarsAll(t.snd, a);
+    }
+    if (t.tag === 'Proj')
+        return exports.freeVarsAll(t.term, a);
+    if (t.tag === 'Signature') {
+        t.defs.forEach(d => { if (d.type)
+            exports.freeVarsAll(d.type, a); });
+        return a;
+    }
+    if (t.tag === 'Module') {
+        t.defs.forEach(d => {
+            exports.freeVarsAll(d.val, a);
+            if (d.type)
+                exports.freeVarsAll(d.type, a);
+        });
+        return a;
+    }
+    if (t.tag === 'PropEq') {
+        exports.freeVarsAll(t.left, a);
+        exports.freeVarsAll(t.right, a);
+        return t.type ? exports.freeVarsAll(t.type, a) : a;
+    }
+    if (t.tag === 'Refl') {
+        if (t.val)
+            exports.freeVarsAll(t.val, a);
+        return t.type ? exports.freeVarsAll(t.type, a) : a;
+    }
+    if (t.tag === 'PrimElim') {
+        exports.freeVarsAll(t.motive, a);
+        exports.freeVarsAll(t.scrut, a);
+        t.cases.forEach(x => exports.freeVarsAll(x, a));
+        return a;
+    }
+    return t;
+};
+exports.freeVarsAll = freeVarsAll;
+const freeVars = (t) => {
+    const vs = exports.freeVarsAll(t);
+    utils_1.remove(vs, '_');
+    utils_1.removeAll(vs, prims_1.PrimNames);
+    utils_1.removeAll(vs, prims_1.PrimElimNames);
+    return vs;
+};
+exports.freeVars = freeVars;
 
-},{"./names":8,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],13:[function(require,module,exports){
+},{"./names":8,"./prims":10,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.typecheck = void 0;
@@ -2595,7 +2710,7 @@ exports.cons = cons;
 },{"./utils":17}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.eqArr = exports.mapObj = exports.tryTE = exports.tryT = exports.hasDuplicates = exports.range = exports.loadFileSync = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
+exports.removeAll = exports.remove = exports.pushUniq = exports.eqArr = exports.mapObj = exports.tryTE = exports.tryT = exports.hasDuplicates = exports.range = exports.loadFileSync = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
 const impossible = (msg) => {
     throw new Error(`impossible: ${msg}`);
 };
@@ -2688,6 +2803,18 @@ const eqArr = (a, b, eq = (x, y) => x === y) => {
     return true;
 };
 exports.eqArr = eqArr;
+const pushUniq = (a, x) => a.includes(x) ? a : (a.push(x), a);
+exports.pushUniq = pushUniq;
+const remove = (a, x) => {
+    const i = a.indexOf(x);
+    return i >= 0 ? a.splice(i, 1) : a;
+};
+exports.remove = remove;
+const removeAll = (a, xs) => {
+    xs.forEach(x => exports.remove(a, x));
+    return a;
+};
+exports.removeAll = removeAll;
 
 },{"fs":20}],18:[function(require,module,exports){
 "use strict";

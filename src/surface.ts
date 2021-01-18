@@ -1,10 +1,10 @@
 import { Core } from './core';
 import { Mode } from './mode';
 import { chooseName, Ix, Lvl, Name } from './names';
-import { PrimElimName } from './prims';
+import { PrimElimName, PrimElimNames, PrimNames } from './prims';
 import { many, Usage } from './usage';
 import { cons, List, nil } from './utils/List';
-import { impossible } from './utils/utils';
+import { impossible, pushUniq, remove, removeAll } from './utils/utils';
 import { quote, Val } from './values';
 
 export type Surface =
@@ -208,3 +208,74 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
 
 export const showCore = (t: Core, ns: List<Name> = nil): string => show(fromCore(t, ns));
 export const showVal = (v: Val, k: Lvl = 0, ns: List<Name> = nil): string => show(fromCore(quote(v, k), ns));
+
+export const freeVarsAll = (t: Surface, a: Name[] = []): Name[] => {
+  if (t.tag === 'Var') return pushUniq(a, t.name);
+  if (t.tag === 'Hole') return a;
+  if (t.tag === 'Pi') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    return freeVarsAll(t.type, a);
+  }
+  if (t.tag === 'Abs') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    return t.type ? freeVarsAll(t.type, a) : a;
+  }
+  if (t.tag === 'App') {
+    freeVarsAll(t.fn, a);
+    return freeVarsAll(t.arg, a);
+  }
+  if (t.tag === 'Let') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    freeVarsAll(t.val, a);
+    return t.type ? freeVarsAll(t.type, a) : a;
+  }
+  if (t.tag === 'Import') return freeVarsAll(t.term, a);
+  if (t.tag === 'Sigma') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    return freeVarsAll(t.type, a);
+  }
+  if (t.tag === 'Pair') {
+    freeVarsAll(t.fst, a);
+    return freeVarsAll(t.snd, a);
+  }
+  if (t.tag === 'Proj') return freeVarsAll(t.term, a);
+  if (t.tag === 'Signature') {
+    t.defs.forEach(d => { if (d.type) freeVarsAll(d.type, a) });
+    return a;
+  }
+  if (t.tag === 'Module') {
+    t.defs.forEach(d => {
+      freeVarsAll(d.val, a);
+      if (d.type) freeVarsAll(d.type, a);
+    });
+    return a;
+  }
+  if (t.tag === 'PropEq') {
+    freeVarsAll(t.left, a);
+    freeVarsAll(t.right, a);
+    return t.type ? freeVarsAll(t.type, a) : a;
+  }
+  if (t.tag === 'Refl') {
+    if (t.val) freeVarsAll(t.val, a);
+    return t.type ? freeVarsAll(t.type, a) : a;
+  }
+  if (t.tag === 'PrimElim') {
+    freeVarsAll(t.motive, a);
+    freeVarsAll(t.scrut, a);
+    t.cases.forEach(x => freeVarsAll(x, a));
+    return a;
+  }
+  return t;
+};
+
+export const freeVars = (t: Surface): Name[] => {
+  const vs = freeVarsAll(t);
+  remove(vs, '_');
+  removeAll(vs, PrimNames);
+  removeAll(vs, PrimElimNames);
+  return vs;
+};

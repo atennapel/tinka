@@ -13,7 +13,6 @@ yarn start example.p
 ```
 todo:
 - fix linear let values
-- fix importing in web repl
 - erasure
 - metas
 - elaboration with metas

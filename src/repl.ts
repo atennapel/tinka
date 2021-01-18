@@ -9,7 +9,7 @@ import * as C from './core';
 import { typecheck } from './typecheck';
 import { evaluate, normalize, quote, Val } from './values';
 import { loadFile } from './utils/utils';
-import { globalSet } from './globals';
+import { globalSet, preload } from './globals';
 import { Cons, nil } from './utils/List';
 
 const help = `
@@ -25,10 +25,12 @@ COMMANDS
 `.trim();
 
 let showStackTrace = false;
+let doPreload = true;
 let local: Local = Local.empty();
 
 export const initREPL = () => {
   showStackTrace = false;
+  doPreload = true;
   local = Local.empty();
 };
 
@@ -45,6 +47,10 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     if (s === ':showStackTrace') {
       showStackTrace = !showStackTrace;
       return cb(`showStackTrace: ${showStackTrace}`);
+    }
+    if (s === ':preload') {
+      doPreload = !doPreload;
+      return cb(`preload: ${doPreload}`);
     }
     if (s === ':defs') {
       const defs: string[] = [];
@@ -73,8 +79,9 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     if (s.startsWith(':load')) {
       const name = `lib/${s.slice(5).trim()}`;
       loadFile(name)
-        .then(sc => {
-          const e = parse(sc);
+        .then(sc => parse(sc))
+        .then(e => doPreload ? preload(e, local).then(() => e) : e)
+        .then(e => {
           const [tm, ty] = elaborate(e);
           typecheck(tm);
           globalSet(name, evaluate(tm, nil), evaluate(ty, nil));
@@ -104,41 +111,52 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     }
     log(() => show(term));
 
-    log(() => 'ELABORATE');
-    const [eterm, etype] = elaborate(term, local);
-    log(() => C.show(eterm));
-    log(() => showCore(eterm, local.ns));
-    log(() => C.show(etype));
-    log(() => showCore(etype, local.ns));
-
-    log(() => 'VERIFICATION');
-    typecheck(eterm, local);
-
-    let normstr = '';
-    if (!typeOnly) {
-      log(() => 'NORMALIZE');
-      const norm = normalize(eterm, local.level, local.vs, true);
-      log(() => C.show(norm));
-      log(() => showCore(norm, local.ns));
-      normstr = `\nnorm: ${showCore(norm, local.ns)}`;
+    let prom = Promise.resolve();
+    if (doPreload) {
+      log(() => 'PRELOAD');
+      prom = preload(term, local).then(() => {});
     }
 
-    const etermstr = showCore(eterm, local.ns);
+    prom.then(() => {
+      log(() => 'ELABORATE');
+      const [eterm, etype] = elaborate(term, local);
+      log(() => C.show(eterm));
+      log(() => showCore(eterm, local.ns));
+      log(() => C.show(etype));
+      log(() => showCore(etype, local.ns));
 
-    if (isDef) {
-      if (term.tag === 'Let') {
-        const value = evaluate(eterm, local.vs);
-        local = local.define(usage, term.name, evaluate(etype, local.vs), value);
-      } else if (term.tag === 'Import') {
-        let c: C.Core = eterm;
-        while (c && c.tag === 'Let') {
-          local = local.define(c.usage, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs));
-          c = c.body;
-        }
-      } else throw new Error(`invalid definition: ${term.tag}`);
-    }
+      log(() => 'VERIFICATION');
+      typecheck(eterm, local);
 
-    return cb(`term: ${show(term)}\ntype: ${showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+      let normstr = '';
+      if (!typeOnly) {
+        log(() => 'NORMALIZE');
+        const norm = normalize(eterm, local.level, local.vs, true);
+        log(() => C.show(norm));
+        log(() => showCore(norm, local.ns));
+        normstr = `\nnorm: ${showCore(norm, local.ns)}`;
+      }
+
+      const etermstr = showCore(eterm, local.ns);
+
+      if (isDef) {
+        if (term.tag === 'Let') {
+          const value = evaluate(eterm, local.vs);
+          local = local.define(usage, term.name, evaluate(etype, local.vs), value);
+        } else if (term.tag === 'Import') {
+          let c: C.Core = eterm;
+          while (c && c.tag === 'Let') {
+            local = local.define(c.usage, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs));
+            c = c.body;
+          }
+        } else throw new Error(`invalid definition: ${term.tag}`);
+      }
+
+      return cb(`term: ${show(term)}\ntype: ${showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+    }).catch(err => {
+      if (showStackTrace) console.error(err);
+      return cb(`${err}`, true);
+    });
   } catch (err) {
     if (showStackTrace) console.error(err);
     return cb(`${err}`, true);

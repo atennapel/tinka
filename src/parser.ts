@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { PrimElimName, PrimElimNames } from './prims';
+import { isPrimElimName, PrimElimName, PrimElimNames } from './prims';
 import { Abs, App, Import, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, Hole, UnitType, Unit, PrimElim } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
@@ -212,6 +212,7 @@ const expr = (t: Token): [Surface, boolean] => {
   }
   if (t.tag === 'Name') {
     const x = t.name;
+    if (isPrimElimName(x)) return serr(`prim elim ${x} used without arguments`);
     if (x === 'Refl') return [Refl(null, null), false];
     if (x === '*') return [Unit, false];
     if (x[0] === '_') return [Hole(x.slice(1)), false];
