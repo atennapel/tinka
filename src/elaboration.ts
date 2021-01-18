@@ -255,6 +255,12 @@ const synth = (local: Local, tm: Surface): [Core, Val, Uses] => {
     const x = evaluate(val, local.vs);
     return [Refl(type, val), VPropEq(ty, x, x), noUses(local.level)];
   }
+  if (tm.tag === 'Ann') {
+    const [type] = check(local.inType(), tm.type, VType);
+    const vtype = evaluate(type, local.vs);
+    const [term, u] = check(local, tm.term, vtype);
+    return [Let(one, 'x', type, term, Var(0)), vtype, u];
+  }
   return terr(`unable to synth ${show(tm)}`);
 };
 

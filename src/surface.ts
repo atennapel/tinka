@@ -2,13 +2,13 @@ import { Core } from './core';
 import { Mode } from './mode';
 import { chooseName, Ix, Lvl, Name } from './names';
 import { PrimElimName, PrimElimNames, PrimNames } from './prims';
-import { many, Usage } from './usage';
+import { many, one, Usage } from './usage';
 import { cons, List, nil } from './utils/List';
 import { impossible, pushUniq, remove, removeAll } from './utils/utils';
 import { quote, Val } from './values';
 
 export type Surface =
-  Var | Let | Hole |
+  Var | Let | Hole | Ann |
   Pi | Abs | App |
   Sigma | Pair | Proj |
   Signature | Module | Import |
@@ -19,6 +19,8 @@ export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
 export interface Let { readonly tag: 'Let'; readonly usage: Usage; readonly name: Name; readonly type: Surface | null; readonly val: Surface; readonly body: Surface }
 export const Let = (usage: Usage, name: Name, type: Surface | null, val: Surface, body: Surface): Let => ({ tag: 'Let', usage, name, type, val, body });
+export interface Ann { readonly tag: 'Ann'; readonly term: Surface; readonly type: Surface }
+export const Ann = (term: Surface, type: Surface): Ann => ({ tag: 'Ann', term, type });
 export interface Pi { readonly tag: 'Pi'; readonly usage: Usage; readonly mode: Mode; readonly name: Name; readonly type: Surface; readonly body: Surface }
 export const Pi = (usage: Usage, mode: Mode, name: Name, type: Surface, body: Surface): Pi =>
   ({ tag: 'Pi', usage, mode, name, type, body });
@@ -174,6 +176,8 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Refl') return `Refl${t.type ? ` {${show(t.type)}}` : ''}${t.val ? ` {${show(t.val)}}` : ''}`;
   if (t.tag === 'PrimElim')
     return `${t.name} ${t.usage === many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cases.map(c => ` ${showS(c)}`).join('')}`;
+  if (t.tag === 'Ann')
+    return `${show(t.term)} : ${show(t.type)}`;
   return t;
 };
 
@@ -191,6 +195,9 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
     return Abs(t.usage, t.mode, x, fromCore(t.type, ns), fromCore(t.body, cons(x, ns)));
   }
   if (t.tag === 'Let') {
+    // de-elaborate annotations
+    if (t.usage === one && t.body.tag === 'Var' && t.body.index === 0)
+      return Ann(fromCore(t.val, ns), fromCore(t.type, ns));
     const x = chooseName(t.name, ns);
     return Let(t.usage, x, fromCore(t.type, ns), fromCore(t.val, ns), fromCore(t.body, cons(x, ns)));
   }
@@ -268,6 +275,10 @@ export const freeVarsAll = (t: Surface, a: Name[] = []): Name[] => {
     freeVarsAll(t.scrut, a);
     t.cases.forEach(x => freeVarsAll(x, a));
     return a;
+  }
+  if (t.tag === 'Ann') {
+    freeVarsAll(t.term, a);
+    return freeVarsAll(t.type, a);
   }
   return t;
 };

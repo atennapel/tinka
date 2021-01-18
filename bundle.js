@@ -628,6 +628,12 @@ const synth = (local, tm) => {
         const x = values_1.evaluate(val, local.vs);
         return [core_1.Refl(type, val), values_1.VPropEq(ty, x, x), usage_1.noUses(local.level)];
     }
+    if (tm.tag === 'Ann') {
+        const [type] = check(local.inType(), tm.type, values_1.VType);
+        const vtype = values_1.evaluate(type, local.vs);
+        const [term, u] = check(local, tm.term, vtype);
+        return [core_1.Let(usage_1.one, 'x', type, term, core_1.Var(0)), vtype, u];
+    }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
 };
 const createModuleTerm = (local, entries, full) => {
@@ -1365,7 +1371,7 @@ const exprs = (ts, br, fromRepl = false) => {
     if (i >= 0) {
         const a = ts.slice(0, i);
         const b = ts.slice(i + 1);
-        return surface_1.Let(usage_1.many, 'x', exprs(b, '('), exprs(a, '('), surface_1.Var('x'));
+        return surface_1.Ann(exprs(a, '('), exprs(b, '('));
     }
     const j = ts.findIndex(x => isName(x, '->'));
     if (j >= 0) {
@@ -1955,7 +1961,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.PrimElim = exports.Hole = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Var = void 0;
+exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.PrimElim = exports.Hole = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const prims_1 = require("./prims");
 const usage_1 = require("./usage");
@@ -1966,6 +1972,8 @@ const Var = (name) => ({ tag: 'Var', name });
 exports.Var = Var;
 const Let = (usage, name, type, val, body) => ({ tag: 'Let', usage, name, type, val, body });
 exports.Let = Let;
+const Ann = (term, type) => ({ tag: 'Ann', term, type });
+exports.Ann = Ann;
 const Pi = (usage, mode, name, type, body) => ({ tag: 'Pi', usage, mode, name, type, body });
 exports.Pi = Pi;
 const Abs = (usage, mode, name, type, body) => ({ tag: 'Abs', usage, mode, name, type, body });
@@ -2125,6 +2133,8 @@ const show = (t) => {
         return `Refl${t.type ? ` {${exports.show(t.type)}}` : ''}${t.val ? ` {${exports.show(t.val)}}` : ''}`;
     if (t.tag === 'PrimElim')
         return `${t.name} ${t.usage === usage_1.many ? '' : `${t.usage} `}${showS(t.motive)} ${showS(t.scrut)}${t.cases.map(c => ` ${showS(c)}`).join('')}`;
+    if (t.tag === 'Ann')
+        return `${exports.show(t.term)} : ${exports.show(t.type)}`;
     return t;
 };
 exports.show = show;
@@ -2146,6 +2156,9 @@ const fromCore = (t, ns = List_1.nil) => {
         return exports.Abs(t.usage, t.mode, x, exports.fromCore(t.type, ns), exports.fromCore(t.body, List_1.cons(x, ns)));
     }
     if (t.tag === 'Let') {
+        // de-elaborate annotations
+        if (t.usage === usage_1.one && t.body.tag === 'Var' && t.body.index === 0)
+            return exports.Ann(exports.fromCore(t.val, ns), exports.fromCore(t.type, ns));
         const x = names_1.chooseName(t.name, ns);
         return exports.Let(t.usage, x, exports.fromCore(t.type, ns), exports.fromCore(t.val, ns), exports.fromCore(t.body, List_1.cons(x, ns)));
     }
@@ -2236,6 +2249,10 @@ const freeVarsAll = (t, a = []) => {
         exports.freeVarsAll(t.scrut, a);
         t.cases.forEach(x => exports.freeVarsAll(x, a));
         return a;
+    }
+    if (t.tag === 'Ann') {
+        exports.freeVarsAll(t.term, a);
+        return exports.freeVarsAll(t.type, a);
     }
     return t;
 };

@@ -2,7 +2,7 @@ import { log } from './config';
 import { Expl, Impl, Mode } from './mode';
 import { Name } from './names';
 import { isPrimElimName, PrimElimName, PrimElimNames } from './prims';
-import { Abs, App, Import, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, Hole, UnitType, Unit, PrimElim } from './surface';
+import { Abs, App, Import, Let, ModEntry, Module, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PropEq, PSnd, Refl, show, SigEntry, Sigma, Signature, Surface, Var, Hole, UnitType, Unit, PrimElim, Ann } from './surface';
 import { many, Usage, usages } from './usage';
 import { serr } from './utils/utils';
 
@@ -376,7 +376,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
   if (i >= 0) {
     const a = ts.slice(0, i);
     const b = ts.slice(i + 1);
-    return Let(many, 'x', exprs(b, '('), exprs(a, '('), Var('x'));
+    return Ann(exprs(a, '('), exprs(b, '('));
   }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {
