@@ -12,7 +12,6 @@ yarn start example.p
 
 ```
 todo:
-- erasure
 - metas
 - elaboration with metas
 - remove implicit arguments from primitive constructs (PropEq and Refl)

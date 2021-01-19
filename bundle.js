@@ -144,7 +144,7 @@ const conv = (k, a, b) => {
 };
 exports.conv = conv;
 
-},{"./config":1,"./core":3,"./mode":7,"./utils/utils":17,"./values":18}],3:[function(require,module,exports){
+},{"./config":1,"./core":3,"./mode":9,"./utils/utils":19,"./values":20}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.PrimElim = exports.Refl = exports.PropEq = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
@@ -354,7 +354,7 @@ exports.substVar = substVar;
 const subst = (t, u) => exports.shift(-1, 0, exports.substVar(0, exports.shift(1, 0, u), t));
 exports.subst = subst;
 
-},{"./usage":14}],4:[function(require,module,exports){
+},{"./usage":16}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.elaborate = void 0;
@@ -766,7 +766,273 @@ const elaborate = (t, local = local_1.Local.empty()) => {
 };
 exports.elaborate = elaborate;
 
-},{"./config":1,"./conversion":2,"./core":3,"./globals":5,"./local":6,"./mode":7,"./prims":10,"./surface":12,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],5:[function(require,module,exports){
+},{"./config":1,"./conversion":2,"./core":3,"./globals":7,"./local":8,"./mode":9,"./prims":12,"./surface":14,"./usage":16,"./utils/List":18,"./utils/utils":19,"./values":20}],5:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.erasePrimElim = exports.erasePrim = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.TODO = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.False = exports.True = exports.ElimFix = exports.ElimBool = exports.Bool = exports.Proj = exports.Pair = exports.App = exports.Abs = exports.Let = exports.Global = exports.Var = void 0;
+const Var = (index) => ({ tag: 'Var', index });
+exports.Var = Var;
+const Global = (name) => ({ tag: 'Global', name });
+exports.Global = Global;
+const Let = (val, body) => ({ tag: 'Let', val, body });
+exports.Let = Let;
+const Abs = (body) => ({ tag: 'Abs', body });
+exports.Abs = Abs;
+const App = (fn, arg) => ({ tag: 'App', fn, arg });
+exports.App = App;
+const Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
+exports.Pair = Pair;
+const Proj = (term, proj) => ({ tag: 'Proj', term, proj });
+exports.Proj = Proj;
+const Bool = (value) => ({ tag: 'Bool', value });
+exports.Bool = Bool;
+const ElimBool = (term, ifTrue, ifFalse) => ({ tag: 'ElimBool', term, ifTrue, ifFalse });
+exports.ElimBool = ElimBool;
+const ElimFix = (term, cas) => ({ tag: 'ElimFix', term, cas });
+exports.ElimFix = ElimFix;
+exports.True = exports.Bool(true);
+exports.False = exports.Bool(false);
+const PProj = (proj) => ({ tag: 'PProj', proj });
+exports.PProj = PProj;
+exports.PFst = exports.PProj('fst');
+exports.PSnd = exports.PProj('snd');
+const PIndex = (index) => ({ tag: 'PIndex', index });
+exports.PIndex = PIndex;
+exports.Type = exports.False;
+exports.TODO = exports.Global('TODO');
+const flattenApp = (t) => {
+    const args = [];
+    let c = t;
+    while (c.tag === 'App') {
+        args.push(c.arg);
+        c = c.fn;
+    }
+    return [c, args.reverse()];
+};
+exports.flattenApp = flattenApp;
+const flattenPair = (t) => {
+    const r = [];
+    while (t.tag === 'Pair') {
+        r.push(t.fst);
+        t = t.snd;
+    }
+    r.push(t);
+    return r;
+};
+exports.flattenPair = flattenPair;
+const flattenProj = (t) => {
+    const r = [];
+    while (t.tag === 'Proj') {
+        r.push(t.proj);
+        t = t.term;
+    }
+    return [t, r.reverse()];
+};
+exports.flattenProj = flattenProj;
+const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Proj' || t.tag === 'Bool';
+const showS = (t) => showP(!isSimple(t), t);
+const showProjType = (p) => {
+    if (p.tag === 'PProj')
+        return p.proj === 'fst' ? '_1' : '_2';
+    if (p.tag === 'PIndex')
+        return `${p.index}`;
+    return p;
+};
+const show = (t) => {
+    if (t.tag === 'Var')
+        return `'${t.index}`;
+    if (t.tag === 'Global')
+        return `${t.name}`;
+    if (t.tag === 'Bool')
+        return t.value ? '1' : '0';
+    if (t.tag === 'Abs')
+        return `\\${exports.show(t.body)}`;
+    if (t.tag === 'App') {
+        const [fn, args] = exports.flattenApp(t);
+        return `${showS(fn)} ${args.map(a => showS(a)).join(' ')}`;
+    }
+    if (t.tag === 'Let')
+        return `let ${showP(t.val.tag === 'Let', t.val)}; ${exports.show(t.body)}`;
+    if (t.tag === 'Pair') {
+        const ps = exports.flattenPair(t);
+        return `(${ps.map(t => exports.show(t)).join(', ')})`;
+    }
+    if (t.tag === 'Proj') {
+        const [hd, ps] = exports.flattenProj(t);
+        return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
+    }
+    if (t.tag === 'ElimBool')
+        return `if ${showS(t.term)} ${showS(t.ifTrue)} ${showS(t.ifFalse)}`;
+    if (t.tag === 'ElimFix')
+        return `rec ${showS(t.term)} ${showS(t.cas)}`;
+    return t;
+};
+exports.show = show;
+const idTerm = exports.Abs(exports.Var(0));
+const erasePrim = (x) => {
+    if (x === '*')
+        return exports.False;
+    if (x === 'False')
+        return exports.False;
+    if (x === 'True')
+        return exports.True;
+    if (x === 'ICon')
+        return idTerm;
+    return exports.Type;
+};
+exports.erasePrim = erasePrim;
+const erasePrimElim = (x, scrut, cases) => {
+    if (x === 'elimUnit')
+        return cases[0];
+    if (x === 'elimVoid')
+        return scrut;
+    if (x === 'elimPropEq')
+        return cases[0];
+    if (x === 'elimSigma') {
+        if (scrut.tag === 'Pair')
+            return exports.App(exports.App(cases[0], scrut.fst), scrut.snd);
+        if (scrut.tag === 'Var' || scrut.tag === 'Global')
+            return exports.App(exports.App(cases[0], exports.Proj(scrut, exports.PFst)), exports.Proj(scrut, exports.PSnd));
+        return exports.Let(scrut, exports.App(exports.App(cases[0], exports.Proj(exports.Var(0), exports.PFst)), exports.Proj(exports.Var(0), exports.PSnd)));
+    }
+    if (x === 'elimBool') {
+        if (scrut.tag === 'Bool')
+            return scrut.value ? cases[0] : cases[1];
+        return exports.ElimBool(scrut, cases[0], cases[1]);
+    }
+    if (x === 'elimIFix')
+        return exports.ElimFix(scrut, cases[0]);
+    return x;
+};
+exports.erasePrimElim = erasePrimElim;
+
+},{}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimfix = exports.velimbool = exports.vproj = exports.vapp = exports.vinst = exports.VVar = exports.VBool = exports.VPair = exports.VAbs = exports.VNe = exports.EElimFix = exports.EElimBool = exports.EProj = exports.EApp = void 0;
+const erased_1 = require("./erased");
+const globals_1 = require("./globals");
+const List_1 = require("./utils/List");
+const utils_1 = require("./utils/utils");
+const EApp = (arg) => ({ tag: 'EApp', arg });
+exports.EApp = EApp;
+const EProj = (proj) => ({ tag: 'EProj', proj });
+exports.EProj = EProj;
+const EElimBool = (ifTrue, ifFalse) => ({ tag: 'EElimBool', ifTrue, ifFalse });
+exports.EElimBool = EElimBool;
+const EElimFix = (cas) => ({ tag: 'EElimFix', cas });
+exports.EElimFix = EElimFix;
+const VNe = (head, spine) => ({ tag: 'VNe', head, spine });
+exports.VNe = VNe;
+const VAbs = (clos) => ({ tag: 'VAbs', clos });
+exports.VAbs = VAbs;
+const VPair = (fst, snd) => ({ tag: 'VPair', fst, snd });
+exports.VPair = VPair;
+const VBool = (value) => ({ tag: 'VBool', value });
+exports.VBool = VBool;
+const VVar = (level, spine = List_1.nil) => exports.VNe(level, spine);
+exports.VVar = VVar;
+const vinst = (val, arg) => val.clos(arg);
+exports.vinst = vinst;
+const vapp = (left, right) => {
+    if (left.tag === 'VAbs')
+        return exports.vinst(left, right);
+    if (left.tag === 'VNe')
+        return exports.VNe(left.head, List_1.cons(exports.EApp(right), left.spine));
+    return utils_1.impossible(`vapp: ${left.tag}`);
+};
+exports.vapp = vapp;
+const vproj = (scrut, proj) => {
+    if (scrut.tag === 'VPair') {
+        if (proj.tag === 'PProj')
+            return proj.proj === 'fst' ? scrut.fst : scrut.snd;
+        if (proj.tag === 'PIndex') {
+            if (proj.index === 0)
+                return scrut.fst;
+            return exports.vproj(scrut.snd, erased_1.PIndex(proj.index - 1));
+        }
+        return proj;
+    }
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EProj(proj), scrut.spine));
+    return utils_1.impossible(`vproj: ${scrut.tag}`);
+};
+exports.vproj = vproj;
+const velimbool = (scrut, ifTrue, ifFalse) => {
+    if (scrut.tag === 'VBool')
+        return scrut.value ? ifTrue : ifFalse;
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EElimBool(ifTrue, ifFalse), scrut.spine));
+    return utils_1.impossible(`velimbool: ${scrut.tag}`);
+};
+exports.velimbool = velimbool;
+const velimfix = (scrut, cas) => {
+    if (scrut.tag === 'VNe')
+        return exports.VNe(scrut.head, List_1.cons(exports.EElimFix(cas), scrut.spine));
+    return exports.vapp(exports.vapp(cas, exports.VAbs(v => exports.velimfix(v, cas))), scrut);
+};
+exports.velimfix = velimfix;
+const evaluate = (t, vs) => {
+    if (t.tag === 'Abs')
+        return exports.VAbs(v => exports.evaluate(t.body, List_1.cons(v, vs)));
+    if (t.tag === 'Var') {
+        const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
+        return v;
+    }
+    if (t.tag === 'Global') {
+        const e = globals_1.globalLoad(t.name);
+        if (!e)
+            return utils_1.terr(`failed to load global ${t.name}`);
+        return e.erval;
+    }
+    if (t.tag === 'App')
+        return exports.vapp(exports.evaluate(t.fn, vs), exports.evaluate(t.arg, vs));
+    if (t.tag === 'Let')
+        return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs), vs));
+    if (t.tag === 'Pair')
+        return exports.VPair(exports.evaluate(t.fst, vs), exports.evaluate(t.snd, vs));
+    if (t.tag === 'Proj')
+        return exports.vproj(exports.evaluate(t.term, vs), t.proj);
+    if (t.tag === 'Bool')
+        return exports.VBool(t.value);
+    if (t.tag === 'ElimBool')
+        return exports.velimbool(exports.evaluate(t.term, vs), exports.evaluate(t.ifTrue, vs), exports.evaluate(t.ifFalse, vs));
+    if (t.tag === 'ElimFix')
+        return exports.velimfix(exports.evaluate(t.term, vs), exports.evaluate(t.cas, vs));
+    return t;
+};
+exports.evaluate = evaluate;
+const quoteHead = (h, k) => erased_1.Var(k - (h + 1));
+const quoteElim = (t, e, k) => {
+    if (e.tag === 'EApp')
+        return erased_1.App(t, exports.quote(e.arg, k));
+    if (e.tag === 'EProj')
+        return erased_1.Proj(t, e.proj);
+    if (e.tag === 'EElimBool')
+        return erased_1.ElimBool(t, exports.quote(e.ifTrue, k), exports.quote(e.ifFalse, k));
+    if (e.tag === 'EElimFix')
+        return erased_1.ElimFix(t, exports.quote(e.cas, k));
+    return e;
+};
+const quote = (v, k) => {
+    if (v.tag === 'VNe')
+        return v.spine.foldr((x, y) => quoteElim(y, x, k), quoteHead(v.head, k));
+    if (v.tag === 'VAbs')
+        return erased_1.Abs(exports.quote(exports.vinst(v, exports.VVar(k)), k + 1));
+    if (v.tag === 'VPair')
+        return erased_1.Pair(exports.quote(v.fst, k), exports.quote(v.snd, k));
+    if (v.tag === 'VBool')
+        return erased_1.Bool(v.value);
+    return v;
+};
+exports.quote = quote;
+const normalize = (t, k = 0, vs = List_1.nil) => exports.quote(exports.evaluate(t, vs), k);
+exports.normalize = normalize;
+const show = (v, k = 0) => erased_1.show(exports.quote(v, k));
+exports.show = show;
+
+},{"./erased":5,"./globals":7,"./utils/List":18,"./utils/utils":19}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.preload = exports.globalLoad = exports.globalSet = exports.globalGet = exports.globalReset = void 0;
@@ -778,6 +1044,7 @@ const typecheck_1 = require("./typecheck");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
+const EV = require("./erasedvalues");
 let globals = {};
 const globalReset = () => {
     globals = {};
@@ -785,8 +1052,8 @@ const globalReset = () => {
 exports.globalReset = globalReset;
 const globalGet = (x) => globals[x] || null;
 exports.globalGet = globalGet;
-const globalSet = (x, val, type) => {
-    globals[x] = { val, type };
+const globalSet = (x, val, type, erval) => {
+    globals[x] = { val, type, erval };
 };
 exports.globalSet = globalSet;
 const globalLoad = (x) => {
@@ -797,8 +1064,8 @@ const globalLoad = (x) => {
         return null;
     const e = parser_1.parse(sc);
     const [tm, ty] = elaboration_1.elaborate(e);
-    typecheck_1.typecheck(tm);
-    exports.globalSet(x, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil));
+    const [, er] = typecheck_1.typecheck(tm);
+    exports.globalSet(x, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil), EV.evaluate(er, List_1.nil));
     return exports.globalGet(x);
 };
 exports.globalLoad = globalLoad;
@@ -810,14 +1077,14 @@ const preload = (t, local = local_1.Local.empty()) => {
         const sc = await utils_1.loadFile(`lib/${v}`);
         const e = parser_1.parse(sc);
         const [tm, ty] = elaboration_1.elaborate(e);
-        typecheck_1.typecheck(tm);
-        exports.globalSet(v, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil));
+        const [, er] = typecheck_1.typecheck(tm);
+        exports.globalSet(v, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil), EV.evaluate(er, List_1.nil));
         return exports.globalGet(v) || utils_1.impossible(`preload failed, unable to get ${v}`);
     }));
 };
 exports.preload = preload;
 
-},{"./elaboration":4,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./utils/List":16,"./utils/utils":17,"./values":18}],6:[function(require,module,exports){
+},{"./elaboration":4,"./erasedvalues":6,"./local":8,"./parser":11,"./surface":14,"./typecheck":15,"./utils/List":18,"./utils/utils":19,"./values":20}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showVal = exports.showValCore = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
@@ -831,6 +1098,7 @@ exports.EntryT = EntryT;
 const indexEnvT = (ts, ix) => {
     let l = ts;
     let i = 0;
+    let erased = 0;
     while (l.isCons()) {
         if (l.head.inserted) {
             l = l.tail;
@@ -838,7 +1106,9 @@ const indexEnvT = (ts, ix) => {
             continue;
         }
         if (ix === 0)
-            return [l.head, i];
+            return [l.head, i, erased];
+        if (l.head.usage === usage_1.zero)
+            erased++;
         i++;
         ix--;
         l = l.tail;
@@ -884,7 +1154,7 @@ exports.showValCore = showValCore;
 const showVal = (local, val) => S.showVal(val, local.level, local.ns);
 exports.showVal = showVal;
 
-},{"./mode":7,"./surface":12,"./usage":14,"./utils/List":16,"./values":18}],7:[function(require,module,exports){
+},{"./mode":9,"./surface":14,"./usage":16,"./utils/List":18,"./values":20}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.eqMode = exports.Impl = exports.Expl = void 0;
@@ -895,7 +1165,7 @@ exports.Impl = { tag: 'Impl' };
 const eqMode = (a, b) => a.tag === b.tag;
 exports.eqMode = eqMode;
 
-},{}],8:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.chooseName = exports.nextName = void 0;
@@ -911,7 +1181,7 @@ exports.nextName = nextName;
 const chooseName = (x, ns) => x === '_' ? x : ns.contains(x) ? exports.chooseName(exports.nextName(x), ns) : x;
 exports.chooseName = chooseName;
 
-},{}],9:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parse = void 0;
@@ -1654,7 +1924,7 @@ const parse = (s, fromRepl = false) => {
 };
 exports.parse = parse;
 
-},{"./config":1,"./mode":7,"./prims":10,"./surface":12,"./usage":14,"./utils/utils":17}],10:[function(require,module,exports){
+},{"./config":1,"./mode":9,"./prims":12,"./surface":14,"./usage":16,"./utils/utils":19}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.synthPrimElim = exports.synthPrim = exports.primElim = exports.isPrimElimName = exports.isPrimName = exports.PrimElimNames = exports.PrimNames = void 0;
@@ -1792,7 +2062,7 @@ exports.synthPrim = synthPrim;
 const synthPrimElim = (name) => primElimTypes[name];
 exports.synthPrimElim = synthPrimElim;
 
-},{"./mode":7,"./usage":14,"./utils/Lazy":15,"./utils/utils":17,"./values":18}],11:[function(require,module,exports){
+},{"./mode":9,"./usage":16,"./utils/Lazy":17,"./utils/utils":19,"./values":20}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -1808,6 +2078,8 @@ const values_1 = require("./values");
 const utils_1 = require("./utils/utils");
 const globals_1 = require("./globals");
 const List_1 = require("./utils/List");
+const erased_1 = require("./erased");
+const EV = require("./erasedvalues");
 const help = `
 COMMANDS
 [:help or :h] this help message
@@ -1821,11 +2093,17 @@ COMMANDS
 `.trim();
 let showStackTrace = false;
 let doPreload = true;
+let showFullNorm = false;
+let showErasure = true;
 let local = local_1.Local.empty();
+let ervs = List_1.nil;
 const initREPL = () => {
     showStackTrace = false;
+    showFullNorm = false;
     doPreload = true;
+    showErasure = true;
     local = local_1.Local.empty();
+    ervs = List_1.nil;
 };
 exports.initREPL = initREPL;
 const runREPL = (s_, cb) => {
@@ -1841,6 +2119,14 @@ const runREPL = (s_, cb) => {
         if (s === ':showStackTrace') {
             showStackTrace = !showStackTrace;
             return cb(`showStackTrace: ${showStackTrace}`);
+        }
+        if (s === ':showFullNorm') {
+            showFullNorm = !showFullNorm;
+            return cb(`showFullNorm: ${showFullNorm}`);
+        }
+        if (s === ':showErasure') {
+            showErasure = !showErasure;
+            return cb(`showErasure: ${showErasure}`);
         }
         if (s === ':preload') {
             doPreload = !doPreload;
@@ -1860,12 +2146,16 @@ const runREPL = (s_, cb) => {
         }
         if (s === ':clear') {
             local = local_1.Local.empty();
+            ervs = List_1.nil;
             return cb(`cleared definitions`);
         }
         if (s === ':undoDef') {
             if (local.level > 0) {
                 const name = local.ns.head;
                 local = local.undo();
+                const usage = local.ts.head;
+                if (usage.usage !== usage_1.zero)
+                    ervs = ervs.tail;
                 return cb(`removed definition ${name}`);
             }
             cb(`no def to undo`);
@@ -1877,8 +2167,8 @@ const runREPL = (s_, cb) => {
                 .then(e => doPreload ? globals_1.preload(e, local).then(() => e) : e)
                 .then(e => {
                 const [tm, ty] = elaboration_1.elaborate(e);
-                typecheck_1.typecheck(tm);
-                globals_1.globalSet(name, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil));
+                const [, er] = typecheck_1.typecheck(tm);
+                globals_1.globalSet(name, values_1.evaluate(tm, List_1.nil), values_1.evaluate(ty, List_1.nil), EV.evaluate(er, List_1.nil));
                 cb(`loaded ${name}`);
             })
                 .catch(err => cb('' + err, true));
@@ -1918,32 +2208,45 @@ const runREPL = (s_, cb) => {
             config_1.log(() => C.show(etype));
             config_1.log(() => surface_1.showCore(etype, local.ns));
             config_1.log(() => 'VERIFICATION');
-            typecheck_1.typecheck(eterm, local);
+            const [, er] = typecheck_1.typecheck(eterm, local);
             let normstr = '';
             if (!typeOnly) {
                 config_1.log(() => 'NORMALIZE');
-                const norm = values_1.normalize(eterm, local.level, local.vs, true);
-                config_1.log(() => C.show(norm));
-                config_1.log(() => surface_1.showCore(norm, local.ns));
-                normstr = `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
+                if (showFullNorm) {
+                    const norm = values_1.normalize(eterm, local.level, local.vs, true);
+                    config_1.log(() => C.show(norm));
+                    config_1.log(() => surface_1.showCore(norm, local.ns));
+                    normstr += `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
+                }
+                if (showErasure) {
+                    const ernorm = EV.normalize(er, ervs.length(), ervs);
+                    config_1.log(() => erased_1.show(ernorm));
+                    normstr += `\neran: ${erased_1.show(ernorm)}`;
+                }
             }
             const etermstr = surface_1.showCore(eterm, local.ns);
             if (isDef) {
                 if (term.tag === 'Let') {
                     const value = values_1.evaluate(eterm, local.vs);
                     local = local.define(usage, term.name, values_1.evaluate(etype, local.vs), value);
+                    if (usage !== usage_1.zero)
+                        ervs = List_1.cons(EV.evaluate(er, ervs), ervs);
                 }
                 else if (term.tag === 'Import') {
                     let c = eterm;
                     while (c && c.tag === 'Let') {
                         local = local.define(c.usage, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs));
+                        if (c.usage !== usage_1.zero) {
+                            const [, erval] = typecheck_1.typecheck(c.val, local);
+                            ervs = List_1.cons(EV.evaluate(erval, ervs), ervs);
+                        }
                         c = c.body;
                     }
                 }
                 else
                     throw new Error(`invalid definition: ${term.tag}`);
             }
-            return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+            return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype, local.ns)}\netrm: ${etermstr}${showErasure ? `\neras: ${erased_1.show(er)}` : ''}${normstr}`);
         }).catch(err => {
             if (showStackTrace)
                 console.error(err);
@@ -1958,7 +2261,7 @@ const runREPL = (s_, cb) => {
 };
 exports.runREPL = runREPL;
 
-},{"./config":1,"./core":3,"./elaboration":4,"./globals":5,"./local":6,"./parser":9,"./surface":12,"./typecheck":13,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],12:[function(require,module,exports){
+},{"./config":1,"./core":3,"./elaboration":4,"./erased":5,"./erasedvalues":6,"./globals":7,"./local":8,"./parser":11,"./surface":14,"./typecheck":15,"./usage":16,"./utils/List":18,"./utils/utils":19,"./values":20}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenSigma = exports.flattenApp = exports.flattenAbs = exports.flattenPi = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Unit = exports.UnitType = exports.PrimElim = exports.Hole = exports.Refl = exports.PropEq = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Var = void 0;
@@ -2266,7 +2569,7 @@ const freeVars = (t) => {
 };
 exports.freeVars = freeVars;
 
-},{"./names":8,"./prims":10,"./usage":14,"./utils/List":16,"./utils/utils":17,"./values":18}],13:[function(require,module,exports){
+},{"./names":10,"./prims":12,"./usage":16,"./utils/List":18,"./utils/utils":19,"./values":20}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.typecheck = void 0;
@@ -2280,70 +2583,70 @@ const prims_1 = require("./prims");
 const usage_1 = require("./usage");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
+const E = require("./erased");
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showValCore(local, ty)}`);
-    config_1.log(() => `check ${core_1.show(tm)} : ${local_1.showValCore(local, values_1.force(ty))}`);
-    const [ty2, u] = synth(local, tm);
+    const [ty2, u, er] = synth(local, tm);
     return utils_1.tryT(() => {
         config_1.log(() => `unify ${local_1.showValCore(local, ty2)} ~ ${local_1.showValCore(local, ty)}`);
         conversion_1.conv(local.level, ty2, ty);
-        return u;
+        return [u, er];
     }, e => utils_1.terr(`check failed (${core_1.show(tm)}): ${local_1.showValCore(local, ty2)} ~ ${local_1.showValCore(local, ty)}: ${e}`));
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth ${core_1.show(tm)}`);
     if (tm.tag === 'Prim')
-        return [prims_1.synthPrim(tm.name), usage_1.noUses(local.level)];
+        return [prims_1.synthPrim(tm.name), usage_1.noUses(local.level), E.erasePrim(tm.name)];
     if (tm.tag === 'Var') {
-        const [entry, j] = local_1.indexEnvT(local.ts, tm.index) || utils_1.terr(`var out of scope ${core_1.show(tm)}`);
+        const [entry, j, erasedNo] = local_1.indexEnvT(local.ts, tm.index) || utils_1.terr(`var out of scope ${core_1.show(tm)}`);
         const uses = usage_1.noUses(local.level).updateAt(j, _ => local.usage);
-        return [entry.type, uses];
+        return [entry.type, uses, E.Var(tm.index - erasedNo)];
     }
     if (tm.tag === 'Global') {
         const e = globals_1.globalLoad(tm.name);
         if (!e)
             return utils_1.terr(`undefined global or failed to load global ${tm.name}`);
-        return [e.type, usage_1.noUses(local.level)];
+        return [e.type, usage_1.noUses(local.level), E.Global(tm.name)];
     }
     if (tm.tag === 'App') {
-        const [fnty, fnu] = synth(local, tm.fn);
-        const [rty, argu] = synthapp(local, fnty, tm.mode, tm.arg);
-        return [rty, usage_1.addUses(fnu, argu)];
+        const [fnty, fnu, fner] = synth(local, tm.fn);
+        const [rty, argu, arger, u] = synthapp(local, fnty, tm.mode, tm.arg);
+        return [rty, usage_1.addUses(fnu, argu), u === usage_1.zero ? fner : E.App(fner, arger)];
     }
     if (tm.tag === 'Abs') {
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
-        const [rty, u] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
+        const [rty, u, erbody] = synth(local.bind(tm.usage, tm.mode, tm.name, ty), tm.body);
         const pi = values_1.evaluate(core_1.Pi(tm.usage, tm.mode, tm.name, tm.type, values_1.quote(rty, local.level + 1)), local.vs);
         const [ux, urest] = u.uncons();
         if (!usage_1.sub(ux, tm.usage))
             return utils_1.terr(`usage error in ${core_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
-        return [pi, urest];
+        return [pi, urest, tm.usage === usage_1.zero ? erbody : E.Abs(erbody)];
     }
     if (tm.tag === 'Pi') {
-        const u1 = check(local.inType(), tm.type, values_1.VType);
+        const [u1] = check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
-        const u2 = check(local.bind(usage_1.many, tm.mode, tm.name, ty), tm.body, values_1.VType);
+        const [u2] = check(local.bind(usage_1.many, tm.mode, tm.name, ty), tm.body, values_1.VType);
         const [, urest] = u2.uncons();
-        return [values_1.VType, usage_1.addUses(u1, urest)];
+        return [values_1.VType, usage_1.addUses(u1, urest), E.Type];
     }
     if (tm.tag === 'Let') {
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
-        const uv = check(tm.usage === usage_1.zero ? local.inType() : local, tm.val, ty);
+        const [uv, erval] = check(tm.usage === usage_1.zero ? local.inType() : local, tm.val, ty);
         const v = values_1.evaluate(tm.val, local.vs);
-        const [rty, ub] = synth(local.define(tm.usage, tm.name, ty, v), tm.body);
+        const [rty, ub, erbody] = synth(local.define(tm.usage, tm.name, ty, v), tm.body);
         const [ux, urest] = ub.uncons();
         if (!usage_1.sub(ux, tm.usage))
             return utils_1.terr(`usage error in ${core_1.show(tm)}: expected ${tm.usage} for ${tm.name} but actual ${ux}`);
-        return [rty, usage_1.addUses(usage_1.multiplyUses(ux, uv), urest)];
+        return [rty, usage_1.addUses(usage_1.multiplyUses(ux, uv), urest), tm.usage === usage_1.zero ? erbody : E.Let(erval, erbody)];
     }
     if (tm.tag === 'Sigma') {
-        const u1 = check(local.inType(), tm.type, values_1.VType);
+        const [u1] = check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
-        const u2 = check(local.bind(usage_1.many, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);
+        const [u2] = check(local.bind(usage_1.many, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);
         const [, urest] = u2.uncons();
-        return [values_1.VType, usage_1.addUses(u1, urest)];
+        return [values_1.VType, usage_1.addUses(u1, urest), E.Type];
     }
     if (tm.tag === 'Pair') {
         check(local.inType(), tm.type, values_1.VType);
@@ -2351,16 +2654,16 @@ const synth = (local, tm) => {
         const vsigma = values_1.force(vsigma_);
         if (vsigma.tag !== 'VSigma')
             return utils_1.terr(`pair without sigma type: ${core_1.show(tm)}`);
-        const u1 = check(local, tm.fst, vsigma.type);
-        const u2 = check(local, tm.snd, values_1.vinst(vsigma, values_1.evaluate(tm.fst, local.vs)));
+        const [u1, erfst] = check(local, tm.fst, vsigma.type);
+        const [u2, ersnd] = check(local, tm.snd, values_1.vinst(vsigma, values_1.evaluate(tm.fst, local.vs)));
         if (vsigma.exclusive)
-            return [vsigma_, usage_1.lubUses(u1, u2)]; // TODO: do I need to use the sigma usage?
-        return [vsigma_, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2)];
+            return [vsigma_, usage_1.lubUses(u1, u2), E.Pair(erfst, ersnd)]; // TODO: do I need to use the sigma usage?
+        return [vsigma_, usage_1.addUses(usage_1.multiplyUses(vsigma.usage, u1), u2), vsigma.usage === usage_1.zero ? ersnd : E.Pair(erfst, ersnd)];
     }
     if (tm.tag === 'PrimElim') {
         if (!usage_1.sub(usage_1.one, tm.usage))
             return utils_1.terr(`usage must be 1 <= q in ${core_1.show(tm)} but got ${tm.usage}`);
-        const [ty_, u1] = synth(local, tm.scrut);
+        const [ty_, u1, erscrut] = synth(local, tm.scrut);
         const [amount, cont] = prims_1.synthPrimElim(tm.name);
         if (tm.cases.length !== amount)
             return utils_1.terr(`invalid case amount, expected ${amount} but got ${tm.cases.length} in ${core_1.show(tm)}`);
@@ -2372,9 +2675,11 @@ const synth = (local, tm) => {
             const [tycases, rty] = contcases(vmotive, vscrut);
             if (tycases.length !== amount)
                 return utils_1.terr(`invalid ${tm.name}: amount does not match`);
-            const uses = tycases.map((ty, i) => check(local, tm.cases[i], ty));
+            const usesAndEr = tycases.map((ty, i) => check(local, tm.cases[i], ty));
+            const uses = usesAndEr.map(x => x[0]);
+            const ercases = usesAndEr.map(x => x[1]);
             const scrutu = usage_1.multiplyUses(tm.usage, u1);
-            return [rty, uses.length === 0 ? scrutu : usage_1.addUses(scrutu, usage_1.lubUsesAll(uses))];
+            return [rty, uses.length === 0 ? scrutu : usage_1.addUses(scrutu, usage_1.lubUsesAll(uses)), E.erasePrimElim(tm.name, erscrut, ercases)];
         }
         catch (err) {
             if (!(err instanceof TypeError))
@@ -2383,7 +2688,7 @@ const synth = (local, tm) => {
         }
     }
     if (tm.tag === 'Proj') {
-        const [sigma_, u] = synth(local, tm.term);
+        const [sigma_, u, erterm] = synth(local, tm.term);
         if (tm.proj.tag === 'PProj') {
             const sigma = values_1.force(sigma_);
             if (sigma.tag !== 'VSigma')
@@ -2391,36 +2696,38 @@ const synth = (local, tm) => {
             if (local.usage === usage_1.one && (sigma.usage === usage_1.one || (sigma.usage === usage_1.zero && tm.proj.proj === 'fst')))
                 return utils_1.terr(`cannot project ${core_1.show(tm)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, sigma_)}`);
             const fst = sigma.name !== '_' ? core_1.PIndex(sigma.name, 0) : core_1.PFst; // TODO: is this nice?
-            return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), fst)), u];
+            return [tm.proj.proj === 'fst' ? sigma.type : values_1.vinst(sigma, values_1.vproj(values_1.evaluate(tm.term, local.vs), fst)), u, sigma.usage === usage_1.zero ? erterm : E.Proj(erterm, tm.proj.proj === 'fst' ? E.PFst : E.PSnd)];
         }
-        else
-            return [project(local, tm, values_1.evaluate(tm.term, local.vs), sigma_, tm.proj.index), u];
+        else {
+            const [ty, erindex] = project(local, tm, values_1.evaluate(tm.term, local.vs), sigma_, tm.proj.index, 0);
+            return [ty, u, E.Proj(erterm, E.PIndex(erindex))];
+        }
     }
     if (tm.tag === 'PropEq') {
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
-        const u1 = check(local, tm.left, ty);
-        const u2 = check(local, tm.right, ty);
-        return [values_1.VType, usage_1.addUses(u1, u2)];
+        const [u1] = check(local, tm.left, ty);
+        const [u2] = check(local, tm.right, ty);
+        return [values_1.VType, usage_1.addUses(u1, u2), E.Type];
     }
     if (tm.tag === 'Refl') {
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
         check(local.inType(), tm.val, ty);
         const x = values_1.evaluate(tm.val, local.vs);
-        return [values_1.VPropEq(ty, x, x), usage_1.noUses(local.level)];
+        return [values_1.VPropEq(ty, x, x), usage_1.noUses(local.level), E.False];
     }
     return tm;
 };
-const project = (local, full, tm, ty_, index) => {
+const project = (local, full, tm, ty_, index, erindex) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VSigma') {
         if (local.usage === usage_1.one && (ty.usage === usage_1.one || (ty.usage === usage_1.zero && index === 0)))
             return utils_1.terr(`cannot project ${core_1.show(full)}, usage must be * or 0 with a second projection: ${local_1.showVal(local, ty_)}`);
         if (index === 0)
-            return ty.type;
+            return [ty.type, erindex];
         const fst = ty.name !== '_' ? core_1.PIndex(ty.name, 0) : core_1.PFst; // TODO: is this nice?
-        return project(local, full, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, values_1.vproj(tm, fst)), index - 1);
+        return project(local, full, values_1.vproj(tm, core_1.PSnd), values_1.vinst(ty, values_1.vproj(tm, fst)), index - 1, ty.usage === usage_1.zero ? erindex : erindex + 1);
     }
     return utils_1.terr(`failed to project, ${core_1.show(full)}: ${local_1.showVal(local, ty_)}`);
 };
@@ -2429,20 +2736,20 @@ const synthapp = (local, ty_, mode, arg) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         const cty = ty.type;
-        const uses = check(local, arg, cty);
+        const [uses, er] = check(local, arg, cty);
         const v = values_1.evaluate(arg, local.vs);
-        return [values_1.vinst(ty, v), usage_1.multiplyUses(ty.usage, uses)];
+        return [values_1.vinst(ty, v), usage_1.multiplyUses(ty.usage, uses), er, ty.usage];
     }
     return utils_1.terr(`not a correct pi type in synthapp: ${local_1.showValCore(local, ty)} @ ${core_1.show(arg)}`);
 };
 const typecheck = (t, local = local_1.Local.empty()) => {
-    const [vty] = synth(local, t);
+    const [vty, , er] = synth(local, t);
     const ty = values_1.quote(vty, local.level);
-    return ty;
+    return [ty, er];
 };
 exports.typecheck = typecheck;
 
-},{"./config":1,"./conversion":2,"./core":3,"./globals":5,"./local":6,"./mode":7,"./prims":10,"./usage":14,"./utils/utils":17,"./values":18}],14:[function(require,module,exports){
+},{"./config":1,"./conversion":2,"./core":3,"./erased":5,"./globals":7,"./local":8,"./mode":9,"./prims":12,"./usage":16,"./utils/utils":19,"./values":20}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lubUsesAll = exports.lubUses = exports.multiplyUses = exports.addUses = exports.noUses = exports.lub = exports.sub = exports.multiply = exports.add = exports.many = exports.one = exports.zero = exports.usages = void 0;
@@ -2490,7 +2797,7 @@ exports.lubUses = lubUses;
 const lubUsesAll = (a) => a.reduce(exports.lubUses);
 exports.lubUsesAll = lubUsesAll;
 
-},{"./utils/List":16,"./utils/utils":17}],15:[function(require,module,exports){
+},{"./utils/List":18,"./utils/utils":19}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = void 0;
@@ -2525,7 +2832,7 @@ class Lazy {
 }
 exports.Lazy = Lazy;
 
-},{}],16:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cons = exports.nil = exports.Cons = exports.Nil = exports.List = void 0;
@@ -2724,7 +3031,7 @@ exports.nil = new Nil();
 const cons = (head, tail) => new Cons(head, tail);
 exports.cons = cons;
 
-},{"./utils":17}],17:[function(require,module,exports){
+},{"./utils":19}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeAll = exports.remove = exports.pushUniq = exports.eqArr = exports.mapObj = exports.tryTE = exports.tryT = exports.hasDuplicates = exports.range = exports.loadFileSync = exports.loadFile = exports.serr = exports.terr = exports.impossible = void 0;
@@ -2833,7 +3140,7 @@ const removeAll = (a, xs) => {
 };
 exports.removeAll = removeAll;
 
-},{"fs":20}],18:[function(require,module,exports){
+},{"fs":22}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.show = exports.normalize = exports.quote = exports.evaluate = exports.vprimelim = exports.vproj = exports.vapp = exports.force = exports.vinst = exports.isVICon = exports.isVFalse = exports.isVTrue = exports.isVUnit = exports.VICon = exports.VIFix = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnit = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VVar = exports.VRefl = exports.VPropEq = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VNe = exports.EPrimElim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
@@ -3026,7 +3333,7 @@ exports.normalize = normalize;
 const show = (v, k = 0, full = false) => core_1.show(exports.quote(v, k, full));
 exports.show = show;
 
-},{"./core":3,"./globals":5,"./prims":10,"./utils/Lazy":15,"./utils/List":16,"./utils/utils":17}],19:[function(require,module,exports){
+},{"./core":3,"./globals":7,"./prims":12,"./utils/Lazy":17,"./utils/List":18,"./utils/utils":19}],21:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -3082,6 +3389,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":11}],20:[function(require,module,exports){
+},{"./repl":13}],22:[function(require,module,exports){
 
-},{}]},{},[19]);
+},{}]},{},[21]);

@@ -17,16 +17,18 @@ export const EntryT = (type: Val, usage: Usage, mode: Mode, bound: boolean, inse
 
 export type EnvT = List<EntryT>;
 
-export const indexEnvT = (ts: EnvT, ix: Ix): [EntryT, Ix] | null => {
+export const indexEnvT = (ts: EnvT, ix: Ix): [EntryT, Ix, number] | null => {
   let l: EnvT = ts;
   let i = 0;
+  let erased = 0;
   while (l.isCons()) {
     if (l.head.inserted) {
       l = l.tail;
       i++;
       continue;
     }
-    if (ix === 0) return [l.head, i];
+    if (ix === 0) return [l.head, i, erased];
+    if (l.head.usage === zero) erased++;
     i++;
     ix--;
     l = l.tail;

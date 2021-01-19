@@ -10,7 +10,9 @@ import { typecheck } from './typecheck';
 import { evaluate, normalize, quote, Val } from './values';
 import { loadFile } from './utils/utils';
 import { globalSet, preload } from './globals';
-import { Cons, nil } from './utils/List';
+import { cons, Cons, nil } from './utils/List';
+import { show as showE } from './erased';
+import * as EV from './erasedvalues';
 
 const help = `
 COMMANDS
@@ -26,12 +28,18 @@ COMMANDS
 
 let showStackTrace = false;
 let doPreload = true;
+let showFullNorm = false;
+let showErasure = true;
 let local: Local = Local.empty();
+let ervs: EV.EnvV = nil;
 
 export const initREPL = () => {
   showStackTrace = false;
+  showFullNorm = false;
   doPreload = true;
+  showErasure = true;
   local = Local.empty();
+  ervs = nil;
 };
 
 export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) => {
@@ -47,6 +55,14 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     if (s === ':showStackTrace') {
       showStackTrace = !showStackTrace;
       return cb(`showStackTrace: ${showStackTrace}`);
+    }
+    if (s === ':showFullNorm') {
+      showFullNorm = !showFullNorm;
+      return cb(`showFullNorm: ${showFullNorm}`);
+    }
+    if (s === ':showErasure') {
+      showErasure = !showErasure;
+      return cb(`showErasure: ${showErasure}`);
     }
     if (s === ':preload') {
       doPreload = !doPreload;
@@ -66,12 +82,16 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     }
     if (s === ':clear') {
       local = Local.empty();
+      ervs = nil;
       return cb(`cleared definitions`);
     }
     if (s === ':undoDef') {
       if (local.level > 0) {
         const name = (local.ns as Cons<Name>).head;
         local = local.undo();
+        const usage = (local.ts as Cons<EntryT>).head;
+        if (usage.usage !== zero)
+          ervs = (ervs as Cons<EV.Val>).tail;
         return cb(`removed definition ${name}`);
       }
       cb(`no def to undo`);
@@ -83,8 +103,8 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
         .then(e => doPreload ? preload(e, local).then(() => e) : e)
         .then(e => {
           const [tm, ty] = elaborate(e);
-          typecheck(tm);
-          globalSet(name, evaluate(tm, nil), evaluate(ty, nil));
+          const [, er] = typecheck(tm);
+          globalSet(name, evaluate(tm, nil), evaluate(ty, nil), EV.evaluate(er, nil));
           cb(`loaded ${name}`);
         })
         .catch(err => cb('' + err, true));
@@ -126,15 +146,22 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       log(() => showCore(etype, local.ns));
 
       log(() => 'VERIFICATION');
-      typecheck(eterm, local);
+      const [, er] = typecheck(eterm, local);
 
       let normstr = '';
       if (!typeOnly) {
         log(() => 'NORMALIZE');
-        const norm = normalize(eterm, local.level, local.vs, true);
-        log(() => C.show(norm));
-        log(() => showCore(norm, local.ns));
-        normstr = `\nnorm: ${showCore(norm, local.ns)}`;
+        if (showFullNorm) {
+          const norm = normalize(eterm, local.level, local.vs, true);
+          log(() => C.show(norm));
+          log(() => showCore(norm, local.ns));
+          normstr += `\nnorm: ${showCore(norm, local.ns)}`;
+        }
+        if (showErasure) {
+          const ernorm = EV.normalize(er, ervs.length(), ervs);
+          log(() => showE(ernorm));
+          normstr += `\neran: ${showE(ernorm)}`;
+        }
       }
 
       const etermstr = showCore(eterm, local.ns);
@@ -143,16 +170,21 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
         if (term.tag === 'Let') {
           const value = evaluate(eterm, local.vs);
           local = local.define(usage, term.name, evaluate(etype, local.vs), value);
+          if (usage !== zero) ervs = cons(EV.evaluate(er, ervs), ervs);
         } else if (term.tag === 'Import') {
           let c: C.Core = eterm;
           while (c && c.tag === 'Let') {
             local = local.define(c.usage, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs));
+            if (c.usage !== zero) {
+              const [, erval] = typecheck(c.val, local);
+              ervs = cons(EV.evaluate(erval, ervs), ervs);
+            }
             c = c.body;
           }
         } else throw new Error(`invalid definition: ${term.tag}`);
       }
 
-      return cb(`term: ${show(term)}\ntype: ${showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+      return cb(`term: ${show(term)}\ntype: ${showCore(etype, local.ns)}\netrm: ${etermstr}${showErasure ? `\neras: ${showE(er)}` : ''}${normstr}`);
     }).catch(err => {
       if (showStackTrace) console.error(err);
       return cb(`${err}`, true);

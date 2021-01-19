@@ -7,6 +7,8 @@ import { typecheck } from './typecheck';
 import { normalize } from './values';
 import { nil } from './utils/List';
 import { show as showCoreSimple } from './core';
+import { Erased, show as showE } from './erased';
+import * as EV from './erasedvalues';
 
 if (process.argv[2]) {
   const option = process.argv[3] || '';
@@ -29,8 +31,18 @@ if (process.argv[2]) {
     }
     console.log(showCore(tm));
     console.log(showCore(ty));
-    if (verify) typecheck(tm);
-    if (!typeOnly) console.log(showCore(normalize(tm, 0, nil, true)));
+    let er: Erased | null = null;
+    if (verify) {
+      [, er] = typecheck(tm);
+      console.log(showE(er));
+    }
+    if (!typeOnly) {
+      console.log(showCore(normalize(tm, 0, nil, true)));
+      if (verify && er) {
+        const ernorm = EV.normalize(er);
+        console.log(showE(ernorm));
+      }
+    }
   } catch(err) {
     console.error(err);
     process.exit();

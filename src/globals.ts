@@ -6,10 +6,12 @@ import { typecheck } from './typecheck';
 import { nil } from './utils/List';
 import { impossible, loadFile, loadFileSync, removeAll } from './utils/utils';
 import { evaluate, Val } from './values';
+import * as EV from './erasedvalues';
 
 export interface EntryG {
   val: Val,
   type: Val,
+  erval: EV.Val,
 }
 
 type Globals = { [key: string]: EntryG };
@@ -21,8 +23,8 @@ export const globalReset = () => {
 };
 
 export const globalGet = (x: string): EntryG | null => globals[x] || null;
-export const globalSet = (x: string, val: Val, type: Val): void => {
-  globals[x] = { val, type };
+export const globalSet = (x: string, val: Val, type: Val, erval: EV.Val): void => {
+  globals[x] = { val, type, erval };
 };
 
 export const globalLoad = (x: string): EntryG | null => {
@@ -31,8 +33,8 @@ export const globalLoad = (x: string): EntryG | null => {
   if (sc instanceof Error) return null;
   const e = parse(sc);
   const [tm, ty] = elaborate(e);
-  typecheck(tm);
-  globalSet(x, evaluate(tm, nil), evaluate(ty, nil));
+  const [, er] = typecheck(tm);
+  globalSet(x, evaluate(tm, nil), evaluate(ty, nil), EV.evaluate(er, nil));
   return globalGet(x);
 };
 
@@ -44,8 +46,8 @@ export const preload = (t: Surface, local: Local = Local.empty()): Promise<Entry
     const sc = await loadFile(`lib/${v}`);
     const e = parse(sc);
     const [tm, ty] = elaborate(e);
-    typecheck(tm);
-    globalSet(v, evaluate(tm, nil), evaluate(ty, nil));
+    const [, er] = typecheck(tm);
+    globalSet(v, evaluate(tm, nil), evaluate(ty, nil), EV.evaluate(er, nil));
     return globalGet(v) || impossible(`preload failed, unable to get ${v}`);
   }));
 };
