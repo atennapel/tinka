@@ -1,6 +1,6 @@
 import { log } from './config';
 import { Core, PFst, Pi, PIndex, PSnd, show } from './core';
-import { getGlobal } from './globals';
+import { loadGlobal } from './globals';
 import { indexEnvT, Local } from './local';
 import { impossible, terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vinst, VType } from './values';
@@ -36,7 +36,7 @@ const synth = (local: Local, tm: Core): Val => {
     return terr(`cannot synth prim: ${show(tm)}`);
   }
   if (tm.tag === 'Global') {
-    const e = getGlobal(tm.name);
+    const e = loadGlobal(tm.name);
     if (!e) return terr(`undefined global ${show(tm)}`);
     if (e.erased && !local.erased) return terr(`erased global used: ${show(tm)}`);
     return e.type;

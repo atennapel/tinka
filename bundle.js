@@ -270,7 +270,7 @@ const synth = (local, tm) => {
     if (tm.tag === 'Var') {
         const i = local.nsSurface.indexOf(tm.name);
         if (i < 0) {
-            const entry = globals_1.getGlobal(tm.name);
+            const entry = globals_1.loadGlobal(tm.name);
             if (!entry)
                 return utils_1.terr(`global ${tm.name} not found`);
             if (entry.erased && !local.erased)
@@ -463,8 +463,13 @@ exports.elaborate = elaborate;
 },{"./config":1,"./core":2,"./globals":4,"./local":5,"./metas":6,"./mode":7,"./prims":10,"./surface":12,"./unification":13,"./utils/List":15,"./utils/utils":16,"./values":17}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteGlobal = exports.setGlobal = exports.getGlobals = exports.getGlobal = exports.resetGlobals = void 0;
+exports.loadGlobal = exports.deleteGlobal = exports.setGlobal = exports.getGlobals = exports.getGlobal = exports.resetGlobals = void 0;
+const elaboration_1 = require("./elaboration");
+const parser_1 = require("./parser");
+const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
+const values_1 = require("./values");
+const verification_1 = require("./verification");
 let globals = {};
 const resetGlobals = () => { globals = {}; };
 exports.resetGlobals = resetGlobals;
@@ -485,8 +490,21 @@ const deleteGlobal = (name) => {
     delete globals[name];
 };
 exports.deleteGlobal = deleteGlobal;
+const loadGlobal = (x) => {
+    if (globals[x])
+        return globals[x];
+    const sc = utils_1.loadFileSync(`lib/${x}`);
+    if (sc instanceof Error)
+        return null;
+    const e = parser_1.parse(sc);
+    const [tm, ty] = elaboration_1.elaborate(e);
+    verification_1.verify(tm);
+    exports.setGlobal(x, values_1.evaluate(ty, List_1.nil), values_1.evaluate(tm, List_1.nil), ty, tm, false);
+    return exports.getGlobal(x);
+};
+exports.loadGlobal = loadGlobal;
 
-},{"./utils/utils":16}],5:[function(require,module,exports){
+},{"./elaboration":3,"./parser":9,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showValCore = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
@@ -2306,7 +2324,7 @@ const synth = (local, tm) => {
         return utils_1.terr(`cannot synth prim: ${core_1.show(tm)}`);
     }
     if (tm.tag === 'Global') {
-        const e = globals_1.getGlobal(tm.name);
+        const e = globals_1.loadGlobal(tm.name);
         if (!e)
             return utils_1.terr(`undefined global ${core_1.show(tm)}`);
         if (e.erased && !local.erased)

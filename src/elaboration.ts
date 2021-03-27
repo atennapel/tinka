@@ -9,7 +9,7 @@ import { log } from './config';
 import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Name } from './names';
-import { getGlobal } from './globals';
+import { loadGlobal } from './globals';
 import { eqMode, Erasure, Expl, Impl, Mode } from './mode';
 import { isPrimErased } from './prims';
 
@@ -106,7 +106,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);
     if (i < 0) {
-      const entry = getGlobal(tm.name);
+      const entry = loadGlobal(tm.name);
       if (!entry) return terr(`global ${tm.name} not found`);
       if (entry.erased && !local.erased) return terr(`erased global used: ${show(tm)}`);
       return [Global(tm.name), entry.type];

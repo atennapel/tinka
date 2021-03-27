@@ -1,0 +1,5 @@
+let -Nat = {-A : *} -> A -> (A -> A) -> A;
+let Z : Nat = \z s. z;
+let S : Nat -> Nat = \n z s. s (n z s);
+
+(Nat, Z, S, unit.Unit) : (-Nat : *) ** (Z : Nat) ** (S : Nat -> Nat) ** unit.UnitType

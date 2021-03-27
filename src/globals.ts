@@ -1,8 +1,12 @@
 import { Core } from './core';
+import { elaborate } from './elaboration';
 import { Erasure } from './mode';
 import { Name } from './names';
-import { impossible } from './utils/utils';
-import { Val } from './values';
+import { parse } from './parser';
+import { nil } from './utils/List';
+import { impossible, loadFileSync } from './utils/utils';
+import { evaluate, Val } from './values';
+import { verify } from './verification';
 
 export interface GlobalEntry {
   readonly type: Val;
@@ -32,4 +36,15 @@ export const setGlobal = (name: Name, type: Val, value: Val, etype: Core, term: 
 
 export const deleteGlobal = (name: Name): void => {
   delete globals[name];
+};
+
+export const loadGlobal = (x: string): GlobalEntry | null => {
+  if (globals[x]) return globals[x];
+  const sc = loadFileSync(`lib/${x}`);
+  if (sc instanceof Error) return null;
+  const e = parse(sc);
+  const [tm, ty] = elaborate(e);
+  verify(tm);
+  setGlobal(x, evaluate(ty, nil), evaluate(tm, nil), ty, tm, false);
+  return getGlobal(x);
 };

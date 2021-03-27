@@ -1,0 +1,4 @@
+let -UnitType = (-A : *) -> A -> A;
+let Unit : UnitType = \A x. x;
+
+(UnitType, Unit, Unit) : (-UnitType : *) ** (Unit : UnitType) ** UnitType
