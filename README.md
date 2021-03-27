@@ -4,9 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
-- primitive equality type
 - primitive nat
 - primitive fin
+- fix interaction of import/module/sig and insertedmeta
 QUESTIONS:
 - in surface syntax, seperate globals, vars and prims, or not?
 - how to prevent unneeded eta-expansions

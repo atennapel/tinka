@@ -379,9 +379,15 @@ export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core
   holes = {};
   resetMetas();
   const [tm, ty] = synth(local, t);
+  const qty = quote(ty, local.level);
 
+  log(() => S.showCore(qty, local.ns));
+  log(() => S.showCore(tm, local.ns));
+
+  const zty = zonk(qty, local.vs, local.level);
+  log(() => S.showCore(zty, local.ns));
   const ztm = zonk(tm, local.vs, local.level);
-  const zty = zonk(quote(ty, local.level), local.vs, local.level);
+  log(() => S.showCore(ztm, local.ns));
 
   showHoles(ztm, zty);
 

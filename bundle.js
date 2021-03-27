@@ -605,8 +605,13 @@ const elaborate = (t, local = local_1.Local.empty()) => {
     holes = {};
     metas_1.resetMetas();
     const [tm, ty] = synth(local, t);
+    const qty = values_1.quote(ty, local.level);
+    config_1.log(() => S.showCore(qty, local.ns));
+    config_1.log(() => S.showCore(tm, local.ns));
+    const zty = values_1.zonk(qty, local.vs, local.level);
+    config_1.log(() => S.showCore(zty, local.ns));
     const ztm = values_1.zonk(tm, local.vs, local.level);
-    const zty = values_1.zonk(values_1.quote(ty, local.level), local.vs, local.level);
+    config_1.log(() => S.showCore(ztm, local.ns));
     showHoles(ztm, zty);
     if (!metas_1.allMetasSolved())
         return utils_1.terr(`not all metas are solved: ${S.showCore(ztm)} : ${S.showCore(zty)}`);
@@ -1191,6 +1196,23 @@ const exprs = (ts, br, fromRepl = false) => {
         const b = ts.slice(i + 1);
         return surface_1.Ann(exprs(a, '('), exprs(b, '('));
     }
+    if (isName(ts[0], '\\')) {
+        const args = [];
+        let found = false;
+        let i = 1;
+        for (; i < ts.length; i++) {
+            const c = ts[i];
+            if (isName(c, '.')) {
+                found = true;
+                break;
+            }
+            lambdaParams(c).forEach(x => args.push(x));
+        }
+        if (!found)
+            return utils_1.serr(`. not found after \\ or there was no whitespace after .`);
+        const body = exprs(ts.slice(i + 1), '(');
+        return args.reduceRight((x, [u, name, mode, ty]) => surface_1.Abs(u, mode, name, ty, x), body);
+    }
     const j = ts.findIndex(x => isName(x, '->'));
     if (j >= 0) {
         const s = splitTokens(ts, x => isName(x, '->'));
@@ -1238,23 +1260,6 @@ const exprs = (ts, br, fromRepl = false) => {
                 return utils_1.serr(`sigma cannot be implicit`);
             return surface_1.Sigma(u, name, ty, x);
         }, body);
-    }
-    if (isName(ts[0], '\\')) {
-        const args = [];
-        let found = false;
-        let i = 1;
-        for (; i < ts.length; i++) {
-            const c = ts[i];
-            if (isName(c, '.')) {
-                found = true;
-                break;
-            }
-            lambdaParams(c).forEach(x => args.push(x));
-        }
-        if (!found)
-            return utils_1.serr(`. not found after \\ or there was no whitespace after .`);
-        const body = exprs(ts.slice(i + 1), '(');
-        return args.reduceRight((x, [u, name, mode, ty]) => surface_1.Abs(u, mode, name, ty, x), body);
     }
     if (isName(ts[0], 'sig')) {
         if (ts.length !== 2)
@@ -1412,11 +1417,12 @@ exports.parse = parse;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.primType = exports.isPrimErased = exports.ErasedPrims = exports.isPrimName = exports.PrimNames = void 0;
+const mode_1 = require("./mode");
 const values_1 = require("./values");
-exports.PrimNames = ['*', '()', 'Unit'];
+exports.PrimNames = ['*', '()', 'Unit', 'Eq', 'Refl', 'elimEq'];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
-exports.ErasedPrims = ['*', '()'];
+exports.ErasedPrims = ['*', '()', 'Eq'];
 const isPrimErased = (name) => exports.ErasedPrims.includes(name);
 exports.isPrimErased = isPrimErased;
 const primType = (name) => {
@@ -1426,11 +1432,20 @@ const primType = (name) => {
         return values_1.VType;
     if (name === 'Unit')
         return values_1.VUnitType;
+    // Eq : (A : *) -> A -> A -> *
+    if (name === 'Eq')
+        return values_1.VPi(false, mode_1.Expl, 'A', values_1.VType, A => values_1.VPi(false, mode_1.Expl, '_', A, _ => values_1.VPi(false, mode_1.Expl, '_', A, _ => values_1.VType)));
+    // Refl : (-A : *) -> (-x : A) -> Eq A x x
+    if (name === 'Refl')
+        return values_1.VPi(true, mode_1.Expl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Expl, 'x', A, x => values_1.VEq(A, x, x)));
+    // (-A : *) -> (-P : (x y : A) -> Eq A x y -> *) -> ((-x : A) -> P x x (Refl A x)) -> (-x -y : A) -> (p : Eq A x y) -> P x y p
+    if (name === 'elimEq')
+        return values_1.VPi(true, mode_1.Expl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, 'x', A, x => values_1.VPi(false, mode_1.Expl, 'y', A, y => values_1.VPi(false, mode_1.Expl, '_', values_1.VEq(A, x, y), _ => values_1.VType))), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Expl, 'x', A, x => values_1.vapp(values_1.vapp(values_1.vapp(P, mode_1.Expl, x), mode_1.Expl, x), mode_1.Expl, values_1.VRefl(A, x))), _ => values_1.VPi(true, mode_1.Expl, 'x', A, x => values_1.VPi(true, mode_1.Expl, 'y', A, y => values_1.VPi(false, mode_1.Expl, 'p', values_1.VEq(A, x, y), p => values_1.vapp(values_1.vapp(values_1.vapp(P, mode_1.Expl, x), mode_1.Expl, y), mode_1.Expl, p)))))));
     return name;
 };
 exports.primType = primType;
 
-},{"./values":17}],11:[function(require,module,exports){
+},{"./mode":7,"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -1996,9 +2011,7 @@ const unify = (l, a_, b_) => {
         exports.unify(l, values_1.vproj(a, core_1.PSnd), b.snd);
         return;
     }
-    if (a.tag === 'VRigid' && a.head.tag === 'HPrim' && a.head.name === 'Unit' && a.spine.isNil())
-        return;
-    if (b.tag === 'VRigid' && b.head.tag === 'HPrim' && b.head.name === 'Unit' && b.spine.isNil())
+    if (primEta(a) || primEta(b))
         return;
     if (a.tag === 'VRigid' && b.tag === 'VRigid' && exports.eqHead(a.head, b.head))
         return utils_1.tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}: ${e}`));
@@ -2017,6 +2030,17 @@ const unify = (l, a_, b_) => {
     return utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}`);
 };
 exports.unify = unify;
+const primEta = (a) => {
+    const pa = values_1.getVPrim(a);
+    if (pa) {
+        const [x, args] = pa;
+        if (x === 'Unit' && args.length === 0)
+            return true;
+        if (x === 'Refl' && args.length === 2)
+            return true;
+    }
+    return false;
+};
 
 },{"./config":1,"./core":2,"./metas":6,"./mode":7,"./utils/List":15,"./utils/utils":16,"./values":17}],14:[function(require,module,exports){
 "use strict";
@@ -2378,7 +2402,7 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVVar = exports.VUnitType = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VRefl = exports.VEq = exports.VUnitType = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2423,8 +2447,31 @@ const VPrim = (name, spine = List_1.nil) => exports.VRigid(exports.HPrim(name), 
 exports.VPrim = VPrim;
 exports.VType = exports.VPrim('*');
 exports.VUnitType = exports.VPrim('()');
+const VEq = (A, x, y) => exports.VPrim('Eq', List_1.List.of(exports.EApp(mode_1.Expl, y), exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Expl, A)));
+exports.VEq = VEq;
+const VRefl = (A, x) => exports.VPrim('Refl', List_1.List.of(exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Expl, A)));
+exports.VRefl = VRefl;
 const isVVar = (v) => v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
 exports.isVVar = isVVar;
+const getVPrim = (v) => {
+    if (v.tag === 'VRigid' && v.head.tag === 'HPrim') {
+        const x = v.head.name;
+        const args = [];
+        let allApps = true;
+        v.spine.each(e => {
+            if (e.tag !== 'EApp') {
+                allApps = false;
+                return;
+            }
+            args.push(e.arg);
+        });
+        if (!allApps)
+            return null;
+        return [x, args.reverse()];
+    }
+    return null;
+};
+exports.getVPrim = getVPrim;
 const force = (v, forceGlobal = true) => {
     if (v.tag === 'VGlobal' && forceGlobal)
         return exports.force(v.val.get(), forceGlobal);
@@ -2480,6 +2527,12 @@ const vproj = (scrut, proj) => {
 };
 exports.vproj = vproj;
 const vprimelim = (name, scrut, args) => {
+    const res = exports.getVPrim(scrut);
+    if (res) {
+        const [x, spine] = res;
+        if (name === 'elimEq' && x === 'Refl')
+            return exports.vapp(args[2], mode_1.Expl, spine[1]);
+    }
     if (scrut.tag === 'VRigid')
         return exports.VRigid(scrut.head, List_1.cons(exports.EPrim(name, args), scrut.spine));
     if (scrut.tag === 'VFlex')
@@ -2516,8 +2569,6 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
         return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs, glueBefore), vs), glueBefore);
     if (t.tag === 'Proj')
         return exports.vproj(exports.evaluate(t.term, vs, glueBefore), t.proj);
-    if (t.tag === 'Prim')
-        return exports.VPrim(t.name); // TODO: elims
     if (t.tag === 'Var') {
         const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         const l = vs.length();
@@ -2532,6 +2583,11 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
                 return utils_1.impossible(`failed to load global ${t.name}`);
             return e.value;
         }));
+    if (t.tag === 'Prim') {
+        if (t.name === 'elimEq')
+            return exports.VAbs(true, mode_1.Expl, 'A', exports.VType, A => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, 'x', A, x => exports.VPi(false, mode_1.Expl, 'y', A, y => exports.VPi(false, mode_1.Expl, '_', exports.VEq(A, x, y), _ => exports.VType))), P => exports.VAbs(false, mode_1.Expl, 'q', exports.VPi(true, mode_1.Expl, 'x', A, x => exports.vapp(exports.vapp(exports.vapp(P, mode_1.Expl, x), mode_1.Expl, x), mode_1.Expl, exports.VRefl(A, x))), q => exports.VAbs(true, mode_1.Expl, 'x', A, x => exports.VAbs(true, mode_1.Expl, 'y', A, y => exports.VAbs(false, mode_1.Expl, 'p', exports.VEq(A, x, y), p => exports.vprimelim('elimEq', p, [A, P, q, x, y])))))));
+        return exports.VPrim(t.name);
+    }
     return t;
 };
 exports.evaluate = evaluate;
@@ -2602,6 +2658,7 @@ const vzonkBD = (env, v, s) => {
     return utils_1.impossible('vzonkBD');
 };
 const zonk = (tm, vs = List_1.nil, k = 0, full = false) => {
+    // log(() => `zonk (${k}, ${vs.length()}) ${showCore(tm)}`);
     if (tm.tag === 'Meta') {
         const s = metas_1.getMeta(tm.id);
         if (s.tag === 'Unsolved')

@@ -1,6 +1,6 @@
 mod {
   def Unit : () = %Unit
 
-  def indUnit : {-P : () -> *} -> P Unit -> (u : ()) -> P u
-    = \p _. p
+  def indUnit : (-P : () -> *) -> P Unit -> (u : ()) -> P u
+    = \_ p _. p
 }

@@ -4,7 +4,7 @@ import { MetaVar, setMeta } from './metas';
 import { Ix, Lvl } from './names';
 import { List, nil } from './utils/List';
 import { terr, tryT } from './utils/utils';
-import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, EApp, vproj, Head, GHead } from './values';
+import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, EApp, vproj, Head, GHead, getVPrim } from './values';
 import * as C from './core';
 import { eqMode, Expl, Mode } from './mode';
 
@@ -173,8 +173,7 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
     return;
   }
 
-  if (a.tag === 'VRigid' && a.head.tag === 'HPrim' && a.head.name === 'Unit' && a.spine.isNil()) return;
-  if (b.tag === 'VRigid' && b.head.tag === 'HPrim' && b.head.name === 'Unit' && b.spine.isNil()) return;
+  if (primEta(a) || primEta(b)) return;
 
   if (a.tag === 'VRigid' && b.tag === 'VRigid' && eqHead(a.head, b.head))
     return tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => terr(`failed to unify: ${show(a, l)} ~ ${show(b, l)}: ${e}`));
@@ -189,4 +188,14 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
   if (b.tag === 'VGlobal') return unify(l, a, b.val.get());
 
   return terr(`failed to unify: ${show(a, l)} ~ ${show(b, l)}`);
+};
+
+const primEta = (a: Val): boolean => {
+  const pa = getVPrim(a);
+  if (pa) {
+    const [x, args] = pa;
+    if (x === 'Unit' && args.length === 0) return true;
+    if (x === 'Refl' && args.length === 2) return true;
+  }
+  return false;
 };

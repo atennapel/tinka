@@ -346,6 +346,22 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const b = ts.slice(i + 1);
     return Ann(exprs(a, '('), exprs(b, '('));
   }
+  if (isName(ts[0], '\\')) {
+    const args: [Erasure, Name, Mode, Surface | null][] = [];
+    let found = false;
+    let i = 1;
+    for (; i < ts.length; i++) {
+      const c = ts[i];
+      if (isName(c, '.')) {
+        found = true;
+        break;
+      }
+      lambdaParams(c).forEach(x => args.push(x));
+    }
+    if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
+    const body = exprs(ts.slice(i + 1), '(');
+    return args.reduceRight((x, [u, name, mode , ty]) => Abs(u, mode, name, ty, x), body);
+  }
   const j = ts.findIndex(x => isName(x, '->'));
   if (j >= 0) {
     const s = splitTokens(ts, x => isName(x, '->'));
@@ -387,22 +403,6 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
       return Sigma(u, name, ty, x)
     }, body);
-  }
-  if (isName(ts[0], '\\')) {
-    const args: [Erasure, Name, Mode, Surface | null][] = [];
-    let found = false;
-    let i = 1;
-    for (; i < ts.length; i++) {
-      const c = ts[i];
-      if (isName(c, '.')) {
-        found = true;
-        break;
-      }
-      lambdaParams(c).forEach(x => args.push(x));
-    }
-    if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
-    const body = exprs(ts.slice(i + 1), '(');
-    return args.reduceRight((x, [u, name, mode , ty]) => Abs(u, mode, name, ty, x), body);
   }
   if (isName(ts[0], 'sig')) {
     if (ts.length !== 2) return serr(`invalid signature (1)`);

@@ -60,8 +60,29 @@ export const VPrim = (name: PrimConName, spine: Spine = nil): Val => VRigid(HPri
 export const VType = VPrim('*');
 export const VUnitType = VPrim('()');
 
+export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Expl, A)));
+export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Expl, x), EApp(Expl, A)));
+
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
+
+export const getVPrim = (v: Val): [PrimConName, Val[]] | null => {
+  if (v.tag === 'VRigid' && v.head.tag === 'HPrim') {
+    const x = v.head.name;
+    const args: Val[] = [];
+    let allApps = true;
+    v.spine.each(e => {
+      if (e.tag !== 'EApp') {
+        allApps = false;
+        return;
+      }
+      args.push(e.arg);
+    });
+    if (!allApps) return null;
+    return [x, args.reverse()];
+  }
+  return null;
+};
 
 export const force = (v: Val, forceGlobal: boolean = true): Val => {
   if (v.tag === 'VGlobal' && forceGlobal) return force(v.val.get(), forceGlobal);
@@ -103,6 +124,11 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
   return impossible(`vproj: ${scrut.tag}`);
 };
 export const vprimelim = (name: PrimElimName, scrut: Val, args: Val[]): Val => {
+  const res = getVPrim(scrut);
+  if (res) {
+    const [x, spine] = res;
+    if (name === 'elimEq' && x === 'Refl') return vapp(args[2], Expl, spine[1]);
+  }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VFlex') return VFlex(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EPrim(name, args), scrut.spine), scrut.val.map(v => vprimelim(name, v, args)));
@@ -126,7 +152,6 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Pair') return VPair(evaluate(t.fst, vs, glueBefore), evaluate(t.snd, vs, glueBefore), evaluate(t.type, vs, glueBefore));
   if (t.tag === 'Let') return evaluate(t.body, cons(evaluate(t.val, vs, glueBefore), vs), glueBefore);
   if (t.tag === 'Proj') return vproj(evaluate(t.term, vs, glueBefore), t.proj);
-  if (t.tag === 'Prim') return VPrim(t.name); // TODO: elims
   if (t.tag === 'Var') {
     const v = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
     const l = vs.length();
@@ -138,6 +163,17 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
     if (!e) return impossible(`failed to load global ${t.name}`);
     return e.value;
   }));
+  if (t.tag === 'Prim') {
+    if (t.name === 'elimEq')
+      return VAbs(true, Expl, 'A', VType, A =>
+        VAbs(true, Expl, 'P', VPi(false, Expl, 'x', A, x => VPi(false, Expl, 'y', A, y => VPi(false, Expl, '_', VEq(A, x, y), _ => VType))), P =>
+        VAbs(false, Expl, 'q', VPi(true, Expl, 'x', A, x => vapp(vapp(vapp(P, Expl, x), Expl, x), Expl, VRefl(A, x))), q =>
+        VAbs(true, Expl, 'x', A, x =>
+        VAbs(true, Expl, 'y', A, y =>
+        VAbs(false, Expl, 'p', VEq(A, x, y), p =>
+        vprimelim('elimEq', p, [A, P, q, x, y])))))));
+    return VPrim(t.name);
+  }
   return t;
 };
 
@@ -204,6 +240,7 @@ const vzonkBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
   return impossible('vzonkBD');
 };
 export const zonk = (tm: Core, vs: EnvV = nil, k: Lvl = 0, full: boolean = false): Core => {
+  // log(() => `zonk (${k}, ${vs.length()}) ${showCore(tm)}`);
   if (tm.tag === 'Meta') {
     const s = getMeta(tm.id);
     if (s.tag === 'Unsolved') return tm;
