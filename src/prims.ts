@@ -1,14 +1,14 @@
 import { Expl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VUnitType, VRefl } from './values';
+import { Val, vapp, VEq, VPi, VType, VUnitType, VRefl, VNat, VS, VZ } from './values';
 
-export type PrimConName = '*' | '()' | 'Unit' | 'Eq' | 'Refl';
-export type PrimElimName = 'elimEq';
+export type PrimConName = '*' | '()' | 'Unit' | 'Eq' | 'Refl' | 'Nat' | 'Z' | 'S';
+export type PrimElimName = 'elimEq' | 'elimNat';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', '()', 'Unit', 'Eq', 'Refl', 'elimEq'];
+export const PrimNames: string[] = ['*', '()', 'Unit', 'Eq', 'Refl', 'elimEq', 'Nat', 'Z', 'S', 'elimNat'];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
-export const ErasedPrims = ['*', '()', 'Eq'];
+export const ErasedPrims = ['*', '()', 'Eq', 'Nat'];
 export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
 
 export const primType = (name: PrimName): Val => {
@@ -28,5 +28,15 @@ export const primType = (name: PrimName): Val => {
       VPi(true, Expl, 'y', A, y =>
       VPi(false, Expl, 'p', VEq(A, x, y), p =>
       vapp(vapp(vapp(P, Expl, x), Expl, y), Expl, p)))))));
+  if (name === 'Nat') return VType;
+  if (name === 'Z') return VNat;
+  if (name === 'S') return VPi(false, Expl, '_', VNat, _ => VNat);
+  // (-P : Nat -> *) -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n
+  if (name === 'elimNat')
+    return VPi(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
+      VPi(false, Expl, '_', vapp(P, Expl, VZ), _ =>
+      VPi(false, Expl, '_', VPi(false, Expl, 'm', VNat, m => VPi(false, Expl, '_', vapp(P, Expl, m), _ => vapp(P, Expl, VS(m)))), _ =>
+      VPi(false, Expl, 'n', VNat, n =>
+      vapp(P, Expl, n)))));
   return name;
 };

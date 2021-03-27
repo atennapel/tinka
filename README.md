@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
-- primitive nat
 - primitive fin
 - fix interaction of import/module/sig and insertedmeta
 QUESTIONS:

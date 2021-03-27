@@ -59,9 +59,12 @@ export const VPrim = (name: PrimConName, spine: Spine = nil): Val => VRigid(HPri
 
 export const VType = VPrim('*');
 export const VUnitType = VPrim('()');
+export const VNat = VPrim('Nat');
+export const VZ = VPrim('Z');
 
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Expl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Expl, x), EApp(Expl, A)));
+export const VS = (n: Val): Val => VPrim('S', List.of(EApp(Expl, n)));
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -128,6 +131,10 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: Val[]): Val => {
   if (res) {
     const [x, spine] = res;
     if (name === 'elimEq' && x === 'Refl') return vapp(args[2], Expl, spine[1]);
+    if (name === 'elimNat') {
+      if (x === 'Z') return args[1];
+      if (x === 'S') return vapp(vapp(args[2], Expl, spine[0]), Expl, vprimelim('elimNat', spine[0], args));
+    }
   }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VFlex') return VFlex(scrut.head, cons(EPrim(name, args), scrut.spine));
@@ -172,6 +179,12 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(true, Expl, 'y', A, y =>
         VAbs(false, Expl, 'p', VEq(A, x, y), p =>
         vprimelim('elimEq', p, [A, P, q, x, y])))))));
+    if (t.name === 'elimNat')
+      return VAbs(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
+        VAbs(false, Expl, 'z', vapp(P, Expl, VZ), z =>
+        VAbs(false, Expl, 's', VPi(false, Expl, 'm', VNat, m => VPi(false, Expl, '_', vapp(P, Expl, m), _ => vapp(P, Expl, VS(m)))), s =>
+        VAbs(false, Expl, 'n', VNat, n =>
+        vprimelim('elimNat', n, [P, z, s])))));
     return VPrim(t.name);
   }
   return t;

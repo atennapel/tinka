@@ -1,11 +1,17 @@
 mod {
-  def -Nat = (-A : *) -> A -> (A -> A) -> A
-  def Z : Nat = \A z s. z
-  def S : Nat -> Nat = \n A z s. s (n A z s)
+  def -Nat = %Nat
+  def Z : Nat = %Z
+  def S : Nat -> Nat = %S
+  def elimNat : (-P : Nat -> *) -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n = %elimNat
 
+  def paraNat : {-A : *} -> Nat -> A -> (Nat -> A -> A) -> A
+    = \{A} n z s. elimNat (\_. A) z s n
   def cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A
-    = \{A} n. n A
+    = \{A} n z s. elimNat (\_. A) z (\_. s) n
+  def caseNat : {-A : *} -> Nat -> A -> (Nat -> A) -> A
+    = \{A} n z s. elimNat (\_. A) z (\m _. s m) n
 
+  def pred : Nat -> Nat = \n. caseNat n Z \m. m
   def add : Nat -> Nat -> Nat = \a b. cataNat a b S
   def mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b)
 }
