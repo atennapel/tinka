@@ -3,7 +3,7 @@ import { Prim } from './core';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
 import { isPrimName } from './prims';
-import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type } from './surface';
+import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Signature, ModEntry, Module, SigEntry } from './surface';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{'
@@ -310,6 +310,38 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const [y, er] = erasedName(name);
     return Let(er, y, ty || null, val, body);
   }
+  if (isName(ts[0], 'import')) {
+    if (!ts[1]) return serr(`import needs a term`);
+    const [term, i] = expr(ts[1]);
+    if (i) return serr(`import term cannot be implicit`);
+    let j = 3;
+    let imports: string[] | null = null;
+    if (!isName(ts[2], ';')) {
+      if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(') {
+        if(!fromRepl)
+          return serr(`import needs a list or ;`);
+        if (ts.slice(j).length > 0)
+          return serr(`expected ; after import list`);
+        return Import(term, null, null as any);
+      }
+      imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
+        if (ts.length === 0) return null;
+        if (ts.length > 1) return serr(`import list must only contain variables`);
+        if (ts[0].tag !== 'Name') return serr(`import list must only contain variables`);
+        return ts[0].name;
+      }).filter(Boolean) as string[];
+      if (!isName(ts[3], ';')) {
+        if(!fromRepl)
+          return serr(`expected ; after import list`);
+        if (ts.slice(j).length > 0)
+          return serr(`expected ; after import list`);
+        return Import(term, imports, null as any);
+      }
+      j++;
+    }
+    const body = exprs(ts.slice(j), '(');
+    return Import(term, imports, body);
+  }
   const i = ts.findIndex(x => isName(x, ':'));
   if (i >= 0) {
     const a = ts.slice(0, i);
@@ -373,6 +405,94 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (!found) return serr(`. not found after \\ or there was no whitespace after .`);
     const body = exprs(ts.slice(i + 1), '(');
     return args.reduceRight((x, [u, name, mode , ty]) => Abs(u, mode, name, ty, x), body);
+  }
+  if (isName(ts[0], 'sig')) {
+    if (ts.length !== 2) return serr(`invalid signature (1)`);
+    const b = ts[1];
+    if (b.tag !== 'List' || b.bracket !== '{') return serr(`invalid signature (2)`);
+    const bs = b.list;
+    const spl = splitTokens(bs, t => t.tag === 'Name' && t.name === 'def', true);
+    const entries: SigEntry[] = [];
+    for (let i = 0; i < spl.length; i++) {
+      const c = spl[i];
+      if (c.length === 0) continue;
+      if (c[0].tag !== 'Name') return serr(`invalid signature, definition does not start with def`);
+      if (c[0].name !== 'def') return serr(`invalid signature, definition does not start with def`);
+      let x = c[1];
+      let j = 2;
+      let name = '';
+      let u = false;
+      if (x.tag === 'Name') {
+        [name, u] = erasedName(x.name);
+      } else return serr(`invalid name for signature def: ${x.tag}`);
+      if (name.length === 0) return serr(`signature definition with empty name`);
+      const sym = c[j];
+      if (!sym) {
+        entries.push(SigEntry(u, name, null));
+        continue;
+      }
+      if (sym.tag !== 'Name') return serr(`signature def: after name should be :`);
+      if (sym.name === ':') {
+        const type = exprs(c.slice(j + 1), '(');
+        entries.push(SigEntry(u, name, type));
+        continue;
+      } else return serr(`def: : or = expected but got ${sym.name}`);
+    }
+    return Signature(entries);
+  }
+  if (isName(ts[0], 'mod')) {
+    if (ts.length !== 2) return serr(`invalid module (1)`);
+    const b = ts[1];
+    if (b.tag !== 'List' || b.bracket !== '{') return serr(`invalid module (2)`);
+    const bs = b.list;
+    const spl = splitTokens(bs, t => t.tag === 'Name' && ['def', 'private'].includes(t.name), true);
+    const entries: ModEntry[] = [];
+    let private_flag = false;
+    for (let i = 0; i < spl.length; i++) {
+      const c = spl[i];
+      if (c.length === 0) continue;
+      if (c[0].tag !== 'Name') return serr(`invalid module, definition does not start with def or private`);
+      if (c[0].name !== 'def' && c[0].name !== 'private') return serr(`invalid module, definition does not start with def or private`);
+      if (c[0].name === 'private') {
+        if (c.length > 1) return serr(`something went wrong in parsing module private definition`);
+        private_flag = true;
+        continue;
+      }
+      let private_ = false;
+      if (c[0].name === 'def' && private_flag) {
+        private_flag = false;
+        private_ = true;
+      }
+      let x = c[1];
+      let j = 2;
+      let name = '';
+      let u = false;
+      if (x.tag === 'Name') {
+        [name, u] = erasedName(x.name);
+      } else return serr(`invalid name for module def`);
+      if (name.length === 0) return serr(`module definition with empty name`);
+      const sym = c[j];
+      if (sym.tag !== 'Name') return serr(`module def: after name should be : or =`);
+      if (sym.name === '=') {
+        const val = exprs(c.slice(j + 1), '(');
+        entries.push(ModEntry(private_, u, name, null, val));
+        continue;
+      } else if (sym.name === ':') {
+        const tyts: Token[] = [];
+        j++;
+        for (; j < c.length; j++) {
+          const v = c[j];
+          if (v.tag === 'Name' && v.name === '=')
+            break;
+          else tyts.push(v);
+        }
+        const type = exprs(tyts, '(');
+        const val = exprs(c.slice(j + 1), '(');
+        entries.push(ModEntry(private_, u, name, type , val));
+        continue;
+      } else return serr(`def: : or = expected but got ${sym.name}`);
+    }
+    return Module(entries);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all: AppPart[] = [];

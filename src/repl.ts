@@ -1,6 +1,6 @@
 import { config, log, setConfig } from './config';
 import { parse } from './parser';
-import { Let, show, showCore, Var } from './surface';
+import { Import, Let, show, showCore, Var } from './surface';
 import { Name } from './names';
 import { EntryT, Local } from './local';
 import { elaborate } from './elaboration';
@@ -116,6 +116,9 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       isDef = true;
       erased = term.erased;
       term = Let(erased, term.name, term.type, term.val, Var(term.name));
+    } else if (term.tag === 'Import' && term.body === null) {
+      isDef = true;
+      term = Import(term.term, term.imports, term.term);
     }
     log(() => show(term));
 
@@ -148,6 +151,12 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
         if (term.tag === 'Let') {
           const value = evaluate(eterm, local.vs);
           local = local.define(erased, term.name, evaluate(etype, local.vs), value);
+        } else if (term.tag === 'Import') {
+          let c: C.Core = eterm;
+          while (c && c.tag === 'Let') {
+            local = local.define(c.erased, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs));
+            c = c.body;
+          }
         } else throw new Error(`invalid definition: ${term.tag}`);
       }
 

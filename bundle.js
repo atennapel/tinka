@@ -20,7 +20,7 @@ exports.log = log;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
 const Global = (name) => ({ tag: 'Global', name });
@@ -161,6 +161,48 @@ const show = (t) => {
     return t;
 };
 exports.show = show;
+const shift = (d, c, t) => {
+    if (t.tag === 'Var')
+        return t.index < c ? t : exports.Var(t.index + d);
+    if (t.tag === 'App')
+        return exports.App(exports.shift(d, c, t.fn), t.mode, exports.shift(d, c, t.arg));
+    if (t.tag === 'Abs')
+        return exports.Abs(t.erased, t.mode, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Pair')
+        return exports.Pair(exports.shift(d, c, t.fst), exports.shift(d, c, t.snd), exports.shift(d, c, t.type));
+    if (t.tag === 'Proj')
+        return exports.Proj(exports.shift(d, c, t.term), t.proj);
+    if (t.tag === 'Let')
+        return exports.Let(t.erased, t.name, exports.shift(d, c, t.type), exports.shift(d, c, t.val), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Pi')
+        return exports.Pi(t.erased, t.mode, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'Sigma')
+        return exports.Sigma(t.erased, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    return t;
+};
+exports.shift = shift;
+const substVar = (j, s, t) => {
+    if (t.tag === 'Var')
+        return t.index === j ? s : t;
+    if (t.tag === 'App')
+        return exports.App(exports.substVar(j, s, t.fn), t.mode, exports.substVar(j, s, t.arg));
+    if (t.tag === 'Abs')
+        return exports.Abs(t.erased, t.mode, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
+    if (t.tag === 'Pair')
+        return exports.Pair(exports.substVar(j, s, t.fst), exports.substVar(j, s, t.snd), exports.substVar(j, s, t.type));
+    if (t.tag === 'Proj')
+        return exports.Proj(exports.substVar(j, s, t.term), t.proj);
+    if (t.tag === 'Let')
+        return exports.Let(t.erased, t.name, exports.substVar(j, s, t.type), exports.substVar(j, s, t.val), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
+    if (t.tag === 'Pi')
+        return exports.Pi(t.erased, t.mode, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
+    if (t.tag === 'Sigma')
+        return exports.Sigma(t.erased, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
+    return t;
+};
+exports.substVar = substVar;
+const subst = (t, u) => exports.shift(-1, 0, exports.substVar(0, exports.shift(1, 0, u), t));
+exports.subst = subst;
 
 },{}],3:[function(require,module,exports){
 "use strict";
@@ -379,7 +421,113 @@ const synth = (local, tm) => {
         const term = check(local, tm.term, vtype);
         return [core_1.Let(false, 'x', type, term, core_1.Var(0)), vtype];
     }
+    if (tm.tag === 'Import') {
+        const [term, sigma_] = synth(local, tm.term);
+        const vterm = values_1.evaluate(term, local.vs);
+        return createImportTerm(local, term, vterm, sigma_, tm.imports, tm.body);
+    }
+    if (tm.tag === 'Signature') {
+        let clocal = local;
+        const edefs = [];
+        for (let i = 0, l = tm.defs.length; i < l; i++) {
+            const e = tm.defs[i];
+            let type;
+            if (e.type) {
+                type = check(clocal.inType(), e.type, values_1.VType);
+            }
+            else {
+                type = newMeta(clocal);
+            }
+            edefs.push([e, type]);
+            const ty = values_1.evaluate(type, clocal.vs);
+            clocal = clocal.bind(e.erased, mode_1.Expl, e.name, ty);
+        }
+        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.erased, e.name, type, t), core_1.Global('UnitType'));
+        return [stype, values_1.VType];
+    }
+    if (tm.tag === 'Module') {
+        const defs = List_1.List.from(tm.defs);
+        const [term, type] = createModuleTerm(local, defs, tm);
+        return [term, values_1.evaluate(type, local.vs)];
+    }
     return utils_1.terr(`unable to synth ${surface_1.show(tm)}`);
+};
+const createModuleTerm = (local, entries, full) => {
+    config_1.log(() => `createModuleTerm (${local.level}) ${entries.toString(v => `ModEntry(${v.name}, ${v.priv}, ${v.erased}, ${!v.type ? '' : surface_1.show(v.type)}, ${surface_1.show(v.val)})`)}`);
+    if (entries.isCons()) {
+        const e = entries.head;
+        const rest = entries.tail;
+        let type;
+        let ty;
+        let val;
+        if (e.type) {
+            type = check(local.inType(), e.type, values_1.VType);
+            ty = values_1.evaluate(type, local.vs);
+            val = check(e.erased ? local.inType() : local, e.val, ty);
+        }
+        else {
+            [val, ty] = synth(e.erased ? local.inType() : local, e.val);
+            type = values_1.quote(ty, local.level);
+        }
+        const v = values_1.evaluate(val, local.vs);
+        const nextlocal = local.define(e.erased, e.name, ty, v);
+        const [nextterm, nexttype] = createModuleTerm(nextlocal, rest, full);
+        if (e.priv) {
+            return [core_1.Let(e.erased, e.name, type, val, nextterm), core_1.subst(nexttype, val)];
+        }
+        else {
+            const sigma = core_1.Sigma(e.erased, e.name, type, nexttype);
+            return [core_1.Let(e.erased, e.name, type, val, core_1.Pair(core_1.Var(0), nextterm, core_1.shift(1, 0, sigma))), sigma];
+        }
+    }
+    return [core_1.Global('Unit'), core_1.Global('UnitType')];
+};
+const createImportTerm = (local, term, vterm, sigma_, imports, body, i = 0) => {
+    config_1.log(() => `createImportTerm (${local.level}) ${S.showCore(term, local.ns)} ${showV(local, sigma_)}`);
+    const sigma = values_1.force(sigma_);
+    if (sigma.tag === 'VSigma') {
+        let name = sigma.name;
+        let nextimports = imports;
+        let found = false;
+        if (imports) {
+            const nameix = imports.indexOf(sigma.name);
+            if (nameix < 0) {
+                name = '_';
+            }
+            else {
+                nextimports = imports.slice(0);
+                nextimports.splice(nameix, 1);
+                found = true;
+            }
+        }
+        else {
+            found = true;
+        }
+        if (found) {
+            const val = values_1.vproj(vterm, core_1.PIndex(sigma.name, i));
+            const newlocal = local.define(sigma.erased, name, sigma.type, val);
+            const val2 = values_1.evaluate(core_1.Var(0), newlocal.vs);
+            const [rest, ty] = createImportTerm(newlocal, term, vterm, values_1.vinst(sigma, val2), nextimports, body, i + 1);
+            return [core_1.Let(sigma.erased, name, values_1.quote(sigma.type, local.level), core_1.Proj(term, core_1.PIndex(sigma.name, i)), rest), ty];
+        }
+        else {
+            return createImportTerm(local, term, vterm, values_1.vinst(sigma, values_1.vproj(vterm, core_1.PIndex(sigma.name, i))), nextimports, body, i + 1);
+        }
+    }
+    if (imports && imports.length > 0)
+        return utils_1.terr(`failed to import, names not in module: ${imports.join(' ')}`);
+    config_1.log(() => `names in import body scope: ${local.ns}`);
+    return synth(local, body);
+};
+const getAllNamesFromSigma = (k, ty_, ns, a = [], all = []) => {
+    const ty = values_1.force(ty_);
+    if (ty.tag === 'VSigma') {
+        if (!ns || ns.includes(ty.name))
+            a.push([ty.name, ty.erased]);
+        all.push(ty.name);
+        return getAllNamesFromSigma(k + 1, values_1.vinst(ty, values_1.VVar(k)), ns, a, all);
+    }
+    return [a, all];
 };
 const projectIndex = (local, full, tm, ty_, index) => {
     const ty = values_1.force(ty_);
@@ -995,6 +1143,43 @@ const exprs = (ts, br, fromRepl = false) => {
         const [y, er] = erasedName(name);
         return surface_1.Let(er, y, ty || null, val, body);
     }
+    if (isName(ts[0], 'import')) {
+        if (!ts[1])
+            return utils_1.serr(`import needs a term`);
+        const [term, i] = expr(ts[1]);
+        if (i)
+            return utils_1.serr(`import term cannot be implicit`);
+        let j = 3;
+        let imports = null;
+        if (!isName(ts[2], ';')) {
+            if (!ts[2] || ts[2].tag !== 'List' || ts[2].bracket !== '(') {
+                if (!fromRepl)
+                    return utils_1.serr(`import needs a list or ;`);
+                if (ts.slice(j).length > 0)
+                    return utils_1.serr(`expected ; after import list`);
+                return surface_1.Import(term, null, null);
+            }
+            imports = splitTokens(ts[2].list, t => isName(t, ',')).map(ts => {
+                if (ts.length === 0)
+                    return null;
+                if (ts.length > 1)
+                    return utils_1.serr(`import list must only contain variables`);
+                if (ts[0].tag !== 'Name')
+                    return utils_1.serr(`import list must only contain variables`);
+                return ts[0].name;
+            }).filter(Boolean);
+            if (!isName(ts[3], ';')) {
+                if (!fromRepl)
+                    return utils_1.serr(`expected ; after import list`);
+                if (ts.slice(j).length > 0)
+                    return utils_1.serr(`expected ; after import list`);
+                return surface_1.Import(term, imports, null);
+            }
+            j++;
+        }
+        const body = exprs(ts.slice(j), '(');
+        return surface_1.Import(term, imports, body);
+    }
     const i = ts.findIndex(x => isName(x, ':'));
     if (i >= 0) {
         const a = ts.slice(0, i);
@@ -1065,6 +1250,119 @@ const exprs = (ts, br, fromRepl = false) => {
             return utils_1.serr(`. not found after \\ or there was no whitespace after .`);
         const body = exprs(ts.slice(i + 1), '(');
         return args.reduceRight((x, [u, name, mode, ty]) => surface_1.Abs(u, mode, name, ty, x), body);
+    }
+    if (isName(ts[0], 'sig')) {
+        if (ts.length !== 2)
+            return utils_1.serr(`invalid signature (1)`);
+        const b = ts[1];
+        if (b.tag !== 'List' || b.bracket !== '{')
+            return utils_1.serr(`invalid signature (2)`);
+        const bs = b.list;
+        const spl = splitTokens(bs, t => t.tag === 'Name' && t.name === 'def', true);
+        const entries = [];
+        for (let i = 0; i < spl.length; i++) {
+            const c = spl[i];
+            if (c.length === 0)
+                continue;
+            if (c[0].tag !== 'Name')
+                return utils_1.serr(`invalid signature, definition does not start with def`);
+            if (c[0].name !== 'def')
+                return utils_1.serr(`invalid signature, definition does not start with def`);
+            let x = c[1];
+            let j = 2;
+            let name = '';
+            let u = false;
+            if (x.tag === 'Name') {
+                [name, u] = erasedName(x.name);
+            }
+            else
+                return utils_1.serr(`invalid name for signature def: ${x.tag}`);
+            if (name.length === 0)
+                return utils_1.serr(`signature definition with empty name`);
+            const sym = c[j];
+            if (!sym) {
+                entries.push(surface_1.SigEntry(u, name, null));
+                continue;
+            }
+            if (sym.tag !== 'Name')
+                return utils_1.serr(`signature def: after name should be :`);
+            if (sym.name === ':') {
+                const type = exprs(c.slice(j + 1), '(');
+                entries.push(surface_1.SigEntry(u, name, type));
+                continue;
+            }
+            else
+                return utils_1.serr(`def: : or = expected but got ${sym.name}`);
+        }
+        return surface_1.Signature(entries);
+    }
+    if (isName(ts[0], 'mod')) {
+        if (ts.length !== 2)
+            return utils_1.serr(`invalid module (1)`);
+        const b = ts[1];
+        if (b.tag !== 'List' || b.bracket !== '{')
+            return utils_1.serr(`invalid module (2)`);
+        const bs = b.list;
+        const spl = splitTokens(bs, t => t.tag === 'Name' && ['def', 'private'].includes(t.name), true);
+        const entries = [];
+        let private_flag = false;
+        for (let i = 0; i < spl.length; i++) {
+            const c = spl[i];
+            if (c.length === 0)
+                continue;
+            if (c[0].tag !== 'Name')
+                return utils_1.serr(`invalid module, definition does not start with def or private`);
+            if (c[0].name !== 'def' && c[0].name !== 'private')
+                return utils_1.serr(`invalid module, definition does not start with def or private`);
+            if (c[0].name === 'private') {
+                if (c.length > 1)
+                    return utils_1.serr(`something went wrong in parsing module private definition`);
+                private_flag = true;
+                continue;
+            }
+            let private_ = false;
+            if (c[0].name === 'def' && private_flag) {
+                private_flag = false;
+                private_ = true;
+            }
+            let x = c[1];
+            let j = 2;
+            let name = '';
+            let u = false;
+            if (x.tag === 'Name') {
+                [name, u] = erasedName(x.name);
+            }
+            else
+                return utils_1.serr(`invalid name for module def`);
+            if (name.length === 0)
+                return utils_1.serr(`module definition with empty name`);
+            const sym = c[j];
+            if (sym.tag !== 'Name')
+                return utils_1.serr(`module def: after name should be : or =`);
+            if (sym.name === '=') {
+                const val = exprs(c.slice(j + 1), '(');
+                entries.push(surface_1.ModEntry(private_, u, name, null, val));
+                continue;
+            }
+            else if (sym.name === ':') {
+                const tyts = [];
+                j++;
+                for (; j < c.length; j++) {
+                    const v = c[j];
+                    if (v.tag === 'Name' && v.name === '=')
+                        break;
+                    else
+                        tyts.push(v);
+                }
+                const type = exprs(tyts, '(');
+                const val = exprs(c.slice(j + 1), '(');
+                entries.push(surface_1.ModEntry(private_, u, name, type, val));
+                continue;
+            }
+            else
+                return utils_1.serr(`def: : or = expected but got ${sym.name}`);
+        }
+        return surface_1.Module(entries);
     }
     const l = ts.findIndex(x => isName(x, '\\'));
     let all = [];
@@ -1234,6 +1532,10 @@ const runREPL = (s_, cb) => {
             erased = term.erased;
             term = surface_1.Let(erased, term.name, term.type, term.val, surface_1.Var(term.name));
         }
+        else if (term.tag === 'Import' && term.body === null) {
+            isDef = true;
+            term = surface_1.Import(term.term, term.imports, term.term);
+        }
         config_1.log(() => surface_1.show(term));
         let prom = Promise.resolve();
         prom.then(() => {
@@ -1261,6 +1563,13 @@ const runREPL = (s_, cb) => {
                     const value = values_1.evaluate(eterm, local.vs);
                     local = local.define(erased, term.name, values_1.evaluate(etype, local.vs), value);
                 }
+                else if (term.tag === 'Import') {
+                    let c = eterm;
+                    while (c && c.tag === 'Let') {
+                        local = local.define(c.erased, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs));
+                        c = c.body;
+                    }
+                }
                 else
                     throw new Error(`invalid definition: ${term.tag}`);
             }
@@ -1282,7 +1591,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":2,"./elaboration":3,"./globals":4,"./local":5,"./parser":9,"./surface":12,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Hole = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Prim = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Hole = exports.Meta = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Prim = exports.Var = void 0;
 const names_1 = require("./names");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -1307,6 +1616,16 @@ const Pair = (fst, snd) => ({ tag: 'Pair', fst, snd });
 exports.Pair = Pair;
 const Proj = (term, proj) => ({ tag: 'Proj', term, proj });
 exports.Proj = Proj;
+const Import = (term, imports, body) => ({ tag: 'Import', term, imports, body });
+exports.Import = Import;
+const SigEntry = (erased, name, type) => ({ erased, name, type });
+exports.SigEntry = SigEntry;
+const Signature = (defs) => ({ tag: 'Signature', defs });
+exports.Signature = Signature;
+const ModEntry = (priv, erased, name, type, val) => ({ priv, erased, name, type, val });
+exports.ModEntry = ModEntry;
+const Module = (defs) => ({ tag: 'Module', defs });
+exports.Module = Module;
 const Meta = (id) => ({ tag: 'Meta', id });
 exports.Meta = Meta;
 const Hole = (name) => ({ tag: 'Hole', name });
@@ -1428,6 +1747,12 @@ const show = (t) => {
     }
     if (t.tag === 'Ann')
         return `${exports.show(t.term)} : ${exports.show(t.type)}`;
+    if (t.tag === 'Import')
+        return `import ${showS(t.term)}${t.imports ? ` (${t.imports.join(', ')})` : ''}; ${exports.show(t.body)}`;
+    if (t.tag === 'Signature')
+        return `sig { ${t.defs.map(({ erased, name, type }) => `def ${erased ? '-' : ''}${name}${type ? ` : ${exports.show(type)}` : ''}`).join(' ')} }`;
+    if (t.tag === 'Module')
+        return `mod { ${t.defs.map(({ priv, erased, name, type, val }) => `${priv ? 'private ' : ''}def ${erased ? '-' : ''}${name}${type ? ` : ${exports.show(type)}` : ''} = ${exports.show(val)}`).join(' ')} }`;
     return t;
 };
 exports.show = show;

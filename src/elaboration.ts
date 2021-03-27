@@ -1,4 +1,4 @@
-import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Type, Var, Proj, PIndex, PFst, PSnd } from './core';
+import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Type, Var, Proj, PIndex, PFst, PSnd, shift, subst } from './core';
 import { indexEnvT, Local } from './local';
 import { allMetasSolved, freshMeta, resetMetas } from './metas';
 import { show, Surface } from './surface';
@@ -8,7 +8,7 @@ import * as S from './surface';
 import { log } from './config';
 import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
-import { Ix, Name } from './names';
+import { Ix, Lvl, Name } from './names';
 import { loadGlobal } from './globals';
 import { eqMode, Erasure, Expl, Impl, Mode } from './mode';
 import { isPrimErased } from './prims';
@@ -202,7 +202,108 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];
   }
+  if (tm.tag === 'Import') {
+    const [term, sigma_] = synth(local, tm.term);
+    const vterm = evaluate(term, local.vs);
+    return createImportTerm(local, term, vterm, sigma_, tm.imports, tm.body);
+  }
+  if (tm.tag === 'Signature') {
+    let clocal = local;
+    const edefs: [S.SigEntry, Core][] = [];
+    for (let i = 0, l = tm.defs.length; i < l; i++) {
+      const e = tm.defs[i];
+      let type: Core;
+      if (e.type) {
+        type = check(clocal.inType(), e.type, VType);
+      } else {
+        type = newMeta(clocal);
+      }
+      edefs.push([e, type]);
+      const ty = evaluate(type, clocal.vs);
+      clocal = clocal.bind(e.erased, Expl, e.name, ty);
+    }
+    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.erased, e.name, type, t), Global('UnitType') as Core);
+    return [stype, VType];
+  }
+  if (tm.tag === 'Module') {
+    const defs = List.from(tm.defs);
+    const [term, type] = createModuleTerm(local, defs, tm);
+    return [term, evaluate(type, local.vs)];
+  }
   return terr(`unable to synth ${show(tm)}`);
+};
+
+const createModuleTerm = (local: Local, entries: List<S.ModEntry>, full: Surface): [Core, Core] => {
+  log(() => `createModuleTerm (${local.level}) ${entries.toString(v => `ModEntry(${v.name}, ${v.priv}, ${v.erased}, ${!v.type ? '' : show(v.type)}, ${show(v.val)})`)}`);
+  if (entries.isCons()) {
+    const e = entries.head;
+    const rest = entries.tail;
+    let type: Core;
+    let ty: Val;
+    let val: Core;
+    if (e.type) {
+      type = check(local.inType(), e.type, VType);
+      ty = evaluate(type, local.vs);
+      val = check(e.erased ? local.inType() : local, e.val, ty);
+    } else {
+      [val, ty] = synth(e.erased ? local.inType() : local, e.val);
+      type = quote(ty, local.level);
+    }
+    const v = evaluate(val, local.vs);
+    const nextlocal = local.define(e.erased, e.name, ty, v);
+    const [nextterm, nexttype] = createModuleTerm(nextlocal, rest, full);
+    if (e.priv) {
+      return [Let(e.erased, e.name, type, val, nextterm), subst(nexttype, val)];
+    } else {
+      const sigma = Sigma(e.erased, e.name, type, nexttype);
+      return [Let(e.erased, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma];
+    }
+  }
+  return [Global('Unit'), Global('UnitType')];
+};
+
+const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imports: string[] | null, body: Surface, i: Ix = 0): [Core, Val] => {
+  log(() => `createImportTerm (${local.level}) ${S.showCore(term, local.ns)} ${showV(local, sigma_)}`);
+  const sigma = force(sigma_);
+  if (sigma.tag === 'VSigma') {
+    let name = sigma.name;
+    let nextimports = imports;
+    let found = false;
+    if (imports) {
+      const nameix = imports.indexOf(sigma.name);
+      if (nameix < 0) {
+        name = '_';
+      } else {
+        nextimports = imports.slice(0);
+        nextimports.splice(nameix, 1);      
+        found = true;
+      }
+    } else {
+      found = true;
+    }
+    if (found) {
+      const val = vproj(vterm, PIndex(sigma.name, i));
+      const newlocal = local.define(sigma.erased, name, sigma.type, val);
+      const val2 = evaluate(Var(0), newlocal.vs);
+      const [rest, ty] = createImportTerm(newlocal, term, vterm, vinst(sigma, val2), nextimports, body, i + 1);
+      return [Let(sigma.erased, name, quote(sigma.type, local.level), Proj(term, PIndex(sigma.name, i)), rest), ty];
+    } else {
+      return createImportTerm(local, term, vterm, vinst(sigma, vproj(vterm, PIndex(sigma.name, i))), nextimports, body, i + 1);
+    }
+  }
+  if (imports && imports.length > 0) return terr(`failed to import, names not in module: ${imports.join(' ')}`);
+  log(() => `names in import body scope: ${local.ns}`);
+  return synth(local, body);
+};
+
+const getAllNamesFromSigma = (k: Lvl, ty_: Val, ns: Name[] | null, a: [Name, Erasure][] = [], all: Name[] = []): [[Name, Erasure][], Name[]] => {
+  const ty = force(ty_);
+  if (ty.tag === 'VSigma') {
+    if (!ns || ns.includes(ty.name)) a.push([ty.name, ty.erased]);
+    all.push(ty.name);
+    return getAllNamesFromSigma(k + 1, vinst(ty, VVar(k)), ns, a, all);
+  }
+  return [a, all];
 };
 
 const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix): Val => {

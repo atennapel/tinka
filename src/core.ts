@@ -145,3 +145,29 @@ export const show = (t: Core): string => {
   }
   return t;
 };
+
+export const shift = (d: Ix, c: Ix, t: Core): Core => {
+  if (t.tag === 'Var') return t.index < c ? t : Var(t.index + d);
+  if (t.tag === 'App') return App(shift(d, c, t.fn), t.mode, shift(d, c, t.arg));
+  if (t.tag === 'Abs') return Abs(t.erased, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Pair') return Pair(shift(d, c, t.fst), shift(d, c, t.snd), shift(d, c, t.type));
+  if (t.tag === 'Proj') return Proj(shift(d, c, t.term), t.proj);
+  if (t.tag === 'Let') return Let(t.erased, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
+  if (t.tag === 'Pi') return Pi(t.erased, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'Sigma') return Sigma(t.erased, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  return t;
+};
+
+export const substVar = (j: Ix, s: Core, t: Core): Core => {
+  if (t.tag === 'Var') return t.index === j ? s : t;
+  if (t.tag === 'App') return App(substVar(j, s, t.fn), t.mode, substVar(j, s, t.arg));
+  if (t.tag === 'Abs') return Abs(t.erased, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
+  if (t.tag === 'Pair') return Pair(substVar(j, s, t.fst), substVar(j, s, t.snd), substVar(j, s, t.type));
+  if (t.tag === 'Proj') return Proj(substVar(j, s, t.term), t.proj);
+  if (t.tag === 'Let') return Let(t.erased, t.name, substVar(j, s, t.type), substVar(j, s, t.val), substVar(j + 1, shift(1, 0, s), t.body));
+  if (t.tag === 'Pi') return Pi(t.erased, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
+  if (t.tag === 'Sigma') return Sigma(t.erased, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
+  return t;
+};
+
+export const subst = (t: Core, u: Core): Core => shift(-1, 0, substVar(0, shift(1, 0, u), t));
