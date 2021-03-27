@@ -6,7 +6,7 @@ import { cons, List, nil } from './utils/List';
 import { evaluate, force, quote, Val, VFlex, vinst, VPi, vproj, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
-import { log } from './config';
+import { config, log } from './config';
 import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Lvl, Name } from './names';
@@ -36,7 +36,7 @@ const inst = (local: Local, ty_: Val): [Val, List<Core>] => {
 };
 
 const check = (local: Local, tm: Surface, ty: Val): Core => {
-  log(() => `check ${show(tm)} : ${showV(local, ty)}`);
+  log(() => `check ${show(tm)} : ${showV(local, ty)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   if (tm.tag === 'Hole') {
     const x = newMeta(local);
     if (tm.name) {
@@ -98,7 +98,7 @@ const freshPi = (local: Local, erased: Erasure, mode: Mode, x: Name): Val => {
 };
 
 const synth = (local: Local, tm: Surface): [Core, Val] => {
-  log(() => `synth ${show(tm)}`);
+  log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   if (tm.tag === 'Prim') {
     if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
     return [Prim(tm.name), primType(tm.name)];
@@ -112,6 +112,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
       return [Global(tm.name), entry.type];
     } else {
       const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
+      log(() => `local: ${i} ~> ${j}`);
       if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);
       return [Var(j), entry.type];
     }
@@ -333,7 +334,7 @@ const projectName = (local: Local, full: Surface, orig: Val, tm: Val, ty_: Val, 
 };
 
 const synthapp = (local: Local, ty_: Val, mode: Mode, tm: Surface, tmall: Surface): [Core, Val, List<Core>] => {
-  log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(tm)}${mode.tag === 'Expl' ? '' : '}'}`);
+  log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(tm)}${mode.tag === 'Expl' ? '' : '}'}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && mode.tag === 'Expl') {
     const m = newMeta(local);
@@ -380,6 +381,8 @@ export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core
   resetMetas();
   const [tm, ty] = synth(local, t);
   const qty = quote(ty, local.level);
+
+  log(() => C.show(qty));
 
   log(() => S.showCore(qty, local.ns));
   log(() => S.showCore(tm, local.ns));

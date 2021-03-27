@@ -65,6 +65,9 @@ export const VZ = VPrim('Z');
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Expl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Expl, x), EApp(Expl, A)));
 export const VS = (n: Val): Val => VPrim('S', List.of(EApp(Expl, n)));
+export const VFin = (n: Val): Val => VPrim('Fin', List.of(EApp(Expl, n)));
+export const VFZ = (n: Val): Val => VPrim('FZ', List.of(EApp(Expl, n)));
+export const VFS = (n: Val, f: Val): Val => VPrim('FS', List.of(EApp(Expl, f), EApp(Expl, n)));
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -135,6 +138,10 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: Val[]): Val => {
       if (x === 'Z') return args[1];
       if (x === 'S') return vapp(vapp(args[2], Expl, spine[0]), Expl, vprimelim('elimNat', spine[0], args));
     }
+    if (name === 'elimFin') {
+      if (x === 'FZ') return vapp(args[1], Expl, spine[0]);
+      if (x === 'FS') return vapp(vapp(vapp(args[2], Expl, spine[0]), Expl, spine[1]), Expl, vprimelim('elimFin', spine[1], [args[0], args[1], args[2], spine[0]]));
+    }
   }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VFlex') return VFlex(scrut.head, cons(EPrim(name, args), scrut.spine));
@@ -185,6 +192,13 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(false, Expl, 's', VPi(false, Expl, 'm', VNat, m => VPi(false, Expl, '_', vapp(P, Expl, m), _ => vapp(P, Expl, VS(m)))), s =>
         VAbs(false, Expl, 'n', VNat, n =>
         vprimelim('elimNat', n, [P, z, s])))));
+    if (t.name === 'elimFin')
+      return VAbs(true, Expl, 'P', VPi(false, Expl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VType)), P =>
+        VAbs(false, Expl, 'fz', VPi(true, Expl, 'n', VNat, n => vapp(vapp(P, Expl, VS(n)), Expl, VFZ(n))), fz =>
+        VAbs(false, Expl, 'fs', VPi(true, Expl, 'n', VNat, n => VPi(false, Expl, 'y', VFin(n), y => VPi(false, Expl, '_', vapp(vapp(P, Expl, n), Expl, y), _ => vapp(vapp(P, Expl, VS(n)), Expl, VFS(n, y))))), fs =>
+        VAbs(true, Expl, 'n', VNat, n =>
+        VAbs(false, Expl, 'x', VFin(n), x =>
+        vprimelim('elimFin', x, [P, fz, fs, n]))))));
     return VPrim(t.name);
   }
   return t;
@@ -215,7 +229,8 @@ export const quote = (v_: Val, k: Lvl, full: boolean = false): Core => {
       Meta(v.head) as Core,
     );
   if (v.tag === 'VGlobal') {
-    if (full || v.head.tag === 'HVar' && v.head.level >= k) return quote(v.val.get(), k, full);
+    // if (full || v.head.tag === 'HVar' && v.head.level >= k) return quote(v.val.get(), k, full); TODO: fix local glueing
+    if (full || v.head.tag === 'HVar') return quote(v.val.get(), k, full);
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
       quoteHead(v.head, k),

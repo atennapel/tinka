@@ -1,5 +1,5 @@
 import { initREPL, runREPL } from './repl';
-import { setConfig } from './config';
+import { log, setConfig } from './config';
 import { show, showCore } from './surface';
 import { parse } from './parser';
 import { elaborate } from './elaboration';
@@ -20,8 +20,10 @@ if (process.argv[2]) {
   if (option.includes('l')) doVerify = false;
   try {
     const sc = require('fs').readFileSync(process.argv[2], 'utf8');
+    log(() => `PARSE`);
     const e = parse(sc);
     console.log(show(e));
+    log(() => `ELABORATE`);
     const [tm, ty] = elaborate(e);
     if (showCore_) {
       console.log(showCoreSimple(tm));
@@ -30,6 +32,7 @@ if (process.argv[2]) {
     console.log(showCore(tm));
     console.log(showCore(ty));
     if (doVerify) {
+      log(() => `VERIFY`);
       verify(tm);
     }
     if (!typeOnly) {
