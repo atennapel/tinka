@@ -173,6 +173,9 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
     return;
   }
 
+  if (a.tag === 'VRigid' && a.head.tag === 'HPrim' && a.head.name === 'Unit' && a.spine.isNil()) return;
+  if (b.tag === 'VRigid' && b.head.tag === 'HPrim' && b.head.name === 'Unit' && b.spine.isNil()) return;
+
   if (a.tag === 'VRigid' && b.tag === 'VRigid' && eqHead(a.head, b.head))
     return tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => terr(`failed to unify: ${show(a, l)} ~ ${show(b, l)}: ${e}`));
   if (a.tag === 'VFlex' && b.tag === 'VFlex' && a.head === b.head)

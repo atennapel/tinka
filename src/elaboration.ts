@@ -1,17 +1,18 @@
-import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Type, Var, Proj, PIndex, PFst, PSnd, shift, subst } from './core';
+import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Var, Proj, PIndex, PFst, PSnd, shift, subst, Prim } from './core';
 import { indexEnvT, Local } from './local';
 import { allMetasSolved, freshMeta, resetMetas } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
 import { evaluate, force, quote, Val, VFlex, vinst, VPi, vproj, VType, VVar, zonk } from './values';
 import * as S from './surface';
+import * as C from './core';
 import { log } from './config';
 import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Lvl, Name } from './names';
 import { loadGlobal } from './globals';
 import { eqMode, Erasure, Expl, Impl, Mode } from './mode';
-import { isPrimErased } from './prims';
+import { isPrimErased, primType } from './prims';
 
 export type HoleInfo = [Val, Val, Local, boolean];
 
@@ -100,8 +101,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
   log(() => `synth ${show(tm)}`);
   if (tm.tag === 'Prim') {
     if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
-    if (tm.name === '*') return [Type, VType];
-    return terr(`cannot synth prim: ${show(tm)}`);
+    return [Prim(tm.name), primType(tm.name)];
   }
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);
@@ -222,7 +222,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
       const ty = evaluate(type, clocal.vs);
       clocal = clocal.bind(e.erased, Expl, e.name, ty);
     }
-    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.erased, e.name, type, t), Global('UnitType') as Core);
+    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.erased, e.name, type, t), C.UnitType as Core);
     return [stype, VType];
   }
   if (tm.tag === 'Module') {
@@ -259,7 +259,7 @@ const createModuleTerm = (local: Local, entries: List<S.ModEntry>, full: Surface
       return [Let(e.erased, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma];
     }
   }
-  return [Global('Unit'), Global('UnitType')];
+  return [C.Unit, C.UnitType];
 };
 
 const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imports: string[] | null, body: Surface, i: Ix = 0): [Core, Val] => {

@@ -1,5 +1,11 @@
 mod {
-  def -Nat = {-A : *} -> A -> (A -> A) -> A
-  def Z : Nat = \z s. z
-  def S : Nat -> Nat = \n z s. s (n z s)
+  def -Nat = (-A : *) -> A -> (A -> A) -> A
+  def Z : Nat = \A z s. z
+  def S : Nat -> Nat = \n A z s. s (n A z s)
+
+  def cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A
+    = \{A} n. n A
+
+  def add : Nat -> Nat -> Nat = \a b. cataNat a b S
+  def mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b)
 }

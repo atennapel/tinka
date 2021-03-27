@@ -58,6 +58,7 @@ export const VMeta = (meta: MetaVar, spine: Spine = nil): Val => VFlex(meta, spi
 export const VPrim = (name: PrimConName, spine: Spine = nil): Val => VRigid(HPrim(name), spine);
 
 export const VType = VPrim('*');
+export const VUnitType = VPrim('()');
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -125,7 +126,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Pair') return VPair(evaluate(t.fst, vs, glueBefore), evaluate(t.snd, vs, glueBefore), evaluate(t.type, vs, glueBefore));
   if (t.tag === 'Let') return evaluate(t.body, cons(evaluate(t.val, vs, glueBefore), vs), glueBefore);
   if (t.tag === 'Proj') return vproj(evaluate(t.term, vs, glueBefore), t.proj);
-  if (t.tag === 'Prim' && t.name === '*') return VType;
+  if (t.tag === 'Prim') return VPrim(t.name); // TODO: elims
   if (t.tag === 'Var') {
     const v = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
     const l = vs.length();

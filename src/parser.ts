@@ -3,7 +3,7 @@ import { Prim } from './core';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
 import { isPrimName } from './prims';
-import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Signature, ModEntry, Module, SigEntry } from './surface';
+import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Signature, ModEntry, Module, SigEntry, UnitType } from './surface';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{'
@@ -111,8 +111,6 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean, keepSymbol: boolean 
   r.push(t);
   return r;
 };
-
-const UnitType = Var('UnitType');
 
 const erasedName = (x: Name): [Name, Erasure] => x[0] === '-' ? [x.slice(1), true] : [x, false];
 

@@ -65,6 +65,8 @@ export interface PIndex { readonly tag: 'PIndex'; readonly index: Ix }
 export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 
 export const Type = Prim('*');
+export const UnitType = Prim('()');
+export const Unit = Prim('Unit');
 
 export const flattenPi = (t: Surface): [[Erasure, Mode, Name, Surface][], Surface] => {
   const params: [Erasure, Mode, Name, Surface][] = [];
@@ -132,7 +134,11 @@ const showProjType = (p: ProjType): string => {
 export const show = (t: Surface): string => {
   if (t.tag === 'Var') return `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
-  if (t.tag === 'Prim') return `${t.name === '*' ? '' : '%'}${t.name}`;
+  if (t.tag === 'Prim') {
+    if (t.name === '*') return t.name;
+    if (t.name === '()') return t.name;
+    return `%${t.name}`;
+  }
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);

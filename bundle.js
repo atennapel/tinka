@@ -20,7 +20,7 @@ exports.log = log;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.UnitType = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
 const Global = (name) => ({ tag: 'Global', name });
@@ -52,6 +52,8 @@ exports.PSnd = exports.PProj('snd');
 const PIndex = (name, index) => ({ tag: 'PIndex', name, index });
 exports.PIndex = PIndex;
 exports.Type = exports.Prim('*');
+exports.UnitType = exports.Prim('()');
+exports.Unit = exports.Prim('Unit');
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -126,8 +128,13 @@ const show = (t) => {
         return `'${t.index}`;
     if (t.tag === 'Global')
         return `${t.name}`;
-    if (t.tag === 'Prim')
-        return `${t.name === '*' ? '' : '%'}${t.name}`;
+    if (t.tag === 'Prim') {
+        if (t.name === '*')
+            return t.name;
+        if (t.name === '()')
+            return t.name;
+        return `%${t.name}`;
+    }
     if (t.tag === 'Meta')
         return `?${t.id}`;
     if (t.tag === 'InsertedMeta')
@@ -215,6 +222,7 @@ const surface_1 = require("./surface");
 const List_1 = require("./utils/List");
 const values_1 = require("./values");
 const S = require("./surface");
+const C = require("./core");
 const config_1 = require("./config");
 const utils_1 = require("./utils/utils");
 const unification_1 = require("./unification");
@@ -305,9 +313,7 @@ const synth = (local, tm) => {
     if (tm.tag === 'Prim') {
         if (prims_1.isPrimErased(tm.name) && !local.erased)
             return utils_1.terr(`erased prim used: ${surface_1.show(tm)}`);
-        if (tm.name === '*')
-            return [core_1.Type, values_1.VType];
-        return utils_1.terr(`cannot synth prim: ${surface_1.show(tm)}`);
+        return [core_1.Prim(tm.name), prims_1.primType(tm.name)];
     }
     if (tm.tag === 'Var') {
         const i = local.nsSurface.indexOf(tm.name);
@@ -442,7 +448,7 @@ const synth = (local, tm) => {
             const ty = values_1.evaluate(type, clocal.vs);
             clocal = clocal.bind(e.erased, mode_1.Expl, e.name, ty);
         }
-        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.erased, e.name, type, t), core_1.Global('UnitType'));
+        const stype = edefs.reduceRight((t, [e, type]) => core_1.Sigma(e.erased, e.name, type, t), C.UnitType);
         return [stype, values_1.VType];
     }
     if (tm.tag === 'Module') {
@@ -480,7 +486,7 @@ const createModuleTerm = (local, entries, full) => {
             return [core_1.Let(e.erased, e.name, type, val, core_1.Pair(core_1.Var(0), nextterm, core_1.shift(1, 0, sigma))), sigma];
         }
     }
-    return [core_1.Global('Unit'), core_1.Global('UnitType')];
+    return [C.Unit, C.UnitType];
 };
 const createImportTerm = (local, term, vterm, sigma_, imports, body, i = 0) => {
     config_1.log(() => `createImportTerm (${local.level}) ${S.showCore(term, local.ns)} ${showV(local, sigma_)}`);
@@ -917,7 +923,6 @@ const splitTokens = (a, fn, keepSymbol = false) => {
     r.push(t);
     return r;
 };
-const UnitType = surface_1.Var('UnitType');
 const erasedName = (x) => x[0] === '-' ? [x.slice(1), true] : [x, false];
 const lambdaParams = (t) => {
     if (t.tag === 'Name') {
@@ -928,7 +933,7 @@ const lambdaParams = (t) => {
         const impl = t.bracket === '{' ? mode_1.Impl : mode_1.Expl;
         const a = t.list;
         if (a.length === 0)
-            return [[false, '_', impl, UnitType]];
+            return [[false, '_', impl, surface_1.UnitType]];
         const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
         if (i === -1)
             return isNames(a).map(x => {
@@ -952,7 +957,7 @@ const piParams = (t) => {
         const impl = t.bracket === '{' ? mode_1.Impl : mode_1.Expl;
         const a = t.list;
         if (a.length === 0)
-            return [[false, '_', impl, UnitType]];
+            return [[false, '_', impl, surface_1.UnitType]];
         const i = a.findIndex(v => v.tag === 'Name' && v.name === ':');
         if (i === -1)
             return [[false, '_', impl, expr(t)[0]]];
@@ -1081,7 +1086,7 @@ const exprs = (ts, br, fromRepl = false) => {
     if (br === '{')
         return utils_1.serr(`{} cannot be used here`);
     if (ts.length === 0)
-        return UnitType;
+        return surface_1.UnitType;
     if (ts.length === 1)
         return expr(ts[0])[0];
     if (isName(ts[0], 'let')) {
@@ -1406,14 +1411,26 @@ exports.parse = parse;
 },{"./config":1,"./core":2,"./mode":7,"./prims":10,"./surface":12,"./utils/utils":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isPrimErased = exports.isPrimName = exports.PrimNames = void 0;
-exports.PrimNames = ['*'];
+exports.primType = exports.isPrimErased = exports.ErasedPrims = exports.isPrimName = exports.PrimNames = void 0;
+const values_1 = require("./values");
+exports.PrimNames = ['*', '()', 'Unit'];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
-const isPrimErased = (name) => true;
+exports.ErasedPrims = ['*', '()'];
+const isPrimErased = (name) => exports.ErasedPrims.includes(name);
 exports.isPrimErased = isPrimErased;
+const primType = (name) => {
+    if (name === '*')
+        return values_1.VType;
+    if (name === '()')
+        return values_1.VType;
+    if (name === 'Unit')
+        return values_1.VUnitType;
+    return name;
+};
+exports.primType = primType;
 
-},{}],11:[function(require,module,exports){
+},{"./values":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runREPL = exports.initREPL = void 0;
@@ -1591,7 +1608,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":2,"./elaboration":3,"./globals":4,"./local":5,"./parser":9,"./surface":12,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Hole = exports.Meta = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Prim = exports.Var = void 0;
+exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.UnitType = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Hole = exports.Meta = exports.Module = exports.ModEntry = exports.Signature = exports.SigEntry = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Prim = exports.Var = void 0;
 const names_1 = require("./names");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -1639,6 +1656,8 @@ exports.PName = PName;
 const PIndex = (index) => ({ tag: 'PIndex', index });
 exports.PIndex = PIndex;
 exports.Type = exports.Prim('*');
+exports.UnitType = exports.Prim('()');
+exports.Unit = exports.Prim('Unit');
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -1715,8 +1734,13 @@ const show = (t) => {
         return `${t.name}`;
     if (t.tag === 'Hole')
         return `_${t.name === null ? '' : t.name}`;
-    if (t.tag === 'Prim')
-        return `${t.name === '*' ? '' : '%'}${t.name}`;
+    if (t.tag === 'Prim') {
+        if (t.name === '*')
+            return t.name;
+        if (t.name === '()')
+            return t.name;
+        return `%${t.name}`;
+    }
     if (t.tag === 'Meta')
         return `?${t.id}`;
     if (t.tag === 'Pi') {
@@ -1972,6 +1996,10 @@ const unify = (l, a_, b_) => {
         exports.unify(l, values_1.vproj(a, core_1.PSnd), b.snd);
         return;
     }
+    if (a.tag === 'VRigid' && a.head.tag === 'HPrim' && a.head.name === 'Unit' && a.spine.isNil())
+        return;
+    if (b.tag === 'VRigid' && b.head.tag === 'HPrim' && b.head.name === 'Unit' && b.spine.isNil())
+        return;
     if (a.tag === 'VRigid' && b.tag === 'VRigid' && exports.eqHead(a.head, b.head))
         return utils_1.tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}: ${e}`));
     if (a.tag === 'VFlex' && b.tag === 'VFlex' && a.head === b.head)
@@ -2350,7 +2378,7 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVVar = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVVar = exports.VUnitType = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2394,6 +2422,7 @@ exports.VMeta = VMeta;
 const VPrim = (name, spine = List_1.nil) => exports.VRigid(exports.HPrim(name), spine);
 exports.VPrim = VPrim;
 exports.VType = exports.VPrim('*');
+exports.VUnitType = exports.VPrim('()');
 const isVVar = (v) => v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
 exports.isVVar = isVVar;
 const force = (v, forceGlobal = true) => {
@@ -2487,8 +2516,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
         return exports.evaluate(t.body, List_1.cons(exports.evaluate(t.val, vs, glueBefore), vs), glueBefore);
     if (t.tag === 'Proj')
         return exports.vproj(exports.evaluate(t.term, vs, glueBefore), t.proj);
-    if (t.tag === 'Prim' && t.name === '*')
-        return exports.VType;
+    if (t.tag === 'Prim')
+        return exports.VPrim(t.name); // TODO: elims
     if (t.tag === 'Var') {
         const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         const l = vs.length();
@@ -2644,9 +2673,7 @@ const synth = (local, tm) => {
     if (tm.tag === 'Prim') {
         if (prims_1.isPrimErased(tm.name) && !local.erased)
             return utils_1.terr(`erased prim used: ${core_1.show(tm)}`);
-        if (tm.name === '*')
-            return values_1.VType;
-        return utils_1.terr(`cannot synth prim: ${core_1.show(tm)}`);
+        return prims_1.primType(tm.name);
     }
     if (tm.tag === 'Global') {
         const e = globals_1.loadGlobal(tm.name);

@@ -7,7 +7,7 @@ import { evaluate, force, quote, Val, vinst, VType } from './values';
 import * as V from './values';
 import { unify } from './unification';
 import { eqMode, Expl, Mode } from './mode';
-import { isPrimErased } from './prims';
+import { isPrimErased, primType } from './prims';
 import { Ix } from './names';
 
 const showV = (local: Local, v: Val) => V.show(v, local.level);
@@ -32,8 +32,7 @@ const synth = (local: Local, tm: Core): Val => {
   }
   if (tm.tag === 'Prim') {
     if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
-    if (tm.name === '*') return VType;
-    return terr(`cannot synth prim: ${show(tm)}`);
+    return primType(tm.name);
   }
   if (tm.tag === 'Global') {
     const e = loadGlobal(tm.name);
