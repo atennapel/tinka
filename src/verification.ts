@@ -111,14 +111,14 @@ const project = (local: Local, full: Core, tm: Val, ty_: Val, index: Ix): Val =>
 };
 
 const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Core): Val => {
-  log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(arg)}${mode.tag === 'Expl' ? '' : ''}`);
+  log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(arg)}${mode.tag === 'Expl' ? '' : '}'}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && eqMode(ty.mode, mode)) {
     check(ty.erased ? local.inType() : local, arg, ty.type);
     const v = evaluate(arg, local.vs);
     return vinst(ty, v);
   }
-  return terr(`not a correct pi type or mode mismatch in synthapp: ${showV(local, ty)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(arg)}${mode.tag === 'Expl' ? '' : ''}`);
+  return terr(`not a correct pi type or mode mismatch in synthapp: ${showV(local, ty)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(arg)}${mode.tag === 'Expl' ? '' : '}'}`);
 };
 
 export const verify = (t: Core, local: Local = Local.empty()): Core => {

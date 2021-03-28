@@ -4,6 +4,7 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
+- fix issues with mod and axiom k
 - avoid shift/subst in import/sig/mod
 QUESTIONS:
 - in surface syntax, seperate globals, vars and prims, or not?

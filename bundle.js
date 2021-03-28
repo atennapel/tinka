@@ -2895,14 +2895,14 @@ const project = (local, full, tm, ty_, index) => {
     return utils_1.terr(`failed to project, ${core_1.show(full)}: ${showV(local, ty_)}`);
 };
 const synthapp = (local, ty_, mode, arg) => {
-    config_1.log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${core_1.show(arg)}${mode.tag === 'Expl' ? '' : ''}`);
+    config_1.log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${core_1.show(arg)}${mode.tag === 'Expl' ? '' : '}'}`);
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         check(ty.erased ? local.inType() : local, arg, ty.type);
         const v = values_1.evaluate(arg, local.vs);
         return values_1.vinst(ty, v);
     }
-    return utils_1.terr(`not a correct pi type or mode mismatch in synthapp: ${showV(local, ty)} @ ${mode.tag === 'Expl' ? '' : '{'}${core_1.show(arg)}${mode.tag === 'Expl' ? '' : ''}`);
+    return utils_1.terr(`not a correct pi type or mode mismatch in synthapp: ${showV(local, ty)} @ ${mode.tag === 'Expl' ? '' : '{'}${core_1.show(arg)}${mode.tag === 'Expl' ? '' : '}'}`);
 };
 const verify = (t, local = local_1.Local.empty()) => {
     const vty = synth(local, t);
