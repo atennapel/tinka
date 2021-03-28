@@ -1,0 +1,4 @@
+mod {
+  def -Void = (-A : *) -> A
+  def absurd : {-A : *} -> Void -> A = \{A} v. v A
+}

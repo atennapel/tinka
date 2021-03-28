@@ -1,0 +1,15 @@
+import unit;
+import nat;
+import fin;
+
+mod {
+  def -Bool = Fin 2
+  def False : Bool = 0f
+  def True : Bool = 1f
+  def indBool : (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
+    = \P t f b. dcaseFin P b (f, t, Unit)
+  
+  def if : {-A : *} -> Bool -> A -> A -> A
+    = \{A} b t f. indBool (\_. A) t f b
+  def not : Bool -> Bool = \b. if b False True
+}

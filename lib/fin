@@ -9,4 +9,15 @@ mod {
     = \P z s {n} x. %elimFin P (\n. z {n}) (\n. s {n}) n x
 
   def fin2nat : {-n : Nat} -> Fin n -> Nat = \x. elimFin (\_ _. Nat) Z (\_ m. S m) x
+
+  def -branches : (n : Nat) -> (Fin n -> *) -> *
+    = \n. elimNat (\n. (Fin n -> *) -> *) (\_. ()) (\m r P. P FZ ** r (\f. P (FS f))) n
+  def caseP
+    : {-n : Nat} -> (x : Fin n) -> (-P : Fin n -> *) -> branches n P -> P x
+    = \{n} x. elimFin (\n f. (-P : Fin n -> *) -> branches n P -> P f)
+        (\P b. b._1)
+        (\f r P b. r (\f. P (FS f)) b._2)
+        x
+  def dcaseFin : {-n : Nat} -> (-P : Fin n -> *) -> (x : Fin n) -> branches n P -> P x
+    = \{n} P x b. caseP {n} x P b
 }
