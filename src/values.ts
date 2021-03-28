@@ -214,7 +214,10 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
 
 const quoteHead = (h: Head | GHead, k: Lvl): Core => {
   if (h.tag === 'HVar') return Var(k - (h.level + 1));
-  if (h.tag === 'HLVar') return Var(h.index);
+  if (h.tag === 'HLVar') {
+    const oldlvl = h.level - h.index - 1;
+    return Var(k - (oldlvl + 1));
+  }
   if (h.tag === 'HPrim') return Prim(h.name);
   if (h.tag === 'HGlobal') return Global(h.name);
   return h;
@@ -239,7 +242,7 @@ export const quote = (v_: Val, k: Lvl, full: boolean = false): Core => {
     );
   if (v.tag === 'VGlobal') {
     if (v.head.tag === 'HLVar') log(() => `deglue ${(v.head as any).index} ${(v.head as any).level} ${k}`);
-    if (full || v.head.tag === 'HLVar' && (v.head.index >= k || v.head.level !== k)) return quote(v.val.get(), k, full); // TODO: fix local glueing
+    if (full || v.head.tag === 'HLVar' && (v.head.index >= k)) return quote(v.val.get(), k, full); // TODO: fix local glueing
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
       quoteHead(v.head, k),

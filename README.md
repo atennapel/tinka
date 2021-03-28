@@ -4,7 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
-- fix local glueing
 - fix interaction of import/module/sig and insertedmeta
 QUESTIONS:
 - in surface syntax, seperate globals, vars and prims, or not?

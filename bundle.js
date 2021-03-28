@@ -2666,8 +2666,10 @@ exports.evaluate = evaluate;
 const quoteHead = (h, k) => {
     if (h.tag === 'HVar')
         return core_1.Var(k - (h.level + 1));
-    if (h.tag === 'HLVar')
-        return core_1.Var(h.index);
+    if (h.tag === 'HLVar') {
+        const oldlvl = h.level - h.index - 1;
+        return core_1.Var(k - (oldlvl + 1));
+    }
     if (h.tag === 'HPrim')
         return core_1.Prim(h.name);
     if (h.tag === 'HGlobal')
@@ -2692,7 +2694,7 @@ const quote = (v_, k, full = false) => {
     if (v.tag === 'VGlobal') {
         if (v.head.tag === 'HLVar')
             config_1.log(() => `deglue ${v.head.index} ${v.head.level} ${k}`);
-        if (full || v.head.tag === 'HLVar' && (v.head.index >= k || v.head.level !== k))
+        if (full || v.head.tag === 'HLVar' && (v.head.index >= k))
             return exports.quote(v.val.get(), k, full); // TODO: fix local glueing
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     }
