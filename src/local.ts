@@ -121,7 +121,7 @@ export class Local {
   }
 
   toString(): string {
-    return this.ts.toString(e => showV(this, e.type));
+    return this.ts.toString(e => `${e.bound ? '' : 'd '}${showV(this, e.type)}`);
   }
 
 }

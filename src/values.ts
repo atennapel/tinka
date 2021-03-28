@@ -7,6 +7,7 @@ import { impossible } from './utils/utils';
 import { getGlobal } from './globals';
 import { PrimConName, PrimElimName } from './prims';
 import { Erasure, Expl, Mode } from './mode';
+import { config } from './config';
 
 export type Head = HVar | HPrim;
 
@@ -235,7 +236,7 @@ export const quote = (v_: Val, k: Lvl, full: boolean = false): Core => {
       Meta(v.head) as Core,
     );
   if (v.tag === 'VGlobal') {
-    if (full || v.head.tag === 'HLVar' && v.head.index >= k) return quote(v.val.get(), k, full);
+    if (full || v.head.tag === 'HLVar' && (!config.localGlue || v.head.index >= k)) return quote(v.val.get(), k, full);
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
       quoteHead(v.head, k),

@@ -5,6 +5,7 @@ exports.log = exports.setConfig = exports.config = void 0;
 exports.config = {
     debug: false,
     showEnvs: false,
+    localGlue: true,
 };
 const setConfig = (c) => {
     for (let k in c)
@@ -738,7 +739,7 @@ class Local {
         return new Local(true, this.level, this.ns, this.nsSurface, this.ts, this.vs);
     }
     toString() {
-        return this.ts.toString(e => exports.showV(this, e.type));
+        return this.ts.toString(e => `${e.bound ? '' : 'd '}${exports.showV(this, e.type)}`);
     }
 }
 exports.Local = Local;
@@ -1504,6 +1505,7 @@ COMMANDS
 [:help or :h] this help message
 [:debug or :d] toggle debug log messages
 [:showStackTrace] show stack trace of error
+[:localGlue] enable/disable local glueing
 [:type or :t] do not normalize
 [:defs] show definitions
 [:clear] clear definitions
@@ -1532,6 +1534,11 @@ const runREPL = (s_, cb) => {
             const d = !config_1.config.debug;
             config_1.setConfig({ debug: d });
             return cb(`debug: ${d}`);
+        }
+        if (s === ':localGlue') {
+            const d = !config_1.config.localGlue;
+            config_1.setConfig({ localGlue: d });
+            return cb(`localGlue: ${d}`);
         }
         if (s === ':showStackTrace') {
             showStackTrace = !showStackTrace;
@@ -2062,7 +2069,7 @@ const unify = (l, a_, b_) => {
         return solve(l, a.head, a.spine, b);
     if (b.tag === 'VFlex')
         return solve(l, b.head, b.spine, a);
-    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && exports.eqHead(a.head, b.head))
+    if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && exports.eqHead(a.head, b.head) && (config_1.config.localGlue || a.head.tag !== 'HLVar'))
         return utils_1.tryT(() => unifySpines(l, a, b, a.spine, b.spine), () => exports.unify(l, a.val.get(), b.val.get()));
     if (a.tag === 'VGlobal')
         return exports.unify(l, a.val.get(), b);
@@ -2458,6 +2465,7 @@ const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
+const config_1 = require("./config");
 const HVar = (level) => ({ tag: 'HVar', level });
 exports.HVar = HVar;
 const HPrim = (name) => ({ tag: 'HPrim', name });
@@ -2696,7 +2704,7 @@ const quote = (v_, k, full = false) => {
     if (v.tag === 'VFlex')
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Meta(v.head));
     if (v.tag === 'VGlobal') {
-        if (full || v.head.tag === 'HLVar' && v.head.index >= k)
+        if (full || v.head.tag === 'HLVar' && (!config_1.config.localGlue || v.head.index >= k))
             return exports.quote(v.val.get(), k, full);
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     }
@@ -2772,7 +2780,7 @@ const zonk = (tm, vs = List_1.nil, k = 0, full = false) => {
 };
 exports.zonk = zonk;
 
-},{"./core":2,"./globals":4,"./metas":6,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
+},{"./config":1,"./core":2,"./globals":4,"./metas":6,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verify = void 0;
@@ -2788,7 +2796,7 @@ const mode_1 = require("./mode");
 const prims_1 = require("./prims");
 const showV = (local, v) => V.show(v, local.level);
 const check = (local, tm, ty) => {
-    config_1.log(() => `check ${core_1.show(tm)} : ${showV(local, ty)}`);
+    config_1.log(() => `check ${core_1.show(tm)} : ${showV(local, ty)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     const ty2 = synth(local, tm);
     return utils_1.tryT(() => {
         config_1.log(() => `unify ${showV(local, ty2)} ~ ${showV(local, ty)}`);
@@ -2797,7 +2805,7 @@ const check = (local, tm, ty) => {
     }, e => utils_1.terr(`check failed (${core_1.show(tm)}): ${showV(local, ty2)} ~ ${showV(local, ty)}: ${e}`));
 };
 const synth = (local, tm) => {
-    config_1.log(() => `synth ${core_1.show(tm)}`);
+    config_1.log(() => `synth ${core_1.show(tm)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta')
         return utils_1.impossible(`${tm.tag} in typecheck`);
     if (tm.tag === 'Var') {
@@ -2895,7 +2903,7 @@ const project = (local, full, tm, ty_, index) => {
     return utils_1.terr(`failed to project, ${core_1.show(full)}: ${showV(local, ty_)}`);
 };
 const synthapp = (local, ty_, mode, arg) => {
-    config_1.log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${core_1.show(arg)}${mode.tag === 'Expl' ? '' : '}'}`);
+    config_1.log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${core_1.show(arg)}${mode.tag === 'Expl' ? '' : '}'}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && mode_1.eqMode(ty.mode, mode)) {
         check(ty.erased ? local.inType() : local, arg, ty.type);

@@ -15,6 +15,7 @@ if (process.argv[2]) {
   let doVerify = true;
   if (option.includes('d')) setConfig({ debug: true });
   if (option.includes('e')) setConfig({ showEnvs: true });
+  if (option.includes('g')) setConfig({ localGlue: false });
   if (option.includes('t')) typeOnly = true;
   if (option.includes('c')) showCore_ = true;
   if (option.includes('l')) doVerify = false;

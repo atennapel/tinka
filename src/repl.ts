@@ -16,6 +16,7 @@ COMMANDS
 [:help or :h] this help message
 [:debug or :d] toggle debug log messages
 [:showStackTrace] show stack trace of error
+[:localGlue] enable/disable local glueing
 [:type or :t] do not normalize
 [:defs] show definitions
 [:clear] clear definitions
@@ -46,6 +47,11 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       const d = !config.debug;
       setConfig({ debug: d });
       return cb(`debug: ${d}`);
+    }
+    if (s === ':localGlue') {
+      const d = !config.localGlue;
+      setConfig({ localGlue: d });
+      return cb(`localGlue: ${d}`);
     }
     if (s === ':showStackTrace') {
       showStackTrace = !showStackTrace;

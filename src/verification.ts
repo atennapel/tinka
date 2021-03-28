@@ -1,4 +1,4 @@
-import { log } from './config';
+import { config, log } from './config';
 import { Core, PFst, Pi, PIndex, PSnd, show } from './core';
 import { loadGlobal } from './globals';
 import { indexEnvT, Local } from './local';
@@ -13,7 +13,7 @@ import { Ix } from './names';
 const showV = (local: Local, v: Val) => V.show(v, local.level);
 
 const check = (local: Local, tm: Core, ty: Val): void => {
-  log(() => `check ${show(tm)} : ${showV(local, ty)}`);
+  log(() => `check ${show(tm)} : ${showV(local, ty)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   const ty2 = synth(local, tm);
   return tryT(() => {
     log(() => `unify ${showV(local, ty2)} ~ ${showV(local, ty)}`);
@@ -23,7 +23,7 @@ const check = (local: Local, tm: Core, ty: Val): void => {
 };
 
 const synth = (local: Local, tm: Core): Val => {
-  log(() => `synth ${show(tm)}`);
+  log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta') return impossible(`${tm.tag} in typecheck`);
   if (tm.tag === 'Var') {
     const [entry] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
@@ -111,7 +111,7 @@ const project = (local: Local, full: Core, tm: Val, ty_: Val, index: Ix): Val =>
 };
 
 const synthapp = (local: Local, ty_: Val, mode: Mode, arg: Core): Val => {
-  log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(arg)}${mode.tag === 'Expl' ? '' : '}'}`);
+  log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(arg)}${mode.tag === 'Expl' ? '' : '}'}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && eqMode(ty.mode, mode)) {
     check(ty.erased ? local.inType() : local, arg, ty.type);

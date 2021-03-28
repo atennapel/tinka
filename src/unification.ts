@@ -1,4 +1,4 @@
-import { log } from './config';
+import { config, log } from './config';
 import { Abs, App, Core, Meta, Pi, Type, Var, Global, Sigma, Pair, PFst, PSnd, Prim } from './core';
 import { MetaVar, setMeta } from './metas';
 import { Ix, Lvl } from './names';
@@ -183,7 +183,7 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
   if (a.tag === 'VFlex') return solve(l, a.head, a.spine, b);
   if (b.tag === 'VFlex') return solve(l, b.head, b.spine, a);
 
-  if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && eqHead(a.head, b.head))
+  if (a.tag === 'VGlobal' && b.tag === 'VGlobal' && eqHead(a.head, b.head) && (config.localGlue || a.head.tag !== 'HLVar'))
     return tryT(() => unifySpines(l, a, b, a.spine, b.spine), () => unify(l, a.val.get(), b.val.get()));
   if (a.tag === 'VGlobal') return unify(l, a.val.get(), b);
   if (b.tag === 'VGlobal') return unify(l, a, b.val.get());
