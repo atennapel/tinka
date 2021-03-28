@@ -1588,7 +1588,7 @@ const runREPL = (s_, cb) => {
                 .then(e => {
                 const [tm, ty] = elaboration_1.elaborate(e);
                 verification_1.verify(tm);
-                globals_1.setGlobal(name, values_1.evaluate(ty, List_1.nil), values_1.evaluate(tm, List_1.nil), ty, tm, erased);
+                globals_1.setGlobal(name.slice(4), values_1.evaluate(ty, List_1.nil), values_1.evaluate(tm, List_1.nil), ty, tm, erased);
                 cb(`loaded ${name}`);
             })
                 .catch(err => cb('' + err, true));

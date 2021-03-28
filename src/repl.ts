@@ -101,7 +101,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
         .then(e => {
           const [tm, ty] = elaborate(e);
           verify(tm);
-          setGlobal(name, evaluate(ty, nil), evaluate(tm, nil), ty, tm, erased);
+          setGlobal(name.slice(4), evaluate(ty, nil), evaluate(tm, nil), ty, tm, erased);
           cb(`loaded ${name}`);
         })
         .catch(err => cb('' + err, true));
