@@ -62,7 +62,9 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
     if (fty.tag !== 'VSigma') return terr(`not a sigma type in pair (${show(tm)}): ${showV(local, ty)}`);
     const fst = check(fty.erased ? local.inType() : local, tm.fst, fty.type);
     const snd = check(local, tm.snd, vinst(fty, evaluate(fst, local.vs)));
-    return Pair(fst, snd, quote(ty, local.level));
+    const qty = quote(ty, local.level);
+    log(() => `quoted sigma type (${show(tm)}): ${C.show(qty)}`);
+    return Pair(fst, snd, qty);
   }
   if (tm.tag === 'Let') {
     let vtype: Core;
@@ -199,6 +201,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
   }
   if (tm.tag === 'Ann') {
     const type = check(local.inType(), tm.type, VType);
+    log(() => `eval type in Ann`);
     const vtype = evaluate(type, local.vs);
     const term = check(local, tm.term, vtype);
     return [Let(false, 'x', type, term, Var(0)), vtype];

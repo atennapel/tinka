@@ -7,6 +7,7 @@ import { impossible } from './utils/utils';
 import { getGlobal } from './globals';
 import { PrimConName, PrimElimName } from './prims';
 import { Erasure, Expl, Mode } from './mode';
+import { log } from './config';
 
 export type Head = HVar | HPrim;
 
@@ -15,10 +16,12 @@ export const HVar = (level: Lvl): HVar => ({ tag: 'HVar', level });
 export interface HPrim { readonly tag: 'HPrim'; readonly name: PrimConName }
 export const HPrim = (name: PrimConName): HPrim => ({ tag: 'HPrim', name });
 
-export type GHead = HGlobal | HVar;
+export type GHead = HGlobal | HLVar;
 
 export interface HGlobal { readonly tag: 'HGlobal'; readonly name: Name }
 export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
+export interface HLVar { readonly tag: 'HLVar'; readonly level: Lvl; readonly index: Ix }
+export const HLVar = (level: Lvl, index: Ix): HLVar => ({ tag: 'HLVar', level, index });
 
 export type Elim = EApp | EProj | EPrim;
 
@@ -157,6 +160,7 @@ export const velimBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
 };
 
 export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val => {
+  log(() => `evaluate ${showCore(t)}`);
   if (t.tag === 'Abs') return VAbs(t.erased, t.mode, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Pi') return VPi(t.erased, t.mode, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Sigma') return VSigma(t.erased, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
@@ -169,7 +173,11 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Var') {
     const v = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
     const l = vs.length();
-    if (t.index >= l - glueBefore) return VGlobal(HVar(l - t.index - 1), nil, Lazy.value(v));
+    if (l - t.index - 1 < glueBefore) {
+      log(() => `glue '${t.index} (${l}, ${glueBefore}) ~> ${l - t.index - 1}`);
+      log(() => vs.toString(v => showCore(quote(v, vs.length()))));
+      return VGlobal(HLVar(l, t.index), nil, Lazy.value(v));
+    }
     return v;
   }
   if (t.tag === 'Global') return VGlobal(HGlobal(t.name), nil, Lazy.from(() => {
@@ -206,6 +214,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
 
 const quoteHead = (h: Head | GHead, k: Lvl): Core => {
   if (h.tag === 'HVar') return Var(k - (h.level + 1));
+  if (h.tag === 'HLVar') return Var(h.index);
   if (h.tag === 'HPrim') return Prim(h.name);
   if (h.tag === 'HGlobal') return Global(h.name);
   return h;
@@ -229,8 +238,8 @@ export const quote = (v_: Val, k: Lvl, full: boolean = false): Core => {
       Meta(v.head) as Core,
     );
   if (v.tag === 'VGlobal') {
-    // if (full || v.head.tag === 'HVar' && v.head.level >= k) return quote(v.val.get(), k, full); TODO: fix local glueing
-    if (full || v.head.tag === 'HVar') return quote(v.val.get(), k, full);
+    if (v.head.tag === 'HLVar') log(() => `deglue ${(v.head as any).index} ${(v.head as any).level} ${k}`);
+    if (full || v.head.tag === 'HLVar' && (v.head.index >= k || v.head.level !== k)) return quote(v.val.get(), k, full); // TODO: fix local glueing
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
       quoteHead(v.head, k),
@@ -268,7 +277,6 @@ const vzonkBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
   return impossible('vzonkBD');
 };
 export const zonk = (tm: Core, vs: EnvV = nil, k: Lvl = 0, full: boolean = false): Core => {
-  // log(() => `zonk (${k}, ${vs.length()}) ${showCore(tm)}`);
   if (tm.tag === 'Meta') {
     const s = getMeta(tm.id);
     if (s.tag === 'Unsolved') return tm;

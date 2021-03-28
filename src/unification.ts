@@ -60,7 +60,7 @@ const rename = (id: MetaVar, pren: PartialRenaming, v_: Val): Core => {
     return renameSpine(id, pren, Var(pren.dom - x - 1), v.spine);
   }
   if (v.tag === 'VGlobal') {
-    if (v.head.tag === 'HVar') return rename(id, pren, v.val.get());
+    if (v.head.tag === 'HLVar') return rename(id, pren, v.val.get());
     return renameSpine(id, pren, Global(v.head.name), v.spine); // TODO: should global be forced?
   }
   if (v.tag === 'VAbs')
@@ -125,6 +125,7 @@ const unifySpines = (l: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
 export const eqHead = (a: Head | GHead, b: Head | GHead): boolean => {
   if (a === b) return true;
   if (a.tag === 'HVar') return b.tag === 'HVar' && a.level === b.level;
+  if (a.tag === 'HLVar') return b.tag === 'HLVar' && a.index === b.index && a.level === b.level;
   if (a.tag === 'HPrim') return b.tag === 'HPrim' && a.name === b.name;
   if (a.tag === 'HGlobal') return b.tag === 'HGlobal' && a.name === b.name;
   return a;

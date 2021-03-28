@@ -142,7 +142,7 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
-    return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${show(ret)}`;
+    return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
   }
   if (t.tag === 'Abs') {
     const [params, body] = flattenAbs(t);
@@ -154,7 +154,7 @@ export const show = (t: Surface): string => {
   }
   if (t.tag === 'Sigma') {
     const [params, ret] = flattenSigma(t);
-    return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${show(t)})`).join(' ** ')} ** ${show(ret)}`;
+    return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
   }
   if (t.tag === 'Pair') {
     const [ps, ret] = flattenPair(t);

@@ -141,7 +141,7 @@ const show = (t) => {
         return `?*${t.id}${t.spine.reverse().toString(([m, b]) => `${m.tag === 'Expl' ? '' : '{'}${b ? 'b' : 'd'}${m.tag === 'Expl' ? '' : '}'}`)}`;
     if (t.tag === 'Pi') {
         const [params, ret] = exports.flattenPi(t);
-        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${exports.show(ret)}`;
+        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Abs') {
         const [params, body] = exports.flattenAbs(t);
@@ -153,7 +153,7 @@ const show = (t) => {
     }
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
-        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
+        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Pair') {
         const [ps, ret] = exports.flattenPair(t);
@@ -274,7 +274,9 @@ const check = (local, tm, ty) => {
             return utils_1.terr(`not a sigma type in pair (${surface_1.show(tm)}): ${showV(local, ty)}`);
         const fst = check(fty.erased ? local.inType() : local, tm.fst, fty.type);
         const snd = check(local, tm.snd, values_1.vinst(fty, values_1.evaluate(fst, local.vs)));
-        return core_1.Pair(fst, snd, values_1.quote(ty, local.level));
+        const qty = values_1.quote(ty, local.level);
+        config_1.log(() => `quoted sigma type (${surface_1.show(tm)}): ${C.show(qty)}`);
+        return core_1.Pair(fst, snd, qty);
     }
     if (tm.tag === 'Let') {
         let vtype;
@@ -424,6 +426,7 @@ const synth = (local, tm) => {
     }
     if (tm.tag === 'Ann') {
         const type = check(local.inType(), tm.type, values_1.VType);
+        config_1.log(() => `eval type in Ann`);
         const vtype = values_1.evaluate(type, local.vs);
         const term = check(local, tm.term, vtype);
         return [core_1.Let(false, 'x', type, term, core_1.Var(0)), vtype];
@@ -1789,7 +1792,7 @@ const show = (t) => {
         return `?${t.id}`;
     if (t.tag === 'Pi') {
         const [params, ret] = exports.flattenPi(t);
-        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${exports.show(ret)}`;
+        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Abs') {
         const [params, body] = exports.flattenAbs(t);
@@ -1801,7 +1804,7 @@ const show = (t) => {
     }
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
-        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(' ** ')} ** ${exports.show(ret)}`;
+        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Pair') {
         const [ps, ret] = exports.flattenPair(t);
@@ -1922,7 +1925,7 @@ const rename = (id, pren, v_) => {
         return renameSpine(id, pren, core_1.Var(pren.dom - x - 1), v.spine);
     }
     if (v.tag === 'VGlobal') {
-        if (v.head.tag === 'HVar')
+        if (v.head.tag === 'HLVar')
             return rename(id, pren, v.val.get());
         return renameSpine(id, pren, core_1.Global(v.head.name), v.spine); // TODO: should global be forced?
     }
@@ -1990,6 +1993,8 @@ const eqHead = (a, b) => {
         return true;
     if (a.tag === 'HVar')
         return b.tag === 'HVar' && a.level === b.level;
+    if (a.tag === 'HLVar')
+        return b.tag === 'HLVar' && a.index === b.index && a.level === b.level;
     if (a.tag === 'HPrim')
         return b.tag === 'HPrim' && a.name === b.name;
     if (a.tag === 'HGlobal')
@@ -2436,7 +2441,7 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VFS = exports.VFZ = exports.VFin = exports.VS = exports.VRefl = exports.VEq = exports.VZ = exports.VNat = exports.VUnitType = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VFS = exports.VFZ = exports.VFin = exports.VS = exports.VRefl = exports.VEq = exports.VZ = exports.VNat = exports.VUnitType = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2444,12 +2449,15 @@ const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
+const config_1 = require("./config");
 const HVar = (level) => ({ tag: 'HVar', level });
 exports.HVar = HVar;
 const HPrim = (name) => ({ tag: 'HPrim', name });
 exports.HPrim = HPrim;
 const HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HGlobal = HGlobal;
+const HLVar = (level, index) => ({ tag: 'HLVar', level, index });
+exports.HLVar = HLVar;
 const EApp = (mode, arg) => ({ tag: 'EApp', mode, arg });
 exports.EApp = EApp;
 const EProj = (proj) => ({ tag: 'EProj', proj });
@@ -2607,6 +2615,7 @@ const velimBD = (env, v, s) => {
 };
 exports.velimBD = velimBD;
 const evaluate = (t, vs, glueBefore = vs.length()) => {
+    config_1.log(() => `evaluate ${core_1.show(t)}`);
     if (t.tag === 'Abs')
         return exports.VAbs(t.erased, t.mode, t.name, exports.evaluate(t.type, vs, glueBefore), v => exports.evaluate(t.body, List_1.cons(v, vs), glueBefore));
     if (t.tag === 'Pi')
@@ -2628,8 +2637,11 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
     if (t.tag === 'Var') {
         const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         const l = vs.length();
-        if (t.index >= l - glueBefore)
-            return exports.VGlobal(exports.HVar(l - t.index - 1), List_1.nil, Lazy_1.Lazy.value(v));
+        if (l - t.index - 1 < glueBefore) {
+            config_1.log(() => `glue '${t.index} (${l}, ${glueBefore}) ~> ${l - t.index - 1}`);
+            config_1.log(() => vs.toString(v => core_1.show(exports.quote(v, vs.length()))));
+            return exports.VGlobal(exports.HLVar(l, t.index), List_1.nil, Lazy_1.Lazy.value(v));
+        }
         return v;
     }
     if (t.tag === 'Global')
@@ -2654,6 +2666,8 @@ exports.evaluate = evaluate;
 const quoteHead = (h, k) => {
     if (h.tag === 'HVar')
         return core_1.Var(k - (h.level + 1));
+    if (h.tag === 'HLVar')
+        return core_1.Var(h.index);
     if (h.tag === 'HPrim')
         return core_1.Prim(h.name);
     if (h.tag === 'HGlobal')
@@ -2676,9 +2690,10 @@ const quote = (v_, k, full = false) => {
     if (v.tag === 'VFlex')
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Meta(v.head));
     if (v.tag === 'VGlobal') {
-        // if (full || v.head.tag === 'HVar' && v.head.level >= k) return quote(v.val.get(), k, full); TODO: fix local glueing
-        if (full || v.head.tag === 'HVar')
-            return exports.quote(v.val.get(), k, full);
+        if (v.head.tag === 'HLVar')
+            config_1.log(() => `deglue ${v.head.index} ${v.head.level} ${k}`);
+        if (full || v.head.tag === 'HLVar' && (v.head.index >= k || v.head.level !== k))
+            return exports.quote(v.val.get(), k, full); // TODO: fix local glueing
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     }
     if (v.tag === 'VAbs')
@@ -2719,7 +2734,6 @@ const vzonkBD = (env, v, s) => {
     return utils_1.impossible('vzonkBD');
 };
 const zonk = (tm, vs = List_1.nil, k = 0, full = false) => {
-    // log(() => `zonk (${k}, ${vs.length()}) ${showCore(tm)}`);
     if (tm.tag === 'Meta') {
         const s = metas_1.getMeta(tm.id);
         if (s.tag === 'Unsolved')
@@ -2754,7 +2768,7 @@ const zonk = (tm, vs = List_1.nil, k = 0, full = false) => {
 };
 exports.zonk = zonk;
 
-},{"./core":2,"./globals":4,"./metas":6,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
+},{"./config":1,"./core":2,"./globals":4,"./metas":6,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verify = void 0;
