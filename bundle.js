@@ -21,6 +21,8 @@ exports.log = log;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.UnitType = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+const mode_1 = require("./mode");
+const List_1 = require("./utils/List");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
 const Global = (name) => ({ tag: 'Global', name });
@@ -185,6 +187,8 @@ const shift = (d, c, t) => {
         return exports.Pi(t.erased, t.mode, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
     if (t.tag === 'Sigma')
         return exports.Sigma(t.erased, t.name, exports.shift(d, c, t.type), exports.shift(d, c + 1, t.body));
+    if (t.tag === 'InsertedMeta')
+        return exports.InsertedMeta(t.id, t.spine.append(List_1.List.range(d).map(_ => [mode_1.Expl, false]))); // fix this
     return t;
 };
 exports.shift = shift;
@@ -205,13 +209,15 @@ const substVar = (j, s, t) => {
         return exports.Pi(t.erased, t.mode, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
     if (t.tag === 'Sigma')
         return exports.Sigma(t.erased, t.name, exports.substVar(j, s, t.type), exports.substVar(j + 1, exports.shift(1, 0, s), t.body));
+    if (t.tag === 'InsertedMeta')
+        return exports.InsertedMeta(t.id, t.spine.updateAt(j, ([m]) => [m, false]));
     return t;
 };
 exports.substVar = substVar;
 const subst = (t, u) => exports.shift(-1, 0, exports.substVar(0, exports.shift(1, 0, u), t));
 exports.subst = subst;
 
-},{}],3:[function(require,module,exports){
+},{"./mode":7,"./utils/List":15}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.elaborate = void 0;
@@ -611,6 +617,7 @@ const elaborate = (t, local = local_1.Local.empty()) => {
     const [tm, ty] = synth(local, t);
     const qty = values_1.quote(ty, local.level);
     config_1.log(() => C.show(qty));
+    config_1.log(() => C.show(tm));
     config_1.log(() => S.showCore(qty, local.ns));
     config_1.log(() => S.showCore(tm, local.ns));
     const zty = values_1.zonk(qty, local.vs, local.level);
@@ -2172,6 +2179,7 @@ class Nil extends List {
     foldl(_cons, nil) { return nil; }
     length() { return 0; }
     uncons() { return utils_1.impossible('uncons called on Nil'); }
+    append(o) { return o; }
 }
 exports.Nil = Nil;
 class Cons extends List {
@@ -2317,6 +2325,7 @@ class Cons extends List {
     uncons() {
         return [this.head, this.tail];
     }
+    append(o) { return exports.cons(this.head, this.tail.append(o)); }
 }
 exports.Cons = Cons;
 exports.nil = new Nil();

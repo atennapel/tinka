@@ -386,6 +386,7 @@ export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core
   const qty = quote(ty, local.level);
 
   log(() => C.show(qty));
+  log(() => C.show(tm));
 
   log(() => S.showCore(qty, local.ns));
   log(() => S.showCore(tm, local.ns));

@@ -58,6 +58,8 @@ export abstract class List<T> {
 
   abstract length(): number;
   abstract uncons(): [T, List<T>];
+
+  abstract append(o: List<T>): List<T>;
 }
 
 export class Nil extends List<never> {
@@ -93,6 +95,8 @@ export class Nil extends List<never> {
 
   length(): number { return 0 }
   uncons(): never { return impossible('uncons called on Nil') }
+
+  append<R>(o: List<R>): List<R> { return o }
 
 }
 
@@ -244,6 +248,8 @@ export class Cons<T> extends List<T> {
   uncons(): [T, List<T>] {
     return [this.head, this.tail];
   }
+
+  append(o: List<T>): List<T> { return cons(this.head, this.tail.append(o)) }
 
 }
 

@@ -1,5 +1,5 @@
 import { MetaVar } from './metas';
-import { Erasure, Mode } from './mode';
+import { Erasure, Expl, Mode } from './mode';
 import { Ix, Name } from './names';
 import { PrimName } from './prims';
 import { List } from './utils/List';
@@ -161,6 +161,7 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.erased, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.erased, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.erased, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
+  if (t.tag === 'InsertedMeta') return InsertedMeta(t.id, t.spine.append(List.range(d).map(_ => [Expl, false] as [Mode, boolean]))); // fix this
   return t;
 };
 
@@ -173,6 +174,7 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.erased, t.name, substVar(j, s, t.type), substVar(j, s, t.val), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Pi') return Pi(t.erased, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Sigma') return Sigma(t.erased, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
+  if (t.tag === 'InsertedMeta') return InsertedMeta(t.id, t.spine.updateAt(j, ([m]) => [m, false]));
   return t;
 };
 

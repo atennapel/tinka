@@ -2,26 +2,26 @@ mod {
   def -Eq : {A : *} -> A -> A -> * = \{A}. %Eq A
   def Refl : {-A : *} -> {-x : A} -> Eq {A} x x = \{A} {x}. %Refl A x
   def elimEq
-    : {-A : *} -> (-P : (x y : A) -> Eq {A} x y -> *) -> ({-x : A} -> P x x (Refl {A} {x})) -> {-x -y : A} -> (p : Eq {A} x y) -> P x y p
+    : {-A : *} -> (-P : (x y : A) -> Eq x y -> *) -> ({-x : A} -> P x x Refl) -> {-x -y : A} -> (p : Eq x y) -> P x y p
     = \{A} P q {x} {y} p. %elimEq A P (\x. q {x}) x y p
 
   def rewrite
-    : {-A : *} -> {-a -b : A} -> (-P : A -> *) -> Eq {A} a b -> P a -> P b
-    = \{A} {a} {b} P p. elimEq {A} (\x y _. P x -> P y) (\q. q) {a} {b} p
+    : {-A : *} -> {-a -b : A} -> (-P : A -> *) -> Eq a b -> P a -> P b
+    = \P p. elimEq (\x y _. P x -> P y) (\q. q) p
 
   def cast
-    : {-A -B : *} -> Eq {*} A B -> A -> B
-    = \{A} {B} p x. rewrite {*} {A} {B} (\x. x) p x
+    : {-A -B : *} -> Eq A B -> A -> B
+    = \p x. rewrite (\x. x) p x
 
   def sym
-    : {-A : *} -> {-a -b : A} -> Eq {A} a b -> Eq {A} b a
-    = \{A} {a} {b} p. elimEq {A} (\x y q. Eq {A} y x) Refl {a} {b} p
+    : {-A : *} -> {-a -b : A} -> Eq a b -> Eq b a
+    = \{A} p. elimEq {A} (\x y q. Eq y x) Refl p
 
   def trans
-    : {-A : *} -> {-a -b -c : A} -> Eq {A} a b -> Eq {A} b c -> Eq {A} a c
-    = \{A} {a} {b} {c} p q. rewrite {A} {b} {c} (\x. Eq {A} a x) q p
+    : {-A : *} -> {-a -b -c : A} -> Eq a b -> Eq b c -> Eq a c
+    = \{A} {a} p q. rewrite (\x. Eq a x) q p
 
   def cong
-    : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq {A} a b -> Eq {B} (f a) (f b)
-    = \{A} {B} {f} {a} {b} p. rewrite {A} {a} {b} (\x. Eq {B} (f a) (f x)) p (Refl {B} {f a})
+    : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b)
+    = \{A} {B} {f} {a} p. rewrite (\x. Eq (f a) (f x)) p Refl
 }
