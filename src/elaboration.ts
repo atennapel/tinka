@@ -398,6 +398,6 @@ export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core
   showHoles(ztm, zty);
 
   if (!allMetasSolved())
-    return terr(`not all metas are solved: ${S.showCore(ztm)} : ${S.showCore(zty)}`);
+    return terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}`);
   return [ztm, zty];
 };

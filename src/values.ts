@@ -7,7 +7,6 @@ import { impossible } from './utils/utils';
 import { getGlobal } from './globals';
 import { PrimConName, PrimElimName } from './prims';
 import { Erasure, Expl, Mode } from './mode';
-import { log } from './config';
 
 export type Head = HVar | HPrim;
 
@@ -160,7 +159,6 @@ export const velimBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
 };
 
 export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val => {
-  log(() => `evaluate ${showCore(t)}`);
   if (t.tag === 'Abs') return VAbs(t.erased, t.mode, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Pi') return VPi(t.erased, t.mode, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Sigma') return VSigma(t.erased, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
@@ -173,11 +171,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Var') {
     const v = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
     const l = vs.length();
-    if (l - t.index - 1 < glueBefore) {
-      log(() => `glue '${t.index} (${l}, ${glueBefore}) ~> ${l - t.index - 1}`);
-      log(() => vs.toString(v => showCore(quote(v, vs.length()))));
-      return VGlobal(HLVar(l, t.index), nil, Lazy.value(v));
-    }
+    if (l - t.index - 1 < glueBefore) return VGlobal(HLVar(l, t.index), nil, Lazy.value(v));
     return v;
   }
   if (t.tag === 'Global') return VGlobal(HGlobal(t.name), nil, Lazy.from(() => {
@@ -241,8 +235,7 @@ export const quote = (v_: Val, k: Lvl, full: boolean = false): Core => {
       Meta(v.head) as Core,
     );
   if (v.tag === 'VGlobal') {
-    if (v.head.tag === 'HLVar') log(() => `deglue ${(v.head as any).index} ${(v.head as any).level} ${k}`);
-    if (full || v.head.tag === 'HLVar' && (v.head.index >= k)) return quote(v.val.get(), k, full); // TODO: fix local glueing
+    if (full || v.head.tag === 'HLVar' && v.head.index >= k) return quote(v.val.get(), k, full);
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full),
       quoteHead(v.head, k),

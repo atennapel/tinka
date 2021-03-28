@@ -619,7 +619,7 @@ const elaborate = (t, local = local_1.Local.empty()) => {
     config_1.log(() => S.showCore(ztm, local.ns));
     showHoles(ztm, zty);
     if (!metas_1.allMetasSolved())
-        return utils_1.terr(`not all metas are solved: ${S.showCore(ztm)} : ${S.showCore(zty)}`);
+        return utils_1.terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}`);
     return [ztm, zty];
 };
 exports.elaborate = elaborate;
@@ -2449,7 +2449,6 @@ const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const globals_1 = require("./globals");
 const mode_1 = require("./mode");
-const config_1 = require("./config");
 const HVar = (level) => ({ tag: 'HVar', level });
 exports.HVar = HVar;
 const HPrim = (name) => ({ tag: 'HPrim', name });
@@ -2615,7 +2614,6 @@ const velimBD = (env, v, s) => {
 };
 exports.velimBD = velimBD;
 const evaluate = (t, vs, glueBefore = vs.length()) => {
-    config_1.log(() => `evaluate ${core_1.show(t)}`);
     if (t.tag === 'Abs')
         return exports.VAbs(t.erased, t.mode, t.name, exports.evaluate(t.type, vs, glueBefore), v => exports.evaluate(t.body, List_1.cons(v, vs), glueBefore));
     if (t.tag === 'Pi')
@@ -2637,11 +2635,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
     if (t.tag === 'Var') {
         const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         const l = vs.length();
-        if (l - t.index - 1 < glueBefore) {
-            config_1.log(() => `glue '${t.index} (${l}, ${glueBefore}) ~> ${l - t.index - 1}`);
-            config_1.log(() => vs.toString(v => core_1.show(exports.quote(v, vs.length()))));
+        if (l - t.index - 1 < glueBefore)
             return exports.VGlobal(exports.HLVar(l, t.index), List_1.nil, Lazy_1.Lazy.value(v));
-        }
         return v;
     }
     if (t.tag === 'Global')
@@ -2692,10 +2687,8 @@ const quote = (v_, k, full = false) => {
     if (v.tag === 'VFlex')
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Meta(v.head));
     if (v.tag === 'VGlobal') {
-        if (v.head.tag === 'HLVar')
-            config_1.log(() => `deglue ${v.head.index} ${v.head.level} ${k}`);
-        if (full || v.head.tag === 'HLVar' && (v.head.index >= k))
-            return exports.quote(v.val.get(), k, full); // TODO: fix local glueing
+        if (full || v.head.tag === 'HLVar' && v.head.index >= k)
+            return exports.quote(v.val.get(), k, full);
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
     }
     if (v.tag === 'VAbs')
@@ -2770,7 +2763,7 @@ const zonk = (tm, vs = List_1.nil, k = 0, full = false) => {
 };
 exports.zonk = zonk;
 
-},{"./config":1,"./core":2,"./globals":4,"./metas":6,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
+},{"./core":2,"./globals":4,"./metas":6,"./mode":7,"./utils/Lazy":14,"./utils/List":15,"./utils/utils":16}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verify = void 0;
