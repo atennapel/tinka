@@ -61,7 +61,6 @@ export const VMeta = (meta: MetaVar, spine: Spine = nil): Val => VFlex(meta, spi
 export const VPrim = (name: PrimConName, spine: Spine = nil): Val => VRigid(HPrim(name), spine);
 
 export const VType = VPrim('*');
-export const VUnitType = VPrim('()');
 export const VNat = VPrim('Nat');
 export const VZ = VPrim('Z');
 

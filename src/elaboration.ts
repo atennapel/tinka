@@ -226,7 +226,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
       const ty = evaluate(type, clocal.vs);
       clocal = clocal.bind(e.erased, Expl, e.name, ty);
     }
-    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.erased, e.name, type, t), C.UnitType as Core);
+    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.erased, e.name, type, t), (C.App(C.Prim('Fin'), Expl, C.App(C.Prim('S'), Expl, C.Prim('Z')))) as Core);
     return [stype, VType];
   }
   if (tm.tag === 'Module') {
@@ -263,7 +263,7 @@ const createModuleTerm = (local: Local, entries: List<S.ModEntry>, full: Surface
       return [Let(e.erased, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma];
     }
   }
-  return [C.Unit, C.UnitType];
+  return [C.App(C.Prim('FZ'), Expl, C.Prim('Z')), C.App(C.Prim('Fin'), Expl, C.App(C.Prim('S'), Expl, C.Prim('Z')))];
 };
 
 const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imports: string[] | null, body: Surface, i: Ix = 0): [Core, Val] => {

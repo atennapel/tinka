@@ -1,6 +1,12 @@
-mod {
-  def Unit : () = %Unit
+import nat;
+import fin;
 
-  def indUnit : (-P : () -> *) -> P Unit -> (u : ()) -> P u
-    = \_ p _. p
+let -UnitType = Fin 1;
+let Unit : UnitType = 0f;
+mod {
+  def indUnit : (-P : () -> *) -> P Unit -> (-u : ()) -> P u
+    = \P p u. p
+
+  def -UnitType = Fin 1
+  def Unit : UnitType = 0f
 }

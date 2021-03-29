@@ -1,7 +1,7 @@
 import eq (Eq, Refl);
 
 mod {
-  def axiomK
+  let axiomK
     : {-A : *} -> {-x : A} -> {p : Eq x x} -> Eq p Refl
     = Refl
 }

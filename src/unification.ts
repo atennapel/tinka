@@ -195,7 +195,6 @@ const primEta = (a: Val): boolean => {
   const pa = getVPrim(a);
   if (pa) {
     const [x, args] = pa;
-    if (x === 'Unit' && args.length === 0) return true;
     if (x === 'Refl' && args.length === 2) return true;
     if (x === 'FZ' && args.length === 1) {
       const n = getVPrim(force(args[0], true));

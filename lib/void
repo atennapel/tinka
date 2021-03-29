@@ -1,4 +1,11 @@
+import unit;
+import nat;
+import fin;
+
 mod {
-  def -Void = (-A : *) -> A
-  def absurd : {-A : *} -> Void -> A = \{A} v. v A
+  def -Void = Fin 0
+  def indVoid : (-P : Void -> *) -> (v : Void) -> P v
+    = \P v. dcaseFin P v Unit
+  
+  def absurd : {-A : *} -> Void -> A = \{A}. indVoid (\_. A)
 }

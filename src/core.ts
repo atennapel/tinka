@@ -48,8 +48,6 @@ export interface PIndex { readonly tag: 'PIndex'; readonly name: Name | null; re
 export const PIndex = (name: Name | null, index: Ix): PIndex => ({ tag: 'PIndex', name, index });
 
 export const Type = Prim('*');
-export const UnitType = Prim('()');
-export const Unit = Prim('Unit');
 
 export const flattenPi = (t: Core): [[Erasure, Mode, Name, Core][], Core] => {
   const params: [Erasure, Mode, Name, Core][] = [];
@@ -118,7 +116,6 @@ export const show = (t: Core): string => {
   if (t.tag === 'Global') return `${t.name}`;
   if (t.tag === 'Prim') {
     if (t.name === '*') return t.name;
-    if (t.name === '()') return t.name;
     return `%${t.name}`;
   }
   if (t.tag === 'Meta') return `?${t.id}`;
