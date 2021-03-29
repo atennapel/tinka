@@ -12,7 +12,7 @@ import { unify } from './unification';
 import { Ix, Lvl, Name } from './names';
 import { loadGlobal } from './globals';
 import { eqMode, Erasure, Expl, Impl, Mode } from './mode';
-import { isPrimErased, primType } from './prims';
+import { isPrimErased, isPrimName, primType } from './prims';
 
 export type HoleInfo = [Val, Val, Local, boolean];
 
@@ -101,22 +101,23 @@ const freshPi = (local: Local, erased: Erasure, mode: Mode, x: Name): Val => {
 
 const synth = (local: Local, tm: Surface): [Core, Val] => {
   log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
-  if (tm.tag === 'Prim') {
-    if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
-    return [Prim(tm.name), primType(tm.name)];
-  }
   if (tm.tag === 'Var') {
-    const i = local.nsSurface.indexOf(tm.name);
-    if (i < 0) {
-      const entry = loadGlobal(tm.name);
-      if (!entry) return terr(`global ${tm.name} not found`);
-      if (entry.erased && !local.erased) return terr(`erased global used: ${show(tm)}`);
-      return [Global(tm.name), entry.type];
+    if (isPrimName(tm.name)) {
+      if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
+      return [Prim(tm.name), primType(tm.name)];
     } else {
-      const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
-      log(() => `local: ${i} ~> ${j}`);
-      if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);
-      return [Var(j), entry.type];
+      const i = local.nsSurface.indexOf(tm.name);
+      if (i < 0) {
+        const entry = loadGlobal(tm.name);
+        if (!entry) return terr(`global ${tm.name} not found`);
+        if (entry.erased && !local.erased) return terr(`erased global used: ${show(tm)}`);
+        return [Global(tm.name), entry.type];
+      } else {
+        const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
+        log(() => `local: ${i} ~> ${j}`);
+        if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);
+        return [Var(j), entry.type];
+      }
     }
   }
   if (tm.tag === 'App') {
@@ -263,7 +264,7 @@ const createModuleTerm = (local: Local, entries: List<S.ModEntry>, full: Surface
       return [Let(e.erased, e.name, type, val, Pair(Var(0), nextterm, shift(1, 0, sigma))), sigma];
     }
   }
-  return [C.App(C.Prim('FZ'), Expl, C.Prim('Z')), C.App(C.Prim('Fin'), Expl, C.App(C.Prim('S'), Expl, C.Prim('Z')))];
+  return [C.App(C.Prim('FZ'), Impl, C.Prim('Z')), C.App(C.Prim('Fin'), Expl, C.App(C.Prim('S'), Expl, C.Prim('Z')))];
 };
 
 const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imports: string[] | null, body: Surface, i: Ix = 0): [Core, Val] => {

@@ -41,7 +41,7 @@ const invert = (gamma: Lvl, sp: Spine): PartialRenaming => {
 const renameElim = (id: MetaVar, pren: PartialRenaming, t: Core, e: Elim): Core => {
   if (e.tag === 'EApp') return App(t, e.mode, rename(id, pren, e.arg));
   if (e.tag === 'EProj') return C.Proj(t, e.proj);
-  if (e.tag === 'EPrim') return App(e.args.map(v => rename(id, pren, v)).reduce((x, y) => App(x, Expl, y), Prim(e.name) as Core), Expl, t);
+  if (e.tag === 'EPrim') return App(e.args.reduce((x, [m, v]) => App(x, m, rename(id, pren, v)), Prim(e.name) as Core), Expl, t);
   return e;
 };
 const renameSpine = (id: MetaVar, pren: PartialRenaming, t: Core, sp: Spine): Core =>
@@ -103,7 +103,10 @@ const unifySpines = (l: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
       return unifySpines(l, va, vb, sa.tail, sb.tail);
     }
     if (a.tag === 'EPrim' && b.tag === 'EPrim' && a.name === b.name && a.args.length === b.args.length) {
-      for (let i = 0, l = a.args.length; i < l; i++) unify(l, a.args[i], b.args[i]);
+      for (let i = 0, l = a.args.length; i < l; i++) {
+        if (!eqMode(a.args[i][0], b.args[i][0])) return terr(`plicity mismatch in prim elim: ${show(va, l)} ~ ${show(vb, l)}`);
+        unify(l, a.args[i][1], b.args[i][1]);
+      }
       return unifySpines(l, va, vb, sa.tail, sb.tail);
     }
     if (a.tag === 'EProj' && b.tag === 'EProj') {

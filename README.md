@@ -4,6 +4,9 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
+- remove parens around nats
+- rename Z to 0
+- add primitive nat and fin literals
 - fix issues with "private" defs and InsertedMeta
 - avoid shift/subst in import/sig/mod
 QUESTIONS:

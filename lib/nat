@@ -1,9 +1,4 @@
 mod {
-  def -Nat = %Nat
-  def Z : Nat = %Z
-  def S : Nat -> Nat = %S
-  def elimNat : (-P : Nat -> *) -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n = %elimNat
-
   def paraNat : {-A : *} -> Nat -> A -> (Nat -> A -> A) -> A
     = \{A} n z s. elimNat (\_. A) z s n
   def cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A

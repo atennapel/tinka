@@ -1,6 +1,3 @@
-import nat;
-import fin;
-
 let -UnitType = Fin 1;
 let Unit : UnitType = 0f;
 mod {

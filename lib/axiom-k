@@ -1,7 +1,0 @@
-import eq (Eq, Refl);
-
-mod {
-  let axiomK
-    : {-A : *} -> {-x : A} -> {p : Eq x x} -> Eq p Refl
-    = Refl
-}

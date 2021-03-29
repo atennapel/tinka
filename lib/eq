@@ -1,10 +1,4 @@
 mod {
-  def -Eq : {A : *} -> A -> A -> * = \{A}. %Eq A
-  def Refl : {-A : *} -> {-x : A} -> Eq {A} x x = \{A} {x}. %Refl A x
-  def elimEq
-    : {-A : *} -> (-P : (x y : A) -> Eq x y -> *) -> ({-x : A} -> P x x Refl) -> {-x -y : A} -> (p : Eq x y) -> P x y p
-    = \{A} P q {x} {y} p. %elimEq A P (\x. q {x}) x y p
-
   def rewrite
     : {-A : *} -> {-a -b : A} -> (-P : A -> *) -> Eq a b -> P a -> P b
     = \P p. elimEq (\x y _. P x -> P y) (\q. q) p
@@ -24,4 +18,8 @@ mod {
   def cong
     : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b)
     = \{A} {B} {f} {a} p. rewrite (\x. Eq (f a) (f x)) p Refl
+
+  def axiomK
+    : {-A : *} -> {-x : A} -> {p : Eq x x} -> Eq p Refl
+    = Refl
 }

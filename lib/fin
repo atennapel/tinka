@@ -1,13 +1,4 @@
-import nat;
-
 mod {
-  def -Fin : Nat -> * = %Fin
-  def FZ : {-n : Nat} -> Fin (S n) = \{n}. %FZ n
-  def FS : {-n : Nat} -> Fin n -> Fin (S n) = \{n} f. %FS n f
-  def elimFin
-    : (-P : (n : Nat) -> Fin n -> *) -> ({-n : Nat} -> P (S n) FZ) -> ({-n : Nat} -> (y : Fin n) -> P n y -> P (S n) (FS y)) -> {-n : Nat} -> (x : Fin n) -> P n x
-    = \P z s {n} x. %elimFin P (\n. z {n}) (\n. s {n}) n x
-
   def fin2nat : {-n : Nat} -> Fin n -> Nat = \x. elimFin (\_ _. Nat) Z (\_ m. S m) x
 
   def -branches : (n : Nat) -> (Fin n -> *) -> *

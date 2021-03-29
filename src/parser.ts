@@ -1,8 +1,6 @@
 import { log } from './config';
-import { Prim } from './core';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { isPrimName } from './prims';
 import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Signature, ModEntry, Module, SigEntry } from './surface';
 import { serr } from './utils/utils';
 
@@ -112,7 +110,7 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean, keepSymbol: boolean 
   return r;
 };
 
-const UnitType = App(Prim('Fin'), Expl, App(Prim('S'), Expl, Prim('Z')));
+const UnitType = App(Var('Fin'), Expl, App(Var('S'), Expl, Var('Z')));
 
 const erasedName = (x: Name): [Name, Erasure] => x[0] === '-' ? [x.slice(1), true] : [x, false];
 
@@ -212,11 +210,6 @@ const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
-    if (x[0] === '%') {
-      const y = x.slice(1);
-      if (!isPrimName(y)) return serr(`invalid prim ${x}`);
-      return [Prim(y), false];
-    }
     if (x[0] === '_') {
       const y = x.slice(1);
       return [Hole(y.length > 0 ? y : null), false];

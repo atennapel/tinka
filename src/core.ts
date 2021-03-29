@@ -114,10 +114,7 @@ const showProjType = (p: ProjType): string => {
 export const show = (t: Core): string => {
   if (t.tag === 'Var') return `'${t.index}`;
   if (t.tag === 'Global') return `${t.name}`;
-  if (t.tag === 'Prim') {
-    if (t.name === '*') return t.name;
-    return `%${t.name}`;
-  }
+  if (t.tag === 'Prim') return t.name === 'Z' ? '0' : `${t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'InsertedMeta') return `?*${t.id}${t.spine.reverse().toString(([m, b]) => `${m.tag === 'Expl' ? '' : '{'}${b ? 'b' : 'd'}${m.tag === 'Expl' ? '' : '}'}`)}`;
   if (t.tag === 'Pi') {
@@ -129,6 +126,15 @@ export const show = (t: Core): string => {
     return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : '('}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Impl' ? '}' : ')'}`).join(' ')}. ${show(body)}`;
   }
   if (t.tag === 'App') {
+    if (t.fn.tag === 'Prim' && t.fn.name === 'S') {
+      let n = 1;
+      let c = t.arg;
+      while (c.tag === 'App' && c.fn.tag === 'Prim' && c.fn.name === 'S') {
+        c = c.arg;
+        n++;
+      }
+      if (c.tag === 'Prim' && c.name === 'Z') return `${n}`;
+    }
     const [fn, args] = flattenApp(t);
     return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${show(a)}}`).join(' ')}`;
   }

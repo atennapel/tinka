@@ -1,14 +1,13 @@
 import { MetaVar } from './metas';
 import { Erasure, Mode } from './mode';
 import { chooseName, Ix, Lvl, Name } from './names';
-import { PrimName } from './prims';
 import { Core } from './core';
 import { cons, List, nil } from './utils/List';
 import { impossible } from './utils/utils';
 import { quote, Val } from './values';
 
 export type Surface =
-  Var | Prim | Let | Ann |
+  Var | Let | Ann |
   Pi | Abs | App |
   Sigma | Pair | Proj |
   Signature | Module | Import |
@@ -16,8 +15,6 @@ export type Surface =
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
-export interface Prim { readonly tag: 'Prim'; readonly name: PrimName }
-export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
 export interface Let { readonly tag: 'Let'; readonly erased: Erasure; readonly name: Name; readonly type: Surface | null; readonly val: Surface; readonly body: Surface }
 export const Let = (erased: Erasure, name: Name, type: Surface | null, val: Surface, body: Surface): Let => ({ tag: 'Let', erased, name, type, val, body });
 export interface Ann { readonly tag: 'Ann'; readonly term: Surface; readonly type: Surface }
@@ -64,7 +61,7 @@ export const PName = (name: Name): PName => ({ tag: 'PName', name });
 export interface PIndex { readonly tag: 'PIndex'; readonly index: Ix }
 export const PIndex = (index: Ix): PIndex => ({ tag: 'PIndex', index });
 
-export const Type = Prim('*');
+export const Type = Var('*');
 
 export const flattenPi = (t: Surface): [[Erasure, Mode, Name, Surface][], Surface] => {
   const params: [Erasure, Mode, Name, Surface][] = [];
@@ -121,7 +118,7 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj';
+const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj';
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -130,12 +127,8 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Surface): string => {
-  if (t.tag === 'Var') return `${t.name}`;
+  if (t.tag === 'Var') return t.name === 'Z' ? '0' : `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
-  if (t.tag === 'Prim') {
-    if (t.name === '*') return t.name;
-    return `%${t.name}`;
-  }
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
@@ -146,6 +139,15 @@ export const show = (t: Surface): string => {
     return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${show(body)}`;
   }
   if (t.tag === 'App') {
+    if (t.fn.tag === 'Var' && t.fn.name === 'S') {
+      let n = 1;
+      let c = t.arg;
+      while (c.tag === 'App' && c.fn.tag === 'Var' && c.fn.name === 'S') {
+        c = c.arg;
+        n++;
+      }
+      if (c.tag === 'Var' && c.name === 'Z') return `${n}`;
+    }
     const [fn, args] = flattenApp(t);
     return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${show(a)}}`).join(' ')}`;
   }
@@ -177,7 +179,7 @@ export const show = (t: Surface): string => {
 export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Var') return Var(ns.index(t.index) || impossible(`var out of scope in fromCore: ${t.index}`));
   if (t.tag === 'Global') return Var(t.name);
-  if (t.tag === 'Prim') return Prim(t.name);
+  if (t.tag === 'Prim') return Var(t.name);
   if (t.tag === 'App') return App(fromCore(t.fn, ns), t.mode, fromCore(t.arg, ns));
   if (t.tag === 'Pi') {
     const x = chooseName(t.name, ns);

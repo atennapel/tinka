@@ -1,5 +1,4 @@
 import unit;
-import nat;
 import fin;
 
 mod {
