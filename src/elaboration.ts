@@ -197,7 +197,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
   if (tm.tag === 'Pair') {
     const [fst, fstty] = synth(local, tm.fst);
     const [snd, sndty] = synth(local, tm.snd);
-    const ty = Sigma(false, '_', quote(fstty, local.level), quote(sndty, local.level + 1));
+    const ty = Sigma(false, tm.fst.tag === 'Var' ? tm.fst.name : '_', quote(fstty, local.level), quote(sndty, local.level + 1));
     return [Pair(fst, snd, ty), evaluate(ty, local.vs)];
   }
   if (tm.tag === 'Ann') {

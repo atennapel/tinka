@@ -22,18 +22,4 @@ let axiomK
   : {-A : *} -> {-x : A} -> {p : Eq x x} -> Eq p Refl
   = Refl;
 
-(@rewrite, @cast, @sym, @trans, @cong, @axiomK, 0f)
-:
-(rewrite : {-A : *} -> {-a -b : A} -> (-P : A -> *) -> Eq a b -> P a -> P b)
-**
-(cast : {-A -B : *} -> Eq A B -> A -> B)
-**
-(sym : {-A : *} -> {-a -b : A} -> Eq a b -> Eq b a)
-**
-(trans : {-A : *} -> {-a -b -c : A} -> Eq a b -> Eq b c -> Eq a c)
-**
-(cong : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b))
-**
-(axiomK : {-A : *} -> {-x : A} -> {p : Eq x x} -> Eq p Refl)
-**
-()
+(rewrite, cast, sym, trans, cong, axiomK, 0f)

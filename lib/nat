@@ -9,18 +9,4 @@ let pred : Nat -> Nat = \n. caseNat n Z \m. m;
 let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
 let mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b);
 
-(@paraNat, @cataNat, @caseNat, @pred, @add, @mul, 0f)
-:
-(paraNat : {-A : *} -> Nat -> A -> (Nat -> A -> A) -> A)
-**
-(cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A)
-**
-(caseNat : {-A : *} -> Nat -> A -> (Nat -> A) -> A)
-**
-(pred : Nat -> Nat)
-**
-(add : Nat -> Nat -> Nat)
-**
-(mul : Nat -> Nat -> Nat)
-**
-()
+(paraNat, cataNat, caseNat, pred, add, mul, 0f)
