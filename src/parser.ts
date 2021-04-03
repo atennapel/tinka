@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Signature, ModEntry, Module, SigEntry } from './surface';
+import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid } from './surface';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{'
@@ -47,7 +47,7 @@ const tokenize = (sc: string): Token[] => {
       else if (c === '"') state = STRING;
       else if (c === '.' && !/[\.\%\_a-z]/i.test(next)) r.push(TName('.'));
       else if (c + next === '--') i++, state = COMMENT;
-      else if (/[\-\.\?\@\#\%\_a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\-\.\?\@\#\%\_\@a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}') {
@@ -198,6 +198,8 @@ const projs = (ps: string): ProjType[] => {
   return parts.map(proj);
 };
 
+const mkVar = (x: string) => x[0] === '@' ? Rigid(Var(x.slice(1))) : Var(x);
+
 const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
     return [exprs(t.list, '('), t.bracket === '{'];
@@ -214,13 +216,13 @@ const expr = (t: Token): [Surface, boolean] => {
       const y = x.slice(1);
       return [Hole(y.length > 0 ? y : null), false];
     }
-    if (/[a-z]/i.test(x[0])) {
+    if (/[a-z\@]/i.test(x[0])) {
       if (x.indexOf('.') >= 0) {
         const parts = x.split('.');
         const first = parts[0];
         const ps = projs(parts.slice(1).join('.'));
-        return [ps.reduce((t, p) => Proj(t, p), Var(first) as Surface), false];
-      } else return [Var(x), false];
+        return [ps.reduce((t, p) => Proj(t, p), mkVar(first) as Surface), false];
+      } else return [mkVar(x), false];
     }
     return serr(`invalid name: ${x}`);
   }
@@ -341,6 +343,10 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     const b = ts.slice(i + 1);
     return Ann(exprs(a, '('), exprs(b, '('));
   }
+  if (isName(ts[0], '@')) {
+    const term = exprs(ts.slice(1), '(');
+    return Rigid(term);
+  }
   if (isName(ts[0], '\\')) {
     const args: [Erasure, Name, Mode, Surface | null][] = [];
     let found = false;
@@ -398,94 +404,6 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       if (mode.tag !== 'Expl') return serr(`sigma cannot be implicit`);
       return Sigma(u, name, ty, x)
     }, body);
-  }
-  if (isName(ts[0], 'sig')) {
-    if (ts.length !== 2) return serr(`invalid signature (1)`);
-    const b = ts[1];
-    if (b.tag !== 'List' || b.bracket !== '{') return serr(`invalid signature (2)`);
-    const bs = b.list;
-    const spl = splitTokens(bs, t => t.tag === 'Name' && t.name === 'def', true);
-    const entries: SigEntry[] = [];
-    for (let i = 0; i < spl.length; i++) {
-      const c = spl[i];
-      if (c.length === 0) continue;
-      if (c[0].tag !== 'Name') return serr(`invalid signature, definition does not start with def`);
-      if (c[0].name !== 'def') return serr(`invalid signature, definition does not start with def`);
-      let x = c[1];
-      let j = 2;
-      let name = '';
-      let u = false;
-      if (x.tag === 'Name') {
-        [name, u] = erasedName(x.name);
-      } else return serr(`invalid name for signature def: ${x.tag}`);
-      if (name.length === 0) return serr(`signature definition with empty name`);
-      const sym = c[j];
-      if (!sym) {
-        entries.push(SigEntry(u, name, null));
-        continue;
-      }
-      if (sym.tag !== 'Name') return serr(`signature def: after name should be :`);
-      if (sym.name === ':') {
-        const type = exprs(c.slice(j + 1), '(');
-        entries.push(SigEntry(u, name, type));
-        continue;
-      } else return serr(`def: : or = expected but got ${sym.name}`);
-    }
-    return Signature(entries);
-  }
-  if (isName(ts[0], 'mod')) {
-    if (ts.length !== 2) return serr(`invalid module (1)`);
-    const b = ts[1];
-    if (b.tag !== 'List' || b.bracket !== '{') return serr(`invalid module (2)`);
-    const bs = b.list;
-    const spl = splitTokens(bs, t => t.tag === 'Name' && ['def', 'private'].includes(t.name), true);
-    const entries: ModEntry[] = [];
-    let private_flag = false;
-    for (let i = 0; i < spl.length; i++) {
-      const c = spl[i];
-      if (c.length === 0) continue;
-      if (c[0].tag !== 'Name') return serr(`invalid module, definition does not start with def or private`);
-      if (c[0].name !== 'def' && c[0].name !== 'private') return serr(`invalid module, definition does not start with def or private`);
-      if (c[0].name === 'private') {
-        if (c.length > 1) return serr(`something went wrong in parsing module private definition`);
-        private_flag = true;
-        continue;
-      }
-      let private_ = false;
-      if (c[0].name === 'def' && private_flag) {
-        private_flag = false;
-        private_ = true;
-      }
-      let x = c[1];
-      let j = 2;
-      let name = '';
-      let u = false;
-      if (x.tag === 'Name') {
-        [name, u] = erasedName(x.name);
-      } else return serr(`invalid name for module def`);
-      if (name.length === 0) return serr(`module definition with empty name`);
-      const sym = c[j];
-      if (sym.tag !== 'Name') return serr(`module def: after name should be : or =`);
-      if (sym.name === '=') {
-        const val = exprs(c.slice(j + 1), '(');
-        entries.push(ModEntry(private_, u, name, null, val));
-        continue;
-      } else if (sym.name === ':') {
-        const tyts: Token[] = [];
-        j++;
-        for (; j < c.length; j++) {
-          const v = c[j];
-          if (v.tag === 'Name' && v.name === '=')
-            break;
-          else tyts.push(v);
-        }
-        const type = exprs(tyts, '(');
-        const val = exprs(c.slice(j + 1), '(');
-        entries.push(ModEntry(private_, u, name, type , val));
-        continue;
-      } else return serr(`def: : or = expected but got ${sym.name}`);
-    }
-    return Module(entries);
   }
   const l = ts.findIndex(x => isName(x, '\\'));
   let all: AppPart[] = [];

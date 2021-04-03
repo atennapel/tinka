@@ -3,11 +3,11 @@ import { indexEnvT, Local } from './local';
 import { allMetasSolved, freshMeta, resetMetas } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
-import { evaluate, force, quote, Val, vapp, VFin, VFlex, vinst, VPi, vproj, VS, VSigma, VType, VVar, VZ, zonk } from './values';
+import { evaluate, force, quote, Val, VFlex, vinst, VPi, vproj, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
 import { config, log } from './config';
-import { impossible, terr, tryT } from './utils/utils';
+import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Lvl, Name } from './names';
 import { loadGlobal } from './globals';
@@ -53,7 +53,7 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
     const body = check(local.bind(fty.erased, fty.mode, x, fty.type), tm.body, vinst(fty, v));
     return Abs(fty.erased, fty.mode, x, quote(fty.type, local.level), body);
   }
-  if (fty.tag === 'VPi' && fty.mode.tag === 'Impl') {
+  if (fty.tag === 'VPi' && fty.mode.tag === 'Impl' && tm.tag !== 'Rigid') {
     const v = VVar(local.level);
     const term = check(local.insert(true, fty.mode, fty.name, fty.type), tm, vinst(fty, v));
     return Abs(fty.erased, fty.mode, fty.name, quote(fty.type, local.level), term);
@@ -82,8 +82,8 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
     const body = check(local.define(tm.erased, tm.name, vty, v), tm.body, ty);
     return Let(tm.erased, tm.name, vtype, val, body);
   }
-  const [term, ty2] = synth(local, tm);
-  const [ty2inst, ms] = inst(local, ty2);
+  const [term, ty2] = synth(local, tm.tag === 'Rigid' ? tm.term : tm);
+  const [ty2inst, ms] = tm.tag === 'Rigid' ? [ty2, nil] : inst(local, ty2);
   return tryT(() => {
     log(() => `unify ${showV(local, ty2inst)} ~ ${showV(local, ty)}`);
     log(() => `for check ${show(tm)} : ${showV(local, ty)}`);
@@ -212,61 +212,8 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
     const vterm = evaluate(term, local.vs);
     return createImportTerm(local, term, vterm, sigma_, tm.imports, tm.body);
   }
-  if (tm.tag === 'Signature') {
-    let clocal = local;
-    const edefs: [S.SigEntry, Core][] = [];
-    for (let i = 0, l = tm.defs.length; i < l; i++) {
-      const e = tm.defs[i];
-      let type: Core;
-      if (e.type) {
-        type = check(clocal.inType(), e.type, VType);
-      } else {
-        type = newMeta(clocal);
-      }
-      edefs.push([e, type]);
-      const ty = evaluate(type, clocal.vs);
-      clocal = clocal.bind(e.erased, Expl, e.name, ty);
-    }
-    const stype = edefs.reduceRight((t, [e, type]) => Sigma(e.erased, e.name, type, t), (C.App(C.Prim('Fin'), Expl, C.App(C.Prim('S'), Expl, C.Prim('Z')))) as Core);
-    return [stype, VType];
-  }
-  if (tm.tag === 'Module') {
-    const defs = List.from(tm.defs);
-    const [term, rty] = createModuleTerm(local, defs, defs);
-    log(() => `${S.showCore(term, local.ns)}`);
-    log(() => showV(local, rty));
-    return impossible('unimplemented');
-  }
+  if (tm.tag === 'Rigid') return terr(`can only use rigid in checking position: ${show(tm)}`);
   return terr(`unable to synth ${show(tm)}`);
-};
-
-const createModuleTerm = (local: Local, entries: List<S.ModEntry>, fullentries: List<S.ModEntry>, vars: List<number> = nil, i: number = 0): [Core, Val] => {
-  log(() => `createModuleTerm (${local.level}) ${entries.toString(v => `ModEntry(${v.name}, ${v.priv}, ${v.erased}, ${!v.type ? '' : show(v.type)}, ${show(v.val)})`)}`);
-  if (entries.isCons()) {
-    const e = entries.head;
-    const rest = entries.tail;
-    let type: Core;
-    let ty: Val;
-    let val: Core;
-    if (e.type) {
-      type = check(local.inType(), e.type, VType);
-      ty = evaluate(type, local.vs);
-      val = check(e.erased ? local.inType() : local, e.val, ty);
-    } else {
-      [val, ty] = synth(e.erased ? local.inType() : local, e.val);
-      type = quote(ty, local.level);
-    }
-    const v = evaluate(val, local.vs);
-    const nextlocal = local.define(e.erased, e.name, ty, v);
-    const [body, rty] = createModuleTerm(nextlocal, rest, fullentries, e.priv ? vars : cons(i, vars), i + 1);
-    return [Let(e.erased, e.name, type, val, body), e.priv ? rty : VSigma(e.erased, e.name, ty, _ => rty)];
-  }
-  const arrentries = fullentries.toArray();
-  const [term, _] = vars.reverse().foldr((j, [rest, ty]) => {
-    const e = arrentries[j];
-    return [Pair(Var(i - j - 1), rest, VSigma(ty)), ty];
-  }, [C.App(C.Prim('FZ'), Impl, C.Prim('Z')), VFin(VS(VZ))] as [Core, Val]);
-  return [term, VFin(VS(VZ))];
 };
 
 const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imports: string[] | null, body: Surface, i: Ix = 0): [Core, Val] => {

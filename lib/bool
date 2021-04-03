@@ -1,14 +1,28 @@
 import unit;
 import fin;
 
-mod {
-  def -Bool = Fin 2
-  def False : Bool = 0f
-  def True : Bool = 1f
-  def indBool : (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
-    = \P t f b. dcaseFin P b (f, t, Unit)
-  
-  def if : {-A : *} -> Bool -> A -> A -> A
-    = \{A} b t f. indBool (\_. A) t f b
-  def not : Bool -> Bool = \b. if b False True
-}
+let -Bool = Fin 2;
+let False : Bool = 0f;
+let True : Bool = 1f;
+let indBool : (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
+  = \P t f b. dcaseFin P b (f, t, Unit);
+
+let if : {-A : *} -> Bool -> A -> A -> A
+  = \{A} b t f. indBool (\_. A) t f b;
+let not : Bool -> Bool = \b. if b False True;
+
+(@Bool, @False, @True, @indBool, @if, @not, 0f)
+:
+(-Bool : *)
+**
+(False : Bool)
+**
+(True : Bool)
+**
+(indBool : (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b)
+**
+(if : {-A : *} -> Bool -> A -> A -> A)
+**
+(not : Bool -> Bool)
+**
+()

@@ -10,8 +10,8 @@ export type Surface =
   Var | Let | Ann |
   Pi | Abs | App |
   Sigma | Pair | Proj |
-  Signature | Module | Import |
-  Meta | Hole;
+  Import |
+  Meta | Hole | Rigid;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
@@ -36,19 +36,13 @@ export const Proj = (term: Surface, proj: ProjType): Proj => ({ tag: 'Proj', ter
 
 export interface Import { readonly tag: 'Import'; readonly term: Surface; readonly imports: string[] | null; readonly body: Surface }
 export const Import = (term: Surface, imports: string[] | null, body: Surface): Import => ({ tag: 'Import', term, imports, body });
-export interface SigEntry { readonly erased: Erasure; readonly name: Name; readonly type: Surface | null }
-export const SigEntry = (erased: Erasure, name: Name, type: Surface | null): SigEntry => ({ erased, name, type });
-export interface Signature { readonly tag: 'Signature'; readonly defs: SigEntry[] }
-export const Signature = (defs: SigEntry[]): Signature => ({ tag: 'Signature', defs });
-export interface ModEntry { readonly priv: boolean; readonly erased: Erasure; readonly name: Name; readonly type: Surface | null; readonly val: Surface }
-export const ModEntry = (priv: boolean, erased: Erasure, name: Name, type: Surface | null, val: Surface): ModEntry => ({ priv, erased, name, type, val });
-export interface Module { readonly tag: 'Module'; readonly defs: ModEntry[] }
-export const Module = (defs: ModEntry[]): Module => ({ tag: 'Module', defs });
 
 export interface Meta { readonly tag: 'Meta'; readonly id: MetaVar }
 export const Meta = (id: MetaVar): Meta => ({ tag: 'Meta', id });
 export interface Hole { readonly tag: 'Hole'; readonly name: Name | null }
 export const Hole = (name: Name | null): Hole => ({ tag: 'Hole', name });
+export interface Rigid { readonly tag: 'Rigid'; readonly term: Surface }
+export const Rigid = (term: Surface): Rigid => ({ tag: 'Rigid', term });
 
 export type ProjType = PProj | PName | PIndex;
 
@@ -168,11 +162,7 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Ann') return `${show(t.term)} : ${show(t.type)}`;
   if (t.tag === 'Import')
     return `import ${showS(t.term)}${t.imports ? ` (${t.imports.join(', ')})` : ''}; ${show(t.body)}`;
-  if (t.tag === 'Signature')
-    return `sig { ${t.defs.map(({erased, name, type}) => `def ${erased ? '-' : ''}${name}${type ? ` : ${show(type)}` : ''}`).join(' ')} }`;
-  if (t.tag === 'Module')
-    return `mod { ${t.defs.map(({priv, erased, name, type, val}) =>
-      `${priv ? 'private ' : ''}def ${erased ? '-' : ''}${name}${type ? ` : ${show(type)}` : ''} = ${show(val)}`).join(' ')} }`;
+  if (t.tag === 'Rigid') return `@${showS(t.term)}`;
   return t;
 };
 

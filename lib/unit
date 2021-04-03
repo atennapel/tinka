@@ -1,9 +1,14 @@
 let -UnitType = Fin 1;
 let Unit : UnitType = 0f;
-mod {
-  def indUnit : (-P : () -> *) -> P Unit -> (-u : ()) -> P u
-    = \P p u. p
+let indUnit : (-P : () -> *) -> P Unit -> (-u : ()) -> P u
+  = \P p u. p;
 
-  def -UnitType = Fin 1
-  def Unit : UnitType = 0f
-}
+(@UnitType, @Unit, @indUnit, 0f)
+:
+(-UnitType : *)
+**
+(Unit : UnitType)
+**
+(indUnit : (-P : () -> *) -> P 0f -> (-u : ()) -> P u)
+**
+()
