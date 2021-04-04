@@ -1,0 +1,24 @@
+let -Nat = (-A : *) -> A -> (A -> A) -> A;
+let Z : Nat = \A z s. z;
+let S : Nat -> Nat = \n A z s. s (n A z s);
+let cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A
+  = \n. n _;
+
+let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
+let mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b);
+
+(Nat, Z, S, @cataNat, add, mul, Unit)
+:
+(-Nat : *)
+**
+(Z : Nat)
+**
+(S : Nat -> Nat)
+**
+(cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A)
+**
+(add : Nat -> Nat -> Nat)
+**
+(mul : Nat -> Nat -> Nat)
+**
+()

@@ -1,6 +1,5 @@
 build
 node_modules
-log.txt
+*.txt
 .vscode
-temp.txt
 test.p

@@ -12,7 +12,11 @@ let caseMaybe
   : {-A -R : *} -> Maybe A -> R -> (A -> R) -> R
   = \{A} {R} x n j. elimMaybe (\_. R) n j x;
 
-(Maybe, @Nothing, @Just, @elimMaybe, @caseMaybe, Unit)
+let mapMaybe
+  : {-A -B : *} -> (A -> B) -> Maybe A -> Maybe B
+  = \f x. caseMaybe x Nothing (\y. Just (f y));
+
+(Maybe, @Nothing, @Just, @elimMaybe, @caseMaybe, @mapMaybe, Unit)
 :
 (-Maybe : * -> *)
 **
@@ -23,5 +27,7 @@ let caseMaybe
 (elimMaybe : {-A : *} -> (-P : Maybe A -> *) -> P Nothing -> ((y : A) -> P (Just y)) -> (x : Maybe A) -> P x)
 **
 (caseMaybe : {-A -R : *} -> Maybe A -> R -> (A -> R) -> R)
+**
+(mapMaybe : {-A -B : *} -> (A -> B) -> Maybe A -> Maybe B)
 **
 ()

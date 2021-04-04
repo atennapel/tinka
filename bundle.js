@@ -1265,10 +1265,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.primType = exports.isPrimErased = exports.ErasedPrims = exports.isPrimName = exports.PrimNames = void 0;
 const mode_1 = require("./mode");
 const values_1 = require("./values");
-exports.PrimNames = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool'];
+exports.PrimNames = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con'];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
-exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool'];
+exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data'];
 const isPrimErased = (name) => exports.ErasedPrims.includes(name);
 exports.isPrimErased = isPrimErased;
 const primType = (name) => {
@@ -1301,6 +1301,12 @@ const primType = (name) => {
     // (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
     if (name === 'elimBool')
         return values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, '_', values_1.VBool, _ => values_1.VType), P => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VTrue), _ => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VFalse), _ => values_1.VPi(false, mode_1.Expl, 'b', values_1.VBool, b => values_1.vapp(P, mode_1.Expl, b)))));
+    // (* -> *) -> *
+    if (name === 'Data')
+        return values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', values_1.VType, _ => values_1.VType), _ => values_1.VType);
+    // {-F : * -> *} -> F (Data F) -> Data F
+    if (name === 'Con')
+        return values_1.VPi(true, mode_1.Impl, 'F', values_1.VPi(false, mode_1.Expl, '_', values_1.VType, _ => values_1.VType), F => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(F, mode_1.Expl, values_1.VData(F)), _ => values_1.VData(F)));
     return name;
 };
 exports.primType = primType;
@@ -2256,7 +2262,7 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VRefl = exports.VEq = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VData = exports.VRefl = exports.VEq = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2312,6 +2318,8 @@ const VEq = (A, x, y) => exports.VPrim('Eq', List_1.List.of(exports.EApp(mode_1.
 exports.VEq = VEq;
 const VRefl = (A, x) => exports.VPrim('Refl', List_1.List.of(exports.EApp(mode_1.Impl, x), exports.EApp(mode_1.Impl, A)));
 exports.VRefl = VRefl;
+const VData = (F) => exports.VPrim('Data', List_1.List.of(exports.EApp(mode_1.Expl, F)));
+exports.VData = VData;
 const isVVar = (v) => v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
 exports.isVVar = isVVar;
 const getVPrim = (v) => {

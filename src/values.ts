@@ -69,6 +69,7 @@ export const VFalse = VPrim('False');
 
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
+export const VData = (F: Val): Val => VPrim('Data', List.of(EApp(Expl, F)));
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
