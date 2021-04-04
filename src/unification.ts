@@ -199,10 +199,7 @@ const primEta = (a: Val): boolean => {
   if (pa) {
     const [x, args] = pa;
     if (x === 'Refl' && args.length === 2) return true;
-    if (x === 'FZ' && args.length === 1) {
-      const n = getVPrim(force(args[0], true));
-      if (n && n[0] === 'Z') return true;
-    }
+    if (x === 'Unit') return true;
   }
   return false;
 };

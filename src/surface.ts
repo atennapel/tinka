@@ -121,7 +121,7 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Surface): string => {
-  if (t.tag === 'Var') return t.name === 'Z' ? '0' : `${t.name}`;
+  if (t.tag === 'Var') return `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'Pi') {
@@ -133,15 +133,6 @@ export const show = (t: Surface): string => {
     return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${show(body)}`;
   }
   if (t.tag === 'App') {
-    if (t.fn.tag === 'Var' && t.fn.name === 'S') {
-      let n = 1;
-      let c = t.arg;
-      while (c.tag === 'App' && c.fn.tag === 'Var' && c.fn.name === 'S') {
-        c = c.arg;
-        n++;
-      }
-      if (c.tag === 'Var' && c.name === 'Z') return `${n}`;
-    }
     const [fn, args] = flattenApp(t);
     return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${show(a)}}`).join(' ')}`;
   }

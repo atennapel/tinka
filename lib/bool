@@ -1,28 +1,13 @@
-import unit;
-import fin;
-
-let -Bool = Fin 2;
-let False : Bool = 0f;
-let True : Bool = 1f;
-let indBool : (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
-  = \P t f b. dcaseFin P b (f, t, Unit);
-
 let if : {-A : *} -> Bool -> A -> A -> A
-  = \{A} b t f. indBool (\_. A) t f b;
+  = \{A} b t f. elimBool (\_. A) t f b;
 let not : Bool -> Bool = \b. if b False True;
+let and : Bool -> Bool -> Bool
+  = \a b. if a b False;
+let or : Bool -> Bool -> Bool
+  = \a b. if a True b;
+let eq : Bool -> Bool -> Bool
+  = \a b. if a b (not b);
+let neq : Bool -> Bool -> Bool
+  = \a b. not (eq a b);
 
-(@Bool, @False, @True, @indBool, @if, @not, 0f)
-:
-(-Bool : *)
-**
-(False : Bool)
-**
-(True : Bool)
-**
-(indBool : (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b)
-**
-(if : {-A : *} -> Bool -> A -> A -> A)
-**
-(not : Bool -> Bool)
-**
-()
+(if, not, and, or, eq, neq, Unit)

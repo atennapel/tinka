@@ -110,7 +110,7 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean, keepSymbol: boolean 
   return r;
 };
 
-const UnitType = App(Var('Fin'), Expl, App(Var('S'), Expl, Var('Z')));
+const UnitType = Var('()');
 
 const erasedName = (x: Name): [Name, Erasure] => x[0] === '-' ? [x.slice(1), true] : [x, false];
 

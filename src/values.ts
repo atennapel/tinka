@@ -61,15 +61,14 @@ export const VMeta = (meta: MetaVar, spine: Spine = nil): Val => VFlex(meta, spi
 export const VPrim = (name: PrimConName, spine: Spine = nil): Val => VRigid(HPrim(name), spine);
 
 export const VType = VPrim('*');
-export const VNat = VPrim('Nat');
-export const VZ = VPrim('Z');
+export const VVoid = VPrim('Void');
+export const VUnitType = VPrim('()');
+export const VBool = VPrim('Bool');
+export const VTrue = VPrim('True');
+export const VFalse = VPrim('False');
 
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
-export const VS = (n: Val): Val => VPrim('S', List.of(EApp(Expl, n)));
-export const VFin = (n: Val): Val => VPrim('Fin', List.of(EApp(Expl, n)));
-export const VFZ = (n: Val): Val => VPrim('FZ', List.of(EApp(Impl, n)));
-export const VFS = (n: Val, f: Val): Val => VPrim('FS', List.of(EApp(Expl, f), EApp(Impl, n)));
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -136,13 +135,9 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
   if (res) {
     const [x, spine] = res;
     if (name === 'elimEq' && x === 'Refl') return vapp(args[2][1], Impl, spine[1]);
-    if (name === 'elimNat') {
-      if (x === 'Z') return args[1][1];
-      if (x === 'S') return vapp(vapp(args[2][1], Expl, spine[0]), Expl, vprimelim('elimNat', spine[0], args));
-    }
-    if (name === 'elimFin') {
-      if (x === 'FZ') return vapp(args[1][1], Impl, spine[0]);
-      if (x === 'FS') return vapp(vapp(vapp(args[2][1], Impl, spine[0]), Expl, spine[1]), Expl, vprimelim('elimFin', spine[1], [args[0], args[1], args[2], [Impl, spine[0]]]));
+    if (name === 'elimBool') {
+      if (x === 'True') return args[1][1];
+      if (x === 'False') return args[2][1];
     }
   }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
@@ -188,19 +183,13 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(true, Impl, 'y', A, y =>
         VAbs(false, Expl, 'p', VEq(A, x, y), p =>
         vprimelim('elimEq', p, [[Impl, A], [Expl, P], [Expl, q], [Impl, x], [Impl, y]])))))));
-    if (t.name === 'elimNat')
-      return VAbs(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
-        VAbs(false, Expl, 'z', vapp(P, Expl, VZ), z =>
-        VAbs(false, Expl, 's', VPi(false, Expl, 'm', VNat, m => VPi(false, Expl, '_', vapp(P, Expl, m), _ => vapp(P, Expl, VS(m)))), s =>
-        VAbs(false, Expl, 'n', VNat, n =>
-        vprimelim('elimNat', n, [[Expl, P], [Expl, z], [Expl, s]])))));
-    if (t.name === 'elimFin')
-      return VAbs(true, Expl, 'P', VPi(false, Expl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VType)), P =>
-        VAbs(false, Expl, 'fz', VPi(true, Impl, 'n', VNat, n => vapp(vapp(P, Expl, VS(n)), Expl, VFZ(n))), fz =>
-        VAbs(false, Expl, 'fs', VPi(true, Impl, 'n', VNat, n => VPi(false, Expl, 'y', VFin(n), y => VPi(false, Expl, '_', vapp(vapp(P, Expl, n), Expl, y), _ => vapp(vapp(P, Expl, VS(n)), Expl, VFS(n, y))))), fs =>
-        VAbs(true, Impl, 'n', VNat, n =>
-        VAbs(false, Expl, 'x', VFin(n), x =>
-        vprimelim('elimFin', x, [[Expl, P], [Expl, fz], [Expl, fs], [Impl, n]]))))));
+    if (t.name === 'absurd')
+      return VAbs(true, Impl, 'A', VType, A => VAbs(false, Expl, 'v', VVoid, v => vprimelim('absurd', v, [[Impl, A]])));
+    if (t.name === 'elimBool')
+      return VAbs(true, Expl, 'P', VPi(false, Expl, '_', VBool, _ => VType), P =>
+        VAbs(false, Expl, 't', vapp(P, Expl, VTrue), t =>
+        VAbs(false, Expl, 'f', vapp(P, Expl, VFalse), f =>
+        VAbs(false, Expl, 'b', VBool, b => vprimelim('elimBool', b, [[Expl, P], [Expl, t], [Expl, f]])))));
     return VPrim(t.name);
   }
   return t;

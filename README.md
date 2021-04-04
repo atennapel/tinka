@@ -4,8 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
-- remove parens around nats
-- rename Z to 0
-- add primitive nat and fin literals
+- add simple recursive datatypes
 - add surface syntax for modules
 ```

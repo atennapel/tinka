@@ -1,16 +1,4 @@
-import unit;
-import fin;
+let indVoid : (-P : Void -> *) -> (v : Void) -> P v
+  = \P v. absurd {P v} v;
 
-let -Void = Fin 0;
-let indVoid : (-P : Void -> *) -> (v : Void) -> P v = \P v. dcaseFin P v Unit;
-let absurd : {-A : *} -> Void -> A = \{A}. indVoid (\_. A);
-
-(@Void, @indVoid, @absurd, 0f)
-:
-(-Void : *)
-**
-(indVoid : (-P : Void -> *) -> (v : Void) -> P v)
-**
-(absurd : {-A : *} -> Void -> A)
-**
-()
+(indVoid, Unit)

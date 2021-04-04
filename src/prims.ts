@@ -1,14 +1,14 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VRefl, VNat, VS, VZ, VFin, VFZ, VFS } from './values';
+import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse } from './values';
 
-export type PrimConName = '*' | 'Eq' | 'Refl' | 'Nat' | 'Z' | 'S' | 'Fin' | 'FZ' | 'FS';
-export type PrimElimName = 'elimEq' | 'elimNat' | 'elimFin';
+export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | 'Unit' | 'Bool' | 'True' | 'False';
+export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Nat', 'Z', 'S', 'elimNat', 'Fin', 'FZ', 'FS', 'elimFin'];
+export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool'];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
-export const ErasedPrims = ['*', 'Eq', 'Nat'];
+export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool'];
 export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
 
 export const primType = (name: PrimName): Val => {
@@ -26,29 +26,25 @@ export const primType = (name: PrimName): Val => {
       VPi(true, Impl, 'y', A, y =>
       VPi(false, Expl, 'p', VEq(A, x, y), p =>
       vapp(vapp(vapp(P, Expl, x), Expl, y), Expl, p)))))));
-  if (name === 'Nat') return VType;
-  if (name === 'Z') return VNat;
-  if (name === 'S') return VPi(false, Expl, '_', VNat, _ => VNat);
-  // elimNat : (-P : Nat -> *) -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n
-  if (name === 'elimNat')
-    return VPi(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
-      VPi(false, Expl, '_', vapp(P, Expl, VZ), _ =>
-      VPi(false, Expl, '_', VPi(false, Expl, 'm', VNat, m => VPi(false, Expl, '_', vapp(P, Expl, m), _ => vapp(P, Expl, VS(m)))), _ =>
-      VPi(false, Expl, 'n', VNat, n =>
-      vapp(P, Expl, n)))));
-  // Fin : Nat -> *
-  if (name === 'Fin') return VPi(false, Expl, '_', VNat, _ => VType);
-  // FZ : {-n : Nat} -> Fin (S n)
-  if (name === 'FZ') return VPi(true, Impl, 'n', VNat, n => VFin(VS(n)));
-  // FS : {-n : Nat} -> Fin n -> Fin (S n)
-  if (name === 'FS') return VPi(true, Impl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VFin(VS(n))));
-  // elimFin : (-P : (n : Nat) -> Fin n -> *) -> ({-n : Nat} -> P (S n) (FZ {n})) -> ({-n : Nat} -> (y : Fin n) -> P n y -> P (S n) (FS {n} y)) -> {-n : Nat} -> (x : Fin n) -> P n x
-  if (name === 'elimFin')
-    return VPi(true, Expl, 'P', VPi(false, Expl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VType)), P =>
-      VPi(false, Expl, '_', VPi(true, Impl, 'n', VNat, n => vapp(vapp(P, Expl, VS(n)), Expl, VFZ(n))), _ =>
-      VPi(false, Expl, '_', VPi(true, Impl, 'n', VNat, n => VPi(false, Expl, 'y', VFin(n), y => VPi(false, Expl, '_', vapp(vapp(P, Expl, n), Expl, y), _ => vapp(vapp(P, Expl, VS(n)), Expl, VFS(n, y))))), _ =>
-      VPi(true, Impl, 'n', VNat, n =>
-      VPi(false, Expl, 'x', VFin(n), x =>
-      vapp(vapp(P, Expl, n), Expl, x))))));
+  
+  if (name === 'Void') return VType;
+  if (name === '()') return VType;
+  if (name === 'Bool') return VType;
+
+  if (name === 'Unit') return VUnitType;
+  if (name === 'True') return VBool;
+  if (name === 'False') return VBool;
+
+  // {-A : *} -> Void -> A
+  if (name === 'absurd')
+    return VPi(true, Impl, 'A', VType, A => VPi(false, Expl, '_', VVoid, _ => A));
+
+  // (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
+  if (name === 'elimBool')
+    return VPi(true, Expl, 'P', VPi(false, Expl, '_', VBool, _ => VType), P =>
+      VPi(false, Expl, '_', vapp(P, Expl, VTrue), _ =>
+      VPi(false, Expl, '_', vapp(P, Expl, VFalse), _ =>
+      VPi(false, Expl, 'b', VBool, b => vapp(P, Expl, b)))));
+
   return name;
 };

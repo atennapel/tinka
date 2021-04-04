@@ -1,12 +1,24 @@
-let paraNat : {-A : *} -> Nat -> A -> (Nat -> A -> A) -> A
-  = \{A} n z s. elimNat (\_. A) z s n;
+let -Nat = (-A : *) -> A -> (A -> A) -> A;
+let Z : Nat = \A z s. z;
+let S : Nat -> Nat = \n A z s. s (n A z s);
 let cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A
-  = \{A} n z s. elimNat (\_. A) z (\_. s) n;
-let caseNat : {-A : *} -> Nat -> A -> (Nat -> A) -> A
-  = \{A} n z s. elimNat (\_. A) z (\m _. s m) n;
+  = \n. n _;
 
-let pred : Nat -> Nat = \n. caseNat n Z \m. m;
 let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
 let mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b);
 
-(paraNat, cataNat, caseNat, pred, add, mul, 0f)
+(Nat, Z, S, @cataNat, add, mul, Unit)
+:
+(-Nat : *)
+**
+(Z : Nat)
+**
+(S : Nat -> Nat)
+**
+(cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A)
+**
+(add : Nat -> Nat -> Nat)
+**
+(mul : Nat -> Nat -> Nat)
+**
+()

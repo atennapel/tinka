@@ -1,0 +1,27 @@
+import sum;
+
+let -Maybe : * -> * = \A. Sum () A;
+let Nothing : {-A : *} -> Maybe A = Left Unit;
+let Just : {-A : *} -> A -> Maybe A = Right;
+
+let elimMaybe
+  : {-A : *} -> (-P : Maybe A -> *) -> P Nothing -> ((y : A) -> P (Just y)) -> (x : Maybe A) -> P x
+  = \P n j x. elimSum P (\_. n) j x;
+
+let caseMaybe
+  : {-A -R : *} -> Maybe A -> R -> (A -> R) -> R
+  = \{A} {R} x n j. elimMaybe (\_. R) n j x;
+
+(Maybe, @Nothing, @Just, @elimMaybe, @caseMaybe, Unit)
+:
+(-Maybe : * -> *)
+**
+(Nothing : {-A : *} -> Maybe A)
+**
+(Just : {-A : *} -> A -> Maybe A)
+**
+(elimMaybe : {-A : *} -> (-P : Maybe A -> *) -> P Nothing -> ((y : A) -> P (Just y)) -> (x : Maybe A) -> P x)
+**
+(caseMaybe : {-A -R : *} -> Maybe A -> R -> (A -> R) -> R)
+**
+()
