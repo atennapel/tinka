@@ -1463,24 +1463,23 @@ const runREPL = (s_, cb) => {
         let prom = Promise.resolve();
         prom.then(() => {
             config_1.log(() => 'ELABORATE');
-            const [eterm, etype] = elaboration_1.elaborate(term, erased ? local.inType() : local);
+            const [eterm, etype] = elaboration_1.elaborate(term, erased || typeOnly ? local.inType() : local);
             config_1.log(() => C.show(eterm));
             config_1.log(() => surface_1.showCore(eterm, local.ns));
             config_1.log(() => C.show(etype));
             config_1.log(() => surface_1.showCore(etype, local.ns));
             config_1.log(() => 'VERIFICATION');
             if (doVerify)
-                verification_1.verify(eterm, erased ? local.inType() : local);
+                verification_1.verify(eterm, erased || typeOnly ? local.inType() : local);
             let normstr = '';
-            if (!typeOnly) {
+            if (showFullNorm) {
                 config_1.log(() => 'NORMALIZE');
-                if (showFullNorm) {
-                    const norm = values_1.normalize(eterm, local.level, local.vs, true);
-                    config_1.log(() => C.show(norm));
-                    config_1.log(() => surface_1.showCore(norm, local.ns));
-                    normstr += `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
-                }
+                const norm = values_1.normalize(eterm, local.level, local.vs, true);
+                config_1.log(() => C.show(norm));
+                config_1.log(() => surface_1.showCore(norm, local.ns));
+                normstr += `\nnorm: ${surface_1.showCore(norm, local.ns)}`;
             }
+            const etypestr = surface_1.showCore(etype, local.ns);
             const etermstr = surface_1.showCore(eterm, local.ns);
             if (isDef) {
                 if (term.tag === 'Let') {
@@ -1497,7 +1496,7 @@ const runREPL = (s_, cb) => {
                 else
                     throw new Error(`invalid definition: ${term.tag}`);
             }
-            return cb(`term: ${surface_1.show(term)}\ntype: ${surface_1.showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+            return cb(`term: ${surface_1.show(term)}\ntype: ${etypestr}\netrm: ${etermstr}${normstr}`);
         }).catch(err => {
             if (showStackTrace)
                 console.error(err);

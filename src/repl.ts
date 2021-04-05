@@ -136,26 +136,25 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     let prom = Promise.resolve();
     prom.then(() => {
       log(() => 'ELABORATE');
-      const [eterm, etype] = elaborate(term, erased ? local.inType() : local);
+      const [eterm, etype] = elaborate(term, erased || typeOnly ? local.inType() : local);
       log(() => C.show(eterm));
       log(() => showCore(eterm, local.ns));
       log(() => C.show(etype));
       log(() => showCore(etype, local.ns));
 
       log(() => 'VERIFICATION');
-      if (doVerify) verify(eterm, erased ? local.inType() : local);
+      if (doVerify) verify(eterm, erased || typeOnly ? local.inType() : local);
 
       let normstr = '';
-      if (!typeOnly) {
+      if (showFullNorm) {
         log(() => 'NORMALIZE');
-        if (showFullNorm) {
-          const norm = normalize(eterm, local.level, local.vs, true);
-          log(() => C.show(norm));
-          log(() => showCore(norm, local.ns));
-          normstr += `\nnorm: ${showCore(norm, local.ns)}`;
-        }
+        const norm = normalize(eterm, local.level, local.vs, true);
+        log(() => C.show(norm));
+        log(() => showCore(norm, local.ns));
+        normstr += `\nnorm: ${showCore(norm, local.ns)}`;
       }
 
+      const etypestr = showCore(etype, local.ns);
       const etermstr = showCore(eterm, local.ns);
 
       if (isDef) {
@@ -171,7 +170,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
         } else throw new Error(`invalid definition: ${term.tag}`);
       }
 
-      return cb(`term: ${show(term)}\ntype: ${showCore(etype, local.ns)}\netrm: ${etermstr}${normstr}`);
+      return cb(`term: ${show(term)}\ntype: ${etypestr}\netrm: ${etermstr}${normstr}`);
     }).catch(err => {
       if (showStackTrace) console.error(err);
       return cb(`${err}`, true);
