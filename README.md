@@ -4,6 +4,8 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
-- implement datatype descriptions
+- fix local lets
+- bootstrap descriptions
+- indexed descriptions
 - add surface syntax for modules
 ```

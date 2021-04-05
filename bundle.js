@@ -1356,6 +1356,7 @@ let showStackTrace = false;
 let doPreload = true;
 let showFullNorm = false;
 let showErasure = true;
+let doVerify = true;
 let local = local_1.Local.empty();
 const initREPL = () => {
     showStackTrace = false;
@@ -1395,6 +1396,10 @@ const runREPL = (s_, cb) => {
         if (s === ':preload') {
             doPreload = !doPreload;
             return cb(`preload: ${doPreload}`);
+        }
+        if (s === ':verify') {
+            doVerify = !doVerify;
+            return cb(`verify: ${doVerify}`);
         }
         if (s === ':defs') {
             const defs = [];
@@ -1464,7 +1469,8 @@ const runREPL = (s_, cb) => {
             config_1.log(() => C.show(etype));
             config_1.log(() => surface_1.showCore(etype, local.ns));
             config_1.log(() => 'VERIFICATION');
-            verification_1.verify(eterm, erased ? local.inType() : local);
+            if (doVerify)
+                verification_1.verify(eterm, erased ? local.inType() : local);
             let normstr = '';
             if (!typeOnly) {
                 config_1.log(() => 'NORMALIZE');

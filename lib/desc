@@ -1,0 +1,101 @@
+import sum;
+
+let -DescF : * -> * = \R.
+  Sum () (                           -- End : Desc
+  Sum ((-A : *) ** (A -> R) ** ()) ( -- Arg : {-A : *} -> (A -> Desc) -> Desc
+  (R ** ())));                       -- Ind : Desc -> Desc
+
+let mapDescF : {-A -B : *} -> (A -> B) -> DescF A -> DescF B
+  = \{A} {B} f x. caseSum x (\_. Left {()} {Sum ((-T : *) ** (T -> B) ** ()) (B ** ())} Unit)
+      (\y. caseSum y (\x. Right {()} (Left {(-A : *) ** (A -> B) ** ()} {B ** ()} (x.0, (\z. f (x.1 z)), Unit)))
+        (\x. Right (Right {_} {B ** ()} (f x._1, Unit))));
+
+let -Desc = Data DescF;
+
+let End : Desc = Con {DescF} (Left Unit);
+let Arg : {-A : *} -> (A -> Desc) -> Desc =
+  \{A} K. Con {DescF} (Right (Left {(-A : *) ** (A -> Desc) ** ()} (A, K, Unit)));
+let Ind : Desc -> Desc =
+  \D. Con {DescF} (Right (Right {_} {Desc ** ()} (D, Unit)));
+
+let elimDesc
+  : (-P : Desc -> *) ->
+    P End ->
+    ({-A : *} -> (K : A -> Desc) -> ((x : A) -> P (K x)) -> P (Arg {A} K)) ->
+    ((D : Desc) -> P D -> P (Ind D)) ->
+    (x : Desc) ->
+    P x
+  = \P end arg ind x. elimData @mapDescF P (\out rec y.
+      elimSum (\s. P (Con {DescF} (mapDescF out s))) (\_. end) (\z.
+        elimSum (\s. P (Con {DescF} (mapDescF out (Right s))))
+          (\p. arg {p.0} (\x. out (p.1 x)) (\x. rec (p.1 x)))
+          (\p. ind (out p.0) (rec p.0))
+          z) y) x;
+
+let -El : Desc -> * -> * =
+  \D X. elimDesc (\_. *) () (\{A} K rec. (x : A) ** (rec x)) (\R rec. X ** rec) D;
+
+let mapD : (D : Desc) -> {-A -B : *} -> (A -> B) -> El D A -> El D B
+  = \D {A} {B} f. elimDesc (\D. El D A -> El D B)
+      (\_. Unit)
+      (\{T} K rec p. (p._1, rec p._1 p._2))
+      (\R rec p. (f p._1, rec p._2))
+      D;
+
+let -DataD : Desc -> * = \D. Data (El D);
+let ConD : {-D : Desc} -> El D (DataD D) -> DataD D = \{D} x. Con {El D} x;
+
+let elimDataD
+  : {-D : Desc}
+    -> (-P : DataD D -> *)
+    -> (
+      {-R : *}
+      -> (out : R -> DataD D)
+      -> ((z : R) -> P (out z))
+      -> (y : El D R)
+      -> P (ConD {D} (mapD D out y))
+    )
+    -> (x : DataD D)
+    -> P x
+  = \{D}. elimData {El D} (@ mapD D);
+
+(Desc, End, @Arg, Ind, elimDesc, El, mapD, DataD, @ConD, @elimDataD, Unit)
+:
+(-Desc : *)
+**
+(End : Desc)
+**
+(Arg : {-A : *} -> (A -> Desc) -> Desc)
+**
+(Ind : Desc -> Desc)
+**
+(elimDesc
+  : (-P : Desc -> *) ->
+    P End ->
+    ({-A : *} -> (K : A -> Desc) -> ((x : A) -> P (K x)) -> P (Arg {A} K)) ->
+    ((D : Desc) -> P D -> P (Ind D)) ->
+    (x : Desc) ->
+    P x)
+**
+(-El : Desc -> * -> *)
+**
+(mapD : (D : Desc) -> {-A -B : *} -> (A -> B) -> El D A -> El D B)
+**
+(-DataD : Desc -> *)
+**
+(ConD : {-D : Desc} -> El D (DataD D) -> DataD D)
+**
+(elimDataD
+  : {-D : Desc}
+    -> (-P : DataD D -> *)
+    -> (
+      {-R : *}
+      -> (out : R -> DataD D)
+      -> ((z : R) -> P (out z))
+      -> (y : El D R)
+      -> P (ConD {D} (mapD D out y))
+    )
+    -> (x : DataD D)
+    -> P x)
+**
+()

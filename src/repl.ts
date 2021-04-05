@@ -28,6 +28,7 @@ let showStackTrace = false;
 let doPreload = true;
 let showFullNorm = false;
 let showErasure = true;
+let doVerify = true;
 let local: Local = Local.empty();
 
 export const initREPL = () => {
@@ -68,6 +69,10 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     if (s === ':preload') {
       doPreload = !doPreload;
       return cb(`preload: ${doPreload}`);
+    }
+    if (s === ':verify') {
+      doVerify = !doVerify;
+      return cb(`verify: ${doVerify}`);
     }
     if (s === ':defs') {
       const defs: string[] = [];
@@ -138,7 +143,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       log(() => showCore(etype, local.ns));
 
       log(() => 'VERIFICATION');
-      verify(eterm, erased ? local.inType() : local);
+      if (doVerify) verify(eterm, erased ? local.inType() : local);
 
       let normstr = '';
       if (!typeOnly) {
