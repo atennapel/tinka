@@ -1,11 +1,11 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData } from './values';
+import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon } from './values';
 
 export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | 'Unit' | 'Bool' | 'True' | 'False' | 'Data' | 'Con';
-export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool';
+export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con'];
+export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData'];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
 export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data'];
@@ -52,6 +52,31 @@ export const primType = (name: PrimName): Val => {
   // {-F : * -> *} -> F (Data F) -> Data F
   if (name === 'Con')
     return VPi(true, Impl, 'F', VPi(false, Expl, '_', VType, _ => VType), F => VPi(false, Expl, '_', vapp(F, Expl, VData(F)), _ => VData(F)));
+
+  /* {-F : * -> *}
+    -> (-map : {-A -B : *} -> (A -> B) -> F A -> F B)
+    -> (-P : Data F -> *)
+    -> (
+      {-R : *}
+      -> (out : R -> Data F)
+      -> ((z : R) -> P (out z))
+      -> (y : F R)
+      -> P (Con {F} (map {R} {Data F} out y))
+    )
+    -> (x : Data F)
+    -> P x*/
+  if (name === 'elimData')
+    return VPi(true, Impl, 'F', VPi(false, Expl, '_', VType, _ => VType), F =>
+      VPi(true, Expl, 'map', VPi(true, Impl, 'A', VType, A => VPi(true, Impl, 'B', VType, B => VPi(false, Expl, '_', VPi(false, Expl, '_', A, _ => B), _ => VPi(false, Expl, '_', vapp(F, Expl, A), _ => vapp(F, Expl, B))))), map =>
+      VPi(true, Expl, 'P', VPi(false, Expl, '_', VData(F), _ => VType), P =>
+      VPi(false, Expl, '_',
+        VPi(true, Impl, 'R', VType, R =>
+        VPi(false, Expl, 'out', VPi(false, Expl, '_', R, _ => VData(F)), out =>
+        VPi(false, Expl, '_', VPi(false, Expl, 'z', R, z => vapp(P, Expl, vapp(out, Expl, z))), _ =>
+        VPi(false, Expl, 'y', vapp(F, Expl, R), y =>
+        vapp(P, Expl, VCon(F, vapp(vapp(vapp(vapp(map, Impl, R), Impl, VData(F)), Expl, out), Expl, y)))))))
+      , _ =>
+      VPi(false, Expl, 'x', VData(F), x => vapp(P, Expl, x))))));
 
   return name;
 };

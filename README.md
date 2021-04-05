@@ -4,6 +4,6 @@ Try it out at https://atennapel.github.io/tinka
 
 ```
 TODO:
-- add simple recursive datatypes
+- implement datatype descriptions
 - add surface syntax for modules
 ```

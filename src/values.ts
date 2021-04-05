@@ -70,6 +70,7 @@ export const VFalse = VPrim('False');
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
 export const VData = (F: Val): Val => VPrim('Data', List.of(EApp(Expl, F)));
+export const VCon = (F: Val, x: Val): Val => VPrim('Con', List.of(EApp(Expl, x), EApp(Impl, F)));
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -140,6 +141,13 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
       if (x === 'True') return args[1][1];
       if (x === 'False') return args[2][1];
     }
+    // elimData {F} map P alg (Con {F} inner) ~> alg {Data F} (\(x : Data F). x) (\(x : Data F). elimData {F} map P alg x) inner
+    if (name === 'elimData' && x === 'Con') {
+      const inner = spine[1];
+      const F = args[0][1];
+      const alg = args[3][1];
+      return vapp(vapp(vapp(vapp(alg, Impl, VData(F)), Expl, VAbs(false, Expl, 'x', VData(F), x => x)), Expl, VAbs(false, Expl, 'x', VData(F), x => vprimelim('elimData', x, args))), Expl, inner);
+    }
   }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VFlex') return VFlex(scrut.head, cons(EPrim(name, args), scrut.spine));
@@ -191,6 +199,19 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(false, Expl, 't', vapp(P, Expl, VTrue), t =>
         VAbs(false, Expl, 'f', vapp(P, Expl, VFalse), f =>
         VAbs(false, Expl, 'b', VBool, b => vprimelim('elimBool', b, [[Expl, P], [Expl, t], [Expl, f]])))));
+    if (t.name === 'elimData')
+      return VAbs(true, Impl, 'F', VPi(false, Expl, '_', VType, _ => VType), F =>
+        VAbs(true, Expl, 'map', VPi(true, Impl, 'A', VType, A => VPi(true, Impl, 'B', VType, B => VPi(false, Expl, '_', VPi(false, Expl, '_', A, _ => B), _ => VPi(false, Expl, '_', vapp(F, Expl, A), _ => vapp(F, Expl, B))))), map =>
+        VAbs(true, Expl, 'P', VPi(false, Expl, '_', VData(F), _ => VType), P =>
+        VAbs(false, Expl, 'alg',
+          VPi(true, Impl, 'R', VType, R =>
+          VPi(false, Expl, 'out', VPi(false, Expl, '_', R, _ => VData(F)), out =>
+          VPi(false, Expl, '_', VPi(false, Expl, 'z', R, z => vapp(P, Expl, vapp(out, Expl, z))), _ =>
+          VPi(false, Expl, 'y', vapp(F, Expl, R), y =>
+          vapp(P, Expl, VCon(F, vapp(vapp(vapp(vapp(map, Impl, R), Impl, VData(F)), Expl, out), Expl, y)))))))
+        , alg =>
+        VAbs(false, Expl, 'x', VData(F), x =>
+        vprimelim('elimData', x, [[Impl, F], [Expl, map], [Expl, P], [Expl, alg]]))))));
     return VPrim(t.name);
   }
   return t;
