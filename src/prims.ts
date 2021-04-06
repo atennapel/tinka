@@ -1,11 +1,11 @@
 import { Expl, Impl } from './mode';
 import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon } from './values';
 
-export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | 'Unit' | 'Bool' | 'True' | 'False' | 'Data' | 'Con';
+export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con';
 export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData'];
+export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData'];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
 export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data'];
@@ -31,7 +31,7 @@ export const primType = (name: PrimName): Val => {
   if (name === '()') return VType;
   if (name === 'Bool') return VType;
 
-  if (name === 'Unit') return VUnitType;
+  if (name === '[]') return VUnitType;
   if (name === 'True') return VBool;
   if (name === 'False') return VBool;
 

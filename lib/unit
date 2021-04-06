@@ -1,4 +1,4 @@
-let indUnit : (-P : () -> *) -> P Unit -> (-u : ()) -> P u
+let indUnit : (-P : () -> *) -> P [] -> (-u : ()) -> P u
   = \P p u. p;
 
-(indUnit, Unit)
+[indUnit]

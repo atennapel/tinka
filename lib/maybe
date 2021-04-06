@@ -1,7 +1,7 @@
 import sum;
 
 let -Maybe : * -> * = \A. Sum () A;
-let Nothing : {-A : *} -> Maybe A = Left Unit;
+let Nothing : {-A : *} -> Maybe A = Left [];
 let Just : {-A : *} -> A -> Maybe A = Right;
 
 let elimMaybe
@@ -16,7 +16,7 @@ let mapMaybe
   : {-A -B : *} -> (A -> B) -> Maybe A -> Maybe B
   = \f x. caseMaybe x Nothing (\y. Just (f y));
 
-(Maybe, @Nothing, @Just, @elimMaybe, @caseMaybe, @mapMaybe, Unit)
+[Maybe, @Nothing, @Just, @elimMaybe, @caseMaybe, @mapMaybe]
 :
 (-Maybe : * -> *)
 **

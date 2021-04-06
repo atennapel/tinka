@@ -136,6 +136,8 @@ export const show = (t: Core): string => {
   }
   if (t.tag === 'Pair') {
     const [ps, ret] = flattenPair(t);
+    if (ret.tag === 'Prim' && ret.name === '[]')
+      return `[${ps.map(show).join(', ')}] : ${show(t.type)}`;
     return `(${ps.map(show).join(', ')}, ${show(ret)}) : ${show(t.type)}`;
   }
   if (t.tag === 'Let')

@@ -20,7 +20,7 @@ let pred : Nat -> Nat = \n. caseNat n Z (\m. m);
 let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
 let mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b);
 
-(Nat, Z, S, elimNat, @caseNat, @cataNat, pred, add, mul, Unit)
+[Nat, Z, S, elimNat, @caseNat, @cataNat, pred, add, mul]
 :
 (-Nat : *)
 **

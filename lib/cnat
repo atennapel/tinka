@@ -7,7 +7,7 @@ let cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A
 let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
 let mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b);
 
-(Nat, Z, S, @cataNat, add, mul, Unit)
+[Nat, Z, S, @cataNat, add, mul]
 :
 (-Nat : *)
 **

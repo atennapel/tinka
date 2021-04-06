@@ -152,6 +152,8 @@ const show = (t) => {
     }
     if (t.tag === 'Pair') {
         const [ps, ret] = exports.flattenPair(t);
+        if (ret.tag === 'Prim' && ret.name === '[]')
+            return `[${ps.map(exports.show).join(', ')}] : ${exports.show(t.type)}`;
         return `(${ps.map(exports.show).join(', ')}, ${exports.show(ret)}) : ${exports.show(t.type)}`;
     }
     if (t.tag === 'Let')
@@ -771,6 +773,10 @@ const matchingBracket = (c) => {
         return '}';
     if (c === '}')
         return '{';
+    if (c === '[')
+        return ']';
+    if (c === ']')
+        return '[';
     return utils_1.serr(`invalid bracket: ${c}`);
 };
 const TName = (name) => ({ tag: 'Name', name });
@@ -808,11 +814,11 @@ const tokenize = (sc) => {
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUMBER;
-            else if (c === '(' || c === '{')
+            else if (c === '(' || c === '{' || c === '[')
                 b.push(c), p.push(r), r = [];
-            else if (c === ')' || c === '}') {
+            else if (c === ')' || c === '}' || c === ']') {
                 if (b.length === 0)
-                    return utils_1.serr(`unmatched bracket: ${c}`);
+                    return utils_1.serr(`unmatched bracket: ${c} (char ${i})`);
                 const br = b.pop();
                 if (matchingBracket(br) !== c)
                     return utils_1.serr(`unmatched bracket: ${br} and ${c}`);
@@ -983,7 +989,7 @@ const projs = (ps) => {
 const mkVar = (x) => x[0] === '@' ? surface_1.Rigid(surface_1.Var(x.slice(1))) : surface_1.Var(x);
 const expr = (t) => {
     if (t.tag === 'List')
-        return [exprs(t.list, '('), t.bracket === '{'];
+        return t.bracket === '[' ? [exprs(t.list, '['), false] : [exprs(t.list, '('), t.bracket === '{'];
     if (t.tag === 'Str') {
         const s = codepoints(t.str).reverse();
         const Cons = surface_1.Var('Cons');
@@ -1042,9 +1048,35 @@ const expr = (t) => {
     }
     return t;
 };
+const Unit = surface_1.Var('[]');
 const exprs = (ts, br, fromRepl = false) => {
     if (br === '{')
         return utils_1.serr(`{} cannot be used here`);
+    if (br === '[') {
+        if (ts.length === 0)
+            return Unit;
+        const jp = ts.findIndex(x => isName(x, ','));
+        if (jp >= 0) {
+            const s = splitTokens(ts, x => isName(x, ','));
+            if (s.length < 2)
+                return utils_1.serr(`parsing failed with ,`);
+            const args = s.map(x => {
+                if (x.length === 1) {
+                    const h = x[0];
+                    if (h.tag === 'List' && h.bracket === '{')
+                        return expr(h);
+                }
+                return [exprs(x, '('), false];
+            });
+            if (args.length === 0)
+                return Unit;
+            return args.reduceRight((x, [y, _p]) => surface_1.Pair(y, x), Unit);
+        }
+        else {
+            const expr = exprs(ts, '(');
+            return surface_1.Pair(expr, Unit);
+        }
+    }
     if (ts.length === 0)
         return UnitType;
     if (ts.length === 1)
@@ -1265,7 +1297,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.primType = exports.isPrimErased = exports.ErasedPrims = exports.isPrimName = exports.PrimNames = void 0;
 const mode_1 = require("./mode");
 const values_1 = require("./values");
-exports.PrimNames = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', 'Unit', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData'];
+exports.PrimNames = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData'];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
 exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data'];
@@ -1289,7 +1321,7 @@ const primType = (name) => {
         return values_1.VType;
     if (name === 'Bool')
         return values_1.VType;
-    if (name === 'Unit')
+    if (name === '[]')
         return values_1.VUnitType;
     if (name === 'True')
         return values_1.VBool;
@@ -1650,6 +1682,8 @@ const show = (t) => {
     }
     if (t.tag === 'Pair') {
         const [ps, ret] = exports.flattenPair(t);
+        if (ret.tag === 'Var' && ret.name === '[]')
+            return `[${ps.map(exports.show).join(', ')}]`;
         return `(${ps.map(exports.show).join(', ')}, ${exports.show(ret)})`;
     }
     if (t.tag === 'Let')
@@ -1913,7 +1947,7 @@ const primEta = (a) => {
         const [x, args] = pa;
         if (x === 'Refl' && args.length === 2)
             return true;
-        if (x === 'Unit')
+        if (x === '[]')
             return true;
     }
     return false;

@@ -10,4 +10,4 @@ let eq : Bool -> Bool -> Bool
 let neq : Bool -> Bool -> Bool
   = \a b. not (eq a b);
 
-(if, not, and, or, eq, neq, Unit)
+[if, not, and, or, eq, neq]

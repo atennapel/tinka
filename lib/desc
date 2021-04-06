@@ -6,17 +6,17 @@ let -DescF : * -> * = \R.
   (R ** ())));                       -- Ind : Desc -> Desc
 
 let mapDescF : {-A -B : *} -> (A -> B) -> DescF A -> DescF B
-  = \{A} {B} f x. caseSum x (\_. Left {()} {Sum ((-T : *) ** (T -> B) ** ()) (B ** ())} Unit)
-      (\y. caseSum y (\x. Right {()} (Left {(-A : *) ** (A -> B) ** ()} {B ** ()} (x.0, (\z. f (x.1 z)), Unit)))
-        (\x. Right (Right {_} {B ** ()} (f x._1, Unit))));
+  = \{A} {B} f x. caseSum x (\_. Left {()} {Sum ((-T : *) ** (T -> B) ** ()) (B ** ())} [])
+      (\y. caseSum y (\x. Right {()} (Left {(-A : *) ** (A -> B) ** ()} {B ** ()} [x.0, \z. f (x.1 z)]))
+        (\x. Right (Right {_} {B ** ()} [f x._1])));
 
 let -Desc = Data DescF;
 
-let End : Desc = Con {DescF} (Left Unit);
+let End : Desc = Con {DescF} (Left []);
 let Arg : {-A : *} -> (A -> Desc) -> Desc =
-  \{A} K. Con {DescF} (Right (Left {(-A : *) ** (A -> Desc) ** ()} (A, K, Unit)));
+  \{A} K. Con {DescF} (Right (Left {(-A : *) ** (A -> Desc) ** ()} [A, K]));
 let Ind : Desc -> Desc =
-  \D. Con {DescF} (Right (Right {_} {Desc ** ()} (D, Unit)));
+  \D. Con {DescF} (Right (Right {_} {Desc ** ()} [D]));
 
 let elimDesc
   : (-P : Desc -> *) ->
@@ -37,7 +37,7 @@ let -El : Desc -> * -> * =
 
 let mapD : (D : Desc) -> {-A -B : *} -> (A -> B) -> El D A -> El D B
   = \D {A} {B} f. elimDesc (\D. El D A -> El D B)
-      (\_. Unit)
+      (\_. [])
       (\{T} K rec p. (p._1, rec p._1 p._2))
       (\R rec p. (f p._1, rec p._2))
       D;
@@ -59,7 +59,7 @@ let elimDataD
     -> P x
   = \{D}. elimData {El D} (@ mapD D);
 
-(Desc, End, @Arg, Ind, elimDesc, El, mapD, DataD, @ConD, @elimDataD, Unit)
+[Desc, End, @Arg, Ind, elimDesc, El, mapD, DataD, @ConD, @elimDataD]
 :
 (-Desc : *)
 **

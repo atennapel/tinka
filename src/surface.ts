@@ -142,6 +142,8 @@ export const show = (t: Surface): string => {
   }
   if (t.tag === 'Pair') {
     const [ps, ret] = flattenPair(t);
+    if (ret.tag === 'Var' && ret.name === '[]')
+      return `[${ps.map(show).join(', ')}]`;
     return `(${ps.map(show).join(', ')}, ${show(ret)})`;
   }
   if (t.tag === 'Let')

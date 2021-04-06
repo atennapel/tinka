@@ -199,7 +199,7 @@ const primEta = (a: Val): boolean => {
   if (pa) {
     const [x, args] = pa;
     if (x === 'Refl' && args.length === 2) return true;
-    if (x === 'Unit') return true;
+    if (x === '[]') return true;
   }
   return false;
 };

@@ -13,7 +13,7 @@ let caseSum
   : {-A -B -R : *} -> Sum A B -> (A -> R) -> (B -> R) -> R
   = \{A} {B} {R} x l r. elimSum (\_. R) l r x;
 
-(Sum, @Left, @Right, @elimSum, @caseSum, Unit)
+[Sum, @Left, @Right, @elimSum, @caseSum]
 :
 (-Sum : * -> * -> *)
 **

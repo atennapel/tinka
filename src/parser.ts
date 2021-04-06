@@ -4,13 +4,15 @@ import { Name } from './names';
 import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid } from './surface';
 import { serr } from './utils/utils';
 
-type BracketO = '(' | '{'
-type Bracket = BracketO | ')' | '}';
+type BracketO = '(' | '{' | '['
+type Bracket = BracketO | ')' | '}' | ']';
 const matchingBracket = (c: Bracket): Bracket => {
   if(c === '(') return ')';
   if(c === ')') return '(';
   if(c === '{') return '}';
   if(c === '}') return '{';
+  if(c === '[') return ']';
+  if(c === ']') return '[';
   return serr(`invalid bracket: ${c}`);
 };
 
@@ -49,9 +51,9 @@ const tokenize = (sc: string): Token[] => {
       else if (c + next === '--') i++, state = COMMENT;
       else if (/[\-\.\?\@\#\%\_\@a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
-      else if(c === '(' || c === '{') b.push(c), p.push(r), r = [];
-      else if(c === ')' || c === '}') {
-        if(b.length === 0) return serr(`unmatched bracket: ${c}`);
+      else if(c === '(' || c === '{' || c === '[') b.push(c), p.push(r), r = [];
+      else if(c === ')' || c === '}' || c === ']') {
+        if(b.length === 0) return serr(`unmatched bracket: ${c} (char ${i})`);
         const br = b.pop() as BracketO;
         if(matchingBracket(br) !== c) return serr(`unmatched bracket: ${br} and ${c}`);
         const a: Token[] = p.pop() as Token[];
@@ -202,7 +204,7 @@ const mkVar = (x: string) => x[0] === '@' ? Rigid(Var(x.slice(1))) : Var(x);
 
 const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'List')
-    return [exprs(t.list, '('), t.bracket === '{'];
+    return t.bracket === '[' ? [exprs(t.list, '['), false] : [exprs(t.list, '('), t.bracket === '{'];
   if (t.tag === 'Str') {
     const s = codepoints(t.str).reverse();
     const Cons = Var('Cons');
@@ -252,8 +254,30 @@ const expr = (t: Token): [Surface, boolean] => {
   return t;
 };
 
+const Unit = Var('[]');
 const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface => {
   if (br === '{') return serr(`{} cannot be used here`);
+  if (br === '[') {
+    if (ts.length === 0) return Unit;
+    const jp = ts.findIndex(x => isName(x, ','));
+    if (jp >= 0) {
+      const s = splitTokens(ts, x => isName(x, ','));
+      if (s.length < 2) return serr(`parsing failed with ,`);
+      const args: [Surface, boolean][] = s.map(x => {
+        if (x.length === 1) {
+          const h = x[0];
+          if (h.tag === 'List' && h.bracket === '{')
+            return expr(h)
+        }
+        return [exprs(x, '('), false];
+      });
+      if (args.length === 0) return Unit;
+      return args.reduceRight((x, [y, _p]) => Pair(y, x), Unit as Surface);
+    } else {
+      const expr = exprs(ts, '(');
+      return Pair(expr, Unit);
+    }
+  }
   if (ts.length === 0) return UnitType;
   if (ts.length === 1) return expr(ts[0])[0];
   if (isName(ts[0], 'let')) {

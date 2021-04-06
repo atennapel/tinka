@@ -1,4 +1,4 @@
 let indVoid : (-P : Void -> *) -> (v : Void) -> P v
   = \P v. absurd {P v} v;
 
-(indVoid, Unit)
+[indVoid]
