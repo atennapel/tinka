@@ -26,7 +26,7 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
-const SYM1: string[] = ['\\', ':', '=', ';', '*', ','];
+const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#'];
 const SYM2: string[] = ['->', '**'];
 
 const START = 0;
@@ -259,6 +259,12 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
   if (br === '{') return serr(`{} cannot be used here`);
   if (br === '[') {
     if (ts.length === 0) return Unit;
+    let count = false;
+    if (isName(ts[0], '#')) {
+      ts = ts.slice(1);
+      count = true;
+    }
+    if (ts.length === 0) return Pair(numToNat(0, '0'), Unit);
     const jp = ts.findIndex(x => isName(x, ','));
     if (jp >= 0) {
       const s = splitTokens(ts, x => isName(x, ','));
@@ -271,11 +277,12 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
         }
         return [exprs(x, '('), false];
       });
-      if (args.length === 0) return Unit;
-      return args.reduceRight((x, [y, _p]) => Pair(y, x), Unit as Surface);
+      if (args.length === 0) return count ? Pair(numToNat(0, '0'), Unit) : Unit;
+      const p = args.reduceRight((x, [y, _p]) => Pair(y, x), Unit as Surface);
+      return count ? Pair(numToNat(args.length, `${args.length}`), p) : p;
     } else {
       const expr = exprs(ts, '(');
-      return Pair(expr, Unit);
+      return count ? Pair(numToNat(1, '1'), Pair(expr, Unit)) : Pair(expr, Unit);
     }
   }
   if (ts.length === 0) return UnitType;
