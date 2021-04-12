@@ -113,7 +113,13 @@ export const flattenProj = (t: Surface): [Surface, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Surface) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj';
+const appIsSimple = (t: Surface): boolean => {
+  if (!config.hideImplicits) return false;
+  if (t.tag !== 'App') return false;
+  const [fn, args] = flattenApp(t);
+  return !args.some(([m]) => m.tag === 'Expl') && isSimple(fn);
+};
+const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t);
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -138,7 +144,7 @@ export const show = (t: Surface): string => {
   if (t.tag === 'App') {
     const [fn, args1] = flattenApp(t);
     const args = config.hideImplicits ? args1.filter(([m]) => m.tag === 'Expl') : args1;
-    return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${show(a)}}`).join(' ')}`;
+    return `${showS(fn)}${args.length > 0 ? ' ' : ''}${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${show(a)}}`).join(' ')}`;
   }
   if (t.tag === 'Sigma') {
     const [params, ret] = flattenSigma(t);

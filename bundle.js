@@ -1685,7 +1685,15 @@ const flattenProj = (t) => {
 };
 exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj';
+const appIsSimple = (t) => {
+    if (!config_1.config.hideImplicits)
+        return false;
+    if (t.tag !== 'App')
+        return false;
+    const [fn, args] = exports.flattenApp(t);
+    return !args.some(([m]) => m.tag === 'Expl') && isSimple(fn);
+};
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t);
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -1716,7 +1724,7 @@ const show = (t) => {
     if (t.tag === 'App') {
         const [fn, args1] = exports.flattenApp(t);
         const args = config_1.config.hideImplicits ? args1.filter(([m]) => m.tag === 'Expl') : args1;
-        return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${exports.show(a)}}`).join(' ')}`;
+        return `${showS(fn)}${args.length > 0 ? ' ' : ''}${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${exports.show(a)}}`).join(' ')}`;
     }
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
