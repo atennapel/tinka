@@ -9,11 +9,13 @@ FEATURES:
 - Implicit parameters with type inference
 
 TODO:
+- [ ] add testing
 - [ ] fix negative vars in output
+- [ ] typed metas
 - [ ] make sure metas solutions are correct with respect to erasure
 - [ ] fix case-insensitive filesystem support
+- [ ] add primitive Nat and Fin
+- [ ] add surface syntax for modules
+- [ ] add general fixpoint type
 - [ ] bootstrap descriptions
 - [ ] indexed descriptions
-- [ ] add surface syntax for modules
-- [ ] add primitive Nat and Fin
-- [ ] add general fixpoint type

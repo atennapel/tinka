@@ -485,16 +485,6 @@ const createImportTerm = (local, term, vterm, sigma_, imports, body, i = 0) => {
     config_1.log(() => `names in import body scope: ${local.ns}`);
     return synth(local, body);
 };
-const getAllNamesFromSigma = (k, ty_, ns, a = [], all = []) => {
-    const ty = values_1.force(ty_);
-    if (ty.tag === 'VSigma') {
-        if (!ns || ns.includes(ty.name))
-            a.push([ty.name, ty.erased]);
-        all.push(ty.name);
-        return getAllNamesFromSigma(k + 1, values_1.vinst(ty, values_1.VVar(k)), ns, a, all);
-    }
-    return [a, all];
-};
 const projectIndex = (local, full, tm, ty_, index) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VSigma') {

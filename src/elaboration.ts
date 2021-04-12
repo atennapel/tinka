@@ -9,7 +9,7 @@ import * as C from './core';
 import { config, log } from './config';
 import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
-import { Ix, Lvl, Name } from './names';
+import { Ix, Name } from './names';
 import { loadGlobal } from './globals';
 import { eqMode, Erasure, Expl, Impl, Mode } from './mode';
 import { isPrimErased, isPrimName, primType } from './prims';
@@ -248,16 +248,6 @@ const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imp
   if (imports && imports.length > 0) return terr(`failed to import, names not in module: ${imports.join(' ')}`);
   log(() => `names in import body scope: ${local.ns}`);
   return synth(local, body);
-};
-
-const getAllNamesFromSigma = (k: Lvl, ty_: Val, ns: Name[] | null, a: [Name, Erasure][] = [], all: Name[] = []): [[Name, Erasure][], Name[]] => {
-  const ty = force(ty_);
-  if (ty.tag === 'VSigma') {
-    if (!ns || ns.includes(ty.name)) a.push([ty.name, ty.erased]);
-    all.push(ty.name);
-    return getAllNamesFromSigma(k + 1, vinst(ty, VVar(k)), ns, a, all);
-  }
-  return [a, all];
 };
 
 const projectIndex = (local: Local, full: Surface, tm: Val, ty_: Val, index: Ix): Val => {
