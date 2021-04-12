@@ -28,8 +28,8 @@ let elimDesc
   = \P end arg ind x. elimData @mapDescF P (\out rec y.
       elimSum (\s. P (Con {DescF} (mapDescF out s))) (\_. end) (\z.
         elimSum (\s. P (Con {DescF} (mapDescF out (Right s))))
-          (\p. arg {p.0} (\x. out (p.1 x)) (\x. rec (p.1 x)))
-          (\p. ind (out p.0) (rec p.0))
+          (\p. let m = p.1; arg {p.0} (\x. out (m x)) (\x. rec (m x)))
+          (\p. let m = p.0; ind (out m) (rec m))
           z) y) x;
 
 let -El : Desc -> * -> * =

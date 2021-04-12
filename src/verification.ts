@@ -82,6 +82,7 @@ const synth = (local: Local, tm: Core): Val => {
     check(tm.erased ? local.inType() : local, tm.val, ty);
     const v = evaluate(tm.val, local.vs);
     const rty = synth(local.define(tm.erased, tm.name, ty, v), tm.body);
+    log(() => `let type: ${show(quote(rty, local.level))} in (${local.level}) ${config.showEnvs ? ` in ${local.toString()}` : ''}`);
     return rty;
   }
   if (tm.tag === 'Proj') {

@@ -1914,7 +1914,7 @@ const eqHead = (a, b) => {
     if (a.tag === 'HVar')
         return b.tag === 'HVar' && a.level === b.level;
     if (a.tag === 'HLVar')
-        return b.tag === 'HLVar' && a.index === b.index && a.level === b.level;
+        return b.tag === 'HLVar' && a.level === b.level;
     if (a.tag === 'HPrim')
         return b.tag === 'HPrim' && a.name === b.name;
     if (a.tag === 'HGlobal')
@@ -2373,7 +2373,7 @@ const HPrim = (name) => ({ tag: 'HPrim', name });
 exports.HPrim = HPrim;
 const HGlobal = (name) => ({ tag: 'HGlobal', name });
 exports.HGlobal = HGlobal;
-const HLVar = (level, index) => ({ tag: 'HLVar', level, index });
+const HLVar = (level) => ({ tag: 'HLVar', level });
 exports.HLVar = HLVar;
 const EApp = (mode, arg) => ({ tag: 'EApp', mode, arg });
 exports.EApp = EApp;
@@ -2552,8 +2552,9 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
     if (t.tag === 'Var') {
         const v = vs.index(t.index) || utils_1.impossible(`evaluate: var ${t.index} has no value`);
         const l = vs.length();
-        if (l - t.index - 1 < glueBefore)
-            return exports.VGlobal(exports.HLVar(l, t.index), List_1.nil, Lazy_1.Lazy.value(v));
+        const i = t.index;
+        if (i >= l - glueBefore)
+            return exports.VGlobal(exports.HLVar(l - i - 1), List_1.nil, Lazy_1.Lazy.value(v));
         return v;
     }
     if (t.tag === 'Global')
@@ -2577,47 +2578,53 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
     return t;
 };
 exports.evaluate = evaluate;
+const localGlueEscaped = (k, kBefore, v) => {
+    const h = v.head;
+    if (h.tag !== 'HLVar')
+        return false;
+    if (!config_1.config.localGlue)
+        return true;
+    return h.level >= kBefore;
+};
 const quoteHead = (h, k) => {
     if (h.tag === 'HVar')
         return core_1.Var(k - (h.level + 1));
-    if (h.tag === 'HLVar') {
-        const oldlvl = h.level - h.index - 1;
-        return core_1.Var(k - (oldlvl + 1));
-    }
+    if (h.tag === 'HLVar')
+        return core_1.Var(k - (h.level + 1));
     if (h.tag === 'HPrim')
         return core_1.Prim(h.name);
     if (h.tag === 'HGlobal')
         return core_1.Global(h.name);
     return h;
 };
-const quoteElim = (t, e, k, full) => {
+const quoteElim = (t, e, k, full, kBefore) => {
     if (e.tag === 'EApp')
-        return core_1.App(t, e.mode, exports.quote(e.arg, k, full));
+        return core_1.App(t, e.mode, exports.quote(e.arg, k, full, kBefore));
     if (e.tag === 'EProj')
         return core_1.Proj(t, e.proj);
     if (e.tag === 'EPrim')
-        return core_1.App(e.args.reduce((x, [m, v]) => core_1.App(x, m, exports.quote(v, k, full)), core_1.Prim(e.name)), mode_1.Expl, t);
+        return core_1.App(e.args.reduce((x, [m, v]) => core_1.App(x, m, exports.quote(v, k, full, kBefore)), core_1.Prim(e.name)), mode_1.Expl, t);
     return e;
 };
-const quote = (v_, k, full = false) => {
+const quote = (v_, k, full = false, kBefore = k) => {
     const v = exports.force(v_, false);
     if (v.tag === 'VRigid')
-        return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
+        return v.spine.foldr((x, y) => quoteElim(y, x, k, full, kBefore), quoteHead(v.head, k));
     if (v.tag === 'VFlex')
-        return v.spine.foldr((x, y) => quoteElim(y, x, k, full), core_1.Meta(v.head));
+        return v.spine.foldr((x, y) => quoteElim(y, x, k, full, kBefore), core_1.Meta(v.head));
     if (v.tag === 'VGlobal') {
-        if (full || v.head.tag === 'HLVar' && (!config_1.config.localGlue || v.head.index >= k))
-            return exports.quote(v.val.get(), k, full);
-        return v.spine.foldr((x, y) => quoteElim(y, x, k, full), quoteHead(v.head, k));
+        if (full || localGlueEscaped(k, kBefore, v))
+            return exports.quote(v.val.get(), k, full, kBefore);
+        return v.spine.foldr((x, y) => quoteElim(y, x, k, full, kBefore), quoteHead(v.head, k));
     }
     if (v.tag === 'VAbs')
-        return core_1.Abs(v.erased, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
+        return core_1.Abs(v.erased, v.mode, v.name, exports.quote(v.type, k, full, kBefore), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full, kBefore));
     if (v.tag === 'VPi')
-        return core_1.Pi(v.erased, v.mode, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
+        return core_1.Pi(v.erased, v.mode, v.name, exports.quote(v.type, k, full, kBefore), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full, kBefore));
     if (v.tag === 'VSigma')
-        return core_1.Sigma(v.erased, v.name, exports.quote(v.type, k, full), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full));
+        return core_1.Sigma(v.erased, v.name, exports.quote(v.type, k, full, kBefore), exports.quote(exports.vinst(v, exports.VVar(k)), k + 1, full, kBefore));
     if (v.tag === 'VPair')
-        return core_1.Pair(exports.quote(v.fst, k, full), exports.quote(v.snd, k, full), exports.quote(v.type, k, full));
+        return core_1.Pair(exports.quote(v.fst, k, full, kBefore), exports.quote(v.snd, k, full, kBefore), exports.quote(v.type, k, full, kBefore));
     return v;
 };
 exports.quote = quote;
@@ -2774,6 +2781,7 @@ const synth = (local, tm) => {
         check(tm.erased ? local.inType() : local, tm.val, ty);
         const v = values_1.evaluate(tm.val, local.vs);
         const rty = synth(local.define(tm.erased, tm.name, ty, v), tm.body);
+        config_1.log(() => `let type: ${core_1.show(values_1.quote(rty, local.level))} in (${local.level}) ${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
         return rty;
     }
     if (tm.tag === 'Proj') {

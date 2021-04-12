@@ -3,9 +3,9 @@
 Try it out at https://atennapel.github.io/tinka
 
 TODO:
-[] fix Sums
+[] fix negative vars in output
+[] fix (Nothing {A}) erasure in Surface.show
 [] fix case-insensitive filesystem support
-[] fix local lets
 [] bootstrap descriptions
 [] indexed descriptions
 [] add surface syntax for modules

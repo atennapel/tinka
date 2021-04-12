@@ -20,8 +20,8 @@ export type GHead = HGlobal | HLVar;
 
 export interface HGlobal { readonly tag: 'HGlobal'; readonly name: Name }
 export const HGlobal = (name: Name): HGlobal => ({ tag: 'HGlobal', name });
-export interface HLVar { readonly tag: 'HLVar'; readonly level: Lvl; readonly index: Ix }
-export const HLVar = (level: Lvl, index: Ix): HLVar => ({ tag: 'HLVar', level, index });
+export interface HLVar { readonly tag: 'HLVar'; readonly level: Lvl }
+export const HLVar = (level: Lvl): HLVar => ({ tag: 'HLVar', level });
 
 export type Elim = EApp | EProj | EPrim;
 
@@ -175,7 +175,8 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Var') {
     const v = vs.index(t.index) || impossible(`evaluate: var ${t.index} has no value`);
     const l = vs.length();
-    if (l - t.index - 1 < glueBefore) return VGlobal(HLVar(l, t.index), nil, Lazy.value(v));
+    const i = t.index;
+    if (i >= l - glueBefore) return VGlobal(HLVar(l - i - 1), nil, Lazy.value(v));
     return v;
   }
   if (t.tag === 'Global') return VGlobal(HGlobal(t.name), nil, Lazy.from(() => {
@@ -217,45 +218,48 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   return t;
 };
 
+const localGlueEscaped = (k: Lvl, kBefore: Lvl, v: VGlobal): boolean => {
+  const h = v.head;
+  if (h.tag !== 'HLVar') return false;
+  if (!config.localGlue) return true;
+  return h.level >= kBefore;
+};
 const quoteHead = (h: Head | GHead, k: Lvl): Core => {
   if (h.tag === 'HVar') return Var(k - (h.level + 1));
-  if (h.tag === 'HLVar') {
-    const oldlvl = h.level - h.index - 1;
-    return Var(k - (oldlvl + 1));
-  }
+  if (h.tag === 'HLVar') return Var(k - (h.level + 1));
   if (h.tag === 'HPrim') return Prim(h.name);
   if (h.tag === 'HGlobal') return Global(h.name);
   return h;
 };
-const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean): Core => {
-  if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full));
+const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean, kBefore: Lvl): Core => {
+  if (e.tag === 'EApp') return App(t, e.mode, quote(e.arg, k, full, kBefore));
   if (e.tag === 'EProj') return Proj(t, e.proj);
-  if (e.tag === 'EPrim') return App(e.args.reduce((x, [m, v]) => App(x, m, quote(v, k, full)), Prim(e.name) as Core), Expl, t);
+  if (e.tag === 'EPrim') return App(e.args.reduce((x, [m, v]) => App(x, m, quote(v, k, full, kBefore)), Prim(e.name) as Core), Expl, t);
   return e;
 };
-export const quote = (v_: Val, k: Lvl, full: boolean = false): Core => {
+export const quote = (v_: Val, k: Lvl, full: boolean = false, kBefore: Lvl = k): Core => {
   const v = force(v_, false);
   if (v.tag === 'VRigid')
     return v.spine.foldr(
-      (x, y) => quoteElim(y, x, k, full),
+      (x, y) => quoteElim(y, x, k, full, kBefore),
       quoteHead(v.head, k),
     );
   if (v.tag === 'VFlex')
     return v.spine.foldr(
-      (x, y) => quoteElim(y, x, k, full),
+      (x, y) => quoteElim(y, x, k, full, kBefore),
       Meta(v.head) as Core,
     );
   if (v.tag === 'VGlobal') {
-    if (full || v.head.tag === 'HLVar' && (!config.localGlue || v.head.index >= k)) return quote(v.val.get(), k, full);
+    if (full || localGlueEscaped(k, kBefore, v)) return quote(v.val.get(), k, full, kBefore);
     return v.spine.foldr(
-      (x, y) => quoteElim(y, x, k, full),
+      (x, y) => quoteElim(y, x, k, full, kBefore),
       quoteHead(v.head, k),
     );
   }
-  if (v.tag === 'VAbs') return Abs(v.erased, v.mode, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
-  if (v.tag === 'VPi') return Pi(v.erased, v.mode, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
-  if (v.tag === 'VSigma') return Sigma(v.erased, v.name, quote(v.type, k, full), quote(vinst(v, VVar(k)), k + 1, full));
-  if (v.tag === 'VPair') return Pair(quote(v.fst, k, full), quote(v.snd, k, full), quote(v.type, k, full));
+  if (v.tag === 'VAbs') return Abs(v.erased, v.mode, v.name, quote(v.type, k, full, kBefore), quote(vinst(v, VVar(k)), k + 1, full, kBefore));
+  if (v.tag === 'VPi') return Pi(v.erased, v.mode, v.name, quote(v.type, k, full, kBefore), quote(vinst(v, VVar(k)), k + 1, full, kBefore));
+  if (v.tag === 'VSigma') return Sigma(v.erased, v.name, quote(v.type, k, full, kBefore), quote(vinst(v, VVar(k)), k + 1, full, kBefore));
+  if (v.tag === 'VPair') return Pair(quote(v.fst, k, full, kBefore), quote(v.snd, k, full, kBefore), quote(v.type, k, full, kBefore));
   return v;
 };
 
