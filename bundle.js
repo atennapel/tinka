@@ -1693,7 +1693,15 @@ const appIsSimple = (t) => {
     const [fn, args] = exports.flattenApp(t);
     return !args.some(([m]) => m.tag === 'Expl') && isSimple(fn);
 };
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t);
+const absIsSimple = (t) => {
+    if (!config_1.config.hideImplicits)
+        return false;
+    if (t.tag !== 'Abs')
+        return false;
+    const [params, body] = exports.flattenAbs(t);
+    return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
+};
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t) || absIsSimple(t);
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -1719,6 +1727,8 @@ const show = (t) => {
     if (t.tag === 'Abs') {
         const [params1, body] = exports.flattenAbs(t);
         const params = config_1.config.hideImplicits ? params1.filter(([_, m]) => m.tag === 'Expl') : params1;
+        if (params.length === 0)
+            return exports.show(t.body);
         return `${config_1.config.unicode ? 'λ' : '\\'}${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${exports.show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${exports.show(body)}`;
     }
     if (t.tag === 'App') {

@@ -119,7 +119,13 @@ const appIsSimple = (t: Surface): boolean => {
   const [fn, args] = flattenApp(t);
   return !args.some(([m]) => m.tag === 'Expl') && isSimple(fn);
 };
-const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t);
+const absIsSimple = (t: Surface): boolean => {
+  if (!config.hideImplicits) return false;
+  if (t.tag !== 'Abs') return false;
+  const [params, body] = flattenAbs(t);
+  return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
+};
+const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t) || absIsSimple(t);
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -139,6 +145,7 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Abs') {
     const [params1, body] = flattenAbs(t);
     const params = config.hideImplicits ? params1.filter(([_, m]) => m.tag === 'Expl') : params1;
+    if (params.length === 0) return show(t.body);
     return `${config.unicode ? 'λ' : '\\'}${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${show(body)}`;
   }
   if (t.tag === 'App') {
