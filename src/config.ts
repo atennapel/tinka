@@ -2,11 +2,15 @@ export interface Config {
   debug: boolean;
   showEnvs: boolean;
   localGlue: boolean;
+  unicode: boolean;
+  hideImplicits: boolean;
 }
 export const config: Config = {
   debug: false,
   showEnvs: false,
   localGlue: true,
+  unicode: true,
+  hideImplicits: true,
 };
 export const setConfig = (c: Partial<Config>) => {
   for (let k in c) (config as any)[k] = (c as any)[k];

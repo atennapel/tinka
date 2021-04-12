@@ -17,6 +17,8 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showStackTrace] show stack trace of error
 [:localGlue] enable/disable local glueing
+[:unicode] show unicode
+[:hideImplicits] hide implicits
 [:type or :t] do not normalize
 [:defs] show definitions
 [:clear] clear definitions
@@ -53,6 +55,16 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       const d = !config.localGlue;
       setConfig({ localGlue: d });
       return cb(`localGlue: ${d}`);
+    }
+    if (s === ':unicode') {
+      const d = !config.unicode;
+      setConfig({ unicode: d });
+      return cb(`unicode: ${d}`);
+    }
+    if (s === ':hideImplicits') {
+      const d = !config.hideImplicits;
+      setConfig({ hideImplicits: d });
+      return cb(`hideImplicits: ${d}`);
     }
     if (s === ':showStackTrace') {
       showStackTrace = !showStackTrace;
@@ -143,7 +155,10 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       log(() => showCore(etype, local.ns));
 
       log(() => 'VERIFICATION');
-      if (doVerify) verify(eterm, erased || typeOnly ? local.inType() : local);
+      if (doVerify) {
+        const verty = verify(eterm, erased || typeOnly ? local.inType() : local);
+        log(() => `verified type: ${showCore(verty, local.ns)}`);
+      }
 
       let normstr = '';
       if (showFullNorm) {

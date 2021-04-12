@@ -26,8 +26,16 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
-const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#'];
+const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', 'λ', '×', '→', '★'];
 const SYM2: string[] = ['->', '**'];
+
+const createTName = (x: string): Token => {
+  if (x === 'λ') return TName('\\');
+  if (x === '×') return TName('**');
+  if (x === '→') return TName('->');
+  if (x === '★') return TName('*');
+  return TName(x);
+};
 
 const START = 0;
 const NAME = 1;
@@ -44,8 +52,8 @@ const tokenize = (sc: string): Token[] => {
     const c = sc[i] || ' ';
     const next = sc[i + 1] || '';
     if (state === START) {
-      if (SYM2.indexOf(c + next) >= 0) r.push(TName(c + next)), i++;
-      else if (SYM1.indexOf(c) >= 0) r.push(TName(c));
+      if (SYM2.indexOf(c + next) >= 0) r.push(createTName(c + next)), i++;
+      else if (SYM1.indexOf(c) >= 0) r.push(createTName(c));
       else if (c === '"') state = STRING;
       else if (c === '.' && !/[\.\%\_a-z]/i.test(next)) r.push(TName('.'));
       else if (c + next === '--') i++, state = COMMENT;

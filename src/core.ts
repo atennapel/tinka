@@ -1,3 +1,4 @@
+import { config } from './config';
 import { MetaVar } from './metas';
 import { Erasure, Mode } from './mode';
 import { Ix, Name } from './names';
@@ -115,16 +116,17 @@ const showProjType = (p: ProjType): string => {
 export const show = (t: Core): string => {
   if (t.tag === 'Var') return `'${t.index}`;
   if (t.tag === 'Global') return `${t.name}`;
-  if (t.tag === 'Prim') return `${t.name}`;
+  if (t.tag === 'Prim') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'InsertedMeta') return `?*${t.id}${t.spine.reverse().toString(([m, b]) => `${m.tag === 'Expl' ? '' : '{'}${b ? 'b' : 'd'}${m.tag === 'Expl' ? '' : '}'}`)}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
-    return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+    const arr = config.unicode ? '→' : '->';
+    return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(` ${arr} `)} ${arr} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
   }
   if (t.tag === 'Abs') {
     const [params, body] = flattenAbs(t);
-    return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : '('}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Impl' ? '}' : ')'}`).join(' ')}. ${show(body)}`;
+    return `${config.unicode ? 'λ' : '\\'}${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : '('}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Impl' ? '}' : ')'}`).join(' ')}. ${show(body)}`;
   }
   if (t.tag === 'App') {
     const [fn, args] = flattenApp(t);
@@ -132,7 +134,8 @@ export const show = (t: Core): string => {
   }
   if (t.tag === 'Sigma') {
     const [params, ret] = flattenSigma(t);
-    return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+    const prod = config.unicode ? '×' : '**';
+    return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${show(t)})`).join(` ${prod} `)} ${prod} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
   }
   if (t.tag === 'Pair') {
     const [ps, ret] = flattenPair(t);

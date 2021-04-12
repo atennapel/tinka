@@ -6,6 +6,8 @@ exports.config = {
     debug: false,
     showEnvs: false,
     localGlue: true,
+    unicode: true,
+    hideImplicits: true,
 };
 const setConfig = (c) => {
     for (let k in c)
@@ -22,6 +24,7 @@ exports.log = log;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+const config_1 = require("./config");
 const utils_1 = require("./utils/utils");
 const Var = (index) => ({ tag: 'Var', index });
 exports.Var = Var;
@@ -129,18 +132,19 @@ const show = (t) => {
     if (t.tag === 'Global')
         return `${t.name}`;
     if (t.tag === 'Prim')
-        return `${t.name}`;
+        return t.name === '*' && config_1.config.unicode ? '★' : `${t.name}`;
     if (t.tag === 'Meta')
         return `?${t.id}`;
     if (t.tag === 'InsertedMeta')
         return `?*${t.id}${t.spine.reverse().toString(([m, b]) => `${m.tag === 'Expl' ? '' : '{'}${b ? 'b' : 'd'}${m.tag === 'Expl' ? '' : '}'}`)}`;
     if (t.tag === 'Pi') {
         const [params, ret] = exports.flattenPi(t);
-        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+        const arr = config_1.config.unicode ? '→' : '->';
+        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(` ${arr} `)} ${arr} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Abs') {
         const [params, body] = exports.flattenAbs(t);
-        return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : '('}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Impl' ? '}' : ')'}`).join(' ')}. ${exports.show(body)}`;
+        return `${config_1.config.unicode ? 'λ' : '\\'}${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : '('}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Impl' ? '}' : ')'}`).join(' ')}. ${exports.show(body)}`;
     }
     if (t.tag === 'App') {
         const [fn, args] = exports.flattenApp(t);
@@ -148,7 +152,8 @@ const show = (t) => {
     }
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
-        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+        const prod = config_1.config.unicode ? '×' : '**';
+        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(` ${prod} `)} ${prod} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Pair') {
         const [ps, ret] = exports.flattenPair(t);
@@ -212,7 +217,7 @@ exports.substVar = substVar;
 const subst = (t, u) => exports.shift(-1, 0, exports.substVar(0, exports.shift(1, 0, u), t));
 exports.subst = subst;
 
-},{"./utils/utils":16}],3:[function(require,module,exports){
+},{"./config":1,"./utils/utils":16}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.elaborate = void 0;
@@ -783,8 +788,19 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
-const SYM1 = ['\\', ':', '=', ';', '*', ',', '#'];
+const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', 'λ', '×', '→', '★'];
 const SYM2 = ['->', '**'];
+const createTName = (x) => {
+    if (x === 'λ')
+        return TName('\\');
+    if (x === '×')
+        return TName('**');
+    if (x === '→')
+        return TName('->');
+    if (x === '★')
+        return TName('*');
+    return TName(x);
+};
 const START = 0;
 const NAME = 1;
 const COMMENT = 2;
@@ -801,9 +817,9 @@ const tokenize = (sc) => {
         const next = sc[i + 1] || '';
         if (state === START) {
             if (SYM2.indexOf(c + next) >= 0)
-                r.push(TName(c + next)), i++;
+                r.push(createTName(c + next)), i++;
             else if (SYM1.indexOf(c) >= 0)
-                r.push(TName(c));
+                r.push(createTName(c));
             else if (c === '"')
                 state = STRING;
             else if (c === '.' && !/[\.\%\_a-z]/i.test(next))
@@ -1386,6 +1402,8 @@ COMMANDS
 [:debug or :d] toggle debug log messages
 [:showStackTrace] show stack trace of error
 [:localGlue] enable/disable local glueing
+[:unicode] show unicode
+[:hideImplicits] hide implicits
 [:type or :t] do not normalize
 [:defs] show definitions
 [:clear] clear definitions
@@ -1420,6 +1438,16 @@ const runREPL = (s_, cb) => {
             const d = !config_1.config.localGlue;
             config_1.setConfig({ localGlue: d });
             return cb(`localGlue: ${d}`);
+        }
+        if (s === ':unicode') {
+            const d = !config_1.config.unicode;
+            config_1.setConfig({ unicode: d });
+            return cb(`unicode: ${d}`);
+        }
+        if (s === ':hideImplicits') {
+            const d = !config_1.config.hideImplicits;
+            config_1.setConfig({ hideImplicits: d });
+            return cb(`hideImplicits: ${d}`);
         }
         if (s === ':showStackTrace') {
             showStackTrace = !showStackTrace;
@@ -1509,8 +1537,10 @@ const runREPL = (s_, cb) => {
             config_1.log(() => C.show(etype));
             config_1.log(() => surface_1.showCore(etype, local.ns));
             config_1.log(() => 'VERIFICATION');
-            if (doVerify)
-                verification_1.verify(eterm, erased || typeOnly ? local.inType() : local);
+            if (doVerify) {
+                const verty = verification_1.verify(eterm, erased || typeOnly ? local.inType() : local);
+                config_1.log(() => `verified type: ${surface_1.showCore(verty, local.ns)}`);
+            }
             let normstr = '';
             if (showFullNorm) {
                 config_1.log(() => 'NORMALIZE');
@@ -1559,6 +1589,7 @@ const names_1 = require("./names");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
+const config_1 = require("./config");
 const Var = (name) => ({ tag: 'Var', name });
 exports.Var = Var;
 const Let = (erased, name, type, val, body) => ({ tag: 'Let', erased, name, type, val, body });
@@ -1667,26 +1698,30 @@ const showProjType = (p) => {
 };
 const show = (t) => {
     if (t.tag === 'Var')
-        return `${t.name}`;
+        return t.name === '*' && config_1.config.unicode ? '★' : `${t.name}`;
     if (t.tag === 'Hole')
         return `_${t.name === null ? '' : t.name}`;
     if (t.tag === 'Meta')
         return `?${t.id}`;
     if (t.tag === 'Pi') {
         const [params, ret] = exports.flattenPi(t);
-        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+        const arr = config_1.config.unicode ? '→' : '->';
+        return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${exports.show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(` ${arr} `)} ${arr} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Abs') {
-        const [params, body] = exports.flattenAbs(t);
-        return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${exports.show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${exports.show(body)}`;
+        const [params1, body] = exports.flattenAbs(t);
+        const params = config_1.config.hideImplicits ? params1.filter(([_, m]) => m.tag === 'Expl') : params1;
+        return `${config_1.config.unicode ? 'λ' : '\\'}${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${exports.show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${exports.show(body)}`;
     }
     if (t.tag === 'App') {
-        const [fn, args] = exports.flattenApp(t);
+        const [fn, args1] = exports.flattenApp(t);
+        const args = config_1.config.hideImplicits ? args1.filter(([m]) => m.tag === 'Expl') : args1;
         return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${exports.show(a)}}`).join(' ')}`;
     }
     if (t.tag === 'Sigma') {
         const [params, ret] = exports.flattenSigma(t);
-        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+        const prod = config_1.config.unicode ? '×' : '**';
+        return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${exports.show(t)})`).join(` ${prod} `)} ${prod} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
     }
     if (t.tag === 'Pair') {
         const [ps, ret] = exports.flattenPair(t);
@@ -1751,7 +1786,7 @@ exports.showCore = showCore;
 const showVal = (v, k = 0, full = false, ns = List_1.nil) => exports.show(exports.fromCore(values_1.quote(v, k, full), ns));
 exports.showVal = showVal;
 
-},{"./names":8,"./utils/List":15,"./utils/utils":16,"./values":17}],13:[function(require,module,exports){
+},{"./config":1,"./names":8,"./utils/List":15,"./utils/utils":16,"./values":17}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.unify = exports.eqHead = void 0;

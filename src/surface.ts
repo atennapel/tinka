@@ -5,6 +5,7 @@ import { Core } from './core';
 import { cons, List, nil } from './utils/List';
 import { impossible } from './utils/utils';
 import { quote, Val } from './values';
+import { config } from './config';
 
 export type Surface =
   Var | Let | Ann |
@@ -121,24 +122,28 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Surface): string => {
-  if (t.tag === 'Var') return `${t.name}`;
+  if (t.tag === 'Var') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
-    return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(' -> ')} -> ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+    const arr = config.unicode ? '→' : '->';
+    return `${params.map(([e, m, x, t]) => !e && m.tag === 'Expl' && x === '_' ? showP(t.tag === 'Pi' || t.tag === 'Sigma' || t.tag === 'Let', t) : `${m.tag === 'Expl' ? '(' : '{'}${e ? '-' : ''}${x} : ${show(t)}${m.tag === 'Expl' ? ')' : '}'}`).join(` ${arr} `)} ${arr} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
   }
   if (t.tag === 'Abs') {
-    const [params, body] = flattenAbs(t);
-    return `\\${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${show(body)}`;
+    const [params1, body] = flattenAbs(t);
+    const params = config.hideImplicits ? params1.filter(([_, m]) => m.tag === 'Expl') : params1;
+    return `${config.unicode ? 'λ' : '\\'}${params.map(([e, m, x, t]) => `${m.tag === 'Impl' ? '{' : t ? '(' : ''}${e ? '-' : ''}${x}${t ? ` : ${show(t)}` : ''}${m.tag === 'Impl' ? '}' : t ? ')' : ''}`).join(' ')}. ${show(body)}`;
   }
   if (t.tag === 'App') {
-    const [fn, args] = flattenApp(t);
+    const [fn, args1] = flattenApp(t);
+    const args = config.hideImplicits ? args1.filter(([m]) => m.tag === 'Expl') : args1;
     return `${showS(fn)} ${args.map(([m, a]) => m.tag === 'Expl' ? showS(a) : `{${show(a)}}`).join(' ')}`;
   }
   if (t.tag === 'Sigma') {
     const [params, ret] = flattenSigma(t);
-    return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${show(t)})`).join(' ** ')} ** ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
+    const prod = config.unicode ? '×' : '**';
+    return `${params.map(([e, x, t]) => !e && x === '_' ? showP(t.tag === 'Sigma' || t.tag === 'Pi' || t.tag === 'Let', t) : `(${e ? '-' : ''}${x} : ${show(t)})`).join(` ${prod} `)} ${prod} ${showP(ret.tag === 'Sigma' || ret.tag === 'Pi' || ret.tag === 'Let', ret)}`;
   }
   if (t.tag === 'Pair') {
     const [ps, ret] = flattenPair(t);

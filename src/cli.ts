@@ -34,7 +34,8 @@ if (process.argv[2]) {
     console.log(showCore(ty));
     if (doVerify) {
       log(() => `VERIFY`);
-      verify(tm);
+      const ty = verify(tm);
+      log(() => `verified type: ${showCore(ty)}`);
     }
     if (!typeOnly) {
       console.log(showCore(normalize(tm, 0, nil, true)));
