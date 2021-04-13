@@ -11,7 +11,7 @@ FEATURES:
 TODO:
 - [ ] add testing
 - [ ] fix negative vars in output
-- [ ] typed metas
+- [x] typed metas
 - [ ] make sure metas solutions are correct with respect to erasure
 - [ ] fix case-insensitive filesystem support
 - [ ] add primitive Nat and Fin

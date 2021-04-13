@@ -236,15 +236,19 @@ const globals_1 = require("./globals");
 const mode_1 = require("./mode");
 const prims_1 = require("./prims");
 const showV = (local, val) => S.showVal(val, local.level, false, local.ns);
-const newMeta = (local) => {
-    const id = metas_1.freshMeta();
+const closeTy = (path, ty) => path.foldl((rest, [e, m, x, ty, val]) => val ? core_1.Let(e, x, ty, val, rest) : core_1.Pi(e, m, x, ty, rest), ty);
+const newMeta = (local, ty) => {
+    const qtype = closeTy(local.path, values_1.quote(ty, local.level));
+    const type = values_1.evaluate(qtype, List_1.nil);
+    const id = metas_1.freshMeta(type);
+    config_1.log(() => `newMeta ?${id} : ${showV(local_1.Local.empty(), type)}`);
     const bds = local.ts.map(e => [e.mode, e.bound]);
     return core_1.InsertedMeta(id, bds);
 };
 const inst = (local, ty_) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && ty.mode.tag === 'Impl') {
-        const m = newMeta(local);
+        const m = newMeta(local, ty.type);
         const vm = values_1.evaluate(m, local.vs);
         const [res, args] = inst(local, values_1.vinst(ty, vm));
         return [res, List_1.cons(m, args)];
@@ -254,7 +258,7 @@ const inst = (local, ty_) => {
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${surface_1.show(tm)} : ${showV(local, ty)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     if (tm.tag === 'Hole') {
-        const x = newMeta(local);
+        const x = newMeta(local, ty);
         if (tm.name) {
             if (holes[tm.name])
                 return utils_1.terr(`duplicate hole ${tm.name}`);
@@ -298,7 +302,7 @@ const check = (local, tm, ty) => {
             vtype = values_1.quote(vty, local.level);
         }
         const v = values_1.evaluate(val, local.vs);
-        const body = check(local.define(tm.erased, tm.name, vty, v), tm.body, ty);
+        const body = check(local.define(tm.erased, tm.name, vty, v, vtype, val), tm.body, ty);
         return core_1.Let(tm.erased, tm.name, vtype, val, body);
     }
     const [term, ty2] = synth(local, tm.tag === 'Rigid' ? tm.term : tm);
@@ -311,9 +315,9 @@ const check = (local, tm, ty) => {
     }, e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${showV(local, ty2)} ~ ${showV(local, ty)}: ${e}`));
 };
 const freshPi = (local, erased, mode, x) => {
-    const a = newMeta(local);
+    const a = newMeta(local, values_1.VType);
     const va = values_1.evaluate(a, local.vs);
-    const b = newMeta(local.bind(erased, mode, '_', va));
+    const b = newMeta(local.bind(erased, mode, '_', va), values_1.VType);
     return values_1.evaluate(core_1.Pi(erased, mode, x, a, b), local.vs);
 };
 const synth = (local, tm) => {
@@ -413,12 +417,12 @@ const synth = (local, tm) => {
             type = values_1.quote(ty, local.level);
         }
         const v = values_1.evaluate(val, local.vs);
-        const [body, rty] = synth(local.define(tm.erased, tm.name, ty, v), tm.body);
+        const [body, rty] = synth(local.define(tm.erased, tm.name, ty, v, type, val), tm.body);
         return [core_1.Let(tm.erased, tm.name, type, val, body), rty];
     }
     if (tm.tag === 'Hole') {
-        const t = newMeta(local);
-        const vt = values_1.evaluate(newMeta(local), local.vs);
+        const vt = values_1.evaluate(newMeta(local, values_1.VType), local.vs);
+        const t = newMeta(local, vt);
         if (tm.name) {
             if (holes[tm.name])
                 return utils_1.terr(`duplicate hole ${tm.name}`);
@@ -471,10 +475,11 @@ const createImportTerm = (local, term, vterm, sigma_, imports, body, i = 0) => {
         }
         if (found) {
             const val = values_1.vproj(vterm, core_1.PIndex(sigma.name, i));
-            const newlocal = local.define(sigma.erased, name, sigma.type, val);
+            const qtype = values_1.quote(sigma.type, local.level);
+            const newlocal = local.define(sigma.erased, name, sigma.type, val, qtype, values_1.quote(val, local.level));
             const val2 = values_1.evaluate(core_1.Var(0), newlocal.vs);
             const [rest, ty] = createImportTerm(newlocal, term, vterm, values_1.vinst(sigma, val2), nextimports, body, i + 1);
-            return [core_1.Let(sigma.erased, name, values_1.quote(sigma.type, local.level), core_1.Proj(term, core_1.PIndex(sigma.name, i)), rest), ty];
+            return [core_1.Let(sigma.erased, name, qtype, core_1.Proj(term, core_1.PIndex(sigma.name, i)), rest), ty];
         }
         else {
             return createImportTerm(local, term, vterm, values_1.vinst(sigma, values_1.vproj(vterm, core_1.PIndex(sigma.name, i))), nextimports, body, i + 1);
@@ -516,7 +521,7 @@ const synthapp = (local, ty_, mode, tm, tmall) => {
     config_1.log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${surface_1.show(tm)}${mode.tag === 'Expl' ? '' : '}'}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && mode.tag === 'Expl') {
-        const m = newMeta(local);
+        const m = newMeta(local, ty.type);
         const vm = values_1.evaluate(m, local.vs);
         const [rest, rt, l] = synthapp(local, values_1.vinst(ty, vm), mode, tm, tmall);
         return [rest, rt, List_1.cons(m, l)];
@@ -527,8 +532,11 @@ const synthapp = (local, ty_, mode, tm, tmall) => {
         return [right, rt, List_1.nil];
     }
     if (ty.tag === 'VFlex') {
-        const a = metas_1.freshMeta();
-        const b = metas_1.freshMeta();
+        const m = metas_1.getMeta(ty.head);
+        if (m.tag !== 'Unsolved')
+            return utils_1.impossible(`solved meta ?${ty.head} in synthapp`);
+        const a = metas_1.freshMeta(m.type);
+        const b = metas_1.freshMeta(m.type);
         const pi = values_1.VPi(false, mode, '_', values_1.VFlex(a, ty.spine), () => values_1.VFlex(b, ty.spine));
         unification_1.unify(local.level, ty, pi);
         return synthapp(local, pi, mode, tm, tmall);
@@ -647,35 +655,36 @@ const indexEnvT = (ts, ix) => {
 };
 exports.indexEnvT = indexEnvT;
 class Local {
-    constructor(erased, level, ns, nsSurface, ts, vs) {
+    constructor(erased, level, ns, nsSurface, ts, vs, path) {
         this.erased = erased;
         this.level = level;
         this.ns = ns;
         this.nsSurface = nsSurface;
         this.ts = ts;
         this.vs = vs;
+        this.path = path;
     }
     static empty() {
         if (Local._empty === undefined)
-            Local._empty = new Local(false, 0, List_1.nil, List_1.nil, List_1.nil, List_1.nil);
+            Local._empty = new Local(false, 0, List_1.nil, List_1.nil, List_1.nil, List_1.nil, List_1.nil);
         return Local._empty;
     }
     bind(erased, mode, name, ty) {
-        return new Local(this.erased, this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, erased, mode, true, false), this.ts), List_1.cons(values_1.VVar(this.level), this.vs));
+        return new Local(this.erased, this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, erased, mode, true, false), this.ts), List_1.cons(values_1.VVar(this.level), this.vs), List_1.cons([erased, mode, name, values_1.quote(ty, this.level), null], this.path));
     }
     insert(erased, mode, name, ty) {
-        return new Local(this.erased, this.level + 1, List_1.cons(name, this.ns), this.nsSurface, List_1.cons(exports.EntryT(ty, erased, mode, true, true), this.ts), List_1.cons(values_1.VVar(this.level), this.vs));
+        return new Local(this.erased, this.level + 1, List_1.cons(name, this.ns), this.nsSurface, List_1.cons(exports.EntryT(ty, erased, mode, true, true), this.ts), List_1.cons(values_1.VVar(this.level), this.vs), List_1.cons([erased, mode, name, values_1.quote(ty, this.level), null], this.path));
     }
-    define(erased, name, ty, val) {
-        return new Local(this.erased, this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, erased, mode_1.Expl, false, false), this.ts), List_1.cons(val, this.vs));
+    define(erased, name, ty, val, qty, qval) {
+        return new Local(this.erased, this.level + 1, List_1.cons(name, this.ns), List_1.cons(name, this.nsSurface), List_1.cons(exports.EntryT(ty, erased, mode_1.Expl, false, false), this.ts), List_1.cons(val, this.vs), List_1.cons([erased, mode_1.Expl, name, qty, qval], this.path));
     }
     undo() {
         if (this.level === 0)
             return this;
-        return new Local(this.erased, this.level - 1, this.ns.tail, this.nsSurface.tail, this.ts.tail, this.vs.tail);
+        return new Local(this.erased, this.level - 1, this.ns.tail, this.nsSurface.tail, this.ts.tail, this.vs.tail, this.path.tail);
     }
     inType() {
-        return new Local(true, this.level, this.ns, this.nsSurface, this.ts, this.vs);
+        return new Local(true, this.level, this.ns, this.nsSurface, this.ts, this.vs, this.path);
     }
     toString() {
         return this.ts.toString(e => `${e.bound ? '' : 'd '}${exports.showV(this, e.type)}`);
@@ -692,16 +701,16 @@ exports.showValCore = showValCore;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.allMetasSolved = exports.setMeta = exports.getMeta = exports.freshMeta = exports.resetMetas = exports.Solved = exports.Unsolved = void 0;
 const utils_1 = require("./utils/utils");
-const Unsolved = () => ({ tag: 'Unsolved' });
+const Unsolved = (type) => ({ tag: 'Unsolved', type });
 exports.Unsolved = Unsolved;
 const Solved = (solution) => ({ tag: 'Solved', solution });
 exports.Solved = Solved;
 let metas = [];
 const resetMetas = () => { metas = []; };
 exports.resetMetas = resetMetas;
-const freshMeta = () => {
+const freshMeta = (type) => {
     const id = metas.length;
-    metas.push(exports.Unsolved());
+    metas.push(exports.Unsolved(type));
     return id;
 };
 exports.freshMeta = freshMeta;
@@ -1544,12 +1553,12 @@ const runREPL = (s_, cb) => {
             if (isDef) {
                 if (term.tag === 'Let') {
                     const value = values_1.evaluate(eterm, local.vs);
-                    local = local.define(erased, term.name, values_1.evaluate(etype, local.vs), value);
+                    local = local.define(erased, term.name, values_1.evaluate(etype, local.vs), value, etype, eterm);
                 }
                 else if (term.tag === 'Import') {
                     let c = eterm;
                     while (c && c.tag === 'Let') {
-                        local = local.define(c.erased, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs));
+                        local = local.define(c.erased, c.name, values_1.evaluate(c.type, local.vs), values_1.evaluate(c.val, local.vs), c.type, c.val);
                         c = c.body;
                     }
                 }
@@ -1864,12 +1873,23 @@ const rename = (id, pren, v_) => {
         return core_1.Pair(rename(id, pren, v.fst), rename(id, pren, v.snd), rename(id, pren, v.type));
     return v;
 };
-const lams = (is, t, n = 0) => is.case(() => t, (m, rest) => core_1.Abs(false, m, `x${n}`, core_1.Type, lams(rest, t, n + 1))); // TODO: lambda type and erasure
+const lams = (lvl, a_, t, k = 0) => {
+    if (lvl === k)
+        return t;
+    const a = values_1.force(a_);
+    if (a.tag !== 'VPi')
+        return utils_1.impossible(`lams, not a pi type: ${a.tag}`);
+    const x = a.name === '_' ? `x${k}` : a.name;
+    return core_1.Abs(a.erased, a.mode, x, values_1.quote(a.type, k), lams(lvl, values_1.vinst(a, values_1.VVar(k)), t, k + 1));
+};
 const solve = (gamma, m, sp, rhs_) => {
     config_1.log(() => `solve ?${m}${sp.reverse().toString(v => v.tag === 'EApp' ? `${v.mode.tag === 'Expl' ? '' : '{'}${values_1.show(v.arg, gamma)}${v.mode.tag === 'Expl' ? '' : '}'}` : v.tag)} := ${values_1.show(rhs_, gamma)}`);
     const pren = invert(gamma, sp);
     const rhs = rename(m, pren, rhs_);
-    const solutionq = lams(sp.reverse().map(app => app.mode), rhs);
+    const sol = metas_1.getMeta(m);
+    if (sol.tag !== 'Unsolved')
+        return utils_1.impossible(`solved meta ?${m} in solve`);
+    const solutionq = lams(pren.dom, sol.type, rhs);
     config_1.log(() => `solution: ${C.show(solutionq)}`);
     const solution = values_1.evaluate(solutionq, List_1.nil);
     metas_1.setMeta(m, solution);
@@ -2788,7 +2808,7 @@ const synth = (local, tm) => {
         const ty = values_1.evaluate(tm.type, local.vs);
         check(tm.erased ? local.inType() : local, tm.val, ty);
         const v = values_1.evaluate(tm.val, local.vs);
-        const rty = synth(local.define(tm.erased, tm.name, ty, v), tm.body);
+        const rty = synth(local.define(tm.erased, tm.name, ty, v, tm.type, tm.val), tm.body);
         config_1.log(() => `let type: ${core_1.show(values_1.quote(rty, local.level))} in (${local.level}) ${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
         return rty;
     }

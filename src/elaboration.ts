@@ -1,13 +1,13 @@
 import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Var, Proj, PIndex, PFst, PSnd, Prim } from './core';
-import { indexEnvT, Local } from './local';
-import { allMetasSolved, freshMeta, resetMetas } from './metas';
+import { indexEnvT, Local, Path } from './local';
+import { allMetasSolved, freshMeta, resetMetas, getMeta } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
 import { evaluate, force, quote, Val, VFlex, vinst, VPi, vproj, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
 import { config, log } from './config';
-import { terr, tryT } from './utils/utils';
+import { impossible, terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Name } from './names';
 import { loadGlobal } from './globals';
@@ -18,8 +18,14 @@ export type HoleInfo = [Val, Val, Local, boolean];
 
 const showV = (local: Local, val: Val): string => S.showVal(val, local.level, false, local.ns);
 
-const newMeta = (local: Local): Core => {
-  const id = freshMeta();
+const closeTy = (path: Path, ty: Core): Core =>
+  path.foldl((rest, [e, m, x, ty, val]) => val ? Let(e, x, ty, val, rest) : Pi(e, m, x, ty, rest), ty);
+
+const newMeta = (local: Local, ty: Val): Core => {
+  const qtype = closeTy(local.path, quote(ty, local.level));
+  const type = evaluate(qtype, nil);
+  const id = freshMeta(type);
+  log(() => `newMeta ?${id} : ${showV(Local.empty(), type)}`);
   const bds = local.ts.map(e => [e.mode, e.bound] as [Mode, boolean]);
   return InsertedMeta(id, bds);
 };
@@ -27,7 +33,7 @@ const newMeta = (local: Local): Core => {
 const inst = (local: Local, ty_: Val): [Val, List<Core>] => {
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.mode.tag === 'Impl') {
-    const m = newMeta(local);
+    const m = newMeta(local, ty.type);
     const vm = evaluate(m, local.vs);
     const [res, args] = inst(local, vinst(ty, vm));
     return [res, cons(m, args)];
@@ -38,7 +44,7 @@ const inst = (local: Local, ty_: Val): [Val, List<Core>] => {
 const check = (local: Local, tm: Surface, ty: Val): Core => {
   log(() => `check ${show(tm)} : ${showV(local, ty)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   if (tm.tag === 'Hole') {
-    const x = newMeta(local);
+    const x = newMeta(local, ty);
     if (tm.name) {
       if (holes[tm.name]) return terr(`duplicate hole ${tm.name}`);
       holes[tm.name] = [evaluate(x, local.vs), ty, local];
@@ -79,7 +85,7 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
       vtype = quote(vty, local.level);
     }
     const v = evaluate(val, local.vs);
-    const body = check(local.define(tm.erased, tm.name, vty, v), tm.body, ty);
+    const body = check(local.define(tm.erased, tm.name, vty, v, vtype, val), tm.body, ty);
     return Let(tm.erased, tm.name, vtype, val, body);
   }
   const [term, ty2] = synth(local, tm.tag === 'Rigid' ? tm.term : tm);
@@ -93,9 +99,9 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
 };
 
 const freshPi = (local: Local, erased: Erasure, mode: Mode, x: Name): Val => {
-  const a = newMeta(local);
+  const a = newMeta(local, VType);
   const va = evaluate(a, local.vs);
-  const b = newMeta(local.bind(erased, mode, '_', va));
+  const b = newMeta(local.bind(erased, mode, '_', va), VType);
   return evaluate(Pi(erased, mode, x, a, b), local.vs);
 };
 
@@ -182,12 +188,12 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
       type = quote(ty, local.level);
     }
     const v = evaluate(val, local.vs);
-    const [body, rty] = synth(local.define(tm.erased, tm.name, ty, v), tm.body);
+    const [body, rty] = synth(local.define(tm.erased, tm.name, ty, v, type, val), tm.body);
     return [Let(tm.erased, tm.name, type, val, body), rty];
   }
   if (tm.tag === 'Hole') {
-    const t = newMeta(local);
-    const vt = evaluate(newMeta(local), local.vs);
+    const vt = evaluate(newMeta(local, VType), local.vs);
+    const t = newMeta(local, vt);
     if (tm.name) {
       if (holes[tm.name]) return terr(`duplicate hole ${tm.name}`);
       holes[tm.name] = [evaluate(t, local.vs), vt, local];
@@ -237,10 +243,11 @@ const createImportTerm = (local: Local, term: Core, vterm: Val, sigma_: Val, imp
     }
     if (found) {
       const val = vproj(vterm, PIndex(sigma.name, i));
-      const newlocal = local.define(sigma.erased, name, sigma.type, val);
+      const qtype = quote(sigma.type, local.level);
+      const newlocal = local.define(sigma.erased, name, sigma.type, val, qtype, quote(val, local.level));
       const val2 = evaluate(Var(0), newlocal.vs);
       const [rest, ty] = createImportTerm(newlocal, term, vterm, vinst(sigma, val2), nextimports, body, i + 1);
-      return [Let(sigma.erased, name, quote(sigma.type, local.level), Proj(term, PIndex(sigma.name, i)), rest), ty];
+      return [Let(sigma.erased, name, qtype, Proj(term, PIndex(sigma.name, i)), rest), ty];
     } else {
       return createImportTerm(local, term, vterm, vinst(sigma, vproj(vterm, PIndex(sigma.name, i))), nextimports, body, i + 1);
     }
@@ -280,7 +287,7 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, tm: Surface, tmall: Surfac
   log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(tm)}${mode.tag === 'Expl' ? '' : '}'}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && mode.tag === 'Expl') {
-    const m = newMeta(local);
+    const m = newMeta(local, ty.type);
     const vm = evaluate(m, local.vs);
     const [rest, rt, l] = synthapp(local, vinst(ty, vm), mode, tm, tmall);
     return [rest, rt, cons(m, l)];
@@ -291,8 +298,10 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, tm: Surface, tmall: Surfac
     return [right, rt, nil];
   }
   if (ty.tag === 'VFlex') {
-    const a = freshMeta();
-    const b = freshMeta();
+    const m = getMeta(ty.head);
+    if (m.tag !== 'Unsolved') return impossible(`solved meta ?${ty.head} in synthapp`);
+    const a = freshMeta(m.type);
+    const b = freshMeta(m.type);
     const pi = VPi(false, mode, '_', VFlex(a, ty.spine), () => VFlex(b, ty.spine));
     unify(local.level, ty, pi);
     return synthapp(local, pi, mode, tm, tmall);

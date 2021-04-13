@@ -1,8 +1,9 @@
 import { Erasure, Expl, Mode } from './mode';
 import { Ix, Lvl, Name } from './names';
 import { cons, List, nil } from './utils/List';
-import { EnvV, show, Val, VVar } from './values';
+import { EnvV, quote, show, Val, VVar } from './values';
 import * as S from './surface';
+import { Core } from './core';
 
 export interface EntryT {
   readonly type: Val;
@@ -35,6 +36,8 @@ export const indexEnvT = (ts: EnvT, ix: Ix): [EntryT, Ix, number] | null => {
   return null;
 };
 
+export type Path = List<[Erasure, Mode, Name, Core, Core | null]>;
+
 export class Local {
 
   readonly erased: Erasure;
@@ -43,6 +46,7 @@ export class Local {
   readonly nsSurface: List<Name>;
   readonly ts: EnvT;
   readonly vs: EnvV;
+  readonly path: Path;
 
   constructor(
     erased: Erasure,
@@ -51,6 +55,7 @@ export class Local {
     nsSurface: List<Name>,
     ts: EnvT,
     vs: EnvV,
+    path: Path,
   ) {
     this.erased = erased;
     this.level = level;
@@ -58,11 +63,12 @@ export class Local {
     this.nsSurface = nsSurface;
     this.ts = ts;
     this.vs = vs;
+    this.path = path;
   }
 
   private static _empty: Local;
   static empty() {
-    if (Local._empty === undefined) Local._empty = new Local(false, 0, nil, nil, nil, nil);
+    if (Local._empty === undefined) Local._empty = new Local(false, 0, nil, nil, nil, nil, nil);
     return Local._empty;  
   }
 
@@ -74,6 +80,7 @@ export class Local {
       cons(name, this.nsSurface),
       cons(EntryT(ty, erased, mode, true, false), this.ts),
       cons(VVar(this.level), this.vs),
+      cons([erased, mode, name, quote(ty, this.level), null], this.path),
     );
   }
   insert(erased: Erasure, mode: Mode, name: Name, ty: Val): Local {
@@ -84,9 +91,10 @@ export class Local {
       this.nsSurface,
       cons(EntryT(ty, erased, mode, true, true), this.ts),
       cons(VVar(this.level), this.vs),
+      cons([erased, mode, name, quote(ty, this.level), null], this.path),
     );
   }
-  define(erased: Erasure, name: Name, ty: Val, val: Val): Local {
+  define(erased: Erasure, name: Name, ty: Val, val: Val, qty: Core, qval: Core): Local {
     return new Local(
       this.erased,
       this.level + 1,
@@ -94,6 +102,7 @@ export class Local {
       cons(name, this.nsSurface),
       cons(EntryT(ty, erased, Expl, false, false), this.ts),
       cons(val, this.vs),
+      cons([erased, Expl, name, qty, qval], this.path),
     );
   }
 
@@ -106,6 +115,7 @@ export class Local {
       (this.nsSurface as any).tail,
       (this.ts as any).tail,
       (this.vs as any).tail,
+      (this.path as any).tail,
     );
   }
 
@@ -117,6 +127,7 @@ export class Local {
       this.nsSurface,
       this.ts,
       this.vs,
+      this.path,
     );
   }
 

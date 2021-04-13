@@ -1,12 +1,12 @@
 import { config, log } from './config';
-import { Abs, App, Core, Meta, Pi, Type, Var, Global, Sigma, Pair, PFst, PSnd, Prim } from './core';
-import { MetaVar, setMeta } from './metas';
+import { Abs, App, Core, Meta, Pi, Var, Global, Sigma, Pair, PFst, PSnd, Prim } from './core';
+import { getMeta, MetaVar, setMeta } from './metas';
 import { Ix, Lvl } from './names';
-import { List, nil } from './utils/List';
-import { terr, tryT } from './utils/utils';
-import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, EApp, vproj, Head, GHead, getVPrim } from './values';
+import { nil } from './utils/List';
+import { impossible, terr, tryT } from './utils/utils';
+import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote } from './values';
 import * as C from './core';
-import { eqMode, Expl, Mode } from './mode';
+import { eqMode, Expl } from './mode';
 
 type IntMap<T> = { [key: number]: T };
 const insert = <T>(map: IntMap<T>, key: number, value: T): IntMap<T> =>
@@ -73,14 +73,21 @@ const rename = (id: MetaVar, pren: PartialRenaming, v_: Val): Core => {
   return v;
 };
 
-const lams = (is: List<Mode>, t: Core, n: number = 0): Core =>
-  is.case(() => t, (m, rest) => Abs(false, m, `x${n}`, Type, lams(rest, t, n + 1))); // TODO: lambda type and erasure
+const lams = (lvl: Lvl, a_: Val, t: Core, k: Lvl = 0): Core => {
+  if (lvl === k) return t;
+  const a = force(a_);
+  if (a.tag !== 'VPi') return impossible(`lams, not a pi type: ${a.tag}`);
+  const x = a.name === '_' ? `x${k}` : a.name;
+  return Abs(a.erased, a.mode, x, quote(a.type, k), lams(lvl, vinst(a, VVar(k)), t, k + 1));
+};
 
 const solve = (gamma: Lvl, m: MetaVar, sp: Spine, rhs_: Val): void => {
   log(() => `solve ?${m}${sp.reverse().toString(v => v.tag === 'EApp' ? `${v.mode.tag === 'Expl' ? '' : '{'}${show(v.arg, gamma)}${v.mode.tag === 'Expl' ? '' : '}'}` : v.tag)} := ${show(rhs_, gamma)}`);
   const pren = invert(gamma, sp);
   const rhs = rename(m, pren, rhs_);
-  const solutionq = lams(sp.reverse().map(app => (app as EApp).mode), rhs);
+  const sol = getMeta(m);
+  if (sol.tag !== 'Unsolved') return impossible(`solved meta ?${m} in solve`);
+  const solutionq = lams(pren.dom, sol.type, rhs);
   log(() => `solution: ${C.show(solutionq)}`);
   const solution = evaluate(solutionq, nil);
   setMeta(m, solution);

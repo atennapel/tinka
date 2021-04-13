@@ -175,11 +175,11 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       if (isDef) {
         if (term.tag === 'Let') {
           const value = evaluate(eterm, local.vs);
-          local = local.define(erased, term.name, evaluate(etype, local.vs), value);
+          local = local.define(erased, term.name, evaluate(etype, local.vs), value, etype, eterm);
         } else if (term.tag === 'Import') {
           let c: C.Core = eterm;
           while (c && c.tag === 'Let') {
-            local = local.define(c.erased, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs));
+            local = local.define(c.erased, c.name, evaluate(c.type, local.vs), evaluate(c.val, local.vs), c.type, c.val);
             c = c.body;
           }
         } else throw new Error(`invalid definition: ${term.tag}`);

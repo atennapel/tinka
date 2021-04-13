@@ -4,8 +4,8 @@ import { Val } from './values';
 export type MetaVar = number;
 
 export type Solution = Unsolved | Solved;
-export interface Unsolved { readonly tag: 'Unsolved' }
-export const Unsolved = (): Unsolved => ({ tag: 'Unsolved' });
+export interface Unsolved { readonly tag: 'Unsolved'; readonly type: Val }
+export const Unsolved = (type: Val): Unsolved => ({ tag: 'Unsolved', type });
 export interface Solved { readonly tag: 'Solved'; readonly solution: Val }
 export const Solved = (solution: Val): Solved => ({ tag: 'Solved', solution });
 
@@ -15,9 +15,9 @@ let metas: Metas = [];
 
 export const resetMetas = (): void => { metas = [] };
 
-export const freshMeta = (): MetaVar => {
+export const freshMeta = (type: Val): MetaVar => {
   const id = metas.length;
-  metas.push(Unsolved());
+  metas.push(Unsolved(type));
   return id;
 };
 
