@@ -2,13 +2,14 @@ import { config, log } from './config';
 import { Core, PFst, Pi, PIndex, PSnd, show } from './core';
 import { loadGlobal } from './globals';
 import { indexEnvT, Local } from './local';
-import { impossible, terr, tryT } from './utils/utils';
+import { terr, tryT } from './utils/utils';
 import { evaluate, force, quote, Val, vinst, VType } from './values';
 import * as V from './values';
 import { unify } from './unification';
 import { eqMode, Expl, Mode } from './mode';
 import { isPrimErased, primType } from './prims';
 import { Ix } from './names';
+import { getMeta } from './metas';
 
 const showV = (local: Local, v: Val) => V.show(v, local.level);
 
@@ -24,7 +25,10 @@ const check = (local: Local, tm: Core, ty: Val): void => {
 
 const synth = (local: Local, tm: Core): Val => {
   log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
-  if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta') return impossible(`${tm.tag} in typecheck`);
+  if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta') {
+    const sol = getMeta(tm.id);
+    return sol.type;
+  }
   if (tm.tag === 'Var') {
     const [entry] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
     if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);

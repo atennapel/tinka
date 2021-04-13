@@ -21,10 +21,10 @@ const showV = (local: Local, val: Val): string => S.showVal(val, local.level, fa
 const closeTy = (path: Path, ty: Core): Core =>
   path.foldl((rest, [e, m, x, ty, val]) => val ? Let(e, x, ty, val, rest) : Pi(e, m, x, ty, rest), ty);
 
-const newMeta = (local: Local, ty: Val): Core => {
+const newMeta = (local: Local, ty: Val, erased: Erasure = false): Core => {
   const qtype = closeTy(local.path, quote(ty, local.level));
   const type = evaluate(qtype, nil);
-  const id = freshMeta(type);
+  const id = freshMeta(type, erased || local.erased); // is this erasure correct?
   log(() => `newMeta ?${id} : ${showV(Local.empty(), type)}`);
   const bds = local.ts.map(e => [e.mode, e.bound] as [Mode, boolean]);
   return InsertedMeta(id, bds);
@@ -33,7 +33,7 @@ const newMeta = (local: Local, ty: Val): Core => {
 const inst = (local: Local, ty_: Val): [Val, List<Core>] => {
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.mode.tag === 'Impl') {
-    const m = newMeta(local, ty.type);
+    const m = newMeta(local, ty.type, ty.erased);
     const vm = evaluate(m, local.vs);
     const [res, args] = inst(local, vinst(ty, vm));
     return [res, cons(m, args)];
@@ -99,9 +99,9 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
 };
 
 const freshPi = (local: Local, erased: Erasure, mode: Mode, x: Name): Val => {
-  const a = newMeta(local, VType);
+  const a = newMeta(local, VType, true);
   const va = evaluate(a, local.vs);
-  const b = newMeta(local.bind(erased, mode, '_', va), VType);
+  const b = newMeta(local.bind(erased, mode, '_', va), VType, true);
   return evaluate(Pi(erased, mode, x, a, b), local.vs);
 };
 
@@ -192,7 +192,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
     return [Let(tm.erased, tm.name, type, val, body), rty];
   }
   if (tm.tag === 'Hole') {
-    const vt = evaluate(newMeta(local, VType), local.vs);
+    const vt = evaluate(newMeta(local, VType, true), local.vs);
     const t = newMeta(local, vt);
     if (tm.name) {
       if (holes[tm.name]) return terr(`duplicate hole ${tm.name}`);
@@ -287,7 +287,7 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, tm: Surface, tmall: Surfac
   log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(tm)}${mode.tag === 'Expl' ? '' : '}'}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   const ty = force(ty_);
   if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && mode.tag === 'Expl') {
-    const m = newMeta(local, ty.type);
+    const m = newMeta(local, ty.type, ty.erased);
     const vm = evaluate(m, local.vs);
     const [rest, rt, l] = synthapp(local, vinst(ty, vm), mode, tm, tmall);
     return [rest, rt, cons(m, l)];
@@ -300,8 +300,8 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, tm: Surface, tmall: Surfac
   if (ty.tag === 'VFlex') {
     const m = getMeta(ty.head);
     if (m.tag !== 'Unsolved') return impossible(`solved meta ?${ty.head} in synthapp`);
-    const a = freshMeta(m.type);
-    const b = freshMeta(m.type);
+    const a = freshMeta(m.type, m.erased);
+    const b = freshMeta(m.type, m.erased);
     const pi = VPi(false, mode, '_', VFlex(a, ty.spine), () => VFlex(b, ty.spine));
     unify(local.level, ty, pi);
     return synthapp(local, pi, mode, tm, tmall);

@@ -7,6 +7,8 @@ import { impossible, terr, tryT } from './utils/utils';
 import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote } from './values';
 import * as C from './core';
 import { eqMode, Expl } from './mode';
+import { verify } from './verification';
+import { Local } from './local';
 
 type IntMap<T> = { [key: number]: T };
 const insert = <T>(map: IntMap<T>, key: number, value: T): IntMap<T> =>
@@ -89,6 +91,10 @@ const solve = (gamma: Lvl, m: MetaVar, sp: Spine, rhs_: Val): void => {
   if (sol.tag !== 'Unsolved') return impossible(`solved meta ?${m} in solve`);
   const solutionq = lams(pren.dom, sol.type, rhs);
   log(() => `solution: ${C.show(solutionq)}`);
+  if (config.verifyMetaSolutions) {
+    const mtype = verify(solutionq, sol.erased ? Local.empty().inType() : Local.empty());
+    log(() => `meta verified: ${C.show(mtype)}`);
+  }
   const solution = evaluate(solutionq, nil);
   setMeta(m, solution);
 };

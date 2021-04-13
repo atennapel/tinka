@@ -8,6 +8,7 @@ exports.config = {
     localGlue: true,
     unicode: true,
     hideImplicits: true,
+    verifyMetaSolutions: true,
 };
 const setConfig = (c) => {
     for (let k in c)
@@ -237,10 +238,10 @@ const mode_1 = require("./mode");
 const prims_1 = require("./prims");
 const showV = (local, val) => S.showVal(val, local.level, false, local.ns);
 const closeTy = (path, ty) => path.foldl((rest, [e, m, x, ty, val]) => val ? core_1.Let(e, x, ty, val, rest) : core_1.Pi(e, m, x, ty, rest), ty);
-const newMeta = (local, ty) => {
+const newMeta = (local, ty, erased = false) => {
     const qtype = closeTy(local.path, values_1.quote(ty, local.level));
     const type = values_1.evaluate(qtype, List_1.nil);
-    const id = metas_1.freshMeta(type);
+    const id = metas_1.freshMeta(type, erased || local.erased); // is this erasure correct?
     config_1.log(() => `newMeta ?${id} : ${showV(local_1.Local.empty(), type)}`);
     const bds = local.ts.map(e => [e.mode, e.bound]);
     return core_1.InsertedMeta(id, bds);
@@ -248,7 +249,7 @@ const newMeta = (local, ty) => {
 const inst = (local, ty_) => {
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && ty.mode.tag === 'Impl') {
-        const m = newMeta(local, ty.type);
+        const m = newMeta(local, ty.type, ty.erased);
         const vm = values_1.evaluate(m, local.vs);
         const [res, args] = inst(local, values_1.vinst(ty, vm));
         return [res, List_1.cons(m, args)];
@@ -315,9 +316,9 @@ const check = (local, tm, ty) => {
     }, e => utils_1.terr(`check failed (${surface_1.show(tm)}): ${showV(local, ty2)} ~ ${showV(local, ty)}: ${e}`));
 };
 const freshPi = (local, erased, mode, x) => {
-    const a = newMeta(local, values_1.VType);
+    const a = newMeta(local, values_1.VType, true);
     const va = values_1.evaluate(a, local.vs);
-    const b = newMeta(local.bind(erased, mode, '_', va), values_1.VType);
+    const b = newMeta(local.bind(erased, mode, '_', va), values_1.VType, true);
     return values_1.evaluate(core_1.Pi(erased, mode, x, a, b), local.vs);
 };
 const synth = (local, tm) => {
@@ -421,7 +422,7 @@ const synth = (local, tm) => {
         return [core_1.Let(tm.erased, tm.name, type, val, body), rty];
     }
     if (tm.tag === 'Hole') {
-        const vt = values_1.evaluate(newMeta(local, values_1.VType), local.vs);
+        const vt = values_1.evaluate(newMeta(local, values_1.VType, true), local.vs);
         const t = newMeta(local, vt);
         if (tm.name) {
             if (holes[tm.name])
@@ -521,7 +522,7 @@ const synthapp = (local, ty_, mode, tm, tmall) => {
     config_1.log(() => `synthapp ${showV(local, ty_)} @ ${mode.tag === 'Expl' ? '' : '{'}${surface_1.show(tm)}${mode.tag === 'Expl' ? '' : '}'}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     const ty = values_1.force(ty_);
     if (ty.tag === 'VPi' && ty.mode.tag === 'Impl' && mode.tag === 'Expl') {
-        const m = newMeta(local, ty.type);
+        const m = newMeta(local, ty.type, ty.erased);
         const vm = values_1.evaluate(m, local.vs);
         const [rest, rt, l] = synthapp(local, values_1.vinst(ty, vm), mode, tm, tmall);
         return [rest, rt, List_1.cons(m, l)];
@@ -535,8 +536,8 @@ const synthapp = (local, ty_, mode, tm, tmall) => {
         const m = metas_1.getMeta(ty.head);
         if (m.tag !== 'Unsolved')
             return utils_1.impossible(`solved meta ?${ty.head} in synthapp`);
-        const a = metas_1.freshMeta(m.type);
-        const b = metas_1.freshMeta(m.type);
+        const a = metas_1.freshMeta(m.type, m.erased);
+        const b = metas_1.freshMeta(m.type, m.erased);
         const pi = values_1.VPi(false, mode, '_', values_1.VFlex(a, ty.spine), () => values_1.VFlex(b, ty.spine));
         unification_1.unify(local.level, ty, pi);
         return synthapp(local, pi, mode, tm, tmall);
@@ -701,16 +702,16 @@ exports.showValCore = showValCore;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.allMetasSolved = exports.setMeta = exports.getMeta = exports.freshMeta = exports.resetMetas = exports.Solved = exports.Unsolved = void 0;
 const utils_1 = require("./utils/utils");
-const Unsolved = (type) => ({ tag: 'Unsolved', type });
+const Unsolved = (type, erased) => ({ tag: 'Unsolved', type, erased });
 exports.Unsolved = Unsolved;
-const Solved = (solution) => ({ tag: 'Solved', solution });
+const Solved = (solution, type) => ({ tag: 'Solved', solution, type });
 exports.Solved = Solved;
 let metas = [];
 const resetMetas = () => { metas = []; };
 exports.resetMetas = resetMetas;
-const freshMeta = (type) => {
+const freshMeta = (type, erased) => {
     const id = metas.length;
-    metas.push(exports.Unsolved(type));
+    metas.push(exports.Unsolved(type, erased));
     return id;
 };
 exports.freshMeta = freshMeta;
@@ -727,7 +728,7 @@ const setMeta = (id, solution) => {
         return utils_1.impossible(`setMeta with undefined meta ${id}`);
     if (entry.tag === 'Solved')
         return utils_1.impossible(`setMeta with solved meta ${id}`);
-    metas[id] = exports.Solved(solution);
+    metas[id] = exports.Solved(solution, entry.type);
 };
 exports.setMeta = setMeta;
 const allMetasSolved = () => metas.every(x => x.tag === 'Solved');
@@ -1815,6 +1816,8 @@ const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
 const C = require("./core");
 const mode_1 = require("./mode");
+const verification_1 = require("./verification");
+const local_1 = require("./local");
 const insert = (map, key, value) => ({ ...map, [key]: value });
 const PRen = (dom, cod, ren) => ({ dom, cod, ren });
 const lift = (pren) => PRen(pren.dom + 1, pren.cod + 1, insert(pren.ren, pren.cod, pren.dom));
@@ -1891,6 +1894,10 @@ const solve = (gamma, m, sp, rhs_) => {
         return utils_1.impossible(`solved meta ?${m} in solve`);
     const solutionq = lams(pren.dom, sol.type, rhs);
     config_1.log(() => `solution: ${C.show(solutionq)}`);
+    if (config_1.config.verifyMetaSolutions) {
+        const mtype = verification_1.verify(solutionq, sol.erased ? local_1.Local.empty().inType() : local_1.Local.empty());
+        config_1.log(() => `meta verified: ${C.show(mtype)}`);
+    }
     const solution = values_1.evaluate(solutionq, List_1.nil);
     metas_1.setMeta(m, solution);
 };
@@ -2024,7 +2031,7 @@ const primEta = (a) => {
     return false;
 };
 
-},{"./config":1,"./core":2,"./metas":6,"./mode":7,"./utils/List":15,"./utils/utils":16,"./values":17}],14:[function(require,module,exports){
+},{"./config":1,"./core":2,"./local":5,"./metas":6,"./mode":7,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Lazy = void 0;
@@ -2731,6 +2738,7 @@ const V = require("./values");
 const unification_1 = require("./unification");
 const mode_1 = require("./mode");
 const prims_1 = require("./prims");
+const metas_1 = require("./metas");
 const showV = (local, v) => V.show(v, local.level);
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${core_1.show(tm)} : ${showV(local, ty)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
@@ -2743,8 +2751,10 @@ const check = (local, tm, ty) => {
 };
 const synth = (local, tm) => {
     config_1.log(() => `synth ${core_1.show(tm)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
-    if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta')
-        return utils_1.impossible(`${tm.tag} in typecheck`);
+    if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta') {
+        const sol = metas_1.getMeta(tm.id);
+        return sol.type;
+    }
     if (tm.tag === 'Var') {
         const [entry] = local_1.indexEnvT(local.ts, tm.index) || utils_1.terr(`var out of scope ${core_1.show(tm)}`);
         if (entry.erased && !local.erased)
@@ -2857,7 +2867,7 @@ const verify = (t, local = local_1.Local.empty()) => {
 };
 exports.verify = verify;
 
-},{"./config":1,"./core":2,"./globals":4,"./local":5,"./mode":7,"./prims":10,"./unification":13,"./utils/utils":16,"./values":17}],19:[function(require,module,exports){
+},{"./config":1,"./core":2,"./globals":4,"./local":5,"./metas":6,"./mode":7,"./prims":10,"./unification":13,"./utils/utils":16,"./values":17}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");

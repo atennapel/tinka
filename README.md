@@ -12,7 +12,8 @@ TODO:
 - [ ] add testing
 - [ ] fix negative vars in output
 - [x] typed metas
-- [ ] make sure metas solutions are correct with respect to erasure
+- [x] make sure metas solutions are correct with respect to erasure
+- [ ] have smarter way to verify meta solutions
 - [ ] fix case-insensitive filesystem support
 - [ ] add primitive Nat and Fin
 - [ ] add surface syntax for modules
