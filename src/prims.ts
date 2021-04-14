@@ -1,14 +1,14 @@
 import { Expl, Impl } from './mode';
 import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon } from './values';
 
-export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con';
+export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con' | 'Nat';
 export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData'];
+export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData', 'Nat'];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
-export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data'];
+export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat'];
 export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
 
 export const primType = (name: PrimName): Val => {
@@ -77,6 +77,8 @@ export const primType = (name: PrimName): Val => {
         vapp(P, Expl, VCon(F, vapp(vapp(vapp(vapp(map, Impl, R), Impl, VData(F)), Expl, out), Expl, y)))))))
       , _ =>
       VPi(false, Expl, 'x', VData(F), x => vapp(P, Expl, x))))));
+
+  if (name === 'Nat') return VType;
 
   return name;
 };

@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid } from './surface';
+import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid, NatLit } from './surface';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{' | '['
@@ -217,7 +217,7 @@ const expr = (t: Token): [Surface, boolean] => {
     const s = codepoints(t.str).reverse();
     const Cons = Var('Cons');
     const Nil = Var('Nil');
-    return [s.reduce((t, n) => App(App(Cons, Expl, numToNat(n, `codepoint: ${n}`)), Expl, t), Nil as Surface), false];
+    return [s.reduce((t, n) => App(App(Cons, Expl, NatLit(BigInt(n))), Expl, t), Nil as Surface), false];
   }
   if (t.tag === 'Name') {
     const x = t.name;
@@ -256,7 +256,7 @@ const expr = (t: Token): [Surface, boolean] => {
     } else if (t.num.endsWith('n')) {
       return [numToNat(+t.num.slice(0, -1), t.num), false];
     } else {
-      return [numToNat(+t.num, t.num), false];
+      return [NatLit(BigInt(t.num)), false];
     }
   }
   return t;

@@ -1,4 +1,4 @@
-import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim } from './core';
+import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit } from './core';
 import { getMeta, MetaVar } from './metas';
 import { Ix, Lvl, Name } from './names';
 import { Lazy } from './utils/Lazy';
@@ -36,7 +36,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VRigid | VFlex | VGlobal | VAbs | VPi | VSigma | VPair;
+export type Val = VRigid | VFlex | VGlobal | VAbs | VPi | VSigma | VPair | VNatLit;
 
 export interface VRigid { readonly tag: 'VRigid'; readonly head: Head; readonly spine: Spine }
 export const VRigid = (head: Head, spine: Spine): VRigid => ({ tag: 'VRigid', head, spine });
@@ -52,6 +52,8 @@ export interface VSigma { readonly tag: 'VSigma'; readonly erased: Erasure; read
 export const VSigma = (erased: Erasure, name: Name, type: Val, clos: Clos): VSigma => ({ tag: 'VSigma', erased, name, type, clos });
 export interface VPair { readonly tag: 'VPair'; readonly fst: Val; readonly snd: Val; readonly type: Val }
 export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
+export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
+export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
@@ -66,6 +68,7 @@ export const VUnitType = VPrim('()');
 export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
+export const VNat = VPrim('Nat');
 
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
@@ -168,6 +171,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Sigma') return VSigma(t.erased, t.name, evaluate(t.type, vs, glueBefore), v => evaluate(t.body, cons(v, vs), glueBefore));
   if (t.tag === 'Meta') return VMeta(t.id);
   if (t.tag === 'InsertedMeta') return velimBD(vs, VMeta(t.id), t.spine);
+  if (t.tag === 'NatLit') return VNatLit(t.value);
   if (t.tag === 'App') return vapp(evaluate(t.fn, vs, glueBefore), t.mode, evaluate(t.arg, vs, glueBefore));
   if (t.tag === 'Pair') return VPair(evaluate(t.fst, vs, glueBefore), evaluate(t.snd, vs, glueBefore), evaluate(t.type, vs, glueBefore));
   if (t.tag === 'Let') return evaluate(t.body, cons(evaluate(t.val, vs, glueBefore), vs), glueBefore);
@@ -239,6 +243,7 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean, kBefore: Lvl): Core 
 };
 export const quote = (v_: Val, k: Lvl, full: boolean = false, kBefore: Lvl = k): Core => {
   const v = force(v_, false);
+  if (v.tag === 'VNatLit') return NatLit(v.value);
   if (v.tag === 'VRigid')
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full, kBefore),

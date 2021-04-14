@@ -18,8 +18,4 @@ let cong
   : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b)
   = \{A} {B} {f} {a} p. rewrite (\x. Eq (f a) (f x)) p Refl;
 
-let axiomK
-  : {-A : *} -> {-x : A} -> {p : Eq x x} -> Eq p Refl
-  = Refl;
-
-[rewrite, cast, sym, trans, cong, axiomK]
+[rewrite, cast, sym, trans, cong]

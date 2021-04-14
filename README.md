@@ -14,6 +14,7 @@ TODO:
 - [x] typed metas
 - [x] make sure metas solutions are correct with respect to erasure
 - [ ] have smarter way to verify meta solutions
+- [ ] pruning and intersecting
 - [ ] fix case-insensitive filesystem support
 - [ ] add primitive Nat and Fin
 - [ ] add surface syntax for modules

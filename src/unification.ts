@@ -51,6 +51,7 @@ const renameSpine = (id: MetaVar, pren: PartialRenaming, t: Core, sp: Spine): Co
 
 const rename = (id: MetaVar, pren: PartialRenaming, v_: Val): Core => {
   const v = force(v_, false);
+  if (v.tag === 'VNatLit') return C.NatLit(v.value);
   if (v.tag === 'VFlex') {
     if (v.head === id) return terr(`occurs check failed: ${id}`);
     return renameSpine(id, pren, Meta(v.head), v.spine);
@@ -152,6 +153,7 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
   const b = force(b_, false);
   log(() => `unify ${show(a, l)} ~ ${show(b, l)}`);
   if (a === b) return;
+  if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
   if (a.tag === 'VAbs' && b.tag === 'VAbs') {
     const v = VVar(l);
     return unify(l + 1, vinst(a, v), vinst(b, v));
@@ -210,8 +212,7 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
 const primEta = (a: Val): boolean => {
   const pa = getVPrim(a);
   if (pa) {
-    const [x, args] = pa;
-    if (x === 'Refl' && args.length === 2) return true;
+    const [x] = pa;
     if (x === '[]') return true;
   }
   return false;

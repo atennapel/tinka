@@ -12,6 +12,7 @@ export type Surface =
   Pi | Abs | App |
   Sigma | Pair | Proj |
   Import |
+  NatLit |
   Meta | Hole | Rigid;
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
@@ -37,6 +38,9 @@ export const Proj = (term: Surface, proj: ProjType): Proj => ({ tag: 'Proj', ter
 
 export interface Import { readonly tag: 'Import'; readonly term: Surface; readonly imports: string[] | null; readonly body: Surface }
 export const Import = (term: Surface, imports: string[] | null, body: Surface): Import => ({ tag: 'Import', term, imports, body });
+
+export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
+export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
 
 export interface Meta { readonly tag: 'Meta'; readonly id: MetaVar }
 export const Meta = (id: MetaVar): Meta => ({ tag: 'Meta', id });
@@ -125,7 +129,7 @@ const absIsSimple = (t: Surface): boolean => {
   const [params, body] = flattenAbs(t);
   return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
 };
-const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || appIsSimple(t) || absIsSimple(t);
+const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -137,6 +141,7 @@ export const show = (t: Surface): string => {
   if (t.tag === 'Var') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
+  if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
     const arr = config.unicode ? '→' : '->';
@@ -181,6 +186,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Var') return Var(ns.index(t.index) || impossible(`var out of scope in fromCore: ${t.index}`));
   if (t.tag === 'Global') return Var(t.name);
   if (t.tag === 'Prim') return Var(t.name);
+  if (t.tag === 'NatLit') return NatLit(t.value);
   if (t.tag === 'App') return App(fromCore(t.fn, ns), t.mode, fromCore(t.arg, ns));
   if (t.tag === 'Pi') {
     const x = chooseName(t.name, ns);

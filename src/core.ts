@@ -10,6 +10,7 @@ export type Core =
   Var | Global | Prim | Let |
   Pi | Abs | App |
   Sigma | Pair | Proj |
+  NatLit |
   Meta | InsertedMeta;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
@@ -34,6 +35,9 @@ export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: 
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
 export interface Proj { readonly tag: 'Proj'; readonly term: Core; readonly proj: ProjType }
 export const Proj = (term: Core, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
+
+export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
+export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
 
 export interface Meta { readonly tag: 'Meta'; readonly id: MetaVar }
 export const Meta = (id: MetaVar): Meta => ({ tag: 'Meta', id });
@@ -106,7 +110,7 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Core) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj';
+const isSimple = (t: Core) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit';
 const showS = (t: Core) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -118,6 +122,7 @@ export const show = (t: Core): string => {
   if (t.tag === 'Global') return `${t.name}`;
   if (t.tag === 'Prim') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
+  if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'InsertedMeta') return `?*${t.id}${t.spine.reverse().toString(([m, b]) => `${m.tag === 'Expl' ? '' : '{'}${b ? 'b' : 'd'}${m.tag === 'Expl' ? '' : '}'}`)}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
