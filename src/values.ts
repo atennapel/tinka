@@ -136,6 +136,7 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
   return impossible(`vproj: ${scrut.tag}`);
 };
 export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): Val => {
+  if (name === 'S' && scrut.tag === 'VNatLit') return VNatLit(scrut.value + 1n);
   const res = getVPrim(scrut);
   if (res) {
     const [x, spine] = res;
@@ -217,6 +218,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         , alg =>
         VAbs(false, Expl, 'x', VData(F), x =>
         vprimelim('elimData', x, [[Impl, F], [Expl, map], [Expl, P], [Expl, alg]]))))));
+    if (t.name === 'S') return VAbs(false, Expl, 'n', VNat, n => vprimelim('S', n, []));
     return VPrim(t.name);
   }
   return t;
