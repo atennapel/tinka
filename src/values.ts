@@ -69,6 +69,7 @@ export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
 export const VNat = VPrim('Nat');
+export const VS = (n: Val): Val => vprimelim('S', n, []);
 
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
@@ -137,6 +138,11 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
 };
 export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): Val => {
   if (name === 'S' && scrut.tag === 'VNatLit') return VNatLit(scrut.value + 1n);
+  if (name === 'elimNat' && scrut.tag === 'VNatLit') {
+    if (scrut.value === 0n) return args[1][1];
+    // elimNat P z s (m + 1) ~> s (\k. elimNat P z s k) m
+    if (scrut.value > 0n) return vapp(vapp(args[2][1], Expl, VAbs(false, Expl, 'n', VNat, n => vprimelim('elimNat', n, args))), Expl, VNatLit(scrut.value - 1n));
+  }
   const res = getVPrim(scrut);
   if (res) {
     const [x, spine] = res;
@@ -151,6 +157,13 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
       const F = args[0][1];
       const alg = args[3][1];
       return vapp(vapp(vapp(vapp(alg, Impl, VData(F)), Expl, VAbs(false, Expl, 'x', VData(F), x => x)), Expl, VAbs(false, Expl, 'x', VData(F), x => vprimelim('elimData', x, args))), Expl, inner);
+    }
+  }
+  if (name === 'elimNat' && (scrut.tag === 'VRigid' || scrut.tag === 'VFlex') && scrut.spine.isCons()) {
+    const head = scrut.spine.head;
+    if (head.tag === 'EPrim' && head.name === 'S') {
+      const pred = scrut.tag === 'VRigid' ? VRigid(scrut.head, scrut.spine.tail) : VFlex(scrut.head, scrut.spine.tail);
+      return vapp(vapp(args[2][1], Expl, VAbs(false, Expl, 'n', VNat, n => vprimelim('elimNat', n, args))), Expl, pred);
     }
   }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
@@ -219,6 +232,11 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(false, Expl, 'x', VData(F), x =>
         vprimelim('elimData', x, [[Impl, F], [Expl, map], [Expl, P], [Expl, alg]]))))));
     if (t.name === 'S') return VAbs(false, Expl, 'n', VNat, n => vprimelim('S', n, []));
+    if (t.name === 'elimNat')
+      return VAbs(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
+        VAbs(false, Expl, '_', vapp(P, Expl, VNatLit(0n)), z =>
+        VAbs(false, Expl, '_', VPi(false, Expl, '_', VPi(false, Expl, 'k', VNat, k => vapp(P, Expl, k)), _ => VPi(false, Expl, 'm', VNat, m => vapp(P, Expl, VS(m)))), s =>
+        VAbs(false, Expl, 'n', VNat, n => vprimelim('elimNat', n, [[Expl, P], [Expl, z], [Expl, s]])))));
     return VPrim(t.name);
   }
   return t;

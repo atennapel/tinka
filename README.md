@@ -16,7 +16,8 @@ TODO:
 - [ ] have smarter way to verify meta solutions
 - [ ] pruning and intersecting
 - [ ] fix case-insensitive filesystem support
-- [ ] add primitive Nat and Fin
+- [x] add primitive Nat
+- [ ] add primitive Fin
 - [ ] add surface syntax for modules
 - [ ] add general fixpoint type
 - [ ] bootstrap descriptions

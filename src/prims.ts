@@ -1,11 +1,11 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon, VNat } from './values';
+import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon, VNat, VNatLit, VS } from './values';
 
 export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con' | 'Nat';
-export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData' | 'S';
+export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData' | 'S' | 'elimNat';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData', 'Nat', 'S'];
+export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData', 'Nat', 'S', 'elimNat'];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
 export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat'];
@@ -80,6 +80,12 @@ export const primType = (name: PrimName): Val => {
 
   if (name === 'Nat') return VType;
   if (name === 'S') return VPi(false, Expl, '_', VNat, _ => VNat);
+  // elimNat : (-P : Nat -> *) -> P 0 -> (((k : Nat) -> P k) -> (m : Nat) -> P (S m)) -> (n : Nat) -> P n
+  if (name === 'elimNat')
+    return VPi(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
+      VPi(false, Expl, '_', vapp(P, Expl, VNatLit(0n)), _ =>
+      VPi(false, Expl, '_', VPi(false, Expl, '_', VPi(false, Expl, 'k', VNat, k => vapp(P, Expl, k)), _ => VPi(false, Expl, 'm', VNat, m => vapp(P, Expl, VS(m)))), _ =>
+      VPi(false, Expl, 'n', VNat, n => vapp(P, Expl, n)))));
 
   return name;
 };

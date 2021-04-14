@@ -1083,7 +1083,7 @@ const exprs = (ts, br, fromRepl = false) => {
             count = true;
         }
         if (ts.length === 0)
-            return surface_1.Pair(numToNat(0, '0'), Unit);
+            return surface_1.Pair(surface_1.NatLit(0n), Unit);
         const jp = ts.findIndex(x => isName(x, ','));
         if (jp >= 0) {
             const s = splitTokens(ts, x => isName(x, ','));
@@ -1098,13 +1098,13 @@ const exprs = (ts, br, fromRepl = false) => {
                 return [exprs(x, '('), false];
             });
             if (args.length === 0)
-                return count ? surface_1.Pair(numToNat(0, '0'), Unit) : Unit;
+                return count ? surface_1.Pair(surface_1.NatLit(0n), Unit) : Unit;
             const p = args.reduceRight((x, [y, _p]) => surface_1.Pair(y, x), Unit);
-            return count ? surface_1.Pair(numToNat(args.length, `${args.length}`), p) : p;
+            return count ? surface_1.Pair(surface_1.NatLit(BigInt(args.length)), p) : p;
         }
         else {
             const expr = exprs(ts, '(');
-            return count ? surface_1.Pair(numToNat(1, '1'), surface_1.Pair(expr, Unit)) : surface_1.Pair(expr, Unit);
+            return count ? surface_1.Pair(surface_1.NatLit(1n), surface_1.Pair(expr, Unit)) : surface_1.Pair(expr, Unit);
         }
     }
     if (ts.length === 0)
@@ -1327,7 +1327,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.primType = exports.isPrimErased = exports.ErasedPrims = exports.isPrimName = exports.PrimNames = void 0;
 const mode_1 = require("./mode");
 const values_1 = require("./values");
-exports.PrimNames = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData', 'Nat', 'S'];
+exports.PrimNames = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData', 'Nat', 'S', 'elimNat'];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
 exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat'];
@@ -1387,6 +1387,9 @@ const primType = (name) => {
         return values_1.VType;
     if (name === 'S')
         return values_1.VPi(false, mode_1.Expl, '_', values_1.VNat, _ => values_1.VNat);
+    // elimNat : (-P : Nat -> *) -> P 0 -> (((k : Nat) -> P k) -> (m : Nat) -> P (S m)) -> (n : Nat) -> P n
+    if (name === 'elimNat')
+        return values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, '_', values_1.VNat, _ => values_1.VType), P => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VNatLit(0n)), _ => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, 'k', values_1.VNat, k => values_1.vapp(P, mode_1.Expl, k)), _ => values_1.VPi(false, mode_1.Expl, 'm', values_1.VNat, m => values_1.vapp(P, mode_1.Expl, values_1.VS(m)))), _ => values_1.VPi(false, mode_1.Expl, 'n', values_1.VNat, n => values_1.vapp(P, mode_1.Expl, n)))));
     return name;
 };
 exports.primType = primType;
@@ -2411,7 +2414,7 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VCon = exports.VData = exports.VRefl = exports.VEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vprimelim = exports.vproj = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VCon = exports.VData = exports.VRefl = exports.VEq = exports.VS = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2466,6 +2469,8 @@ exports.VBool = exports.VPrim('Bool');
 exports.VTrue = exports.VPrim('True');
 exports.VFalse = exports.VPrim('False');
 exports.VNat = exports.VPrim('Nat');
+const VS = (n) => exports.vprimelim('S', n, []);
+exports.VS = VS;
 const VEq = (A, x, y) => exports.VPrim('Eq', List_1.List.of(exports.EApp(mode_1.Expl, y), exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Impl, A)));
 exports.VEq = VEq;
 const VRefl = (A, x) => exports.VPrim('Refl', List_1.List.of(exports.EApp(mode_1.Impl, x), exports.EApp(mode_1.Impl, A)));
@@ -2552,6 +2557,13 @@ exports.vproj = vproj;
 const vprimelim = (name, scrut, args) => {
     if (name === 'S' && scrut.tag === 'VNatLit')
         return exports.VNatLit(scrut.value + 1n);
+    if (name === 'elimNat' && scrut.tag === 'VNatLit') {
+        if (scrut.value === 0n)
+            return args[1][1];
+        // elimNat P z s (m + 1) ~> s (\k. elimNat P z s k) m
+        if (scrut.value > 0n)
+            return exports.vapp(exports.vapp(args[2][1], mode_1.Expl, exports.VAbs(false, mode_1.Expl, 'n', exports.VNat, n => exports.vprimelim('elimNat', n, args))), mode_1.Expl, exports.VNatLit(scrut.value - 1n));
+    }
     const res = exports.getVPrim(scrut);
     if (res) {
         const [x, spine] = res;
@@ -2569,6 +2581,13 @@ const vprimelim = (name, scrut, args) => {
             const F = args[0][1];
             const alg = args[3][1];
             return exports.vapp(exports.vapp(exports.vapp(exports.vapp(alg, mode_1.Impl, exports.VData(F)), mode_1.Expl, exports.VAbs(false, mode_1.Expl, 'x', exports.VData(F), x => x)), mode_1.Expl, exports.VAbs(false, mode_1.Expl, 'x', exports.VData(F), x => exports.vprimelim('elimData', x, args))), mode_1.Expl, inner);
+        }
+    }
+    if (name === 'elimNat' && (scrut.tag === 'VRigid' || scrut.tag === 'VFlex') && scrut.spine.isCons()) {
+        const head = scrut.spine.head;
+        if (head.tag === 'EPrim' && head.name === 'S') {
+            const pred = scrut.tag === 'VRigid' ? exports.VRigid(scrut.head, scrut.spine.tail) : exports.VFlex(scrut.head, scrut.spine.tail);
+            return exports.vapp(exports.vapp(args[2][1], mode_1.Expl, exports.VAbs(false, mode_1.Expl, 'n', exports.VNat, n => exports.vprimelim('elimNat', n, args))), mode_1.Expl, pred);
         }
     }
     if (scrut.tag === 'VRigid')
@@ -2635,6 +2654,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VAbs(true, mode_1.Impl, 'F', exports.VPi(false, mode_1.Expl, '_', exports.VType, _ => exports.VType), F => exports.VAbs(true, mode_1.Expl, 'map', exports.VPi(true, mode_1.Impl, 'A', exports.VType, A => exports.VPi(true, mode_1.Impl, 'B', exports.VType, B => exports.VPi(false, mode_1.Expl, '_', exports.VPi(false, mode_1.Expl, '_', A, _ => B), _ => exports.VPi(false, mode_1.Expl, '_', exports.vapp(F, mode_1.Expl, A), _ => exports.vapp(F, mode_1.Expl, B))))), map => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, '_', exports.VData(F), _ => exports.VType), P => exports.VAbs(false, mode_1.Expl, 'alg', exports.VPi(true, mode_1.Impl, 'R', exports.VType, R => exports.VPi(false, mode_1.Expl, 'out', exports.VPi(false, mode_1.Expl, '_', R, _ => exports.VData(F)), out => exports.VPi(false, mode_1.Expl, '_', exports.VPi(false, mode_1.Expl, 'z', R, z => exports.vapp(P, mode_1.Expl, exports.vapp(out, mode_1.Expl, z))), _ => exports.VPi(false, mode_1.Expl, 'y', exports.vapp(F, mode_1.Expl, R), y => exports.vapp(P, mode_1.Expl, exports.VCon(F, exports.vapp(exports.vapp(exports.vapp(exports.vapp(map, mode_1.Impl, R), mode_1.Impl, exports.VData(F)), mode_1.Expl, out), mode_1.Expl, y))))))), alg => exports.VAbs(false, mode_1.Expl, 'x', exports.VData(F), x => exports.vprimelim('elimData', x, [[mode_1.Impl, F], [mode_1.Expl, map], [mode_1.Expl, P], [mode_1.Expl, alg]]))))));
         if (t.name === 'S')
             return exports.VAbs(false, mode_1.Expl, 'n', exports.VNat, n => exports.vprimelim('S', n, []));
+        if (t.name === 'elimNat')
+            return exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, '_', exports.VNat, _ => exports.VType), P => exports.VAbs(false, mode_1.Expl, '_', exports.vapp(P, mode_1.Expl, exports.VNatLit(0n)), z => exports.VAbs(false, mode_1.Expl, '_', exports.VPi(false, mode_1.Expl, '_', exports.VPi(false, mode_1.Expl, 'k', exports.VNat, k => exports.vapp(P, mode_1.Expl, k)), _ => exports.VPi(false, mode_1.Expl, 'm', exports.VNat, m => exports.vapp(P, mode_1.Expl, exports.VS(m)))), s => exports.VAbs(false, mode_1.Expl, 'n', exports.VNat, n => exports.vprimelim('elimNat', n, [[mode_1.Expl, P], [mode_1.Expl, z], [mode_1.Expl, s]])))));
         return exports.VPrim(t.name);
     }
     return t;

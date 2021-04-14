@@ -4,21 +4,21 @@ import sum;
 let -TypesN = \n. cataNat n () (\R. * ** R);
 let -Types = (n : Nat) ** TypesN n;
 let -SumsN : (n : Nat) -> TypesN n -> * =
-  elimNat (\n. TypesN n -> *) (\_. Void) (\_ p t. Sum t._1 (p t._2));
+  elimNat (\n. TypesN n -> *) (\_. Void) (\p m t. Sum t._1 (p m t._2));
 let -Sums : Types -> * = \p. SumsN p._1 p._2;
 
 let -Motives
   : (p : Types) -> (P : Sums p -> *) -> *
   = \p. elimNat (\n. (p : TypesN n) -> (P : Sums (n, p) -> *) -> *)
       (\_ _. ())
-      (\m r p P. ((x : p._1) -> P (Left x)) ** r p._2 (\z. P (Right z)))
+      (\r m p P. ((x : p._1) -> P (Left x)) ** r m p._2 (\z. P (Right z)))
       p._1 p._2;
 
 let elimSums
   : {n : Nat} -> {-p : TypesN n} -> (-P : Sums (n, p) -> *) -> (x : Sums (n, p)) -> Motives (n, p) P -> P x
   = \{n}. elimNat (\n. {-p : TypesN n} -> (-P : Sums (n, p) -> *) -> (x : Sums (n, p)) -> Motives (n, p) P -> P x)
       (\{p} P x m. absurd x)
-      (\m r {p} P x m. elimSum P m._1 (\y. r {p._2} (\z. P (Right z)) y m._2) x)
+      (\r k {p} P x m. elimSum P m._1 (\y. r k {p._2} (\z. P (Right z)) y m._2) x)
       n;
 
 let caseSums

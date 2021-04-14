@@ -272,7 +272,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       ts = ts.slice(1);
       count = true;
     }
-    if (ts.length === 0) return Pair(numToNat(0, '0'), Unit);
+    if (ts.length === 0) return Pair(NatLit(0n), Unit);
     const jp = ts.findIndex(x => isName(x, ','));
     if (jp >= 0) {
       const s = splitTokens(ts, x => isName(x, ','));
@@ -285,12 +285,12 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
         }
         return [exprs(x, '('), false];
       });
-      if (args.length === 0) return count ? Pair(numToNat(0, '0'), Unit) : Unit;
+      if (args.length === 0) return count ? Pair(NatLit(0n), Unit) : Unit;
       const p = args.reduceRight((x, [y, _p]) => Pair(y, x), Unit as Surface);
-      return count ? Pair(numToNat(args.length, `${args.length}`), p) : p;
+      return count ? Pair(NatLit(BigInt(args.length)), p) : p;
     } else {
       const expr = exprs(ts, '(');
-      return count ? Pair(numToNat(1, '1'), Pair(expr, Unit)) : Pair(expr, Unit);
+      return count ? Pair(NatLit(1n), Pair(expr, Unit)) : Pair(expr, Unit);
     }
   }
   if (ts.length === 0) return UnitType;

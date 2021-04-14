@@ -1,43 +1,12 @@
-import maybe;
-
-let -Nat = Data Maybe;
-let Z : Nat = Con {Maybe} Nothing;
-let S : Nat -> Nat = \n. Con {Maybe} (Just n);
-
-let elimNat
-  : (-P : Nat -> *) -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n
-  = \P z s n. elimData @mapMaybe P (\out rec y.
-      elimMaybe (\y. P (Con {Maybe} (mapMaybe out y))) z (\m. s (out m) (rec m)) y) n;
-
 let caseNat
   : {-A : *} -> Nat -> A -> (Nat -> A) -> A
-  = \{A} n z s. elimNat (\_. A) z (\m _. s m) n;
+  = \{A} n z s. elimNat (\_. A) z (\_ m. s m) n;
 let cataNat
   : {-A : *} -> Nat -> A -> (A -> A) -> A
-  = \{A} n z s. elimNat (\_. A) z (\_. s) n;
+  = \{A} n z s. elimNat (\_. A) z (\rec m. s (rec m)) n;
 
-let pred : Nat -> Nat = \n. caseNat n Z (\m. m);
+let pred : Nat -> Nat = \n. caseNat n 0 (\m. m);
 let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
-let mul : Nat -> Nat -> Nat = \a b. cataNat a Z (add b);
+let mul : Nat -> Nat -> Nat = \a b. cataNat a 0 (add b);
 
-[Nat, Z, S, elimNat, @caseNat, @cataNat, pred, add, mul]
-:
-(-Nat : *)
-**
-(Z : Nat)
-**
-(S : Nat -> Nat)
-**
-(elimNat : (-P : Nat -> *) -> P Z -> ((m : Nat) -> P m -> P (S m)) -> (n : Nat) -> P n)
-**
-(caseNat : {-A : *} -> Nat -> A -> (Nat -> A) -> A)
-**
-(cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A)
-**
-(pred : Nat -> Nat)
-**
-(add : Nat -> Nat -> Nat)
-**
-(mul : Nat -> Nat -> Nat)
-**
-()
+[caseNat, cataNat, pred, add, mul]
