@@ -17,7 +17,8 @@ TODO:
 - [ ] pruning and intersecting
 - [ ] fix case-insensitive filesystem support
 - [x] add primitive Nat
-- [ ] add primitive Fin
+- [x] add primitive Fin
+- [ ] replace void, unit, bool with Fin
 - [ ] add surface syntax for modules
 - [ ] add general fixpoint type
 - [ ] bootstrap descriptions

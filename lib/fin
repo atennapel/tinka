@@ -1,0 +1,6 @@
+import nat;
+
+let addFin : {-n -m : Nat} -> Fin n -> Fin m -> Fin (add n m)
+  = \{n} {m} x y. elimFin (\n _. Fin (add n m)) (\{k}. weakenFin {S k} y) (\rec z. FS (rec z)) x;
+
+[addFin]

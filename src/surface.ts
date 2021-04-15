@@ -187,6 +187,7 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Global') return Var(t.name);
   if (t.tag === 'Prim') return Var(t.name);
   if (t.tag === 'NatLit') return NatLit(t.value);
+  if (t.tag === 'FinLit') return NatLit(t.value);
   if (t.tag === 'App') return App(fromCore(t.fn, ns), t.mode, fromCore(t.arg, ns));
   if (t.tag === 'Pi') {
     const x = chooseName(t.name, ns);

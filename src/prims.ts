@@ -1,14 +1,23 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon, VNat, VNatLit, VS } from './values';
+import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull } from './values';
 
-export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con' | 'Nat';
-export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData' | 'S' | 'elimNat';
+export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con' | 'Nat' | 'Fin';
+export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
 export type PrimName = PrimConName | PrimElimName;
 
-export const PrimNames: string[] = ['*', 'Eq', 'Refl', 'elimEq', 'Void', 'absurd', '()', '[]', 'Bool', 'True', 'False', 'elimBool', 'Data', 'Con', 'elimData', 'Nat', 'S', 'elimNat'];
+export const PrimNames: string[] = [
+  '*',
+  'Eq', 'Refl', 'elimEq',
+  'Void', 'absurd',
+  '()', '[]',
+  'Bool', 'True', 'False', 'elimBool',
+  'Data', 'Con', 'elimData',
+  'Nat', 'S', 'elimNat',
+  'Fin', 'FS', 'elimFin', 'weakenFin',
+];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
-export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat'];
+export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat', 'Fin'];
 export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
 
 export const primType = (name: PrimName): Val => {
@@ -86,6 +95,26 @@ export const primType = (name: PrimName): Val => {
       VPi(false, Expl, '_', vapp(P, Expl, VNatLit(0n)), _ =>
       VPi(false, Expl, '_', VPi(false, Expl, '_', VPi(false, Expl, 'k', VNat, k => vapp(P, Expl, k)), _ => VPi(false, Expl, 'm', VNat, m => vapp(P, Expl, VS(m)))), _ =>
       VPi(false, Expl, 'n', VNat, n => vapp(P, Expl, n)))));
+
+  if (name === 'Fin') return VPi(false, Expl, '_', VNat, _ => VType);
+  // FS : {-n : Nat} -> Fin n -> Fin (S n)
+  if (name === 'FS') return VPi(true, Impl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VFin(VS(n))));
+  /*
+    elimFin :
+      (-P : (n : Nat) -> Fin n -> *) ->
+      ({-m : Nat} -> P (S m) (0/m/m)) ->
+      (({-k : Nat} -> (y : Fin k) -> P k y) -> {-k : Nat} -> (y : Fin k) -> P (S k) (FS {k} y))
+      -> {-n : Nat} -> (x : Fin n) -> P n x
+  */
+  if (name === 'elimFin')
+    return VPi(true, Expl, 'P', VPi(false, Expl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VType)), P =>
+      VPi(false, Expl, '_', VPi(true, Impl, 'm', VNat, m => vapp2(P, Expl, VS(m), Expl, VFinLit(0n, m, m))), _ =>
+      VPi(false, Expl, '_', VPi(false, Expl, '_', VPi(true, Impl, 'k', VNat, k => VPi(false, Expl, 'y', VFin(k), y => vapp2(P, Expl, k, Expl, y))), _ => VPi(true, Impl, 'k', VNat, k => VPi(false, Expl, 'y', VFin(k), y => vapp2(P, Expl, VS(k), Expl, VFS(k, y))))), _ =>
+      VPi(true, Impl, 'n', VNat, n =>
+      VPi(false, Expl, 'x', VFin(n), x =>
+      vapp2(P, Expl, n, Expl, x))))));
+  // weakenFin : {-m -n : Nat} -> Fin n -> Fin (add m n) 
+  if (name === 'weakenFin') return VPi(true, Impl, 'm', VNat, m => VPi(true, Impl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VFin(vaddFull(m, n)))));
 
   return name;
 };

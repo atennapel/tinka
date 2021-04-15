@@ -30,6 +30,13 @@ const synth = (local: Local, tm: Core): Val => {
     const sol = getMeta(tm.id);
     return sol.type;
   }
+  if (tm.tag === 'FinLit') {
+    check(local, tm.diff, V.VNat);
+    check(local, tm.type, V.VNat);
+    const ty = evaluate(tm.type, local.vs);
+    unify(local.level, V.vadd(evaluate(tm.diff, local.vs), tm.value), ty);
+    return V.VFin(V.VS(ty));
+  }
   if (tm.tag === 'Var') {
     const [entry] = indexEnvT(local.ts, tm.index) || terr(`var out of scope ${show(tm)}`);
     if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);

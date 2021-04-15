@@ -1,4 +1,4 @@
-import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit } from './core';
+import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit, FinLit } from './core';
 import { getMeta, MetaVar } from './metas';
 import { Ix, Lvl, Name } from './names';
 import { Lazy } from './utils/Lazy';
@@ -36,7 +36,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VRigid | VFlex | VGlobal | VAbs | VPi | VSigma | VPair | VNatLit;
+export type Val = VRigid | VFlex | VGlobal | VAbs | VPi | VSigma | VPair | VNatLit | VFinLit;
 
 export interface VRigid { readonly tag: 'VRigid'; readonly head: Head; readonly spine: Spine }
 export const VRigid = (head: Head, spine: Spine): VRigid => ({ tag: 'VRigid', head, spine });
@@ -54,6 +54,8 @@ export interface VPair { readonly tag: 'VPair'; readonly fst: Val; readonly snd:
 export const VPair = (fst: Val, snd: Val, type: Val): VPair => ({ tag: 'VPair', fst, snd, type });
 export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
 export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
+export interface VFinLit { readonly tag: 'VFinLit'; readonly value: bigint; readonly diff: Val; readonly type: Val }
+export const VFinLit = (value: bigint, diff: Val, type: Val): VFinLit => ({ tag: 'VFinLit', value, diff, type });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
@@ -69,12 +71,14 @@ export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
 export const VNat = VPrim('Nat');
-export const VS = (n: Val): Val => vprimelim('S', n, []);
 
 export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
 export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
 export const VData = (F: Val): Val => VPrim('Data', List.of(EApp(Expl, F)));
 export const VCon = (F: Val, x: Val): Val => VPrim('Con', List.of(EApp(Expl, x), EApp(Impl, F)));
+export const VS = (n: Val): Val => vprimelim('S', n, []);
+export const VFin = (n: Val): Val => VPrim('Fin', List.of(EApp(Expl, n)));
+export const VFS = (k: Val, f: Val): Val => vprimelim('FS', f, [[Impl, k]]);
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -122,6 +126,9 @@ export const vapp = (left: Val, mode: Mode, right: Val): Val => {
   if (left.tag === 'VGlobal') return VGlobal(left.head, cons(EApp(mode, right), left.spine), left.val.map(v => vapp(v, mode, right)));
   return impossible(`vapp: ${left.tag}`);
 };
+export const vapp2 = (f: Val, m1: Mode, a: Val, m2: Mode, b: Val): Val => vapp(vapp(f, m1, a), m2, b);
+export const vapp3 = (f: Val, m1: Mode, a: Val, m2: Mode, b: Val, m3: Mode, c: Val): Val => vapp(vapp(vapp(f, m1, a), m2, b), m3, c);
+export const vapp4 = (f: Val, m1: Mode, a: Val, m2: Mode, b: Val, m3: Mode, c: Val, m4: Mode, d: Val): Val => vapp(vapp(vapp(vapp(f, m1, a), m2, b), m3, c), m4, d);
 export const vproj = (scrut: Val, proj: ProjType): Val => {
   if (scrut.tag === 'VPair') {
     if (proj.tag === 'PProj') return proj.proj === 'fst' ? scrut.fst : scrut.snd;
@@ -138,10 +145,22 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
 };
 export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): Val => {
   if (name === 'S' && scrut.tag === 'VNatLit') return VNatLit(scrut.value + 1n);
+  if (name === 'FS' && scrut.tag === 'VFinLit') return VFinLit(scrut.value + 1n, scrut.diff, VS(scrut.type));
   if (name === 'elimNat' && scrut.tag === 'VNatLit') {
     if (scrut.value === 0n) return args[1][1];
     // elimNat P z s (m + 1) ~> s (\k. elimNat P z s k) m
     if (scrut.value > 0n) return vapp(vapp(args[2][1], Expl, VAbs(false, Expl, 'n', VNat, n => vprimelim('elimNat', n, args))), Expl, VNatLit(scrut.value - 1n));
+  }
+  if (name === 'elimFin' && scrut.tag === 'VFinLit') {
+    // elimFin P z s {S n} (0/n) ~> z {n}
+    if (scrut.value === 0n) return vapp(args[1][1], Impl, scrut.type);
+    // elimFin P z s {S (S n)} (k/d/S n) ~> s (\{k} y. elimFin P z s {k} y) {S n} (k - 1/n)
+    if (scrut.value > 0n)
+      return vapp3(args[2][1], Expl, VAbs(true, Impl, 'k', VNat, k => VAbs(false, Expl, 'y', VFin(k), y => vprimelim('elimFin', y, args.slice(0, -1).concat([[Impl, k]])))), Impl, scrut.type, Expl, VFinLit(scrut.value - 1n, scrut.diff, vpred(scrut.type)));
+  }
+  if (name === 'weakenFin' && scrut.tag === 'VFinLit') {
+    const m = args[0][1];
+    return VFinLit(scrut.value, vaddFull(m, scrut.diff), vaddFull(m, scrut.type));
   }
   const res = getVPrim(scrut);
   if (res) {
@@ -166,11 +185,41 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
       return vapp(vapp(args[2][1], Expl, VAbs(false, Expl, 'n', VNat, n => vprimelim('elimNat', n, args))), Expl, pred);
     }
   }
+  if (name === 'elimFin' && (scrut.tag === 'VRigid' || scrut.tag === 'VFlex') && scrut.spine.isCons()) {
+    const head = scrut.spine.head;
+    if (head.tag === 'EPrim' && head.name === 'FS') {
+      // elimFin P z s {S k} (FS {k} y) ~> s (\{k} y. elimFin P z s {k} y) {k} y
+      const pred = scrut.tag === 'VRigid' ? VRigid(scrut.head, scrut.spine.tail) : VFlex(scrut.head, scrut.spine.tail);
+      return vapp3(args[2][1], Expl, VAbs(true, Impl, 'k', VNat, k => VAbs(false, Expl, 'y', VFin(k), y => vprimelim('elimFin', y, args.slice(0, -1).concat([[Impl, k]])))), Impl, head.args[0][1], Expl, pred);
+    }
+  }
+  if (name === 'weakenFin' && (scrut.tag === 'VRigid' || scrut.tag === 'VFlex') && scrut.spine.isCons()) {
+    const m = args[0][1];
+    const head = scrut.spine.head;
+    if (head.tag === 'EPrim' && head.name === 'FS') {
+      const n = head.args[0][1];
+      const pred = scrut.tag === 'VRigid' ? VRigid(scrut.head, scrut.spine.tail) : VFlex(scrut.head, scrut.spine.tail);
+      return VFS(vaddFull(m, n), vprimelim('weakenFin', pred, [[Impl, m], [Impl, vpred(n)]]));
+    }
+  }
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VFlex') return VFlex(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EPrim(name, args), scrut.spine), scrut.val.map(v => vprimelim(name, v, args)));
   return impossible(`vprimelim ${name}: ${scrut.tag}`);
 };
+export const vpred = (n: Val): Val =>
+  vprimelim('elimNat', n, [
+    [Expl, VAbs(false, Expl, '_', VNat, _ => VNat)],
+    [Expl, VNatLit(0n)],
+    [Expl, VAbs(false, Expl, '_', VPi(false, Expl, '_', VNat, _ => VNat), _ => VAbs(false, Expl, 'm', VNat, m => m))]
+  ]);
+export const vadd = (n: Val, m: bigint): Val => {
+  for (let i = 0; i < m; i++) n = VS(n);
+  return n;
+};
+// elimNat (\_. Nat) b (\rec m. S (rec m)) a
+export const vaddFull = (a: Val, b: Val): Val =>
+  vprimelim('elimNat', a, [[Expl, VAbs(false, Expl, '_', VNat, _ => VNat)], [Expl, b], [Expl, VAbs(false, Expl, 'rec', VPi(false, Expl, '_', VNat, _ => VNat), rec => VAbs(false, Expl, 'm', VNat, m => VS(vapp(rec, Expl, m))))]]);
 
 export const velimBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
   if (env.isNil() && s.isNil()) return v;
@@ -186,6 +235,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
   if (t.tag === 'Meta') return VMeta(t.id);
   if (t.tag === 'InsertedMeta') return velimBD(vs, VMeta(t.id), t.spine);
   if (t.tag === 'NatLit') return VNatLit(t.value);
+  if (t.tag === 'FinLit') return VFinLit(t.value, evaluate(t.diff, vs, glueBefore), evaluate(t.type, vs, glueBefore));
   if (t.tag === 'App') return vapp(evaluate(t.fn, vs, glueBefore), t.mode, evaluate(t.arg, vs, glueBefore));
   if (t.tag === 'Pair') return VPair(evaluate(t.fst, vs, glueBefore), evaluate(t.snd, vs, glueBefore), evaluate(t.type, vs, glueBefore));
   if (t.tag === 'Let') return evaluate(t.body, cons(evaluate(t.val, vs, glueBefore), vs), glueBefore);
@@ -234,9 +284,19 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
     if (t.name === 'S') return VAbs(false, Expl, 'n', VNat, n => vprimelim('S', n, []));
     if (t.name === 'elimNat')
       return VAbs(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
-        VAbs(false, Expl, '_', vapp(P, Expl, VNatLit(0n)), z =>
-        VAbs(false, Expl, '_', VPi(false, Expl, '_', VPi(false, Expl, 'k', VNat, k => vapp(P, Expl, k)), _ => VPi(false, Expl, 'm', VNat, m => vapp(P, Expl, VS(m)))), s =>
+        VAbs(false, Expl, 'z', vapp(P, Expl, VNatLit(0n)), z =>
+        VAbs(false, Expl, 's', VPi(false, Expl, '_', VPi(false, Expl, 'k', VNat, k => vapp(P, Expl, k)), _ => VPi(false, Expl, 'm', VNat, m => vapp(P, Expl, VS(m)))), s =>
         VAbs(false, Expl, 'n', VNat, n => vprimelim('elimNat', n, [[Expl, P], [Expl, z], [Expl, s]])))));
+    if (t.name === 'FS') return VAbs(true, Impl, 'n', VNat, n => VAbs(false, Expl, 'f', VFin(n), f => vprimelim('FS', f, [[Impl, n]])))
+    if (t.name === 'elimFin')
+      return VAbs(true, Expl, 'P', VPi(false, Expl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VType)), P =>
+        VAbs(false, Expl, 'z', VPi(true, Impl, 'm', VNat, m => vapp2(P, Expl, VS(m), Expl, VFinLit(0n, m, m))), z =>
+        VAbs(false, Expl, 's', VPi(false, Expl, '_', VPi(true, Impl, 'k', VNat, k => VPi(false, Expl, 'y', VFin(k), y => vapp2(P, Expl, k, Expl, y))), _ => VPi(true, Impl, 'k', VNat, k => VPi(false, Expl, 'y', VFin(k), y => vapp2(P, Expl, VS(k), Expl, VFS(k, y))))), s =>
+        VAbs(true, Impl, 'n', VNat, n =>
+        VAbs(false, Expl, 'x', VFin(n), x =>
+        vprimelim('elimFin', x, [[Expl, P], [Expl, z], [Expl, s], [Impl, n]]))))));
+    if (t.name === 'weakenFin')
+      return VAbs(true, Impl, 'm', VNat, m => VAbs(true, Impl, 'n', VNat, n => VAbs(false, Expl, 'f', VFin(n), f => vprimelim('weakenFin', f, [[Impl, m], [Impl, n]]))));
     return VPrim(t.name);
   }
   return t;
@@ -264,6 +324,7 @@ const quoteElim = (t: Core, e: Elim, k: Lvl, full: boolean, kBefore: Lvl): Core 
 export const quote = (v_: Val, k: Lvl, full: boolean = false, kBefore: Lvl = k): Core => {
   const v = force(v_, false);
   if (v.tag === 'VNatLit') return NatLit(v.value);
+  if (v.tag === 'VFinLit') return FinLit(v.value, quote(v.diff, k, full, kBefore), quote(v.type, k, full, kBefore));
   if (v.tag === 'VRigid')
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full, kBefore),
