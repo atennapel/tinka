@@ -1,6 +1,9 @@
 import nat;
 
+let fin2nat : {-n : Nat} -> Fin n -> Nat
+  = \f. elimFin (\_ _. Nat) 0 (\rec z. S (rec z)) f;
+
 let addFin : {-n -m : Nat} -> Fin n -> Fin m -> Fin (add n m)
   = \{n} {m} x y. elimFin (\n _. Fin (add n m)) (\{k}. weakenFin {S k} y) (\rec z. FS (rec z)) x;
 
-[addFin]
+[fin2nat, addFin]

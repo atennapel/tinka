@@ -9,6 +9,7 @@ FEATURES:
 - Implicit parameters with type inference
 
 TODO:
+- [ ] fix importing in web repl
 - [ ] add testing
 - [ ] fix negative vars in output
 - [x] typed metas
