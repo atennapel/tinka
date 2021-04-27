@@ -9,7 +9,7 @@ function onresize() {
 window.addEventListener('resize', onresize);
 onresize();
 addResult('tinka repl');
-initREPL();
+initREPL(true);
 input.focus();
 input.onkeydown = function(keyEvent: any) {
 	var val = input.value;

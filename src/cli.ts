@@ -58,6 +58,6 @@ if (process.argv[2]) {
       });
     });
   };
-  initREPL();
+  initREPL(false);
   _input();
 }

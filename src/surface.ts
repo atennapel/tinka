@@ -3,9 +3,10 @@ import { Erasure, Mode } from './mode';
 import { chooseName, Ix, Lvl, Name } from './names';
 import { Core } from './core';
 import { cons, List, nil } from './utils/List';
-import { impossible } from './utils/utils';
+import { impossible, pushUniq, remove, removeAll } from './utils/utils';
 import { quote, Val } from './values';
 import { config } from './config';
+import { PrimNames } from './prims';
 
 export type Surface =
   Var | Let | Ann |
@@ -216,3 +217,52 @@ export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
 
 export const showCore = (t: Core, ns: List<Name> = nil): string => show(fromCore(t, ns));
 export const showVal = (v: Val, k: Lvl = 0, full: boolean = false, ns: List<Name> = nil): string => show(fromCore(quote(v, k, full), ns));
+
+export const freeVarsAll = (t: Surface, a: Name[] = []): Name[] => {
+  if (t.tag === 'Var') return pushUniq(a, t.name);
+  if (t.tag === 'Hole') return a;
+  if (t.tag === 'Pi') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    return freeVarsAll(t.type, a);
+  }
+  if (t.tag === 'Abs') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    return t.type ? freeVarsAll(t.type, a) : a;
+  }
+  if (t.tag === 'App') {
+    freeVarsAll(t.fn, a);
+    return freeVarsAll(t.arg, a);
+  }
+  if (t.tag === 'Let') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    freeVarsAll(t.val, a);
+    return t.type ? freeVarsAll(t.type, a) : a;
+  }
+  if (t.tag === 'Import') return freeVarsAll(t.term, a);
+  if (t.tag === 'Sigma') {
+    freeVarsAll(t.body, a);
+    remove(a, t.name);
+    return freeVarsAll(t.type, a);
+  }
+  if (t.tag === 'Pair') {
+    freeVarsAll(t.fst, a);
+    return freeVarsAll(t.snd, a);
+  }
+  if (t.tag === 'Proj') return freeVarsAll(t.term, a);
+  if (t.tag === 'Ann') {
+    freeVarsAll(t.term, a);
+    return freeVarsAll(t.type, a);
+  }
+  if (t.tag === 'Rigid') return freeVarsAll(t.term, a);
+  return a;
+};
+
+export const freeVars = (t: Surface): Name[] => {
+  const vs = freeVarsAll(t);
+  remove(vs, '_');
+  removeAll(vs, PrimNames);
+  return vs;
+};

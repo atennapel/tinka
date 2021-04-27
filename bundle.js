@@ -605,9 +605,11 @@ exports.elaborate = elaborate;
 },{"./config":1,"./core":2,"./globals":4,"./local":5,"./metas":6,"./mode":7,"./prims":10,"./surface":12,"./unification":13,"./utils/List":15,"./utils/utils":16,"./values":17}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loadGlobal = exports.deleteGlobal = exports.setGlobal = exports.getGlobals = exports.getGlobal = exports.resetGlobals = void 0;
+exports.preload = exports.loadGlobal = exports.deleteGlobal = exports.setGlobal = exports.getGlobals = exports.getGlobal = exports.resetGlobals = void 0;
 const elaboration_1 = require("./elaboration");
+const local_1 = require("./local");
 const parser_1 = require("./parser");
+const surface_1 = require("./surface");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
@@ -632,7 +634,7 @@ const deleteGlobal = (name) => {
     delete globals[name];
 };
 exports.deleteGlobal = deleteGlobal;
-const loadGlobal = (x) => {
+const loadGlobal = (x, erased = false) => {
     if (globals[x])
         return globals[x];
     const sc = utils_1.loadFileSync(`lib/${x}`);
@@ -641,12 +643,26 @@ const loadGlobal = (x) => {
     const e = parser_1.parse(sc);
     const [tm, ty] = elaboration_1.elaborate(e);
     verification_1.verify(tm);
-    exports.setGlobal(x, values_1.evaluate(ty, List_1.nil), values_1.evaluate(tm, List_1.nil), ty, tm, false);
+    exports.setGlobal(x, values_1.evaluate(ty, List_1.nil), values_1.evaluate(tm, List_1.nil), ty, tm, erased);
     return exports.getGlobal(x);
 };
 exports.loadGlobal = loadGlobal;
+const preload = (t, local = local_1.Local.empty()) => {
+    const vs = surface_1.freeVars(t);
+    const localVars = local.nsSurface.toArray();
+    utils_1.removeAll(vs, localVars);
+    return Promise.all(vs.map(async (v) => {
+        const sc = await utils_1.loadFile(`lib/${v}`);
+        const e = parser_1.parse(sc);
+        const [tm, ty] = elaboration_1.elaborate(e);
+        verification_1.verify(tm);
+        exports.setGlobal(v, values_1.evaluate(ty, List_1.nil), values_1.evaluate(tm, List_1.nil), ty, tm, local.erased);
+        return exports.getGlobal(v) || utils_1.impossible(`preload failed, unable to get ${v}`);
+    }));
+};
+exports.preload = preload;
 
-},{"./elaboration":3,"./parser":9,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],5:[function(require,module,exports){
+},{"./elaboration":3,"./local":5,"./parser":9,"./surface":12,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showValCore = exports.showV = exports.Local = exports.indexEnvT = exports.EntryT = void 0;
@@ -1471,10 +1487,10 @@ let showFullNorm = false;
 let showErasure = true;
 let doVerify = true;
 let local = local_1.Local.empty();
-const initREPL = () => {
+const initREPL = (web) => {
     showStackTrace = false;
     showFullNorm = false;
-    doPreload = true;
+    doPreload = web;
     showErasure = true;
     local = local_1.Local.empty();
 };
@@ -1553,6 +1569,7 @@ const runREPL = (s_, cb) => {
             const name = `lib/${s.slice(s.startsWith(':load') ? 5 : 6).trim()}`;
             utils_1.loadFile(name)
                 .then(sc => parser_1.parse(sc))
+                .then(e => doPreload ? globals_1.preload(e, local).then(() => e) : e)
                 .then(e => {
                 const [tm, ty] = elaboration_1.elaborate(e);
                 verification_1.verify(tm);
@@ -1584,6 +1601,10 @@ const runREPL = (s_, cb) => {
         }
         config_1.log(() => surface_1.show(term));
         let prom = Promise.resolve();
+        if (doPreload) {
+            config_1.log(() => 'PRELOAD');
+            prom = globals_1.preload(term, local).then(() => { });
+        }
         prom.then(() => {
             config_1.log(() => 'ELABORATE');
             const [eterm, etype] = elaboration_1.elaborate(term, erased || typeOnly ? local.inType() : local);
@@ -1639,12 +1660,13 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":2,"./elaboration":3,"./globals":4,"./local":5,"./parser":9,"./surface":12,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Rigid = exports.Hole = exports.Meta = exports.NatLit = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Var = void 0;
+exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Rigid = exports.Hole = exports.Meta = exports.NatLit = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Var = void 0;
 const names_1 = require("./names");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
 const values_1 = require("./values");
 const config_1 = require("./config");
+const prims_1 = require("./prims");
 const Var = (name) => ({ tag: 'Var', name });
 exports.Var = Var;
 const Let = (erased, name, type, val, body) => ({ tag: 'Let', erased, name, type, val, body });
@@ -1866,8 +1888,62 @@ const showCore = (t, ns = List_1.nil) => exports.show(exports.fromCore(t, ns));
 exports.showCore = showCore;
 const showVal = (v, k = 0, full = false, ns = List_1.nil) => exports.show(exports.fromCore(values_1.quote(v, k, full), ns));
 exports.showVal = showVal;
+const freeVarsAll = (t, a = []) => {
+    if (t.tag === 'Var')
+        return utils_1.pushUniq(a, t.name);
+    if (t.tag === 'Hole')
+        return a;
+    if (t.tag === 'Pi') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        return exports.freeVarsAll(t.type, a);
+    }
+    if (t.tag === 'Abs') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        return t.type ? exports.freeVarsAll(t.type, a) : a;
+    }
+    if (t.tag === 'App') {
+        exports.freeVarsAll(t.fn, a);
+        return exports.freeVarsAll(t.arg, a);
+    }
+    if (t.tag === 'Let') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        exports.freeVarsAll(t.val, a);
+        return t.type ? exports.freeVarsAll(t.type, a) : a;
+    }
+    if (t.tag === 'Import')
+        return exports.freeVarsAll(t.term, a);
+    if (t.tag === 'Sigma') {
+        exports.freeVarsAll(t.body, a);
+        utils_1.remove(a, t.name);
+        return exports.freeVarsAll(t.type, a);
+    }
+    if (t.tag === 'Pair') {
+        exports.freeVarsAll(t.fst, a);
+        return exports.freeVarsAll(t.snd, a);
+    }
+    if (t.tag === 'Proj')
+        return exports.freeVarsAll(t.term, a);
+    if (t.tag === 'Ann') {
+        exports.freeVarsAll(t.term, a);
+        return exports.freeVarsAll(t.type, a);
+    }
+    if (t.tag === 'Rigid')
+        return exports.freeVarsAll(t.term, a);
+    return a;
+};
+exports.freeVarsAll = freeVarsAll;
+const freeVars = (t) => {
+    const vs = exports.freeVarsAll(t);
+    utils_1.remove(vs, '_');
+    utils_1.removeAll(vs, prims_1.PrimNames);
+    return vs;
+};
+exports.freeVars = freeVars;
 
-},{"./config":1,"./names":8,"./utils/List":15,"./utils/utils":16,"./values":17}],13:[function(require,module,exports){
+},{"./config":1,"./names":8,"./prims":10,"./utils/List":15,"./utils/utils":16,"./values":17}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.unify = exports.eqHead = void 0;
@@ -3088,7 +3164,7 @@ function onresize() {
 window.addEventListener('resize', onresize);
 onresize();
 addResult('tinka repl');
-repl_1.initREPL();
+repl_1.initREPL(true);
 input.focus();
 input.onkeydown = function (keyEvent) {
     var val = input.value;

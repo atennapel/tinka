@@ -8,7 +8,7 @@ import * as C from './core';
 import { verify } from './verification';
 import { evaluate, normalize, quote, Val } from './values';
 import { loadFile } from './utils/utils';
-import { setGlobal } from './globals';
+import { preload, setGlobal } from './globals';
 import { Cons, nil } from './utils/List';
 
 const help = `
@@ -33,10 +33,10 @@ let showErasure = true;
 let doVerify = true;
 let local: Local = Local.empty();
 
-export const initREPL = () => {
+export const initREPL = (web: boolean) => {
   showStackTrace = false;
   showFullNorm = false;
-  doPreload = true;
+  doPreload = web;
   showErasure = true;
   local = Local.empty();
 };
@@ -115,6 +115,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       const name = `lib/${s.slice(s.startsWith(':load') ? 5 : 6).trim()}`;
       loadFile(name)
         .then(sc => parse(sc))
+        .then(e => doPreload ? preload(e, local).then(() => e) : e)
         .then(e => {
           const [tm, ty] = elaborate(e);
           verify(tm);
@@ -146,6 +147,10 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     log(() => show(term));
 
     let prom = Promise.resolve();
+    if (doPreload) {
+      log(() => 'PRELOAD');
+      prom = preload(term, local).then(() => {});
+    }
     prom.then(() => {
       log(() => 'ELABORATE');
       const [eterm, etype] = elaborate(term, erased || typeOnly ? local.inType() : local);
