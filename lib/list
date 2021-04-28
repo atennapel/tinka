@@ -1,0 +1,47 @@
+import data;
+import sum;
+
+let -ListF : * -> * -> * = \A R. Sum () (A ** R);
+let -List : * -> * = \A. Data (ListF A);
+let Nil : {-A : *} -> List A = \{A}. Con {ListF A} (Left []);
+let Cons : {-A : *} -> A -> List A -> List A
+  = \{A} hd tl. Con {ListF A} (Right {()} {A ** List A} (hd, tl));
+
+let elimList
+  : {-A : *} ->
+    (-P : List A -> *) ->
+    P Nil ->
+    (((z : List A) -> P z) -> (hd : A) -> (tl : List A) -> P (Cons hd tl)) ->
+    (x : List A) ->
+    P x
+  = \{A} P nil cons x. elimData {ListF A} P (\rec y. elimSum (\s. P (Con {ListF A} s)) (\_. nil) (\p. let hd = p._1; let tl = p._2; cons rec hd tl) y) x;
+
+let foldr : {-A -R : *} -> R -> (A -> R -> R) -> List A -> R
+  = \{A} {R} nil cons list. elimList {A} (\_. R) nil (\rec hd tl. cons hd (rec tl)) list;
+
+let map : {-A -B : *} -> (A -> B) -> List A -> List B
+  = \fn list. foldr Nil (\hd tl. Cons (fn hd) tl) list;
+
+[ListF, List, @Nil, @Cons, @elimList, @foldr, @map]
+:
+(-ListF : * -> * -> *)
+**
+(-List : * -> *)
+**
+(Nil : {-A : *} -> List A)
+**
+(Cons : {-A : *} -> A -> List A -> List A)
+**
+(elimList
+  : {-A : *} ->
+    (-P : List A -> *) ->
+    P Nil ->
+    (((z : List A) -> P z) -> (hd : A) -> (tl : List A) -> P (Cons hd tl)) ->
+    (x : List A) ->
+    P x)
+**
+(foldr : {-A -R : *} -> R -> (A -> R -> R) -> List A -> R)
+**
+(map : {-A -B : *} -> (A -> B) -> List A -> List B)
+**
+()

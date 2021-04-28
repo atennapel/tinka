@@ -10,7 +10,7 @@ FEATURES:
 
 TODO:
 - [x] add general indexed fixpoint type
-- [ ] update libs to use fixpoint
+- [x] update libs to use fixpoint
 - [ ] add codata fixpoint type
 - [x] fix importing in web repl
 - [ ] add testing
@@ -26,3 +26,4 @@ TODO:
 - [ ] add surface syntax for modules
 - [ ] bootstrap descriptions
 - [ ] indexed descriptions
+- [ ] check applications in elaboration
