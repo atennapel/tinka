@@ -1,0 +1,26 @@
+let -liftFunctor : (* -> *) -> (() -> *) -> () -> * = \R X i. R (X i);
+let -Data : (* -> *) -> * = \F. IData (liftFunctor F) [];
+let Con : {-F : * -> *} -> F (Data F) -> Data F
+  = \{F} x. ICon {()} {liftFunctor F} x;
+
+let elimData
+  : {-F : * -> *} ->
+    (-P : Data F -> *) ->
+    (((z : Data F) -> P z) -> (y : F (Data F)) -> P (Con {F} y)) ->
+    (x : Data F) ->
+    P x
+  = \{F} P alg x. elimIData {()} {liftFunctor F} P (\rec. alg rec) x;
+
+[Data, @Con, @elimData]
+:
+(-Data : (* -> *) -> *)
+**
+(Con : {-F : * -> *} -> F (Data F) -> Data F)
+**
+(elimData : {-F : * -> *} ->
+  (-P : Data F -> *) ->
+  (((z : Data F) -> P z) -> (y : F (Data F)) -> P (Con {F} y)) ->
+  (x : Data F) ->
+  P x)
+**
+()

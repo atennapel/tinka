@@ -56,6 +56,7 @@ export interface PIndex { readonly tag: 'PIndex'; readonly name: Name | null; re
 export const PIndex = (name: Name | null, index: Ix): PIndex => ({ tag: 'PIndex', name, index });
 
 export const Type = Prim('*');
+export const Unit = Prim('[]');
 
 export const flattenPi = (t: Core): [[Erasure, Mode, Name, Core][], Core] => {
   const params: [Erasure, Mode, Name, Core][] = [];

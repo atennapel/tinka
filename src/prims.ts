@@ -1,8 +1,8 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VData, VCon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull } from './values';
+import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor } from './values';
 
-export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'Data' | 'Con' | 'Nat' | 'Fin';
-export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
+export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IData' | 'ICon' | 'Nat' | 'Fin';
+export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
 export type PrimName = PrimConName | PrimElimName;
 
 export const PrimNames: string[] = [
@@ -11,7 +11,7 @@ export const PrimNames: string[] = [
   'Void', 'absurd',
   '()', '[]',
   'Bool', 'True', 'False', 'elimBool',
-  'Data', 'Con', 'elimData',
+  'IData', 'ICon', 'elimIData',
   'Nat', 'S', 'elimNat',
   'Fin', 'FS', 'elimFin', 'weakenFin',
 ];
@@ -55,37 +55,38 @@ export const primType = (name: PrimName): Val => {
       VPi(false, Expl, '_', vapp(P, Expl, VFalse), _ =>
       VPi(false, Expl, 'b', VBool, b => vapp(P, Expl, b)))));
 
-  // (* -> *) -> *
-  if (name === 'Data')
-    return VPi(false, Expl, '_', VPi(false, Expl, '_', VType, _ => VType), _ => VType);
-  // {-F : * -> *} -> F (Data F) -> Data F
-  if (name === 'Con')
-    return VPi(true, Impl, 'F', VPi(false, Expl, '_', VType, _ => VType), F => VPi(false, Expl, '_', vapp(F, Expl, VData(F)), _ => VData(F)));
-
-  /* {-F : * -> *}
-    -> (-map : {-A -B : *} -> (A -> B) -> F A -> F B)
-    -> (-P : Data F -> *)
-    -> (
-      {-R : *}
-      -> (out : R -> Data F)
-      -> ((z : R) -> P (out z))
-      -> (y : F R)
-      -> P (Con {F} (map {R} {Data F} out y))
-    )
-    -> (x : Data F)
-    -> P x*/
-  if (name === 'elimData')
-    return VPi(true, Impl, 'F', VPi(false, Expl, '_', VType, _ => VType), F =>
-      VPi(true, Expl, 'map', VPi(true, Impl, 'A', VType, A => VPi(true, Impl, 'B', VType, B => VPi(false, Expl, '_', VPi(false, Expl, '_', A, _ => B), _ => VPi(false, Expl, '_', vapp(F, Expl, A), _ => vapp(F, Expl, B))))), map =>
-      VPi(true, Expl, 'P', VPi(false, Expl, '_', VData(F), _ => VType), P =>
-      VPi(false, Expl, '_',
-        VPi(true, Impl, 'R', VType, R =>
-        VPi(false, Expl, 'out', VPi(false, Expl, '_', R, _ => VData(F)), out =>
-        VPi(false, Expl, '_', VPi(false, Expl, 'z', R, z => vapp(P, Expl, vapp(out, Expl, z))), _ =>
-        VPi(false, Expl, 'y', vapp(F, Expl, R), y =>
-        vapp(P, Expl, VCon(F, vapp(vapp(vapp(vapp(map, Impl, R), Impl, VData(F)), Expl, out), Expl, y)))))))
-      , _ =>
-      VPi(false, Expl, 'x', VData(F), x => vapp(P, Expl, x))))));
+  // {I : *} -> ((I -> *) -> I -> *) -> I -> *
+  if (name === 'IData')
+    return VPi(false, Impl, 'I', VType, I => VPi(false, Expl, '_', IxFunctor(I), _ => IxFun(I)));
+  // {-I : *} -> {-F : (I -> *) -> I -> *} -> {-i : I} -> F (IData {I} F) i -> IData {I} F i
+  if (name === 'ICon')
+    return VPi(true, Impl, 'I', VType, I =>
+      VPi(true, Impl, 'F', IxFunctor(I), F =>
+      VPi(true, Impl, 'i', I, i =>
+      VPi(false, Expl, '_', vapp2(F, Expl, VIDataPartial(I, F), Expl, i), _ =>
+      VIData(I, F, i)))));
+  /*
+    {-I : *} ->
+    {-F : (I -> *) -> I -> *} ->
+    (-P : {i : I} -> IData {I} F i -> *) ->
+    (
+      ({-i : I} -> (z : IData {I} F i) -> P {i} z) ->
+      {-i : I} ->
+      (y : F (IData {I} F) i) ->
+      P {i} (ICon {I} {F} {i} y)
+    ) ->
+    {-i : I} ->
+    (x : IData {I} F i) ->
+    P {i} x
+  */
+  if (name === 'elimIData')
+    return VPi(true, Impl, 'I', VType, I =>
+      VPi(true, Impl, 'F', IxFunctor(I), F =>
+      VPi(true, Expl, 'P', VPi(false, Impl, 'i', I, i => VPi(false, Expl, '_', VIData(I, F, i), _ => VType)), P =>
+      VPi(false, Expl, '_', VPi(false, Expl, '_', VPi(true, Impl, 'i', I, i => VPi(false, Expl, 'z', VIData(I, F, i), z => vapp2(P, Impl, i, Expl, z))), _ => VPi(true, Impl, 'i', I, i => VPi(false, Expl, 'y', vapp2(F, Expl, VIDataPartial(I, F), Expl, i), y => vapp2(P, Impl, i, Expl, VICon(I, F, i, y))))), _ =>
+      VPi(true, Impl, 'i', I, i =>
+      VPi(false, Expl, 'x', VIData(I, F, i), x =>
+      vapp2(P, Impl, i, Expl, x)))))));
 
   if (name === 'Nat') return VType;
   if (name === 'S') return VPi(false, Expl, '_', VNat, _ => VNat);

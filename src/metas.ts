@@ -5,10 +5,10 @@ import { Val } from './values';
 export type MetaVar = number;
 
 export type Solution = Unsolved | Solved;
-export interface Unsolved { readonly tag: 'Unsolved'; readonly type: Val; readonly erased: Erasure }
-export const Unsolved = (type: Val, erased: Erasure): Unsolved => ({ tag: 'Unsolved', type, erased });
-export interface Solved { readonly tag: 'Solved'; readonly solution: Val; readonly type: Val }
-export const Solved = (solution: Val, type: Val): Solved => ({ tag: 'Solved', solution, type });
+export interface Unsolved { readonly tag: 'Unsolved'; readonly id: MetaVar; readonly type: Val; readonly erased: Erasure }
+export const Unsolved = (id: MetaVar, type: Val, erased: Erasure): Unsolved => ({ tag: 'Unsolved', id, type, erased });
+export interface Solved { readonly tag: 'Solved'; readonly id: MetaVar; readonly solution: Val; readonly type: Val }
+export const Solved = (id: MetaVar, solution: Val, type: Val): Solved => ({ tag: 'Solved', id, solution, type });
 
 export type Metas = Solution[];
 
@@ -18,7 +18,7 @@ export const resetMetas = (): void => { metas = [] };
 
 export const freshMeta = (type: Val, erased: Erasure): MetaVar => {
   const id = metas.length;
-  metas.push(Unsolved(type, erased));
+  metas.push(Unsolved(id, type, erased));
   return id;
 };
 
@@ -32,7 +32,9 @@ export const setMeta = (id: MetaVar, solution: Val): void => {
   const entry = metas[id];
   if (!entry) return impossible(`setMeta with undefined meta ${id}`);
   if (entry.tag === 'Solved') return impossible(`setMeta with solved meta ${id}`);
-  metas[id] = Solved(solution, entry.type);
+  metas[id] = Solved(id, solution, entry.type);
 };
 
 export const allMetasSolved = (): boolean => metas.every(x => x.tag === 'Solved');
+
+export const getUnsolvedMetas = (): Unsolved[] => metas.filter(x => x.tag === 'Unsolved') as Unsolved[];

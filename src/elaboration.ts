@@ -1,9 +1,9 @@
 import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Var, Proj, PIndex, PFst, PSnd, Prim } from './core';
 import { indexEnvT, Local, Path } from './local';
-import { allMetasSolved, freshMeta, resetMetas, getMeta } from './metas';
+import { allMetasSolved, freshMeta, resetMetas, getMeta, getUnsolvedMetas } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
-import { evaluate, force, quote, vadd, Val, VFlex, vinst, VNat, VPi, vproj, VS, VType, VVar, zonk } from './values';
+import { evaluate, force, isVUnitType, quote, vadd, Val, VFlex, vinst, VNat, VPi, vproj, VS, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
 import { config, log } from './config';
@@ -22,12 +22,17 @@ const closeTy = (path: Path, ty: Core): Core =>
   path.foldl((rest, [e, m, x, ty, val]) => val ? Let(e, x, ty, val, rest) : Pi(e, m, x, ty, rest), ty);
 
 const newMeta = (local: Local, ty: Val, erased: Erasure = false): Core => {
+  if (isVUnitType(force(ty))) {
+    log(() => `short circuit meta with unit type`);
+    return C.Unit;
+  }
   const qtype = closeTy(local.path, quote(ty, local.level));
   const type = evaluate(qtype, nil);
   const id = freshMeta(type, erased || local.erased); // is this erasure correct?
   log(() => `newMeta ?${id} : ${showV(Local.empty(), type)}`);
   const bds = local.ts.map(e => [e.mode, e.bound] as [Mode, boolean]);
-  return InsertedMeta(id, bds);
+  const meta = InsertedMeta(id, bds);
+  return meta;
 };
 
 const inst = (local: Local, ty_: Val): [Val, List<Core>] => {
@@ -337,6 +342,9 @@ const showHoles = (tm: Core, ty: Core) => {
   return terr(`unsolved holes\ntype: ${strtype}\nterm: ${strterm}\n${str}`);
 };
 
+const showUnsolvedMetas = (local: Local): string =>
+  getUnsolvedMetas().map(m => `${m.erased ? '-' : ''}?${m.id} : ${showV(local, m.type)}`).join('\n');
+
 export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core] => {
   holes = {};
   resetMetas();
@@ -357,6 +365,6 @@ export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core
   showHoles(ztm, zty);
 
   if (!allMetasSolved())
-    return terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}`);
+    return terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}\n\n${showUnsolvedMetas(local)}`);
   return [ztm, zty];
 };

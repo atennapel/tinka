@@ -9,6 +9,9 @@ FEATURES:
 - Implicit parameters with type inference
 
 TODO:
+- [x] add general indexed fixpoint type
+- [ ] update libs to use fixpoint
+- [ ] add codata fixpoint type
 - [x] fix importing in web repl
 - [ ] add testing
 - [ ] fix negative vars in output
@@ -21,6 +24,5 @@ TODO:
 - [x] add primitive Fin
 - [ ] replace void, unit, bool with Fin
 - [ ] add surface syntax for modules
-- [ ] add general fixpoint type
 - [ ] bootstrap descriptions
 - [ ] indexed descriptions

@@ -24,7 +24,7 @@ exports.log = log;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.FinLit = exports.NatLit = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.FinLit = exports.NatLit = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
 const config_1 = require("./config");
 const utils_1 = require("./utils/utils");
 const Var = (index) => ({ tag: 'Var', index });
@@ -62,6 +62,7 @@ exports.PSnd = exports.PProj('snd');
 const PIndex = (name, index) => ({ tag: 'PIndex', name, index });
 exports.PIndex = PIndex;
 exports.Type = exports.Prim('*');
+exports.Unit = exports.Prim('[]');
 const flattenPi = (t) => {
     const params = [];
     let c = t;
@@ -251,12 +252,17 @@ const prims_1 = require("./prims");
 const showV = (local, val) => S.showVal(val, local.level, false, local.ns);
 const closeTy = (path, ty) => path.foldl((rest, [e, m, x, ty, val]) => val ? core_1.Let(e, x, ty, val, rest) : core_1.Pi(e, m, x, ty, rest), ty);
 const newMeta = (local, ty, erased = false) => {
+    if (values_1.isVUnitType(values_1.force(ty))) {
+        config_1.log(() => `short circuit meta with unit type`);
+        return C.Unit;
+    }
     const qtype = closeTy(local.path, values_1.quote(ty, local.level));
     const type = values_1.evaluate(qtype, List_1.nil);
     const id = metas_1.freshMeta(type, erased || local.erased); // is this erasure correct?
     config_1.log(() => `newMeta ?${id} : ${showV(local_1.Local.empty(), type)}`);
     const bds = local.ts.map(e => [e.mode, e.bound]);
-    return core_1.InsertedMeta(id, bds);
+    const meta = core_1.InsertedMeta(id, bds);
+    return meta;
 };
 const inst = (local, ty_) => {
     const ty = values_1.force(ty_);
@@ -582,6 +588,7 @@ const showHoles = (tm, ty) => {
     }).join('\n');
     return utils_1.terr(`unsolved holes\ntype: ${strtype}\nterm: ${strterm}\n${str}`);
 };
+const showUnsolvedMetas = (local) => metas_1.getUnsolvedMetas().map(m => `${m.erased ? '-' : ''}?${m.id} : ${showV(local, m.type)}`).join('\n');
 const elaborate = (t, local = local_1.Local.empty()) => {
     holes = {};
     metas_1.resetMetas();
@@ -597,7 +604,7 @@ const elaborate = (t, local = local_1.Local.empty()) => {
     config_1.log(() => S.showCore(ztm, local.ns));
     showHoles(ztm, zty);
     if (!metas_1.allMetasSolved())
-        return utils_1.terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}`);
+        return utils_1.terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}\n\n${showUnsolvedMetas(local)}`);
     return [ztm, zty];
 };
 exports.elaborate = elaborate;
@@ -738,18 +745,18 @@ exports.showValCore = showValCore;
 },{"./mode":7,"./surface":12,"./utils/List":15,"./values":17}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.allMetasSolved = exports.setMeta = exports.getMeta = exports.freshMeta = exports.resetMetas = exports.Solved = exports.Unsolved = void 0;
+exports.getUnsolvedMetas = exports.allMetasSolved = exports.setMeta = exports.getMeta = exports.freshMeta = exports.resetMetas = exports.Solved = exports.Unsolved = void 0;
 const utils_1 = require("./utils/utils");
-const Unsolved = (type, erased) => ({ tag: 'Unsolved', type, erased });
+const Unsolved = (id, type, erased) => ({ tag: 'Unsolved', id, type, erased });
 exports.Unsolved = Unsolved;
-const Solved = (solution, type) => ({ tag: 'Solved', solution, type });
+const Solved = (id, solution, type) => ({ tag: 'Solved', id, solution, type });
 exports.Solved = Solved;
 let metas = [];
 const resetMetas = () => { metas = []; };
 exports.resetMetas = resetMetas;
 const freshMeta = (type, erased) => {
     const id = metas.length;
-    metas.push(exports.Unsolved(type, erased));
+    metas.push(exports.Unsolved(id, type, erased));
     return id;
 };
 exports.freshMeta = freshMeta;
@@ -766,11 +773,13 @@ const setMeta = (id, solution) => {
         return utils_1.impossible(`setMeta with undefined meta ${id}`);
     if (entry.tag === 'Solved')
         return utils_1.impossible(`setMeta with solved meta ${id}`);
-    metas[id] = exports.Solved(solution, entry.type);
+    metas[id] = exports.Solved(id, solution, entry.type);
 };
 exports.setMeta = setMeta;
 const allMetasSolved = () => metas.every(x => x.tag === 'Solved');
 exports.allMetasSolved = allMetasSolved;
+const getUnsolvedMetas = () => metas.filter(x => x.tag === 'Unsolved');
+exports.getUnsolvedMetas = getUnsolvedMetas;
 
 },{"./utils/utils":16}],7:[function(require,module,exports){
 "use strict";
@@ -1365,7 +1374,7 @@ exports.PrimNames = [
     'Void', 'absurd',
     '()', '[]',
     'Bool', 'True', 'False', 'elimBool',
-    'Data', 'Con', 'elimData',
+    'IData', 'ICon', 'elimIData',
     'Nat', 'S', 'elimNat',
     'Fin', 'FS', 'elimFin', 'weakenFin',
 ];
@@ -1404,26 +1413,28 @@ const primType = (name) => {
     // (-P : Bool -> *) -> P True -> P False -> (b : Bool) -> P b
     if (name === 'elimBool')
         return values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, '_', values_1.VBool, _ => values_1.VType), P => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VTrue), _ => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VFalse), _ => values_1.VPi(false, mode_1.Expl, 'b', values_1.VBool, b => values_1.vapp(P, mode_1.Expl, b)))));
-    // (* -> *) -> *
-    if (name === 'Data')
-        return values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', values_1.VType, _ => values_1.VType), _ => values_1.VType);
-    // {-F : * -> *} -> F (Data F) -> Data F
-    if (name === 'Con')
-        return values_1.VPi(true, mode_1.Impl, 'F', values_1.VPi(false, mode_1.Expl, '_', values_1.VType, _ => values_1.VType), F => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(F, mode_1.Expl, values_1.VData(F)), _ => values_1.VData(F)));
-    /* {-F : * -> *}
-      -> (-map : {-A -B : *} -> (A -> B) -> F A -> F B)
-      -> (-P : Data F -> *)
-      -> (
-        {-R : *}
-        -> (out : R -> Data F)
-        -> ((z : R) -> P (out z))
-        -> (y : F R)
-        -> P (Con {F} (map {R} {Data F} out y))
-      )
-      -> (x : Data F)
-      -> P x*/
-    if (name === 'elimData')
-        return values_1.VPi(true, mode_1.Impl, 'F', values_1.VPi(false, mode_1.Expl, '_', values_1.VType, _ => values_1.VType), F => values_1.VPi(true, mode_1.Expl, 'map', values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Impl, 'B', values_1.VType, B => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', A, _ => B), _ => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(F, mode_1.Expl, A), _ => values_1.vapp(F, mode_1.Expl, B))))), map => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, '_', values_1.VData(F), _ => values_1.VType), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Impl, 'R', values_1.VType, R => values_1.VPi(false, mode_1.Expl, 'out', values_1.VPi(false, mode_1.Expl, '_', R, _ => values_1.VData(F)), out => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, 'z', R, z => values_1.vapp(P, mode_1.Expl, values_1.vapp(out, mode_1.Expl, z))), _ => values_1.VPi(false, mode_1.Expl, 'y', values_1.vapp(F, mode_1.Expl, R), y => values_1.vapp(P, mode_1.Expl, values_1.VCon(F, values_1.vapp(values_1.vapp(values_1.vapp(values_1.vapp(map, mode_1.Impl, R), mode_1.Impl, values_1.VData(F)), mode_1.Expl, out), mode_1.Expl, y))))))), _ => values_1.VPi(false, mode_1.Expl, 'x', values_1.VData(F), x => values_1.vapp(P, mode_1.Expl, x))))));
+    // {I : *} -> ((I -> *) -> I -> *) -> I -> *
+    if (name === 'IData')
+        return values_1.VPi(false, mode_1.Impl, 'I', values_1.VType, I => values_1.VPi(false, mode_1.Expl, '_', values_1.IxFunctor(I), _ => values_1.IxFun(I)));
+    // {-I : *} -> {-F : (I -> *) -> I -> *} -> {-i : I} -> F (IData {I} F) i -> IData {I} F i
+    if (name === 'ICon')
+        return values_1.VPi(true, mode_1.Impl, 'I', values_1.VType, I => values_1.VPi(true, mode_1.Impl, 'F', values_1.IxFunctor(I), F => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp2(F, mode_1.Expl, values_1.VIDataPartial(I, F), mode_1.Expl, i), _ => values_1.VIData(I, F, i)))));
+    /*
+      {-I : *} ->
+      {-F : (I -> *) -> I -> *} ->
+      (-P : {i : I} -> IData {I} F i -> *) ->
+      (
+        ({-i : I} -> (z : IData {I} F i) -> P {i} z) ->
+        {-i : I} ->
+        (y : F (IData {I} F) i) ->
+        P {i} (ICon {I} {F} {i} y)
+      ) ->
+      {-i : I} ->
+      (x : IData {I} F i) ->
+      P {i} x
+    */
+    if (name === 'elimIData')
+        return values_1.VPi(true, mode_1.Impl, 'I', values_1.VType, I => values_1.VPi(true, mode_1.Impl, 'F', values_1.IxFunctor(I), F => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, '_', values_1.VIData(I, F, i), _ => values_1.VType)), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'z', values_1.VIData(I, F, i), z => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, z))), _ => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'y', values_1.vapp2(F, mode_1.Expl, values_1.VIDataPartial(I, F), mode_1.Expl, i), y => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, values_1.VICon(I, F, i, y))))), _ => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'x', values_1.VIData(I, F, i), x => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, x)))))));
     if (name === 'Nat')
         return values_1.VType;
     if (name === 'S')
@@ -2570,8 +2581,8 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = exports.vpred = exports.vprimelim = exports.vproj = exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.getVPrim = exports.isVVar = exports.VFS = exports.VFin = exports.VS = exports.VCon = exports.VData = exports.VRefl = exports.VEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
-exports.zonk = exports.show = exports.normalize = exports.quote = void 0;
+exports.vpred = exports.vprimelim = exports.vproj = exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnitType = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VRefl = exports.VEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2632,16 +2643,25 @@ const VEq = (A, x, y) => exports.VPrim('Eq', List_1.List.of(exports.EApp(mode_1.
 exports.VEq = VEq;
 const VRefl = (A, x) => exports.VPrim('Refl', List_1.List.of(exports.EApp(mode_1.Impl, x), exports.EApp(mode_1.Impl, A)));
 exports.VRefl = VRefl;
-const VData = (F) => exports.VPrim('Data', List_1.List.of(exports.EApp(mode_1.Expl, F)));
-exports.VData = VData;
-const VCon = (F, x) => exports.VPrim('Con', List_1.List.of(exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Impl, F)));
-exports.VCon = VCon;
+// IData {I} F
+const VIDataPartial = (I, F) => exports.VPrim('IData', List_1.List.of(exports.EApp(mode_1.Expl, F), exports.EApp(mode_1.Impl, I)));
+exports.VIDataPartial = VIDataPartial;
+// IData {I} F i
+const VIData = (I, F, i) => exports.VPrim('IData', List_1.List.of(exports.EApp(mode_1.Expl, i), exports.EApp(mode_1.Expl, F), exports.EApp(mode_1.Impl, I)));
+exports.VIData = VIData;
+// ICon {I} {F} {i} x
+const VICon = (I, F, i, x) => exports.VPrim('ICon', List_1.List.of(exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Impl, i), exports.EApp(mode_1.Impl, F), exports.EApp(mode_1.Impl, I)));
+exports.VICon = VICon;
 const VS = (n) => exports.vprimelim('S', n, []);
 exports.VS = VS;
 const VFin = (n) => exports.VPrim('Fin', List_1.List.of(exports.EApp(mode_1.Expl, n)));
 exports.VFin = VFin;
 const VFS = (k, f) => exports.vprimelim('FS', f, [[mode_1.Impl, k]]);
 exports.VFS = VFS;
+const IxFun = (I) => exports.VPi(false, mode_1.Expl, '_', I, _ => exports.VType); // I -> *
+exports.IxFun = IxFun;
+const IxFunctor = (I) => exports.VPi(false, mode_1.Expl, '_', exports.IxFun(I), _ => exports.IxFun(I)); // (I -> *) -> I -> *
+exports.IxFunctor = IxFunctor;
 const isVVar = (v) => v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
 exports.isVVar = isVVar;
 const getVPrim = (v) => {
@@ -2663,6 +2683,14 @@ const getVPrim = (v) => {
     return null;
 };
 exports.getVPrim = getVPrim;
+const isVUnitType = (v) => {
+    const res = exports.getVPrim(v);
+    if (!res)
+        return false;
+    const [name, args] = res;
+    return name === '()' && args.length === 0;
+};
+exports.isVUnitType = isVUnitType;
 const force = (v, forceGlobal = true) => {
     if (v.tag === 'VGlobal' && forceGlobal)
         return exports.force(v.val.get(), forceGlobal);
@@ -2758,12 +2786,16 @@ const vprimelim = (name, scrut, args) => {
             if (x === 'False')
                 return args[2][1];
         }
-        // elimData {F} map P alg (Con {F} inner) ~> alg {Data F} (\(x : Data F). x) (\(x : Data F). elimData {F} map P alg x) inner
-        if (name === 'elimData' && x === 'Con') {
-            const inner = spine[1];
-            const F = args[0][1];
+        // elimData {I} {F} P alg {i} (Con {I} {F} {i} x) ~> alg (\{-i : I} (z : Data {I} F i). elimData {I} {F} P alg {i} z) {i} x
+        if (name === 'elimIData' && x === 'ICon') {
+            const x = spine[3];
+            const I = args[0][1];
+            const F = args[1][1];
+            const P = args[2][1];
             const alg = args[3][1];
-            return exports.vapp(exports.vapp(exports.vapp(exports.vapp(alg, mode_1.Impl, exports.VData(F)), mode_1.Expl, exports.VAbs(false, mode_1.Expl, 'x', exports.VData(F), x => x)), mode_1.Expl, exports.VAbs(false, mode_1.Expl, 'x', exports.VData(F), x => exports.vprimelim('elimData', x, args))), mode_1.Expl, inner);
+            const i = args[4][1];
+            const rec = exports.VAbs(true, mode_1.Impl, 'i', I, i => exports.VAbs(false, mode_1.Expl, 'z', exports.VIData(I, F, i), z => exports.vprimelim('elimIData', z, [[mode_1.Impl, I], [mode_1.Impl, F], [mode_1.Expl, P], [mode_1.Expl, alg], [mode_1.Impl, i]])));
+            return exports.vapp3(alg, mode_1.Expl, rec, mode_1.Impl, i, mode_1.Expl, x);
         }
     }
     if (name === 'elimNat' && (scrut.tag === 'VRigid' || scrut.tag === 'VFlex') && scrut.spine.isCons()) {
@@ -2867,8 +2899,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(false, mode_1.Expl, 'v', exports.VVoid, v => exports.vprimelim('absurd', v, [[mode_1.Impl, A]])));
         if (t.name === 'elimBool')
             return exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, '_', exports.VBool, _ => exports.VType), P => exports.VAbs(false, mode_1.Expl, 't', exports.vapp(P, mode_1.Expl, exports.VTrue), t => exports.VAbs(false, mode_1.Expl, 'f', exports.vapp(P, mode_1.Expl, exports.VFalse), f => exports.VAbs(false, mode_1.Expl, 'b', exports.VBool, b => exports.vprimelim('elimBool', b, [[mode_1.Expl, P], [mode_1.Expl, t], [mode_1.Expl, f]])))));
-        if (t.name === 'elimData')
-            return exports.VAbs(true, mode_1.Impl, 'F', exports.VPi(false, mode_1.Expl, '_', exports.VType, _ => exports.VType), F => exports.VAbs(true, mode_1.Expl, 'map', exports.VPi(true, mode_1.Impl, 'A', exports.VType, A => exports.VPi(true, mode_1.Impl, 'B', exports.VType, B => exports.VPi(false, mode_1.Expl, '_', exports.VPi(false, mode_1.Expl, '_', A, _ => B), _ => exports.VPi(false, mode_1.Expl, '_', exports.vapp(F, mode_1.Expl, A), _ => exports.vapp(F, mode_1.Expl, B))))), map => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, '_', exports.VData(F), _ => exports.VType), P => exports.VAbs(false, mode_1.Expl, 'alg', exports.VPi(true, mode_1.Impl, 'R', exports.VType, R => exports.VPi(false, mode_1.Expl, 'out', exports.VPi(false, mode_1.Expl, '_', R, _ => exports.VData(F)), out => exports.VPi(false, mode_1.Expl, '_', exports.VPi(false, mode_1.Expl, 'z', R, z => exports.vapp(P, mode_1.Expl, exports.vapp(out, mode_1.Expl, z))), _ => exports.VPi(false, mode_1.Expl, 'y', exports.vapp(F, mode_1.Expl, R), y => exports.vapp(P, mode_1.Expl, exports.VCon(F, exports.vapp(exports.vapp(exports.vapp(exports.vapp(map, mode_1.Impl, R), mode_1.Impl, exports.VData(F)), mode_1.Expl, out), mode_1.Expl, y))))))), alg => exports.VAbs(false, mode_1.Expl, 'x', exports.VData(F), x => exports.vprimelim('elimData', x, [[mode_1.Impl, F], [mode_1.Expl, map], [mode_1.Expl, P], [mode_1.Expl, alg]]))))));
+        if (t.name === 'elimIData')
+            return exports.VAbs(true, mode_1.Impl, 'I', exports.VType, I => exports.VAbs(true, mode_1.Impl, 'F', exports.IxFunctor(I), F => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Impl, 'i', I, i => exports.VPi(false, mode_1.Expl, '_', exports.VIData(I, F, i), _ => exports.VType)), P => exports.VAbs(false, mode_1.Expl, 'alg', exports.VPi(false, mode_1.Expl, '_', exports.VPi(true, mode_1.Impl, 'i', I, i => exports.VPi(false, mode_1.Expl, 'z', exports.VIData(I, F, i), z => exports.vapp2(P, mode_1.Impl, i, mode_1.Expl, z))), _ => exports.VPi(true, mode_1.Impl, 'i', I, i => exports.VPi(false, mode_1.Expl, 'y', exports.vapp2(F, mode_1.Expl, exports.VIDataPartial(I, F), mode_1.Expl, i), y => exports.vapp2(P, mode_1.Impl, i, mode_1.Expl, exports.VICon(I, F, i, y))))), alg => exports.VAbs(true, mode_1.Impl, 'i', I, i => exports.VAbs(false, mode_1.Expl, 'x', exports.VIData(I, F, i), x => exports.vprimelim('elimIData', x, [[mode_1.Impl, I], [mode_1.Impl, F], [mode_1.Expl, P], [mode_1.Expl, alg], [mode_1.Impl, i]])))))));
         if (t.name === 'S')
             return exports.VAbs(false, mode_1.Expl, 'n', exports.VNat, n => exports.vprimelim('S', n, []));
         if (t.name === 'elimNat')
