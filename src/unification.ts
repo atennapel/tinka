@@ -1,10 +1,10 @@
 import { config, log } from './config';
 import { Abs, App, Core, Meta, Pi, Var, Global, Sigma, Pair, PFst, PSnd, Prim } from './core';
-import { getMeta, MetaVar, setMeta } from './metas';
+import { freshMeta, getMeta, MetaVar, setMeta } from './metas';
 import { Ix, Lvl } from './names';
 import { nil } from './utils/List';
 import { impossible, terr, tryT } from './utils/utils';
-import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote, VNatLit, VRigid, VFlex, VFinLit, vpred } from './values';
+import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote, VNatLit, VRigid, VFlex, VFinLit, vpred, isVUnitType, VS, VMeta, VNat } from './values';
 import * as C from './core';
 import { eqMode, Expl } from './mode';
 import { verify } from './verification';
@@ -110,6 +110,33 @@ const solve = (gamma: Lvl, m: MetaVar, sp: Spine, rhs_: Val): void => {
       return solve(gamma, m, sp.tail, VFlex(rhs_.head, rhs_.spine.tail));
     if (rhs_.tag === 'VGlobal' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'FS')
       return solve(gamma, m, sp, rhs_.val.get());
+  }
+
+  // special case for elimNat _ () (\_ _. A ** B) (?0 ...) ~ v
+  // if v is not a neutral and the shape of a or b matches v
+  // then we can decide whether (?0 ...) is Z or S m
+  if (sp.isCons()) {
+    const head = sp.head;
+    if (head.tag === 'EPrim' && head.name === 'elimNat') {
+      const args = head.args;
+      const z = force(args[1][1]);
+      const s = force(args[2][1]);
+      const v = force(rhs_);
+      if (isVUnitType(z) && isVUnitType(v))
+        return solve(gamma, m, sp.tail, VNatLit(0n));
+      if (v.tag === 'VSigma' && s.tag === 'VAbs') {
+        const s2 = force(vinst(s, VVar(gamma)));
+        if (s2.tag === 'VAbs') {
+          const s3 = force(vinst(s2, VVar(gamma + 1)));
+          // elimNat _ () (\_ _. (x:A) ** B) (?0 ...) ~ (x:A) ** B
+          // ?0 ... ~ S (?1 ...)
+          if (s3.tag === 'VSigma') {
+            solve(gamma, m, sp.tail, VS(VMeta(freshMeta(VNat, false))));
+            return unify(gamma, VMeta(m, sp), rhs_);
+          }
+        }
+      }
+    }
   }
 
   const pren = invert(gamma, sp);

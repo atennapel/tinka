@@ -298,9 +298,7 @@ const check = (local, tm, ty) => {
         const term = check(local.insert(true, fty.mode, fty.name, fty.type), tm, values_1.vinst(fty, v));
         return core_1.Abs(fty.erased, fty.mode, fty.name, values_1.quote(fty.type, local.level), term);
     }
-    if (tm.tag === 'Pair') {
-        if (fty.tag !== 'VSigma')
-            return utils_1.terr(`not a sigma type in pair (${surface_1.show(tm)}): ${showV(local, ty)}`);
+    if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
         const fst = check(fty.erased ? local.inType() : local, tm.fst, fty.type);
         const snd = check(local, tm.snd, values_1.vinst(fty, values_1.evaluate(fst, local.vs)));
         const qty = values_1.quote(ty, local.level);
@@ -2063,6 +2061,32 @@ const solve = (gamma, m, sp, rhs_) => {
         if (rhs_.tag === 'VGlobal' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'FS')
             return solve(gamma, m, sp, rhs_.val.get());
     }
+    // special case for elimNat _ () (\_ _. A ** B) (?0 ...) ~ v
+    // if v is not a neutral and the shape of a or b matches v
+    // then we can decide whether (?0 ...) is Z or S m
+    if (sp.isCons()) {
+        const head = sp.head;
+        if (head.tag === 'EPrim' && head.name === 'elimNat') {
+            const args = head.args;
+            const z = values_1.force(args[1][1]);
+            const s = values_1.force(args[2][1]);
+            const v = values_1.force(rhs_);
+            if (values_1.isVUnitType(z) && values_1.isVUnitType(v))
+                return solve(gamma, m, sp.tail, values_1.VNatLit(0n));
+            if (v.tag === 'VSigma' && s.tag === 'VAbs') {
+                const s2 = values_1.force(values_1.vinst(s, values_1.VVar(gamma)));
+                if (s2.tag === 'VAbs') {
+                    const s3 = values_1.force(values_1.vinst(s2, values_1.VVar(gamma + 1)));
+                    // elimNat _ () (\_ _. (x:A) ** B) (?0 ...) ~ (x:A) ** B
+                    // ?0 ... ~ S (?1 ...)
+                    if (s3.tag === 'VSigma') {
+                        solve(gamma, m, sp.tail, values_1.VS(values_1.VMeta(metas_1.freshMeta(values_1.VNat, false))));
+                        return exports.unify(gamma, values_1.VMeta(m, sp), rhs_);
+                    }
+                }
+            }
+        }
+    }
     const pren = invert(gamma, sp);
     const rhs = rename(m, pren, rhs_);
     const sol = metas_1.getMeta(m);
@@ -2581,8 +2605,8 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vpred = exports.vprimelim = exports.vproj = exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnitType = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VRefl = exports.VEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = void 0;
+exports.vproj = exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnit = exports.isVUnitType = exports.isVNilary = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VRefl = exports.VEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = exports.vpred = exports.vprimelim = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2683,14 +2707,18 @@ const getVPrim = (v) => {
     return null;
 };
 exports.getVPrim = getVPrim;
-const isVUnitType = (v) => {
+const isVNilary = (v, x) => {
     const res = exports.getVPrim(v);
     if (!res)
         return false;
     const [name, args] = res;
-    return name === '()' && args.length === 0;
+    return name === x && args.length === 0;
 };
+exports.isVNilary = isVNilary;
+const isVUnitType = (v) => exports.isVNilary(v, '()');
 exports.isVUnitType = isVUnitType;
+const isVUnit = (v) => exports.isVNilary(v, '[]');
+exports.isVUnit = isVUnit;
 const force = (v, forceGlobal = true) => {
     if (v.tag === 'VGlobal' && forceGlobal)
         return exports.force(v.val.get(), forceGlobal);

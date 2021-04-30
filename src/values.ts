@@ -108,12 +108,14 @@ export const getVPrim = (v: Val): [PrimConName, Val[]] | null => {
   }
   return null;
 };
-export const isVUnitType = (v: Val): boolean => {
+export const isVNilary = (v: Val, x: Name): boolean => {
   const res = getVPrim(v);
   if (!res) return false;
   const [name, args] = res;
-  return name === '()' && args.length === 0;
+  return name === x && args.length === 0;
 };
+export const isVUnitType = (v: Val) => isVNilary(v, '()');
+export const isVUnit = (v: Val) => isVNilary(v, '[]');
 
 export const force = (v: Val, forceGlobal: boolean = true): Val => {
   if (v.tag === 'VGlobal' && forceGlobal) return force(v.val.get(), forceGlobal);

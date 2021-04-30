@@ -69,8 +69,7 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
     const term = check(local.insert(true, fty.mode, fty.name, fty.type), tm, vinst(fty, v));
     return Abs(fty.erased, fty.mode, fty.name, quote(fty.type, local.level), term);
   }
-  if (tm.tag === 'Pair') {
-    if (fty.tag !== 'VSigma') return terr(`not a sigma type in pair (${show(tm)}): ${showV(local, ty)}`);
+  if (tm.tag === 'Pair' && fty.tag === 'VSigma') {
     const fst = check(fty.erased ? local.inType() : local, tm.fst, fty.type);
     const snd = check(local, tm.snd, vinst(fty, evaluate(fst, local.vs)));
     const qty = quote(ty, local.level);

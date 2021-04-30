@@ -18,6 +18,7 @@ if (process.argv[2]) {
   if (option.includes('g')) setConfig({ localGlue: false });
   if (option.includes('u')) setConfig({ unicode: false });
   if (option.includes('i')) setConfig({ hideImplicits: false });
+  if (option.includes('m')) setConfig({ verifyMetaSolutions: false });
   if (option.includes('t')) typeOnly = true;
   if (option.includes('c')) showCore_ = true;
   if (option.includes('l')) doVerify = false;
