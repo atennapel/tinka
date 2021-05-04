@@ -1,0 +1,44 @@
+-- WIP
+import sum;
+import nat;
+import eq;
+
+let -VecF : * -> (Nat -> *) -> Nat -> * = \A R n. Sum (Eq 0 n) ((-m : Nat) ** A ** R m ** (Eq (S m) n));
+let -Vec : Nat -> * -> * = \n A. IData (VecF A) n;
+let VNil : {-A : *} -> Vec 0 A = \{A}. ICon {_} {VecF A} (Left Refl);
+let VCons : {-A : *} -> {-n : Nat} -> A -> Vec n A -> Vec (S n) A
+  = \{A} {n} hd tl. ICon {_} {VecF A} (Right {_} {(-m : Nat) ** A ** Vec m A ** (Eq (S m) (S n))} (n, hd, tl, Refl));
+
+let elimVec
+  : {-A : *} ->
+    (-P : {n : Nat} -> Vec n A -> *) ->
+    P VNil ->
+    (({-n : Nat} -> (v : Vec n A) -> P v) -> {-m : Nat} -> (hd : A) -> (tl : Vec m A) -> P (VCons hd tl)) ->
+    {-n : Nat} ->
+    (v : Vec n A) ->
+    P v
+  = \{A} P nil cons {n} v. elimIData {_} {VecF A} P (\rec {m} y. elimSum (\s. P (ICon {_} {VecF A} {m} s))
+      (\q. _nil)
+      (\p. _cons)
+    y) {n} v;
+
+[VecF, Vec, @VNil, @VCons, @elimVec]
+:
+(-VecF : * -> (Nat -> *) -> Nat -> *)
+**
+(-Vec : Nat -> * -> *)
+**
+(VNil : {-A : *} -> Vec 0 A)
+**
+(VCons : {-A : *} -> {-n : Nat} -> A -> Vec n A -> Vec (S n) A)
+**
+(elimVec
+  : {-A : *} ->
+    (-P : {n : Nat} -> Vec n A -> *) ->
+    P VNil ->
+    (({-n : Nat} -> (v : Vec n A) -> P v) -> {-m : Nat} -> (hd : A) -> (tl : Vec m A) -> P (VCons hd tl)) ->
+    {-n : Nat} ->
+    (v : Vec n A) ->
+    P v)
+**
+()

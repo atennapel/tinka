@@ -2,12 +2,12 @@ import { Expl, Impl } from './mode';
 import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor } from './values';
 
 export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IData' | 'ICon' | 'Nat' | 'Fin';
-export type PrimElimName = 'elimEq' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
+export type PrimElimName = 'elimEq' | 'axiomK' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
 export type PrimName = PrimConName | PrimElimName;
 
 export const PrimNames: string[] = [
   '*',
-  'Eq', 'Refl', 'elimEq',
+  'Eq', 'Refl', 'elimEq', 'axiomK',
   'Void', 'absurd',
   '()', '[]',
   'Bool', 'True', 'False', 'elimBool',
@@ -35,6 +35,13 @@ export const primType = (name: PrimName): Val => {
       VPi(true, Impl, 'y', A, y =>
       VPi(false, Expl, 'p', VEq(A, x, y), p =>
       vapp(vapp(vapp(P, Expl, x), Expl, y), Expl, p)))))));
+  // axiomK : {-A : *} -> {-x : A} -> (-P : Eq {A} x x -> *) -> P (Refl {A} {x}) -> (h : Eq {A} x x) -> P h
+  if (name === 'axiomK')
+    return VPi(true, Impl, 'A', VType, A =>
+      VPi(true, Impl, 'x', A, x =>
+      VPi(true, Expl, 'P', VPi(false, Expl, '_', VEq(A, x, x), _ => VType), P =>
+      VPi(false, Expl, '_', vapp(P, Expl, VRefl(A, x)), _ =>
+      VPi(false, Expl, 'h', VEq(A, x, x), h => vapp(P, Expl, h))))));
   
   if (name === 'Void') return VType;
   if (name === '()') return VType;

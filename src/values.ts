@@ -182,6 +182,7 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
   if (res) {
     const [x, spine] = res;
     if (name === 'elimEq' && x === 'Refl') return vapp(args[2][1], Impl, spine[1]);
+    if (name === 'axiomK' && x === 'Refl') return args[3][1];
     if (name === 'elimBool') {
       if (x === 'True') return args[1][1];
       if (x === 'False') return args[2][1];
@@ -312,6 +313,12 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         vprimelim('elimFin', x, [[Expl, P], [Expl, z], [Expl, s], [Impl, n]]))))));
     if (t.name === 'weakenFin')
       return VAbs(true, Impl, 'm', VNat, m => VAbs(true, Impl, 'n', VNat, n => VAbs(false, Expl, 'f', VFin(n), f => vprimelim('weakenFin', f, [[Impl, m], [Impl, n]]))));
+    if (t.name === 'axiomK')
+      return VAbs(true, Impl, 'A', VType, A =>
+        VAbs(true, Impl, 'x', A, x =>
+        VAbs(true, Expl, 'P', VPi(false, Expl, '_', VEq(A, x, x), _ => VType), P =>
+        VAbs(false, Expl, 'p', vapp(P, Expl, VRefl(A, x)), p =>
+        VAbs(false, Expl, 'h', VEq(A, x, x), h => vprimelim('axiomK', h, [[Impl, A], [Impl, x], [Expl, P], [Expl, p]]))))));
     return VPrim(t.name);
   }
   return t;

@@ -1411,7 +1411,7 @@ const mode_1 = require("./mode");
 const values_1 = require("./values");
 exports.PrimNames = [
     '*',
-    'Eq', 'Refl', 'elimEq',
+    'Eq', 'Refl', 'elimEq', 'axiomK',
     'Void', 'absurd',
     '()', '[]',
     'Bool', 'True', 'False', 'elimBool',
@@ -1436,6 +1436,9 @@ const primType = (name) => {
     // elimEq : {-A : *} -> (-P : (x y : A) -> Eq {A} x y -> *) -> ({-x : A} -> P x x (Refl {A} {x})) -> {-x -y : A} -> (p : Eq {A} x y) -> P x y p
     if (name === 'elimEq')
         return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, 'x', A, x => values_1.VPi(false, mode_1.Expl, 'y', A, y => values_1.VPi(false, mode_1.Expl, '_', values_1.VEq(A, x, y), _ => values_1.VType))), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.vapp(values_1.vapp(values_1.vapp(P, mode_1.Expl, x), mode_1.Expl, x), mode_1.Expl, values_1.VRefl(A, x))), _ => values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.VPi(true, mode_1.Impl, 'y', A, y => values_1.VPi(false, mode_1.Expl, 'p', values_1.VEq(A, x, y), p => values_1.vapp(values_1.vapp(values_1.vapp(P, mode_1.Expl, x), mode_1.Expl, y), mode_1.Expl, p)))))));
+    // axiomK : {-A : *} -> {-x : A} -> (-P : Eq {A} x x -> *) -> P (Refl {A} {x}) -> (h : Eq {A} x x) -> P h
+    if (name === 'axiomK')
+        return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, '_', values_1.VEq(A, x, x), _ => values_1.VType), P => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VRefl(A, x)), _ => values_1.VPi(false, mode_1.Expl, 'h', values_1.VEq(A, x, x), h => values_1.vapp(P, mode_1.Expl, h))))));
     if (name === 'Void')
         return values_1.VType;
     if (name === '()')
@@ -2851,6 +2854,8 @@ const vprimelim = (name, scrut, args) => {
         const [x, spine] = res;
         if (name === 'elimEq' && x === 'Refl')
             return exports.vapp(args[2][1], mode_1.Impl, spine[1]);
+        if (name === 'axiomK' && x === 'Refl')
+            return args[3][1];
         if (name === 'elimBool') {
             if (x === 'True')
                 return args[1][1];
@@ -2982,6 +2987,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, 'n', exports.VNat, n => exports.VPi(false, mode_1.Expl, '_', exports.VFin(n), _ => exports.VType)), P => exports.VAbs(false, mode_1.Expl, 'z', exports.VPi(true, mode_1.Impl, 'm', exports.VNat, m => exports.vapp2(P, mode_1.Expl, exports.VS(m), mode_1.Expl, exports.VFinLit(0n, m, m))), z => exports.VAbs(false, mode_1.Expl, 's', exports.VPi(false, mode_1.Expl, '_', exports.VPi(true, mode_1.Impl, 'k', exports.VNat, k => exports.VPi(false, mode_1.Expl, 'y', exports.VFin(k), y => exports.vapp2(P, mode_1.Expl, k, mode_1.Expl, y))), _ => exports.VPi(true, mode_1.Impl, 'k', exports.VNat, k => exports.VPi(false, mode_1.Expl, 'y', exports.VFin(k), y => exports.vapp2(P, mode_1.Expl, exports.VS(k), mode_1.Expl, exports.VFS(k, y))))), s => exports.VAbs(true, mode_1.Impl, 'n', exports.VNat, n => exports.VAbs(false, mode_1.Expl, 'x', exports.VFin(n), x => exports.vprimelim('elimFin', x, [[mode_1.Expl, P], [mode_1.Expl, z], [mode_1.Expl, s], [mode_1.Impl, n]]))))));
         if (t.name === 'weakenFin')
             return exports.VAbs(true, mode_1.Impl, 'm', exports.VNat, m => exports.VAbs(true, mode_1.Impl, 'n', exports.VNat, n => exports.VAbs(false, mode_1.Expl, 'f', exports.VFin(n), f => exports.vprimelim('weakenFin', f, [[mode_1.Impl, m], [mode_1.Impl, n]]))));
+        if (t.name === 'axiomK')
+            return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(true, mode_1.Impl, 'x', A, x => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, '_', exports.VEq(A, x, x), _ => exports.VType), P => exports.VAbs(false, mode_1.Expl, 'p', exports.vapp(P, mode_1.Expl, exports.VRefl(A, x)), p => exports.VAbs(false, mode_1.Expl, 'h', exports.VEq(A, x, x), h => exports.vprimelim('axiomK', h, [[mode_1.Impl, A], [mode_1.Impl, x], [mode_1.Expl, P], [mode_1.Expl, p]]))))));
         return exports.VPrim(t.name);
     }
     return t;
