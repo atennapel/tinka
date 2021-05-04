@@ -833,7 +833,7 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
-const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', 'λ', '×', '→', '★'];
+const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '@', '%', 'λ', '×', '→', '★'];
 const SYM2 = ['->', '**'];
 const createTName = (x) => {
     if (x === 'λ')
@@ -1110,16 +1110,28 @@ const expr = (t) => {
     return t;
 };
 const Unit = surface_1.Var('[]');
+const Nil = surface_1.Var('Nil');
+const Cons = surface_1.Var('Cons');
+const VNil = surface_1.Var('VNil');
+const VCons = surface_1.Var('VCons');
 const exprs = (ts, br, fromRepl = false) => {
     if (br === '{')
         return utils_1.serr(`{} cannot be used here`);
     if (br === '[') {
         if (ts.length === 0)
             return Unit;
-        let count = false;
+        let type = 0;
         if (isName(ts[0], '#')) {
             ts = ts.slice(1);
-            count = true;
+            type = 1;
+        }
+        else if (isName(ts[0], '@')) {
+            ts = ts.slice(1);
+            type = 2;
+        }
+        else if (isName(ts[0], '%')) {
+            ts = ts.slice(1);
+            type = 3;
         }
         if (ts.length === 0)
             return surface_1.Pair(surface_1.NatLit(0n), Unit);
@@ -1136,14 +1148,45 @@ const exprs = (ts, br, fromRepl = false) => {
                 }
                 return [exprs(x, '('), false];
             });
-            if (args.length === 0)
-                return count ? surface_1.Pair(surface_1.NatLit(0n), Unit) : Unit;
-            const p = args.reduceRight((x, [y, _p]) => surface_1.Pair(y, x), Unit);
-            return count ? surface_1.Pair(surface_1.NatLit(BigInt(args.length)), p) : p;
+            if (args.length === 0) {
+                if (type === 1)
+                    return surface_1.Pair(surface_1.NatLit(0n), Unit);
+                if (type === 2)
+                    return Nil;
+                if (type === 3)
+                    return VNil;
+                return Unit;
+            }
+            if (type === 2)
+                return args.reduceRight((x, [y, i]) => {
+                    if (i)
+                        return utils_1.serr(`list element cannot be implicit`);
+                    return surface_1.App(surface_1.App(Cons, mode_1.Expl, y), mode_1.Expl, x);
+                }, Nil);
+            if (type === 3)
+                return args.reduceRight((x, [y, i]) => {
+                    if (i)
+                        return utils_1.serr(`vec element cannot be implicit`);
+                    return surface_1.App(surface_1.App(VCons, mode_1.Expl, y), mode_1.Expl, x);
+                }, VNil);
+            const p = args.reduceRight((x, [y, i]) => {
+                if (i)
+                    return utils_1.serr(`pair element cannot be implicit`);
+                return surface_1.Pair(y, x);
+            }, Unit);
+            if (type === 1)
+                surface_1.Pair(surface_1.NatLit(BigInt(args.length)), p);
+            return p;
         }
         else {
             const expr = exprs(ts, '(');
-            return count ? surface_1.Pair(surface_1.NatLit(1n), surface_1.Pair(expr, Unit)) : surface_1.Pair(expr, Unit);
+            if (type === 1)
+                return surface_1.Pair(surface_1.NatLit(1n), surface_1.Pair(expr, Unit));
+            if (type === 2)
+                return surface_1.App(surface_1.App(Cons, mode_1.Expl, expr), mode_1.Expl, Nil);
+            if (type === 3)
+                return surface_1.App(surface_1.App(VCons, mode_1.Expl, expr), mode_1.Expl, VNil);
+            return surface_1.Pair(expr, Unit);
         }
     }
     if (ts.length === 0)
