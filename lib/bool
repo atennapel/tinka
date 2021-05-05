@@ -1,3 +1,5 @@
+import eq;
+
 let if : {-A : *} -> Bool -> A -> A -> A
   = \{A} b t f. elimBool (\_. A) t f b;
 let not : Bool -> Bool = \b. if b False True;
@@ -5,9 +7,14 @@ let and : Bool -> Bool -> Bool
   = \a b. if a b False;
 let or : Bool -> Bool -> Bool
   = \a b. if a True b;
-let eq : Bool -> Bool -> Bool
+let eqBool : Bool -> Bool -> Bool
   = \a b. if a b (not b);
-let neq : Bool -> Bool -> Bool
-  = \a b. not (eq a b);
+let neqBool : Bool -> Bool -> Bool
+  = \a b. not (eqBool a b);
 
-[if, not, and, or, eq, neq]
+let -liftBool : Bool -> * = \b. if b () Void;
+
+let trueNeqFalse : Neq True False
+  = \eq. rewrite liftBool eq [];
+
+[if, not, and, or, eqBool, neqBool, liftBool, trueNeqFalse]

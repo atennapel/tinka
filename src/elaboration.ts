@@ -214,9 +214,19 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
     return [t, vt];
   }
   if (tm.tag === 'Pair') {
-    const [fst, fstty] = synth(local, tm.fst);
+    let erased = false;
+    if (tm.fst.tag === 'Var') {
+      const i = local.nsSurface.indexOf(tm.fst.name);
+      if (i >= 0) {
+        const res = indexEnvT(local.ts, i);
+        if (res) {
+          erased = res[0].erased;
+        }
+      }
+    }
+    const [fst, fstty] = synth(erased ? local.inType() : local, tm.fst);
     const [snd, sndty] = synth(local, tm.snd);
-    const ty = Sigma(false, tm.fst.tag === 'Var' ? tm.fst.name : '_', quote(fstty, local.level), quote(sndty, local.level + 1));
+    const ty = Sigma(erased, tm.fst.tag === 'Var' ? tm.fst.name : '_', quote(fstty, local.level), quote(sndty, local.level + 1));
     return [Pair(fst, snd, ty), evaluate(ty, local.vs)];
   }
   if (tm.tag === 'Ann') {

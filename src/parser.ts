@@ -26,7 +26,7 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
-const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', '@', '&', '%', 'λ', '×', '→', '★'];
+const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', '&', '%', 'λ', '×', '→', '★'];
 const SYM2: string[] = ['->', '**'];
 
 const createTName = (x: string): Token => {

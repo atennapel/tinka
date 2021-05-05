@@ -1,3 +1,6 @@
+import eq;
+import bool;
+
 let caseNat
   : {-A : *} -> Nat -> A -> (Nat -> A) -> A
   = \{A} n z s. elimNat (\_. A) z (\_ m. s m) n;
@@ -9,4 +12,10 @@ let pred : Nat -> Nat = \n. caseNat n 0 (\m. m);
 let add : Nat -> Nat -> Nat = \a b. cataNat a b S;
 let mul : Nat -> Nat -> Nat = \a b. cataNat a 0 (add b);
 
-[caseNat, cataNat, pred, add, mul]
+let isZero : Nat -> Bool = \n. caseNat n True (\_. False);
+
+let z_neq_S
+  : {-n : Nat} -> Neq 0 (S n)
+  = \{n} eq. rewrite (\n. liftBool (isZero n)) eq [];
+
+[caseNat, cataNat, pred, add, mul, isZero, z_neq_S]

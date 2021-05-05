@@ -1,4 +1,3 @@
--- WIP
 import sum;
 import nat;
 import eq;
@@ -18,11 +17,22 @@ let elimVec
     (v : Vec n A) ->
     P v
   = \{A} P nil cons {n} v. elimIData {_} {VecF A} P (\rec {m} y. elimSum (\s. P (ICon {_} {VecF A} {m} s))
-      (\q. _nil)
-      (\p. _cons)
+      (\q. elimEq (\e. P (ICon {_} {VecF A} (Left e))) nil q)
+      (\p.
+        let -mm = p.0;
+        let hd = p.1;
+        let tl = p.2;
+        let q = p._2._2._2;
+        elimEq (\{j} e. P {j} (ICon {_} {VecF A} (Right {_} {(-m : Nat) ** A ** Vec m A ** Eq (S m) j} (mm, hd, tl, e)))) (cons @rec {mm} hd tl) q)
     y) {n} v;
 
-[VecF, Vec, @VNil, @VCons, @elimVec]
+let foldrVec : {-A -R : *} -> {-n : Nat} -> R -> (A -> R -> R) -> Vec n A -> R
+  = \{A} {R} {n} nil cons v. elimVec (\_. R) nil (\rec hd tl. cons hd (rec tl)) v;
+
+let mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B
+  = \{A} {B} fn v. elimVec (\{n} _. Vec n B) VNil (\rec hd tl. VCons (fn hd) (rec tl)) v;
+
+[VecF, Vec, @VNil, @VCons, @elimVec, @foldrVec, @mapVec]
 :
 (-VecF : * -> (Nat -> *) -> Nat -> *)
 **
@@ -40,5 +50,9 @@ let elimVec
     {-n : Nat} ->
     (v : Vec n A) ->
     P v)
+**
+(foldrVec : {-A -R : *} -> {-n : Nat} -> R -> (A -> R -> R) -> Vec n A -> R)
+**
+(mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B)
 **
 ()

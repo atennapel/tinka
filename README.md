@@ -14,6 +14,7 @@ TODO:
 - [x] add heterogenous equality type with axiom K
 - [ ] add codata fixpoint type
 - [x] fix importing in web repl
+- [ ] add syntax to explicitly reference local (debruijn), global and primitive vars
 - [ ] add testing
 - [ ] fix negative vars in output
 - [x] typed metas

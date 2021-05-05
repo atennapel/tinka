@@ -458,9 +458,19 @@ const synth = (local, tm) => {
         return [t, vt];
     }
     if (tm.tag === 'Pair') {
-        const [fst, fstty] = synth(local, tm.fst);
+        let erased = false;
+        if (tm.fst.tag === 'Var') {
+            const i = local.nsSurface.indexOf(tm.fst.name);
+            if (i >= 0) {
+                const res = local_1.indexEnvT(local.ts, i);
+                if (res) {
+                    erased = res[0].erased;
+                }
+            }
+        }
+        const [fst, fstty] = synth(erased ? local.inType() : local, tm.fst);
         const [snd, sndty] = synth(local, tm.snd);
-        const ty = core_1.Sigma(false, tm.fst.tag === 'Var' ? tm.fst.name : '_', values_1.quote(fstty, local.level), values_1.quote(sndty, local.level + 1));
+        const ty = core_1.Sigma(erased, tm.fst.tag === 'Var' ? tm.fst.name : '_', values_1.quote(fstty, local.level), values_1.quote(sndty, local.level + 1));
         return [core_1.Pair(fst, snd, ty), values_1.evaluate(ty, local.vs)];
     }
     if (tm.tag === 'Ann') {
@@ -833,7 +843,7 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
-const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '@', '&', '%', 'λ', '×', '→', '★'];
+const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '&', '%', 'λ', '×', '→', '★'];
 const SYM2 = ['->', '**'];
 const createTName = (x) => {
     if (x === 'λ')
