@@ -1,13 +1,13 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VRefl, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor } from './values';
+import { Val, vapp, VEq, VPi, VType, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor, VHRefl } from './values';
 
-export type PrimConName = '*' | 'Eq' | 'Refl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IData' | 'ICon' | 'Nat' | 'Fin';
-export type PrimElimName = 'elimEq' | 'axiomK' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
+export type PrimConName = '*' | 'HEq' | 'HRefl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IData' | 'ICon' | 'Nat' | 'Fin';
+export type PrimElimName = 'elimHEq' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
 export type PrimName = PrimConName | PrimElimName;
 
 export const PrimNames: string[] = [
   '*',
-  'Eq', 'Refl', 'elimEq', 'axiomK',
+  'HEq', 'HRefl', 'elimHEq',
   'Void', 'absurd',
   '()', '[]',
   'Bool', 'True', 'False', 'elimBool',
@@ -22,26 +22,27 @@ export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(na
 
 export const primType = (name: PrimName): Val => {
   if (name === '*') return VType;
-  // Eq : {A : *} -> A -> A -> *
-  if (name === 'Eq') return VPi(false, Impl, 'A', VType, A => VPi(false, Expl, '_', A, _ => VPi(false, Expl, '_', A, _ => VType)));
-  // Refl : {-A : *} -> {-x : A} -> Eq {A} x x
-  if (name === 'Refl') return VPi(true, Impl, 'A', VType, A => VPi(true, Impl, 'x', A, x => VEq(A, x, x)));
-  // elimEq : {-A : *} -> (-P : (x y : A) -> Eq {A} x y -> *) -> ({-x : A} -> P x x (Refl {A} {x})) -> {-x -y : A} -> (p : Eq {A} x y) -> P x y p
-  if (name === 'elimEq')
+  // HEq : {A B : *} -> A -> B -> *
+  if (name === 'HEq') return VPi(false, Impl, 'A', VType, A => VPi(false, Impl, 'B', VType, B => VPi(false, Expl, '_', A, _ => VPi(false, Expl, '_', B, _ => VType))));
+  // HRefl : {-A : *} -> {-x : A} -> HEq {A} {A} x x
+  if (name === 'HRefl') return VPi(true, Impl, 'A', VType, A => VPi(true, Impl, 'x', A, x => VEq(A, x, x)));
+  /* 
+    elimHEq : {-A : *}
+      -> {-a : A}
+      -> (-P : {b : A} -> HEq {A} {A} a b -> *)
+      -> P {a} (HRefl {A} {a})
+      -> {-b : A}
+      -> (p : HEq {A} {A} a b)
+      -> P {b} p
+  */
+  if (name === 'elimHEq')
     return VPi(true, Impl, 'A', VType, A =>
-      VPi(true, Expl, 'P', VPi(false, Expl, 'x', A, x => VPi(false, Expl, 'y', A, y => VPi(false, Expl, '_', VEq(A, x, y), _ => VType))), P =>
-      VPi(false, Expl, '_', VPi(true, Impl, 'x', A, x => vapp(vapp(vapp(P, Expl, x), Expl, x), Expl, VRefl(A, x))), _ =>
-      VPi(true, Impl, 'x', A, x =>
-      VPi(true, Impl, 'y', A, y =>
-      VPi(false, Expl, 'p', VEq(A, x, y), p =>
-      vapp(vapp(vapp(P, Expl, x), Expl, y), Expl, p)))))));
-  // axiomK : {-A : *} -> {-x : A} -> (-P : Eq {A} x x -> *) -> P (Refl {A} {x}) -> (h : Eq {A} x x) -> P h
-  if (name === 'axiomK')
-    return VPi(true, Impl, 'A', VType, A =>
-      VPi(true, Impl, 'x', A, x =>
-      VPi(true, Expl, 'P', VPi(false, Expl, '_', VEq(A, x, x), _ => VType), P =>
-      VPi(false, Expl, '_', vapp(P, Expl, VRefl(A, x)), _ =>
-      VPi(false, Expl, 'h', VEq(A, x, x), h => vapp(P, Expl, h))))));
+      VPi(true, Impl, 'a', A, a =>
+      VPi(true, Expl, 'P', VPi(false, Impl, 'b', A, b => VPi(false, Expl, '', VEq(A, a, b), _ => VType)), P =>
+      VPi(false, Expl, '_', vapp2(P, Impl, a, Expl, VHRefl(A, a)), _ =>
+      VPi(true, Impl, 'b', A, b =>
+      VPi(false, Expl, 'p', VEq(A, a, b), p =>
+      vapp2(P, Impl, b, Expl, p)))))));
   
   if (name === 'Void') return VType;
   if (name === '()') return VType;

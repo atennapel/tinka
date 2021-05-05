@@ -1,6 +1,25 @@
+let -HNeq : {A B : *} -> A -> B -> * = \a b. HEq a b -> Void;
+let -Eq : {A : *} -> A -> A -> * = HEq;
+let -Neq : {A : *} -> A -> A -> * = HNeq;
+let Refl : {-A : *} -> {-a : A} -> Eq a a = HRefl;
+
+let elimEq
+  : {-A : *}
+    -> {-a : A}
+    -> (-P : {b : A} -> Eq a b -> *)
+    -> P Refl
+    -> {-b : A}
+    -> (p : Eq a b)
+    -> P p
+  = elimHEq;
+
+let eqJ
+  : {-A : *} -> (-P : {a b : A} -> Eq a b -> *) -> ({-a : A} -> P Refl) -> {-a -b : A} -> (p : Eq a b) -> P p
+  = \{A} P q {a} {b} p. elimEq {A} {a} (\{c} q. P {a} {c} q) (q {a}) {b} p;
+
 let rewrite
   : {-A : *} -> (-P : A -> *) -> {-a -b : A} -> Eq a b -> P a -> P b
-  = \P p. elimEq (\x y _. P x -> P y) (\q. q) p;
+  = \P p. eqJ (\{x} {y} _. P x -> P y) (\q. q) p;
 
 let cast
   : {-A -B : *} -> Eq A B -> A -> B
@@ -8,7 +27,7 @@ let cast
 
 let sym
   : {-A : *} -> {-a -b : A} -> Eq a b -> Eq b a
-  = \{A} p. elimEq {A} (\x y q. Eq y x) Refl p;
+  = \{A} p. eqJ {A} (\{x} {y} q. Eq y x) Refl p;
 
 let trans
   : {-A : *} -> {-a -b -c : A} -> Eq a b -> Eq b c -> Eq a c
@@ -18,12 +37,59 @@ let cong
   : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b)
   = \{A} {B} {f} {a} p. rewrite (\x. Eq (f a) (f x)) p Refl;
 
-let uipRefl
-  : {-A : *} -> {-x : *} -> (p : Eq x x) -> Eq p Refl
-  = \{A} {x} p. axiomK (\p. Eq p Refl) Refl p;
+let eqRefl
+  : {-A : *} -> {-a : A} -> (p : Eq a a) -> Eq p Refl
+  = \{A} {a} p. elimEq {A} {a} (\{c} q. HEq q (Refl {A} {c})) Refl {a} p;
 
-let uipWeak
-  : {-A : *} -> {-x : *} -> (p q : Eq x x) -> Eq p q
-  = \{A} {x} p q. axiomK (\p. Eq p q) (axiomK (\q. Eq {Eq x x} Refl q) Refl q) p;
+let eqK
+  : {-A : *} -> {-a : A} -> (-P : Eq a a -> *) -> P Refl -> (p : Eq a a) -> P p
+  = \{A} {a} P h p. rewrite (\x. P x) (sym (eqRefl {A} {a} p)) h;
 
-[rewrite, cast, sym, trans, cong, uipRefl, uipWeak]
+let uip
+  : {-A : *} -> {-a -b : A} -> (p1 p2 : Eq a b) -> Eq p1 p2
+  = \{A} {a} {b} p1 p2. (elimEq {A} {a} (\{c} p. (q : Eq a c) -> Eq q p) (eqRefl {A} {a}) {b} p2) p1;
+
+let rewriteBoth
+  : {-A : *} -> (-P : {x y : A} -> Eq x y -> *) -> {-a -b : A} -> (p : Eq a b) -> P p -> P (sym p)
+  = \{A} P {a} {b} p x. (elimEq {A} {a} (\{y} e. P e -> P (sym e)) (\x. x) {b} p) x;
+
+[@HNeq, @Eq, @Neq, @Refl, @elimEq, @eqJ, @rewrite, @cast, @sym, @trans, @cong, @eqRefl, @eqK, @uip, @rewriteBoth]
+:
+(-HNeq : {A B : *} -> A -> B -> *)
+**
+(-Eq : {A : *} -> A -> A -> *)
+**
+(-Neq : {A : *} -> A -> A -> *)
+**
+(Refl : {-A : *} -> {-a : A} -> Eq a a)
+**
+(elimEq
+  : {-A : *}
+    -> {-a : A}
+    -> (-P : {b : A} -> Eq a b -> *)
+    -> P Refl
+    -> {-b : A}
+    -> (p : Eq a b)
+    -> P p)
+**
+(eqJ : {-A : *} -> (-P : {a b : A} -> Eq a b -> *) -> ({-a : A} -> P {a} Refl) -> {-a -b : A} -> (p : Eq a b) -> P p)
+**
+(rewrite : {-A : *} -> (-P : A -> *) -> {-a -b : A} -> Eq a b -> P a -> P b)
+**
+(cast : {-A -B : *} -> Eq A B -> A -> B)
+**
+(sym : {-A : *} -> {-a -b : A} -> Eq a b -> Eq b a)
+**
+(trans : {-A : *} -> {-a -b -c : A} -> Eq a b -> Eq b c -> Eq a c)
+**
+(cong : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b))
+**
+(eqRefl : {-A : *} -> {-a : A} -> (p : Eq a a) -> Eq p Refl)
+**
+(eqK : {-A : *} -> {-a : A} -> (-P : Eq a a -> *) -> P Refl -> (p : Eq a a) -> P p)
+**
+(uip : {-A : *} -> {-a -b : A} -> (p1 p2 : Eq a b) -> Eq p1 p2)
+**
+(rewriteBoth : {-A : *} -> (-P : {x y : A} -> Eq x y -> *) -> {-a -b : A} -> (p : Eq a b) -> P p -> P (sym p))
+**
+()

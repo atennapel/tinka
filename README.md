@@ -11,7 +11,7 @@ FEATURES:
 TODO:
 - [x] add general indexed fixpoint type
 - [x] update libs to use fixpoint
-- [x] add axiom K
+- [x] add heterogenous equality type with axiom K
 - [ ] add codata fixpoint type
 - [x] fix importing in web repl
 - [ ] add testing

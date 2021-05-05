@@ -26,7 +26,7 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
-const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', '@', '%', 'λ', '×', '→', '★'];
+const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', '@', '&', '%', 'λ', '×', '→', '★'];
 const SYM2: string[] = ['->', '**'];
 
 const createTName = (x: string): Token => {
@@ -275,7 +275,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     if (isName(ts[0], '#')) {
       ts = ts.slice(1);
       type = 1;
-    } else if (isName(ts[0], '@')) {
+    } else if (isName(ts[0], '&')) {
       ts = ts.slice(1);
       type = 2;
     } else if (isName(ts[0], '%')) {

@@ -72,8 +72,9 @@ export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
 export const VNat = VPrim('Nat');
 
-export const VEq = (A: Val, x: Val, y: Val): Val => VPrim('Eq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, A)));
-export const VRefl = (A: Val, x: Val): Val => VPrim('Refl', List.of(EApp(Impl, x), EApp(Impl, A)));
+export const VHEq = (A: Val, B: Val, x: Val, y: Val): Val => VPrim('HEq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, B), EApp(Impl, A)));
+export const VHRefl = (A: Val, x: Val): Val => VPrim('HRefl', List.of(EApp(Impl, x), EApp(Impl, A)));
+export const VEq = (A: Val, x: Val, y: Val): Val => VHEq(A, A, x, y);
 
 // IData {I} F
 export const VIDataPartial = (I: Val, F: Val): Val => VPrim('IData', List.of(EApp(Expl, F), EApp(Impl, I)));
@@ -181,8 +182,8 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
   const res = getVPrim(scrut);
   if (res) {
     const [x, spine] = res;
-    if (name === 'elimEq' && x === 'Refl') return vapp(args[2][1], Impl, spine[1]);
-    if (name === 'axiomK' && x === 'Refl') return args[3][1];
+    // elimHEq {A} {a} P h {b} (HRefl {A} {a}) ~> h
+    if (name === 'elimHEq' && x === 'HRefl') return args[3][1];
     if (name === 'elimBool') {
       if (x === 'True') return args[1][1];
       if (x === 'False') return args[2][1];
@@ -274,14 +275,14 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
     return e.value;
   }));
   if (t.tag === 'Prim') {
-    if (t.name === 'elimEq')
+    if (t.name === 'elimHEq')
       return VAbs(true, Impl, 'A', VType, A =>
-        VAbs(true, Expl, 'P', VPi(false, Expl, 'x', A, x => VPi(false, Expl, 'y', A, y => VPi(false, Expl, '_', VEq(A, x, y), _ => VType))), P =>
-        VAbs(false, Expl, 'q', VPi(true, Impl, 'x', A, x => vapp(vapp(vapp(P, Expl, x), Expl, x), Expl, VRefl(A, x))), q =>
-        VAbs(true, Impl, 'x', A, x =>
-        VAbs(true, Impl, 'y', A, y =>
-        VAbs(false, Expl, 'p', VEq(A, x, y), p =>
-        vprimelim('elimEq', p, [[Impl, A], [Expl, P], [Expl, q], [Impl, x], [Impl, y]])))))));
+        VAbs(true, Impl, 'a', A, a =>
+        VAbs(true, Expl, 'P', VPi(false, Impl, 'b', A, b => VPi(false, Expl, '', VEq(A, a, b), _ => VType)), P =>
+        VAbs(false, Expl, 'h', vapp2(P, Impl, a, Expl, VHRefl(A, a)), h =>
+        VAbs(true, Impl, 'b', A, b =>
+        VAbs(false, Expl, 'p', VEq(A, a, b), p =>
+        vprimelim('elimHEq', p, [[Impl, A], [Impl, a], [Expl, P], [Expl, h], [Impl, b]])))))));
     if (t.name === 'absurd')
       return VAbs(true, Impl, 'A', VType, A => VAbs(false, Expl, 'v', VVoid, v => vprimelim('absurd', v, [[Impl, A]])));
     if (t.name === 'elimBool')
@@ -313,12 +314,6 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         vprimelim('elimFin', x, [[Expl, P], [Expl, z], [Expl, s], [Impl, n]]))))));
     if (t.name === 'weakenFin')
       return VAbs(true, Impl, 'm', VNat, m => VAbs(true, Impl, 'n', VNat, n => VAbs(false, Expl, 'f', VFin(n), f => vprimelim('weakenFin', f, [[Impl, m], [Impl, n]]))));
-    if (t.name === 'axiomK')
-      return VAbs(true, Impl, 'A', VType, A =>
-        VAbs(true, Impl, 'x', A, x =>
-        VAbs(true, Expl, 'P', VPi(false, Expl, '_', VEq(A, x, x), _ => VType), P =>
-        VAbs(false, Expl, 'p', vapp(P, Expl, VRefl(A, x)), p =>
-        VAbs(false, Expl, 'h', VEq(A, x, x), h => vprimelim('axiomK', h, [[Impl, A], [Impl, x], [Expl, P], [Expl, p]]))))));
     return VPrim(t.name);
   }
   return t;

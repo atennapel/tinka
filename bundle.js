@@ -833,7 +833,7 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
-const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '@', '%', 'λ', '×', '→', '★'];
+const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '@', '&', '%', 'λ', '×', '→', '★'];
 const SYM2 = ['->', '**'];
 const createTName = (x) => {
     if (x === 'λ')
@@ -1125,7 +1125,7 @@ const exprs = (ts, br, fromRepl = false) => {
             ts = ts.slice(1);
             type = 1;
         }
-        else if (isName(ts[0], '@')) {
+        else if (isName(ts[0], '&')) {
             ts = ts.slice(1);
             type = 2;
         }
@@ -1411,7 +1411,7 @@ const mode_1 = require("./mode");
 const values_1 = require("./values");
 exports.PrimNames = [
     '*',
-    'Eq', 'Refl', 'elimEq', 'axiomK',
+    'HEq', 'HRefl', 'elimHEq',
     'Void', 'absurd',
     '()', '[]',
     'Bool', 'True', 'False', 'elimBool',
@@ -1427,18 +1427,23 @@ exports.isPrimErased = isPrimErased;
 const primType = (name) => {
     if (name === '*')
         return values_1.VType;
-    // Eq : {A : *} -> A -> A -> *
-    if (name === 'Eq')
-        return values_1.VPi(false, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(false, mode_1.Expl, '_', A, _ => values_1.VPi(false, mode_1.Expl, '_', A, _ => values_1.VType)));
-    // Refl : {-A : *} -> {-x : A} -> Eq {A} x x
-    if (name === 'Refl')
+    // HEq : {A B : *} -> A -> B -> *
+    if (name === 'HEq')
+        return values_1.VPi(false, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(false, mode_1.Impl, 'B', values_1.VType, B => values_1.VPi(false, mode_1.Expl, '_', A, _ => values_1.VPi(false, mode_1.Expl, '_', B, _ => values_1.VType))));
+    // HRefl : {-A : *} -> {-x : A} -> HEq {A} {A} x x
+    if (name === 'HRefl')
         return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.VEq(A, x, x)));
-    // elimEq : {-A : *} -> (-P : (x y : A) -> Eq {A} x y -> *) -> ({-x : A} -> P x x (Refl {A} {x})) -> {-x -y : A} -> (p : Eq {A} x y) -> P x y p
-    if (name === 'elimEq')
-        return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, 'x', A, x => values_1.VPi(false, mode_1.Expl, 'y', A, y => values_1.VPi(false, mode_1.Expl, '_', values_1.VEq(A, x, y), _ => values_1.VType))), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.vapp(values_1.vapp(values_1.vapp(P, mode_1.Expl, x), mode_1.Expl, x), mode_1.Expl, values_1.VRefl(A, x))), _ => values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.VPi(true, mode_1.Impl, 'y', A, y => values_1.VPi(false, mode_1.Expl, 'p', values_1.VEq(A, x, y), p => values_1.vapp(values_1.vapp(values_1.vapp(P, mode_1.Expl, x), mode_1.Expl, y), mode_1.Expl, p)))))));
-    // axiomK : {-A : *} -> {-x : A} -> (-P : Eq {A} x x -> *) -> P (Refl {A} {x}) -> (h : Eq {A} x x) -> P h
-    if (name === 'axiomK')
-        return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Impl, 'x', A, x => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Expl, '_', values_1.VEq(A, x, x), _ => values_1.VType), P => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp(P, mode_1.Expl, values_1.VRefl(A, x)), _ => values_1.VPi(false, mode_1.Expl, 'h', values_1.VEq(A, x, x), h => values_1.vapp(P, mode_1.Expl, h))))));
+    /*
+      elimHEq : {-A : *}
+        -> {-a : A}
+        -> (-P : {b : A} -> HEq {A} {A} a b -> *)
+        -> P {a} (HRefl {A} {a})
+        -> {-b : A}
+        -> (p : HEq {A} {A} a b)
+        -> P {b} p
+    */
+    if (name === 'elimHEq')
+        return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Impl, 'a', A, a => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Impl, 'b', A, b => values_1.VPi(false, mode_1.Expl, '', values_1.VEq(A, a, b), _ => values_1.VType)), P => values_1.VPi(false, mode_1.Expl, '_', values_1.vapp2(P, mode_1.Impl, a, mode_1.Expl, values_1.VHRefl(A, a)), _ => values_1.VPi(true, mode_1.Impl, 'b', A, b => values_1.VPi(false, mode_1.Expl, 'p', values_1.VEq(A, a, b), p => values_1.vapp2(P, mode_1.Impl, b, mode_1.Expl, p)))))));
     if (name === 'Void')
         return values_1.VType;
     if (name === '()')
@@ -2651,8 +2656,8 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vproj = exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnit = exports.isVUnitType = exports.isVNilary = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VRefl = exports.VEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = exports.vpred = exports.vprimelim = void 0;
+exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnit = exports.isVUnitType = exports.isVNilary = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VEq = exports.VHRefl = exports.VHEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = exports.vpred = exports.vprimelim = exports.vproj = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2709,10 +2714,12 @@ exports.VBool = exports.VPrim('Bool');
 exports.VTrue = exports.VPrim('True');
 exports.VFalse = exports.VPrim('False');
 exports.VNat = exports.VPrim('Nat');
-const VEq = (A, x, y) => exports.VPrim('Eq', List_1.List.of(exports.EApp(mode_1.Expl, y), exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Impl, A)));
+const VHEq = (A, B, x, y) => exports.VPrim('HEq', List_1.List.of(exports.EApp(mode_1.Expl, y), exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Impl, B), exports.EApp(mode_1.Impl, A)));
+exports.VHEq = VHEq;
+const VHRefl = (A, x) => exports.VPrim('HRefl', List_1.List.of(exports.EApp(mode_1.Impl, x), exports.EApp(mode_1.Impl, A)));
+exports.VHRefl = VHRefl;
+const VEq = (A, x, y) => exports.VHEq(A, A, x, y);
 exports.VEq = VEq;
-const VRefl = (A, x) => exports.VPrim('Refl', List_1.List.of(exports.EApp(mode_1.Impl, x), exports.EApp(mode_1.Impl, A)));
-exports.VRefl = VRefl;
 // IData {I} F
 const VIDataPartial = (I, F) => exports.VPrim('IData', List_1.List.of(exports.EApp(mode_1.Expl, F), exports.EApp(mode_1.Impl, I)));
 exports.VIDataPartial = VIDataPartial;
@@ -2852,9 +2859,8 @@ const vprimelim = (name, scrut, args) => {
     const res = exports.getVPrim(scrut);
     if (res) {
         const [x, spine] = res;
-        if (name === 'elimEq' && x === 'Refl')
-            return exports.vapp(args[2][1], mode_1.Impl, spine[1]);
-        if (name === 'axiomK' && x === 'Refl')
+        // elimHEq {A} {a} P h {b} (HRefl {A} {a}) ~> h
+        if (name === 'elimHEq' && x === 'HRefl')
             return args[3][1];
         if (name === 'elimBool') {
             if (x === 'True')
@@ -2969,8 +2975,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return e.value;
         }));
     if (t.tag === 'Prim') {
-        if (t.name === 'elimEq')
-            return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, 'x', A, x => exports.VPi(false, mode_1.Expl, 'y', A, y => exports.VPi(false, mode_1.Expl, '_', exports.VEq(A, x, y), _ => exports.VType))), P => exports.VAbs(false, mode_1.Expl, 'q', exports.VPi(true, mode_1.Impl, 'x', A, x => exports.vapp(exports.vapp(exports.vapp(P, mode_1.Expl, x), mode_1.Expl, x), mode_1.Expl, exports.VRefl(A, x))), q => exports.VAbs(true, mode_1.Impl, 'x', A, x => exports.VAbs(true, mode_1.Impl, 'y', A, y => exports.VAbs(false, mode_1.Expl, 'p', exports.VEq(A, x, y), p => exports.vprimelim('elimEq', p, [[mode_1.Impl, A], [mode_1.Expl, P], [mode_1.Expl, q], [mode_1.Impl, x], [mode_1.Impl, y]])))))));
+        if (t.name === 'elimHEq')
+            return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(true, mode_1.Impl, 'a', A, a => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Impl, 'b', A, b => exports.VPi(false, mode_1.Expl, '', exports.VEq(A, a, b), _ => exports.VType)), P => exports.VAbs(false, mode_1.Expl, 'h', exports.vapp2(P, mode_1.Impl, a, mode_1.Expl, exports.VHRefl(A, a)), h => exports.VAbs(true, mode_1.Impl, 'b', A, b => exports.VAbs(false, mode_1.Expl, 'p', exports.VEq(A, a, b), p => exports.vprimelim('elimHEq', p, [[mode_1.Impl, A], [mode_1.Impl, a], [mode_1.Expl, P], [mode_1.Expl, h], [mode_1.Impl, b]])))))));
         if (t.name === 'absurd')
             return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(false, mode_1.Expl, 'v', exports.VVoid, v => exports.vprimelim('absurd', v, [[mode_1.Impl, A]])));
         if (t.name === 'elimBool')
@@ -2987,8 +2993,6 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, 'n', exports.VNat, n => exports.VPi(false, mode_1.Expl, '_', exports.VFin(n), _ => exports.VType)), P => exports.VAbs(false, mode_1.Expl, 'z', exports.VPi(true, mode_1.Impl, 'm', exports.VNat, m => exports.vapp2(P, mode_1.Expl, exports.VS(m), mode_1.Expl, exports.VFinLit(0n, m, m))), z => exports.VAbs(false, mode_1.Expl, 's', exports.VPi(false, mode_1.Expl, '_', exports.VPi(true, mode_1.Impl, 'k', exports.VNat, k => exports.VPi(false, mode_1.Expl, 'y', exports.VFin(k), y => exports.vapp2(P, mode_1.Expl, k, mode_1.Expl, y))), _ => exports.VPi(true, mode_1.Impl, 'k', exports.VNat, k => exports.VPi(false, mode_1.Expl, 'y', exports.VFin(k), y => exports.vapp2(P, mode_1.Expl, exports.VS(k), mode_1.Expl, exports.VFS(k, y))))), s => exports.VAbs(true, mode_1.Impl, 'n', exports.VNat, n => exports.VAbs(false, mode_1.Expl, 'x', exports.VFin(n), x => exports.vprimelim('elimFin', x, [[mode_1.Expl, P], [mode_1.Expl, z], [mode_1.Expl, s], [mode_1.Impl, n]]))))));
         if (t.name === 'weakenFin')
             return exports.VAbs(true, mode_1.Impl, 'm', exports.VNat, m => exports.VAbs(true, mode_1.Impl, 'n', exports.VNat, n => exports.VAbs(false, mode_1.Expl, 'f', exports.VFin(n), f => exports.vprimelim('weakenFin', f, [[mode_1.Impl, m], [mode_1.Impl, n]]))));
-        if (t.name === 'axiomK')
-            return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(true, mode_1.Impl, 'x', A, x => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, '_', exports.VEq(A, x, x), _ => exports.VType), P => exports.VAbs(false, mode_1.Expl, 'p', exports.vapp(P, mode_1.Expl, exports.VRefl(A, x)), p => exports.VAbs(false, mode_1.Expl, 'h', exports.VEq(A, x, x), h => exports.vprimelim('axiomK', h, [[mode_1.Impl, A], [mode_1.Impl, x], [mode_1.Expl, P], [mode_1.Expl, p]]))))));
         return exports.VPrim(t.name);
     }
     return t;
