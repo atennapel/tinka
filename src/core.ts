@@ -7,7 +7,7 @@ import { List } from './utils/List';
 import { impossible } from './utils/utils';
 
 export type Core =
-  Var | Global | Prim | Let |
+  Var | Global | Prim | SymbolLit | Let |
   Pi | Abs | App |
   Sigma | Pair | Proj |
   NatLit | FinLit |
@@ -19,6 +19,8 @@ export interface Global { readonly tag: 'Global'; readonly name: Name}
 export const Global = (name: Name): Global => ({ tag: 'Global', name });
 export interface Prim { readonly tag: 'Prim'; readonly name: PrimName }
 export const Prim = (name: PrimName): Prim => ({ tag: 'Prim', name });
+export interface SymbolLit { readonly tag: 'SymbolLit'; readonly name: Name }
+export const SymbolLit = (name: Name): SymbolLit => ({ tag: 'SymbolLit', name });
 export interface Let { readonly tag: 'Let'; readonly erased: Erasure; readonly name: Name; readonly type: Core; readonly val: Core; readonly body: Core }
 export const Let = (erased: Erasure, name: Name, type: Core, val: Core, body: Core): Let => ({ tag: 'Let', erased, name, type, val, body });
 
@@ -113,7 +115,8 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 };
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
-const isSimple = (t: Core) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit';
+const isSimple = (t: Core) =>
+  t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit';
 const showS = (t: Core) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -124,6 +127,7 @@ export const show = (t: Core): string => {
   if (t.tag === 'Var') return `'${t.index}`;
   if (t.tag === 'Global') return `${t.name}`;
   if (t.tag === 'Prim') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
+  if (t.tag === 'SymbolLit') return `'${t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'NatLit') return `${t.value}`;
   if (t.tag === 'FinLit') return `${t.value}/${showS(t.diff)}/${showS(t.type)}`;

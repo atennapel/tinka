@@ -3,7 +3,7 @@ import { indexEnvT, Local, Path } from './local';
 import { allMetasSolved, freshMeta, resetMetas, getMeta, getUnsolvedMetas } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
-import { evaluate, force, isVUnitType, quote, vadd, Val, VFlex, vinst, VNat, VPi, vproj, VS, VType, VVar, zonk } from './values';
+import { evaluate, force, isVUnitType, quote, vadd, Val, VFlex, vinst, VNat, VPi, vproj, VS, VSymbol, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
 import { config, log } from './config';
@@ -120,6 +120,7 @@ const freshPi = (local: Local, erased: Erasure, mode: Mode, x: Name): Val => {
 const synth = (local: Local, tm: Surface): [Core, Val] => {
   log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   if (tm.tag === 'NatLit') return [C.NatLit(tm.value), VNat];
+  if (tm.tag === 'SymbolLit') return [C.SymbolLit(tm.name), VSymbol];
   if (tm.tag === 'Var') {
     if (isPrimName(tm.name)) {
       if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);

@@ -1,0 +1,18 @@
+import eq (Eq, Refl, rewrite);
+
+let -Singleton : {A : *} -> A -> *
+  = \{A} v. (value : A) ** (proof : Eq value v) ** ();
+
+let MkSingleton : {-A : *} -> (v : A) -> Singleton v
+  = \{A} v. [v, Refl];
+
+let manifest : {-A : *} -> {-v : A} -> (-P : A -> *) -> (s : Singleton v) -> P s.value -> P v
+  = \{A} P s x. rewrite P s.proof x;
+
+[Singleton, MkSingleton]
+:
+(-Singleton : {A : *} -> A -> *)
+**
+(MkSingleton : {-A : *} -> (v : A) -> Singleton v)
+**
+()

@@ -1,4 +1,4 @@
-import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit, FinLit } from './core';
+import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit, FinLit, SymbolLit } from './core';
 import { getMeta, MetaVar } from './metas';
 import { Ix, Lvl, Name } from './names';
 import { Lazy } from './utils/Lazy';
@@ -36,7 +36,7 @@ export type Spine = List<Elim>;
 export type EnvV = List<Val>;
 export type Clos = (val: Val) => Val;
 
-export type Val = VRigid | VFlex | VGlobal | VAbs | VPi | VSigma | VPair | VNatLit | VFinLit;
+export type Val = VRigid | VFlex | VGlobal | VAbs | VPi | VSigma | VPair | VNatLit | VFinLit | VSymbolLit;
 
 export interface VRigid { readonly tag: 'VRigid'; readonly head: Head; readonly spine: Spine }
 export const VRigid = (head: Head, spine: Spine): VRigid => ({ tag: 'VRigid', head, spine });
@@ -56,6 +56,8 @@ export interface VNatLit { readonly tag: 'VNatLit'; readonly value: bigint }
 export const VNatLit = (value: bigint): VNatLit => ({ tag: 'VNatLit', value });
 export interface VFinLit { readonly tag: 'VFinLit'; readonly value: bigint; readonly diff: Val; readonly type: Val }
 export const VFinLit = (value: bigint, diff: Val, type: Val): VFinLit => ({ tag: 'VFinLit', value, diff, type });
+export interface VSymbolLit { readonly tag: 'VSymbolLit'; readonly name: Name }
+export const VSymbolLit = (name: Name): VSymbolLit => ({ tag: 'VSymbolLit', name });
 
 export type ValWithClosure = Val & { tag: 'VAbs' | 'VPi' | 'VSigma' };
 export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
@@ -71,6 +73,7 @@ export const VBool = VPrim('Bool');
 export const VTrue = VPrim('True');
 export const VFalse = VPrim('False');
 export const VNat = VPrim('Nat');
+export const VSymbol = VPrim('Symbol');
 
 export const VHEq = (A: Val, B: Val, x: Val, y: Val): Val => VPrim('HEq', List.of(EApp(Expl, y), EApp(Expl, x), EApp(Impl, B), EApp(Impl, A)));
 export const VHRefl = (A: Val, x: Val): Val => VPrim('HRefl', List.of(EApp(Impl, x), EApp(Impl, A)));
@@ -269,6 +272,7 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
     if (i >= l - glueBefore) return VGlobal(HLVar(l - i - 1), nil, Lazy.value(v));
     return v;
   }
+  if (t.tag === 'SymbolLit') return VSymbolLit(t.name);
   if (t.tag === 'Global') return VGlobal(HGlobal(t.name), nil, Lazy.from(() => {
     const e = getGlobal(t.name);
     if (!e) return impossible(`failed to load global ${t.name}`);
@@ -342,6 +346,7 @@ export const quote = (v_: Val, k: Lvl, full: boolean = false, kBefore: Lvl = k):
   const v = force(v_, false);
   if (v.tag === 'VNatLit') return NatLit(v.value);
   if (v.tag === 'VFinLit') return FinLit(v.value, quote(v.diff, k, full, kBefore), quote(v.type, k, full, kBefore));
+  if (v.tag === 'VSymbolLit') return SymbolLit(v.name);
   if (v.tag === 'VRigid')
     return v.spine.foldr(
       (x, y) => quoteElim(y, x, k, full, kBefore),

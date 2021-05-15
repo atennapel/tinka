@@ -9,7 +9,7 @@ import { config } from './config';
 import { PrimNames } from './prims';
 
 export type Surface =
-  Var | Let | Ann |
+  Var | SymbolLit | Let | Ann |
   Pi | Abs | App |
   Sigma | Pair | Proj |
   Import |
@@ -18,6 +18,8 @@ export type Surface =
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
+export interface SymbolLit { readonly tag: 'SymbolLit'; readonly name: Name }
+export const SymbolLit = (name: Name): SymbolLit => ({ tag: 'SymbolLit', name });
 export interface Let { readonly tag: 'Let'; readonly erased: Erasure; readonly name: Name; readonly type: Surface | null; readonly val: Surface; readonly body: Surface }
 export const Let = (erased: Erasure, name: Name, type: Surface | null, val: Surface, body: Surface): Let => ({ tag: 'Let', erased, name, type, val, body });
 export interface Ann { readonly tag: 'Ann'; readonly term: Surface; readonly type: Surface }
@@ -130,7 +132,8 @@ const absIsSimple = (t: Surface): boolean => {
   const [params, body] = flattenAbs(t);
   return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
 };
-const isSimple = (t: Surface) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
+const isSimple = (t: Surface) =>
+  t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -140,6 +143,7 @@ const showProjType = (p: ProjType): string => {
 };
 export const show = (t: Surface): string => {
   if (t.tag === 'Var') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
+  if (t.tag === 'SymbolLit') return `'${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
   if (t.tag === 'NatLit') return `${t.value}`;
@@ -185,6 +189,7 @@ export const show = (t: Surface): string => {
 
 export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Var') return Var(ns.index(t.index) || impossible(`var out of scope in fromCore: ${t.index}`));
+  if (t.tag === 'SymbolLit') return SymbolLit(t.name);
   if (t.tag === 'Global') return Var(t.name);
   if (t.tag === 'Prim') return Var(t.name);
   if (t.tag === 'NatLit') return NatLit(t.value);

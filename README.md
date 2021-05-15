@@ -12,7 +12,9 @@ TODO:
 - [x] add general indexed fixpoint type
 - [x] update libs to use fixpoint
 - [x] add heterogenous equality type with axiom K
+- [ ] add delayed unification in elaboration
 - [ ] add codata fixpoint type
+- [ ] add symbols and enumerations
 - [x] fix importing in web repl
 - [ ] add syntax to explicitly reference local (debruijn), global and primitive vars
 - [ ] add testing

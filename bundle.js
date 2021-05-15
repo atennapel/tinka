@@ -24,7 +24,7 @@ exports.log = log;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.FinLit = exports.NatLit = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.FinLit = exports.NatLit = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.SymbolLit = exports.Prim = exports.Global = exports.Var = void 0;
 const config_1 = require("./config");
 const utils_1 = require("./utils/utils");
 const Var = (index) => ({ tag: 'Var', index });
@@ -33,6 +33,8 @@ const Global = (name) => ({ tag: 'Global', name });
 exports.Global = Global;
 const Prim = (name) => ({ tag: 'Prim', name });
 exports.Prim = Prim;
+const SymbolLit = (name) => ({ tag: 'SymbolLit', name });
+exports.SymbolLit = SymbolLit;
 const Let = (erased, name, type, val, body) => ({ tag: 'Let', erased, name, type, val, body });
 exports.Let = Let;
 const Pi = (erased, mode, name, type, body) => ({ tag: 'Pi', erased, mode, name, type, body });
@@ -123,7 +125,7 @@ const flattenProj = (t) => {
 };
 exports.flattenProj = flattenProj;
 const showP = (b, t) => b ? `(${exports.show(t)})` : exports.show(t);
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit';
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit';
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -139,6 +141,8 @@ const show = (t) => {
         return `${t.name}`;
     if (t.tag === 'Prim')
         return t.name === '*' && config_1.config.unicode ? '★' : `${t.name}`;
+    if (t.tag === 'SymbolLit')
+        return `'${t.name}`;
     if (t.tag === 'Meta')
         return `?${t.id}`;
     if (t.tag === 'NatLit')
@@ -349,6 +353,8 @@ const synth = (local, tm) => {
     config_1.log(() => `synth ${surface_1.show(tm)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     if (tm.tag === 'NatLit')
         return [C.NatLit(tm.value), values_1.VNat];
+    if (tm.tag === 'SymbolLit')
+        return [C.SymbolLit(tm.name), values_1.VSymbol];
     if (tm.tag === 'Var') {
         if (prims_1.isPrimName(tm.name)) {
             if (prims_1.isPrimErased(tm.name) && !local.erased)
@@ -881,7 +887,7 @@ const tokenize = (sc) => {
                 r.push(TName('.'));
             else if (c + next === '--')
                 i++, state = COMMENT;
-            else if (/[\-\.\?\@\#\%\_\@a-z]/i.test(c))
+            else if (/[\'\-\.\?\@\#\%\_\@a-z]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUMBER;
@@ -1071,6 +1077,8 @@ const expr = (t) => {
         const x = t.name;
         if (x === '*')
             return [surface_1.Type, false];
+        if (x[0] === "'")
+            return [surface_1.SymbolLit(x.slice(1)), false];
         if (x[0] === '_') {
             const y = x.slice(1);
             return [surface_1.Hole(y.length > 0 ? y : null), false];
@@ -1428,10 +1436,11 @@ exports.PrimNames = [
     'IData', 'ICon', 'elimIData',
     'Nat', 'S', 'elimNat',
     'Fin', 'FS', 'elimFin', 'weakenFin',
+    'Symbol',
 ];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
-exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat', 'Fin'];
+exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat', 'Fin', 'Symbol'];
 const isPrimErased = (name) => exports.ErasedPrims.includes(name);
 exports.isPrimErased = isPrimErased;
 const primType = (name) => {
@@ -1459,6 +1468,8 @@ const primType = (name) => {
     if (name === '()')
         return values_1.VType;
     if (name === 'Bool')
+        return values_1.VType;
+    if (name === 'Symbol')
         return values_1.VType;
     if (name === '[]')
         return values_1.VUnitType;
@@ -1730,7 +1741,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":2,"./elaboration":3,"./globals":4,"./local":5,"./parser":9,"./surface":12,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Rigid = exports.Hole = exports.Meta = exports.NatLit = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.Var = void 0;
+exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Rigid = exports.Hole = exports.Meta = exports.NatLit = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.SymbolLit = exports.Var = void 0;
 const names_1 = require("./names");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -1739,6 +1750,8 @@ const config_1 = require("./config");
 const prims_1 = require("./prims");
 const Var = (name) => ({ tag: 'Var', name });
 exports.Var = Var;
+const SymbolLit = (name) => ({ tag: 'SymbolLit', name });
+exports.SymbolLit = SymbolLit;
 const Let = (erased, name, type, val, body) => ({ tag: 'Let', erased, name, type, val, body });
 exports.Let = Let;
 const Ann = (term, type) => ({ tag: 'Ann', term, type });
@@ -1850,7 +1863,7 @@ const absIsSimple = (t) => {
     const [params, body] = exports.flattenAbs(t);
     return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
 };
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -1864,6 +1877,8 @@ const showProjType = (p) => {
 const show = (t) => {
     if (t.tag === 'Var')
         return t.name === '*' && config_1.config.unicode ? '★' : `${t.name}`;
+    if (t.tag === 'SymbolLit')
+        return `'${t.name}`;
     if (t.tag === 'Hole')
         return `_${t.name === null ? '' : t.name}`;
     if (t.tag === 'Meta')
@@ -1916,6 +1931,8 @@ exports.show = show;
 const fromCore = (t, ns = List_1.nil) => {
     if (t.tag === 'Var')
         return exports.Var(ns.index(t.index) || utils_1.impossible(`var out of scope in fromCore: ${t.index}`));
+    if (t.tag === 'SymbolLit')
+        return exports.SymbolLit(t.name);
     if (t.tag === 'Global')
         return exports.Var(t.name);
     if (t.tag === 'Prim')
@@ -2061,6 +2078,8 @@ const rename = (id, pren, v_) => {
         return C.NatLit(v.value);
     if (v.tag === 'VFinLit')
         return C.FinLit(v.value, rename(id, pren, v.diff), rename(id, pren, v.type));
+    if (v.tag === 'VSymbolLit')
+        return C.SymbolLit(v.name);
     if (v.tag === 'VFlex') {
         if (v.head === id)
             return utils_1.terr(`occurs check failed: ${id}`);
@@ -2227,6 +2246,8 @@ const unify = (l, a_, b_) => {
     if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value)
         return;
     if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.value === b.value)
+        return;
+    if (a.tag === 'VSymbolLit' && b.tag === 'VSymbolLit' && a.name === b.name)
         return;
     if (a.tag === 'VAbs' && b.tag === 'VAbs') {
         const v = values_1.VVar(l);
@@ -2666,8 +2687,8 @@ exports.iterate = iterate;
 },{"fs":20}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vapp4 = exports.vapp3 = exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnit = exports.isVUnitType = exports.isVNilary = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VEq = exports.VHRefl = exports.VHEq = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
-exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = exports.vpred = exports.vprimelim = exports.vproj = void 0;
+exports.vapp2 = exports.vapp = exports.velimSpine = exports.velim = exports.force = exports.isVUnit = exports.isVUnitType = exports.isVNilary = exports.getVPrim = exports.isVVar = exports.IxFunctor = exports.IxFun = exports.VFS = exports.VFin = exports.VS = exports.VICon = exports.VIData = exports.VIDataPartial = exports.VEq = exports.VHRefl = exports.VHEq = exports.VSymbol = exports.VNat = exports.VFalse = exports.VTrue = exports.VBool = exports.VUnitType = exports.VVoid = exports.VType = exports.VPrim = exports.VMeta = exports.VVar = exports.vinst = exports.VSymbolLit = exports.VFinLit = exports.VNatLit = exports.VPair = exports.VSigma = exports.VPi = exports.VAbs = exports.VGlobal = exports.VFlex = exports.VRigid = exports.EPrim = exports.EProj = exports.EApp = exports.HLVar = exports.HGlobal = exports.HPrim = exports.HVar = void 0;
+exports.zonk = exports.show = exports.normalize = exports.quote = exports.evaluate = exports.velimBD = exports.vaddFull = exports.vadd = exports.vpred = exports.vprimelim = exports.vproj = exports.vapp4 = exports.vapp3 = void 0;
 const core_1 = require("./core");
 const metas_1 = require("./metas");
 const Lazy_1 = require("./utils/Lazy");
@@ -2709,6 +2730,8 @@ const VNatLit = (value) => ({ tag: 'VNatLit', value });
 exports.VNatLit = VNatLit;
 const VFinLit = (value, diff, type) => ({ tag: 'VFinLit', value, diff, type });
 exports.VFinLit = VFinLit;
+const VSymbolLit = (name) => ({ tag: 'VSymbolLit', name });
+exports.VSymbolLit = VSymbolLit;
 const vinst = (val, arg) => val.clos(arg);
 exports.vinst = vinst;
 const VVar = (level, spine = List_1.nil) => exports.VRigid(exports.HVar(level), spine);
@@ -2724,6 +2747,7 @@ exports.VBool = exports.VPrim('Bool');
 exports.VTrue = exports.VPrim('True');
 exports.VFalse = exports.VPrim('False');
 exports.VNat = exports.VPrim('Nat');
+exports.VSymbol = exports.VPrim('Symbol');
 const VHEq = (A, B, x, y) => exports.VPrim('HEq', List_1.List.of(exports.EApp(mode_1.Expl, y), exports.EApp(mode_1.Expl, x), exports.EApp(mode_1.Impl, B), exports.EApp(mode_1.Impl, A)));
 exports.VHEq = VHEq;
 const VHRefl = (A, x) => exports.VPrim('HRefl', List_1.List.of(exports.EApp(mode_1.Impl, x), exports.EApp(mode_1.Impl, A)));
@@ -2977,6 +3001,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VGlobal(exports.HLVar(l - i - 1), List_1.nil, Lazy_1.Lazy.value(v));
         return v;
     }
+    if (t.tag === 'SymbolLit')
+        return exports.VSymbolLit(t.name);
     if (t.tag === 'Global')
         return exports.VGlobal(exports.HGlobal(t.name), List_1.nil, Lazy_1.Lazy.from(() => {
             const e = globals_1.getGlobal(t.name);
@@ -3042,6 +3068,8 @@ const quote = (v_, k, full = false, kBefore = k) => {
         return core_1.NatLit(v.value);
     if (v.tag === 'VFinLit')
         return core_1.FinLit(v.value, exports.quote(v.diff, k, full, kBefore), exports.quote(v.type, k, full, kBefore));
+    if (v.tag === 'VSymbolLit')
+        return core_1.SymbolLit(v.name);
     if (v.tag === 'VRigid')
         return v.spine.foldr((x, y) => quoteElim(y, x, k, full, kBefore), quoteHead(v.head, k));
     if (v.tag === 'VFlex')
@@ -3152,6 +3180,8 @@ const synth = (local, tm) => {
     config_1.log(() => `synth ${core_1.show(tm)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     if (tm.tag === 'NatLit')
         return V.VNat;
+    if (tm.tag === 'SymbolLit')
+        return V.VSymbol;
     if (tm.tag === 'Meta' || tm.tag === 'InsertedMeta') {
         const sol = metas_1.getMeta(tm.id);
         return sol.type;
