@@ -1436,7 +1436,7 @@ exports.PrimNames = [
     'IData', 'ICon', 'elimIData',
     'Nat', 'S', 'elimNat',
     'Fin', 'FS', 'elimFin', 'weakenFin',
-    'Symbol',
+    'Symbol', 'eqSymbol',
 ];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
@@ -1529,6 +1529,9 @@ const primType = (name) => {
     // weakenFin : {-m -n : Nat} -> Fin n -> Fin (add m n) 
     if (name === 'weakenFin')
         return values_1.VPi(true, mode_1.Impl, 'm', values_1.VNat, m => values_1.VPi(true, mode_1.Impl, 'n', values_1.VNat, n => values_1.VPi(false, mode_1.Expl, '_', values_1.VFin(n), _ => values_1.VFin(values_1.vaddFull(m, n)))));
+    // eqSymbol : Symbol -> Symbol -> Bool
+    if (name === 'eqSymbol')
+        return values_1.VPi(false, mode_1.Expl, '_', values_1.VSymbol, _ => values_1.VPi(false, mode_1.Expl, '_', values_1.VSymbol, _ => values_1.VBool));
     return name;
 };
 exports.primType = primType;
@@ -2890,6 +2893,8 @@ const vprimelim = (name, scrut, args) => {
         const m = args[0][1];
         return exports.VFinLit(scrut.value, exports.vaddFull(m, scrut.diff), exports.vaddFull(m, scrut.type));
     }
+    if (name === 'eqSymbol' && scrut.tag === 'VSymbolLit' && args[0][1].tag === 'VSymbolLit')
+        return scrut.name === args[0][1].name ? exports.VTrue : exports.VFalse;
     const res = exports.getVPrim(scrut);
     if (res) {
         const [x, spine] = res;
@@ -3029,6 +3034,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Expl, 'n', exports.VNat, n => exports.VPi(false, mode_1.Expl, '_', exports.VFin(n), _ => exports.VType)), P => exports.VAbs(false, mode_1.Expl, 'z', exports.VPi(true, mode_1.Impl, 'm', exports.VNat, m => exports.vapp2(P, mode_1.Expl, exports.VS(m), mode_1.Expl, exports.VFinLit(0n, m, m))), z => exports.VAbs(false, mode_1.Expl, 's', exports.VPi(false, mode_1.Expl, '_', exports.VPi(true, mode_1.Impl, 'k', exports.VNat, k => exports.VPi(false, mode_1.Expl, 'y', exports.VFin(k), y => exports.vapp2(P, mode_1.Expl, k, mode_1.Expl, y))), _ => exports.VPi(true, mode_1.Impl, 'k', exports.VNat, k => exports.VPi(false, mode_1.Expl, 'y', exports.VFin(k), y => exports.vapp2(P, mode_1.Expl, exports.VS(k), mode_1.Expl, exports.VFS(k, y))))), s => exports.VAbs(true, mode_1.Impl, 'n', exports.VNat, n => exports.VAbs(false, mode_1.Expl, 'x', exports.VFin(n), x => exports.vprimelim('elimFin', x, [[mode_1.Expl, P], [mode_1.Expl, z], [mode_1.Expl, s], [mode_1.Impl, n]]))))));
         if (t.name === 'weakenFin')
             return exports.VAbs(true, mode_1.Impl, 'm', exports.VNat, m => exports.VAbs(true, mode_1.Impl, 'n', exports.VNat, n => exports.VAbs(false, mode_1.Expl, 'f', exports.VFin(n), f => exports.vprimelim('weakenFin', f, [[mode_1.Impl, m], [mode_1.Impl, n]]))));
+        if (t.name === 'eqSymbol')
+            return exports.VAbs(false, mode_1.Expl, 'a', exports.VSymbol, a => exports.VAbs(false, mode_1.Expl, 'b', exports.VSymbol, b => exports.vprimelim('eqSymbol', b, [[mode_1.Expl, a]])));
         return exports.VPrim(t.name);
     }
     return t;

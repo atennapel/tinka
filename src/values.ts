@@ -182,6 +182,8 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
     const m = args[0][1];
     return VFinLit(scrut.value, vaddFull(m, scrut.diff), vaddFull(m, scrut.type));
   }
+  if (name === 'eqSymbol' && scrut.tag === 'VSymbolLit' && args[0][1].tag === 'VSymbolLit')
+    return scrut.name === args[0][1].name ? VTrue : VFalse;
   const res = getVPrim(scrut);
   if (res) {
     const [x, spine] = res;
@@ -318,6 +320,8 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         vprimelim('elimFin', x, [[Expl, P], [Expl, z], [Expl, s], [Impl, n]]))))));
     if (t.name === 'weakenFin')
       return VAbs(true, Impl, 'm', VNat, m => VAbs(true, Impl, 'n', VNat, n => VAbs(false, Expl, 'f', VFin(n), f => vprimelim('weakenFin', f, [[Impl, m], [Impl, n]]))));
+    if (t.name === 'eqSymbol')
+      return VAbs(false, Expl, 'a', VSymbol, a => VAbs(false, Expl, 'b', VSymbol, b => vprimelim('eqSymbol', b, [[Expl, a]])));
     return VPrim(t.name);
   }
   return t;

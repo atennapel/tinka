@@ -1,8 +1,8 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor, VHRefl } from './values';
+import { Val, vapp, VEq, VPi, VType, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor, VHRefl, VSymbol } from './values';
 
 export type PrimConName = '*' | 'HEq' | 'HRefl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IData' | 'ICon' | 'Nat' | 'Fin' | 'Symbol';
-export type PrimElimName = 'elimHEq' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin';
+export type PrimElimName = 'elimHEq' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin' | 'eqSymbol';
 export type PrimName = PrimConName | PrimElimName;
 
 export const PrimNames: string[] = [
@@ -14,7 +14,7 @@ export const PrimNames: string[] = [
   'IData', 'ICon', 'elimIData',
   'Nat', 'S', 'elimNat',
   'Fin', 'FS', 'elimFin', 'weakenFin',
-  'Symbol',
+  'Symbol', 'eqSymbol',
 ];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
@@ -126,6 +126,9 @@ export const primType = (name: PrimName): Val => {
       vapp2(P, Expl, n, Expl, x))))));
   // weakenFin : {-m -n : Nat} -> Fin n -> Fin (add m n) 
   if (name === 'weakenFin') return VPi(true, Impl, 'm', VNat, m => VPi(true, Impl, 'n', VNat, n => VPi(false, Expl, '_', VFin(n), _ => VFin(vaddFull(m, n)))));
+
+  // eqSymbol : Symbol -> Symbol -> Bool
+  if (name === 'eqSymbol') return VPi(false, Expl, '_', VSymbol, _ => VPi(false, Expl, '_', VSymbol, _ => VBool));
 
   return name;
 };
