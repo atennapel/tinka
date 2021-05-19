@@ -19,6 +19,7 @@ COMMANDS
 [:localGlue] enable/disable local glueing
 [:unicode] show unicode
 [:hideImplicits] hide implicits
+[:showEnvs] show environments in debug logs
 [:type or :t] do not normalize
 [:defs] show definitions
 [:clear] clear definitions
@@ -60,6 +61,11 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       const d = !config.unicode;
       setConfig({ unicode: d });
       return cb(`unicode: ${d}`);
+    }
+    if (s === ':showEnvs') {
+      const d = !config.showEnvs;
+      setConfig({ showEnvs: d });
+      return cb(`showEnvs: ${d}`);
     }
     if (s === ':hideImplicits') {
       const d = !config.hideImplicits;

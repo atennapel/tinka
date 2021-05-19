@@ -338,11 +338,11 @@ let holes: Holes = {};
 
 const showValSZ = (local: Local, v: Val) =>
   S.showCore(zonk(quote(v, local.level, false), local.vs, local.level, false), local.ns);
-const showHoles = (tm: Core, ty: Core) => {
+const showHoles = (tm: Core, ty: Core, toplocal: Local) => {
   const holeprops = Object.entries(holes);
   if (holeprops.length === 0) return;
-  const strtype = S.showCore(ty);
-  const strterm = S.showCore(tm);
+  const strtype = S.showCore(ty, toplocal.ns);
+  const strterm = S.showCore(tm, toplocal.ns);
   const str = holeprops.map(([x, [t, v, local]]) => {
     const fst = local.ns.zipWith(local.vs, (x, v) => [x, v] as [Name, Val]);
     const all = fst.zipWith(local.ts, ([x, v], { bound: def, type: ty, inserted, erased }) => [x, v, def, ty, inserted, erased] as [Name, Val, boolean, Val, boolean, boolean]);
@@ -372,9 +372,10 @@ export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core
   const ztm = zonk(tm, local.vs, local.level);
   log(() => S.showCore(ztm, local.ns));
 
-  showHoles(ztm, zty);
+  showHoles(ztm, zty, local);
 
   if (!allMetasSolved())
     return terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}\n\n${showUnsolvedMetas(local)}`);
+
   return [ztm, zty];
 };

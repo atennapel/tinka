@@ -588,12 +588,12 @@ const synthapp = (local, ty_, mode, tm, tmall) => {
 };
 let holes = {};
 const showValSZ = (local, v) => S.showCore(values_1.zonk(values_1.quote(v, local.level, false), local.vs, local.level, false), local.ns);
-const showHoles = (tm, ty) => {
+const showHoles = (tm, ty, toplocal) => {
     const holeprops = Object.entries(holes);
     if (holeprops.length === 0)
         return;
-    const strtype = S.showCore(ty);
-    const strterm = S.showCore(tm);
+    const strtype = S.showCore(ty, toplocal.ns);
+    const strterm = S.showCore(tm, toplocal.ns);
     const str = holeprops.map(([x, [t, v, local]]) => {
         const fst = local.ns.zipWith(local.vs, (x, v) => [x, v]);
         const all = fst.zipWith(local.ts, ([x, v], { bound: def, type: ty, inserted, erased }) => [x, v, def, ty, inserted, erased]);
@@ -616,7 +616,7 @@ const elaborate = (t, local = local_1.Local.empty()) => {
     config_1.log(() => S.showCore(zty, local.ns));
     const ztm = values_1.zonk(tm, local.vs, local.level);
     config_1.log(() => S.showCore(ztm, local.ns));
-    showHoles(ztm, zty);
+    showHoles(ztm, zty, local);
     if (!metas_1.allMetasSolved())
         return utils_1.terr(`not all metas are solved: ${S.showCore(ztm, local.ns)} : ${S.showCore(zty, local.ns)}\n\n${showUnsolvedMetas(local)}`);
     return [ztm, zty];
@@ -1559,6 +1559,7 @@ COMMANDS
 [:localGlue] enable/disable local glueing
 [:unicode] show unicode
 [:hideImplicits] hide implicits
+[:showEnvs] show environments in debug logs
 [:type or :t] do not normalize
 [:defs] show definitions
 [:clear] clear definitions
@@ -1598,6 +1599,11 @@ const runREPL = (s_, cb) => {
             const d = !config_1.config.unicode;
             config_1.setConfig({ unicode: d });
             return cb(`unicode: ${d}`);
+        }
+        if (s === ':showEnvs') {
+            const d = !config_1.config.showEnvs;
+            config_1.setConfig({ showEnvs: d });
+            return cb(`showEnvs: ${d}`);
         }
         if (s === ':hideImplicits') {
             const d = !config_1.config.hideImplicits;
