@@ -13,7 +13,11 @@ let caseSum
   : {-A -B -R : *} -> Sum A B -> (A -> R) -> (B -> R) -> R
   = \{A} {B} {R} x l r. elimSum (\_. R) l r x;
 
-[Sum, @Left, @Right, @elimSum, @caseSum]
+let sum
+  : {-A -B -R : *} -> (A -> R) -> (B -> R) -> Sum A B -> R
+  = \l r x. caseSum x l r;
+
+[Sum, @Left, @Right, @elimSum, @caseSum, @sum]
 :
 (-Sum : * -> * -> *)
 **
@@ -24,5 +28,7 @@ let caseSum
 (elimSum : {-A -B : *} -> (-P : Sum A B -> *) -> ((y : A) -> P (Left y)) -> ((y : B) -> P (Right y)) -> (x : Sum A B) -> P x)
 **
 (caseSum : {-A -B -R : *} -> Sum A B -> (A -> R) -> (B -> R) -> R)
+**
+(sum : {-A -B -R : *} -> (A -> R) -> (B -> R) -> Sum A B -> R)
 **
 ()
