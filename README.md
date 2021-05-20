@@ -5,6 +5,7 @@ Try it out at https://atennapel.github.io/tinka
 
 FEATURES:
 - Type-in-type, not consistent, but type-safe
+- Inductive-recursive datatypes using a functor fixpoint
 - Erasure annotations
 - Implicit parameters with type inference
 
@@ -33,3 +34,4 @@ TODO:
 - [ ] replace void, unit, bool with Fin
 - [ ] add surface syntax for modules
 - [ ] check applications in elaboration
+- [ ] inductive-inductive fixpoints
