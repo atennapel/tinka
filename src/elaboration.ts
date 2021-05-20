@@ -1,13 +1,13 @@
 import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Var, Proj, PIndex, PFst, PSnd, Prim } from './core';
 import { indexEnvT, Local, Path } from './local';
-import { allMetasSolved, freshMeta, resetMetas, getMeta, getUnsolvedMetas } from './metas';
+import { allMetasSolved, freshMeta, resetMetas, getUnsolvedMetas } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
-import { evaluate, force, isVUnitType, quote, vadd, Val, VFlex, vinst, VNat, VPi, vproj, VS, VSymbol, VType, VVar, zonk } from './values';
+import { evaluate, force, isVUnitType, quote, vadd, Val, vinst, VNat, vproj, VS, VSymbol, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
 import { config, log } from './config';
-import { impossible, terr, tryT } from './utils/utils';
+import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Name } from './names';
 import { loadGlobal } from './globals';
@@ -156,6 +156,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
       const pi = evaluate(qpi, local.vs);
       return [Abs(tm.erased, tm.mode, tm.name, type, body), pi];
     } else {
+      // TODO: maybe synth here?
       const pi = freshPi(local, tm.erased, tm.mode, tm.name);
       const term = check(local, tm, pi);
       return [term, pi];
@@ -324,13 +325,9 @@ const synthapp = (local: Local, ty_: Val, mode: Mode, tm: Surface, tmall: Surfac
     return [right, rt, nil];
   }
   if (ty.tag === 'VFlex') {
-    const m = getMeta(ty.head);
-    if (m.tag !== 'Unsolved') return impossible(`solved meta ?${ty.head} in synthapp`);
-    const a = freshMeta(m.type, m.erased);
-    const b = freshMeta(m.type, m.erased);
-    const pi = VPi(false, mode, '_', VFlex(a, ty.spine), () => VFlex(b, ty.spine));
-    unify(local.level, ty, pi);
-    return synthapp(local, pi, mode, tm, tmall);
+    const vpi = freshPi(local, false, mode, 'x');
+    unify(local.level, ty, vpi);
+    return synthapp(local, ty, mode, tm, tmall);
   }
   return terr(`invalid type or plicity mismatch in synthapp in ${show(tmall)}: ${showV(local, ty)} @ ${mode.tag === 'Expl' ? '' : '{'}${show(tm)}${mode.tag === 'Expl' ? '' : '}'}`);
 };

@@ -398,6 +398,7 @@ const synth = (local, tm) => {
             return [core_1.Abs(tm.erased, tm.mode, tm.name, type, body), pi];
         }
         else {
+            // TODO: maybe synth here?
             const pi = freshPi(local, tm.erased, tm.mode, tm.name);
             const term = check(local, tm, pi);
             return [term, pi];
@@ -578,14 +579,9 @@ const synthapp = (local, ty_, mode, tm, tmall) => {
         return [right, rt, List_1.nil];
     }
     if (ty.tag === 'VFlex') {
-        const m = metas_1.getMeta(ty.head);
-        if (m.tag !== 'Unsolved')
-            return utils_1.impossible(`solved meta ?${ty.head} in synthapp`);
-        const a = metas_1.freshMeta(m.type, m.erased);
-        const b = metas_1.freshMeta(m.type, m.erased);
-        const pi = values_1.VPi(false, mode, '_', values_1.VFlex(a, ty.spine), () => values_1.VFlex(b, ty.spine));
-        unification_1.unify(local.level, ty, pi);
-        return synthapp(local, pi, mode, tm, tmall);
+        const vpi = freshPi(local, false, mode, 'x');
+        unification_1.unify(local.level, ty, vpi);
+        return synthapp(local, ty, mode, tm, tmall);
     }
     return utils_1.terr(`invalid type or plicity mismatch in synthapp in ${surface_1.show(tmall)}: ${showV(local, ty)} @ ${mode.tag === 'Expl' ? '' : '{'}${surface_1.show(tm)}${mode.tag === 'Expl' ? '' : '}'}`);
 };
