@@ -65,6 +65,7 @@ export const vinst = (val: ValWithClosure, arg: Val): Val => val.clos(arg);
 export const VVar = (level: Lvl, spine: Spine = nil): Val => VRigid(HVar(level), spine);
 export const VMeta = (meta: MetaVar, spine: Spine = nil): Val => VFlex(meta, spine);
 export const VPrim = (name: PrimConName, spine: Spine = nil): Val => VRigid(HPrim(name), spine);
+export const vprim = (name: PrimConName, spine: Elim[] = []): Val => VPrim(name, List.from(spine.slice().reverse()));
 
 export const VType = VPrim('*');
 export const VVoid = VPrim('Void');
@@ -79,18 +80,28 @@ export const VHEq = (A: Val, B: Val, x: Val, y: Val): Val => VPrim('HEq', List.o
 export const VHRefl = (A: Val, x: Val): Val => VPrim('HRefl', List.of(EApp(Impl, x), EApp(Impl, A)));
 export const VEq = (A: Val, x: Val, y: Val): Val => VHEq(A, A, x, y);
 
-// IData {I} F
-export const VIDataPartial = (I: Val, F: Val): Val => VPrim('IData', List.of(EApp(Expl, F), EApp(Impl, I)));
-// IData {I} F i
-export const VIData = (I: Val, F: Val, i: Val): Val => VPrim('IData', List.of(EApp(Expl, i), EApp(Expl, F), EApp(Impl, I)));
-// ICon {I} {F} {i} x
-export const VICon = (I: Val, F: Val, i: Val, x: Val): Val => VPrim('ICon', List.of(EApp(Expl, x), EApp(Impl, i), EApp(Impl, F), EApp(Impl, I)));
+// IIRData {I} {R} F G
+export const VIIRDataPartial = (I: Val, R: Val, F: Val, G: Val): Val => vprim('IIRData', [EApp(Impl, I), EApp(Impl, R), EApp(Expl, F), EApp(Expl, G)]);
+// IIRData {I} {R} F G i
+export const VIIRData = (I: Val, R: Val, F: Val, G: Val, i: Val): Val => vprim('IIRData', [EApp(Impl, I), EApp(Impl, R), EApp(Expl, F), EApp(Expl, G), EApp(Expl, i)]);
+// IIRCon {I} {R} {F} {G} {i} x
+export const VIIRCon = (I: Val, R: Val, F: Val, G: Val, i: Val, x: Val): Val => vprim('IIRCon', [EApp(Impl, I), EApp(Impl, R), EApp(Impl, F), EApp(Impl, G), EApp(Impl, i), EApp(Expl, x)]);
 export const VS = (n: Val): Val => vprimelim('S', n, []);
 export const VFin = (n: Val): Val => VPrim('Fin', List.of(EApp(Expl, n)));
 export const VFS = (k: Val, f: Val): Val => vprimelim('FS', f, [[Impl, k]]);
 
-export const IxFun = (I: Val): Val => VPi(false, Expl, '_', I, _ => VType); // I -> *
-export const IxFunctor = (I: Val): Val => VPi(false, Expl, '_', IxFun(I), _ => IxFun(I)); // (I -> *) -> I -> *
+// (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *
+export const viirF = (I: Val, R: Val): Val =>
+  VPi(false, Expl, 'S', VPi(false, Expl, '_', I, _ => VType), S =>
+  VPi(false, Expl, '_', VPi(true, Impl, 'i', I, i => VPi(false, Expl, '_', vapp(S, Expl, i), _ => vapp(R, Expl, i))), _ =>
+  VPi(false, Expl, '_', I, _ => VType)));
+// {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i
+export const viirG = (I: Val, R: Val, F: Val): Val =>
+  VPi(true, Impl, 'S', VPi(false, Expl, '_', I, _ => VType), S =>
+  VPi(false, Expl, 'T', VPi(true, Impl, 'i', I, i => VPi(false, Expl, '_', vapp(S, Expl, i), _ => vapp(R, Expl, i))), T =>
+  VPi(true, Impl, 'i', I, i =>
+  VPi(false, Expl, '_', vapp3(F, Expl, S, Expl, T, Expl, i), _ =>
+  vapp(R, Expl, i)))));
 
 export const isVVar = (v: Val): v is VRigid & { head: HVar, spine: Nil } =>
   v.tag === 'VRigid' && v.head.tag === 'HVar' && v.spine.isNil();
@@ -193,16 +204,36 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
       if (x === 'True') return args[1][1];
       if (x === 'False') return args[2][1];
     }
-    // elimData {I} {F} P alg {i} (Con {I} {F} {i} x) ~> alg (\{-i : I} (z : Data {I} F i). elimData {I} {F} P alg {i} z) {i} x
-    if (name === 'elimIData' && x === 'ICon') {
-      const x = spine[3];
+    /*
+    elimData {I} {R} {F} {G} P alg {i} (Con {I} {R} {F} {G} {i} x)
+    ~>
+    alg (\{j} z. elimData {I} {R} {F} {G} P alg {j} z) {i} x
+    */
+    if (name === 'elimIIRData' && x === 'IIRCon') {
+      const x = spine[5];
       const I = args[0][1];
-      const F = args[1][1];
-      const P = args[2][1];
-      const alg = args[3][1];
-      const i = args[4][1];
-      const rec = VAbs(true, Impl, 'i', I, i => VAbs(false, Expl, 'z', VIData(I, F, i), z => vprimelim('elimIData', z, [[Impl, I], [Impl, F], [Expl, P], [Expl, alg], [Impl, i]])));
+      const R = args[1][1];
+      const F = args[2][1];
+      const G = args[3][1];
+      const P = args[4][1];
+      const alg = args[5][1];
+      const i = args[6][1];
+      const rec = VAbs(true, Impl, 'i', I, i => VAbs(false, Expl, 'z', VIIRData(I, R, F, G, i), z => vprimelim('elimIIRData', z, [[Impl, I], [Impl, R], [Impl, F], [Impl, G], [Expl, P], [Expl, alg], [Impl, i]])));
       return vapp3(alg, Expl, rec, Impl, i, Expl, x);
+    }
+    /*
+    funData {I} {R} {F} {G} {i} (Con {I} {R} {F} {G} {i} x)
+    ~>
+    G {Data {I} {R} F G} (funData {I} {R} {F} {G}) {i} x
+    */
+    if (name === 'funIIRData' && x === 'IIRCon') {
+      const x = spine[5];
+      const I = args[0][1];
+      const R = args[1][1];
+      const F = args[2][1];
+      const G = args[3][1];
+      const i = args[4][1];
+      return vapp4(G, Impl, VIIRDataPartial(I, R, F, G), Expl, vfunIIRDataPartial(I, R, F, G), Impl, i, Expl, x);
     }
   }
   if (name === 'elimNat' && (scrut.tag === 'VRigid' || scrut.tag === 'VFlex') && scrut.spine.isCons()) {
@@ -247,6 +278,11 @@ export const vadd = (n: Val, m: bigint): Val => {
 // elimNat (\_. Nat) b (\rec m. S (rec m)) a
 export const vaddFull = (a: Val, b: Val): Val =>
   vprimelim('elimNat', a, [[Expl, VAbs(false, Expl, '_', VNat, _ => VNat)], [Expl, b], [Expl, VAbs(false, Expl, 'rec', VPi(false, Expl, '_', VNat, _ => VNat), rec => VAbs(false, Expl, 'm', VNat, m => VS(vapp(rec, Expl, m))))]]);
+// \{-i : I} (x : IIRData {I} {R} F G i). funData {I} {R} {F} {G} {i} x
+export const vfunIIRDataPartial = (I: Val, R: Val, F: Val, G: Val): Val =>
+  VAbs(true, Impl, 'i', I, i =>
+  VAbs(false, Expl, 'x', VIIRData(I, R, F, G, i), x =>
+  vprimelim('funIIRData', x, [[Impl, I], [Impl, R], [Impl, F], [Impl, G], [Impl, i]])));
 
 export const velimBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
   if (env.isNil() && s.isNil()) return v;
@@ -296,14 +332,6 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(false, Expl, 't', vapp(P, Expl, VTrue), t =>
         VAbs(false, Expl, 'f', vapp(P, Expl, VFalse), f =>
         VAbs(false, Expl, 'b', VBool, b => vprimelim('elimBool', b, [[Expl, P], [Expl, t], [Expl, f]])))));
-    if (t.name === 'elimIData')
-      return VAbs(true, Impl, 'I', VType, I =>
-        VAbs(true, Impl, 'F', IxFunctor(I), F =>
-        VAbs(true, Expl, 'P', VPi(false, Impl, 'i', I, i => VPi(false, Expl, '_', VIData(I, F, i), _ => VType)), P =>
-        VAbs(false, Expl, 'alg', VPi(false, Expl, '_', VPi(true, Impl, 'i', I, i => VPi(false, Expl, 'z', VIData(I, F, i), z => vapp2(P, Impl, i, Expl, z))), _ => VPi(true, Impl, 'i', I, i => VPi(false, Expl, 'y', vapp2(F, Expl, VIDataPartial(I, F), Expl, i), y => vapp2(P, Impl, i, Expl, VICon(I, F, i, y))))), alg =>
-        VAbs(true, Impl, 'i', I, i =>
-        VAbs(false, Expl, 'x', VIData(I, F, i), x =>
-        vprimelim('elimIData', x, [[Impl, I], [Impl, F], [Expl, P], [Expl, alg], [Impl, i]])))))));
     if (t.name === 'S') return VAbs(false, Expl, 'n', VNat, n => vprimelim('S', n, []));
     if (t.name === 'elimNat')
       return VAbs(true, Expl, 'P', VPi(false, Expl, '_', VNat, _ => VType), P =>
@@ -322,6 +350,29 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
       return VAbs(true, Impl, 'm', VNat, m => VAbs(true, Impl, 'n', VNat, n => VAbs(false, Expl, 'f', VFin(n), f => vprimelim('weakenFin', f, [[Impl, m], [Impl, n]]))));
     if (t.name === 'eqSymbol')
       return VAbs(false, Expl, 'a', VSymbol, a => VAbs(false, Expl, 'b', VSymbol, b => vprimelim('eqSymbol', b, [[Expl, a]])));
+    if (t.name === 'elimIIRData')
+      return VAbs(true, Impl, 'I', VType, I =>
+        VAbs(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
+        VAbs(true, Impl, 'F', viirF(I, R), F =>
+        VAbs(false, Impl, 'G', viirG(I, R, F), G =>
+        VAbs(true, Expl, 'P', VPi(false, Impl, 'i', I, i => VPi(false, Expl, '_', VIIRData(I, R, F, G, i), _ => VType)), P =>
+        VAbs(false, Expl, 'alg',
+          VPi(false, Expl, '_', VPi(true, Impl, 'j', I, j => VPi(false, Expl, 'z', VIIRData(I, R, F, G, j), z => vapp2(P, Impl, j, Expl, z))), _ =>
+          VPi(true, Impl, 'i', I, i =>
+          VPi(false, Expl, 'y', vapp3(F, Expl, VIIRDataPartial(I, R, F, G), Expl, vfunIIRDataPartial(I, R, F, G), Expl, i), y =>
+          vapp2(P, Impl, i, Expl, VIIRCon(I, R, F, G, i, y)))))
+        , alg =>
+        VAbs(true, Impl, 'i', I, i =>
+        VAbs(false, Expl, 'x', VIIRData(I, R, F, G, i), x =>
+        vprimelim('elimIIRData', x, [[Impl, I], [Impl, R], [Impl, F], [Impl, G], [Expl, P], [Expl, alg], [Impl, i]])))))))));
+    if (t.name === 'funIIRData')
+      return VAbs(true, Impl, 'I', VType, I =>
+        VAbs(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
+        VAbs(true, Impl, 'F', viirF(I, R), F =>
+        VAbs(false, Impl, 'G', viirG(I, R, F), G =>
+        VAbs(true, Impl, 'i', I, i =>
+        VAbs(false, Expl, 'x', VIIRData(I, R, F, G, i), x =>
+        vprimelim('funIIRData', x, [[Impl, I], [Impl, R], [Impl, F], [Impl, G], [Impl, i]])))))));
     return VPrim(t.name);
   }
   return t;

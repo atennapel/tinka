@@ -1,8 +1,8 @@
 import { Expl, Impl } from './mode';
-import { Val, vapp, VEq, VPi, VType, VVoid, VUnitType, VBool, VTrue, VFalse, VIData, VICon, VNat, VNatLit, VS, VFin, vapp2, VFinLit, VFS, vaddFull, VIDataPartial, IxFun, IxFunctor, VHRefl, VSymbol } from './values';
+import { Val, vapp, VEq, VPi, VType, VVoid, VUnitType, VBool, VTrue, VFalse, VNat, VNatLit, VS, VFin, vapp2, VIIRData, VFinLit, VFS, vaddFull, vfunIIRDataPartial, VHRefl, VSymbol, vapp3, VIIRDataPartial, VIIRCon, viirF, viirG } from './values';
 
-export type PrimConName = '*' | 'HEq' | 'HRefl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IData' | 'ICon' | 'Nat' | 'Fin' | 'Symbol';
-export type PrimElimName = 'elimHEq' | 'absurd' | 'elimBool' | 'elimIData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin' | 'eqSymbol';
+export type PrimConName = '*' | 'HEq' | 'HRefl' | 'Void' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IIRData' | 'IIRCon' | 'Nat' | 'Fin' | 'Symbol';
+export type PrimElimName = 'elimHEq' | 'absurd' | 'elimBool' | 'elimIIRData' | 'funIIRData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin' | 'eqSymbol';
 export type PrimName = PrimConName | PrimElimName;
 
 export const PrimNames: string[] = [
@@ -11,14 +11,14 @@ export const PrimNames: string[] = [
   'Void', 'absurd',
   '()', '[]',
   'Bool', 'True', 'False', 'elimBool',
-  'IData', 'ICon', 'elimIData',
+  'IIRData', 'IIRCon', 'elimIIRData', 'funIIRData',
   'Nat', 'S', 'elimNat',
   'Fin', 'FS', 'elimFin', 'weakenFin',
   'Symbol', 'eqSymbol',
 ];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
-export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'Data', 'Nat', 'Fin', 'Symbol'];
+export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'IIRData', 'Nat', 'Fin', 'Symbol'];
 export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
 
 export const primType = (name: PrimName): Val => {
@@ -65,38 +65,85 @@ export const primType = (name: PrimName): Val => {
       VPi(false, Expl, '_', vapp(P, Expl, VFalse), _ =>
       VPi(false, Expl, 'b', VBool, b => vapp(P, Expl, b)))));
 
-  // {I : *} -> ((I -> *) -> I -> *) -> I -> *
-  if (name === 'IData')
-    return VPi(false, Impl, 'I', VType, I => VPi(false, Expl, '_', IxFunctor(I), _ => IxFun(I)));
-  // {-I : *} -> {-F : (I -> *) -> I -> *} -> {-i : I} -> F (IData {I} F) i -> IData {I} F i
-  if (name === 'ICon')
-    return VPi(true, Impl, 'I', VType, I =>
-      VPi(true, Impl, 'F', IxFunctor(I), F =>
-      VPi(true, Impl, 'i', I, i =>
-      VPi(false, Expl, '_', vapp2(F, Expl, VIDataPartial(I, F), Expl, i), _ =>
-      VIData(I, F, i)))));
+  /*
+    {I : *} ->
+    {R : I -> *} ->
+    (F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *) ->
+    ({-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i) ->
+    I ->
+    *
+  */
+  if (name === 'IIRData')
+    return VPi(false, Impl, 'I', VType, I =>
+      VPi(false, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
+      VPi(false, Expl, 'F', viirF(I, R), F =>
+      VPi(false, Expl, '_', viirG(I, R, F), _ =>
+      VPi(false, Expl, '_', I, _ => VType)))));
   /*
     {-I : *} ->
-    {-F : (I -> *) -> I -> *} ->
-    (-P : {i : I} -> IData {I} F i -> *) ->
+    {-R : I -> *} ->
+    {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
+    {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+    {-i : I} ->
+    F (Data {I} {R} F G) (funData {I} {R} {F} {G}) i ->
+    Data {I} {R} F G i
+  */
+  if (name === 'IIRCon')
+    return VPi(true, Impl, 'I', VType, I =>
+      VPi(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
+      VPi(true, Impl, 'F', viirF(I, R), F =>
+      VPi(false, Impl, 'G', viirG(I, R, F), G =>
+      VPi(true, Impl, 'i', I, i =>
+      VPi(false, Expl, '_', vapp3(F, Expl, VIIRDataPartial(I, R, F, G), Expl, vfunIIRDataPartial(I, R, F, G), Expl, i), _ =>
+      VIIRData(I, R, F, G, i)))))));
+  /*
+    {-I : *} ->
+    {-R : I -> *} ->
+    {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
+    {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+    (-P : {i : I} -> Data {I} {R} F G i -> *) ->
     (
-      ({-i : I} -> (z : IData {I} F i) -> P {i} z) ->
+      ({-j : I} -> (z : Data {I} {R} F G j) -> P {j} z) ->
       {-i : I} ->
-      (y : F (IData {I} F) i) ->
-      P {i} (ICon {I} {F} {i} y)
+      (y : F (Data {I} {R} F G) (funData {I} {R} {F} {G}) i) ->
+      P {i} (Con {I} {R} {F} {G} {i} y)
     ) ->
     {-i : I} ->
-    (x : IData {I} F i) ->
+    (x : Data {I} {R} F G i) ->
     P {i} x
   */
-  if (name === 'elimIData')
+  if (name === 'elimIIRData')
     return VPi(true, Impl, 'I', VType, I =>
-      VPi(true, Impl, 'F', IxFunctor(I), F =>
-      VPi(true, Expl, 'P', VPi(false, Impl, 'i', I, i => VPi(false, Expl, '_', VIData(I, F, i), _ => VType)), P =>
-      VPi(false, Expl, '_', VPi(false, Expl, '_', VPi(true, Impl, 'i', I, i => VPi(false, Expl, 'z', VIData(I, F, i), z => vapp2(P, Impl, i, Expl, z))), _ => VPi(true, Impl, 'i', I, i => VPi(false, Expl, 'y', vapp2(F, Expl, VIDataPartial(I, F), Expl, i), y => vapp2(P, Impl, i, Expl, VICon(I, F, i, y))))), _ =>
+      VPi(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
+      VPi(true, Impl, 'F', viirF(I, R), F =>
+      VPi(false, Impl, 'G', viirG(I, R, F), G =>
+      VPi(true, Expl, 'P', VPi(false, Impl, 'i', I, i => VPi(false, Expl, '_', VIIRData(I, R, F, G, i), _ => VType)), P =>
+      VPi(false, Expl, '_',
+        VPi(false, Expl, '_', VPi(true, Impl, 'j', I, j => VPi(false, Expl, 'z', VIIRData(I, R, F, G, j), z => vapp2(P, Impl, j, Expl, z))), _ =>
+        VPi(true, Impl, 'i', I, i =>
+        VPi(false, Expl, 'y', vapp3(F, Expl, VIIRDataPartial(I, R, F, G), Expl, vfunIIRDataPartial(I, R, F, G), Expl, i), y =>
+        vapp2(P, Impl, i, Expl, VIIRCon(I, R, F, G, i, y)))))
+      , _ =>
       VPi(true, Impl, 'i', I, i =>
-      VPi(false, Expl, 'x', VIData(I, F, i), x =>
-      vapp2(P, Impl, i, Expl, x)))))));
+      VPi(false, Expl, 'x', VIIRData(I, R, F, G, i), x =>
+      vapp2(P, Impl, i, Expl, x)))))))));
+  /*
+    {-I : *} ->
+    {-R : I -> *} ->
+    {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
+    {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+    {-i : I} ->
+    Data {I} {R} F G i ->
+    R i
+  */
+  if (name === 'funIIRData')
+    return VPi(true, Impl, 'I', VType, I =>
+      VPi(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
+      VPi(true, Impl, 'F', viirF(I, R), F =>
+      VPi(false, Impl, 'G', viirG(I, R, F), G =>
+      VPi(true, Impl, 'i', I, i =>
+      VPi(false, Expl, '_', VIIRData(I, R, F, G, i), _ =>
+      vapp(R, Expl, i)))))));
 
   if (name === 'Nat') return VType;
   if (name === 'S') return VPi(false, Expl, '_', VNat, _ => VNat);

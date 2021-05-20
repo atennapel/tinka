@@ -68,14 +68,15 @@ Con :
   {-I : *} ->
   {-R : I -> *} ->
   {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-  {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+  {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+  {-i : I} ->
   F (Data {I} {R} F G) (funData {I} {R} {F} {G}) i ->
   Data {I} {R} F G i
 funData :
   {-I : *} ->
   {-R : I -> *} ->
   {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-  {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+  {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
   {-i : I} ->
   Data {I} {R} F G i ->
   R i
@@ -83,15 +84,24 @@ elimData :
   {-I : *} ->
   {-R : I -> *} ->
   {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-  {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+  {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
   (-P : {i : I} -> Data {I} {R} F G i -> *) ->
   (
-    ({-j : I} -> (z : Data {I} {R} F G j) -> P {j} y) ->
+    ({-j : I} -> (z : Data {I} {R} F G j) -> P {j} z) ->
     {-i : I} ->
-    (y : F (Data {I} {R} F G) (funData {R} {F} {G}) i) ->
+    (y : F (Data {I} {R} F G) (funData {I} {R} {F} {G}) i) ->
     P {i} (Con {I} {R} {F} {G} {i} y)
   ) ->
   {-i : I} ->
-  (x : Data {R} F G i) ->
+  (x : Data {I} {R} F G i) ->
   P {i} x
+
+-- computation
+elimData {I} {R} {F} {G} P alg {i} (Con {I} {R} {F} {G} {i} x)
+~>
+alg (\{j} z. elimData {I} {R} {F} {G} P alg {j} z) {i} x
+
+funData {I} {R} {F} {G} {i} (Con {I} {R} {F} {G} {i} x)
+~>
+G {Data {I} {R} F G} (funData {I} {R} {F} {G}) {i} x
 ```

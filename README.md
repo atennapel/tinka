@@ -12,7 +12,9 @@ TODO:
 - [x] add general indexed fixpoint type
 - [x] update libs to use fixpoint
 - [x] add heterogenous equality type with axiom K
-- [ ] research inductive-recursive fixpoints
+- [x] research inductive-recursive fixpoints
+- [x] implement inductive-recursive fixpoints
+- [ ] test inductive-recursive fixpoints
 - [ ] separate file/url references in syntax
 - [ ] add delayed unification in elaboration
 - [ ] add codata fixpoint type

@@ -1,0 +1,51 @@
+let -IFun : * -> * = \I. I -> *;
+let -IFunctor : * -> * = \I. IFun I -> IFun I;
+let -liftIFunctor
+  : (I : *) -> IFunctor I -> (S : I -> *) -> ({-i : I} -> S i -> ()) -> I -> *
+  = \I F S f i. F S i;
+let trivialFunction
+  : (-I : *) -> (-F : IFunctor I) -> {-S : I -> *} -> (T : {-i : I} -> S i -> ()) -> {-i : I} -> liftIFunctor I F S T i -> ()
+  = \_ _ _ _. [];
+
+let -IData : {I : *} -> IFunctor I -> IFun I
+  = \{I} F i. IIRData {I} {\_. ()} (liftIFunctor I F) (trivialFunction I F) i;
+
+let ICon : {-I : *} -> {-F : IFunctor I} -> {-i : I} -> F (IData {I} F) i -> IData {I} F i
+  = \{I} {F} {i} x. IIRCon {I} {\_. ()} {liftIFunctor I F} {trivialFunction I F} {i} x;
+
+let elimIData
+  : {-I : *} ->
+    {-F : (I -> *) -> I -> *} ->
+    (-P : {i : I} -> IData {I} F i -> *) ->
+    (
+      ({-i : I} -> (z : IData {I} F i) -> P {i} z) ->
+      {-i : I} ->
+      (y : F (IData {I} F) i) ->
+      P {i} (ICon {I} {F} {i} y)
+    ) ->
+    {-i : I} ->
+    (x : IData {I} F i) ->
+    P {i} x
+  = \{I} {F} P alg {i} x. elimIIRData {I} {\_. ()} {liftIFunctor I F} {trivialFunction I F} P alg {i} x;
+
+[@IData, @ICon, @elimIData]
+:
+(-IData : {I : *} -> IFunctor I -> IFun I)
+**
+(ICon : {-I : *} -> {-F : IFunctor I} -> {-i : I} -> F (IData {I} F) i -> IData {I} F i)
+**
+(elimIData
+  : {-I : *} ->
+    {-F : (I -> *) -> I -> *} ->
+    (-P : {i : I} -> IData {I} F i -> *) ->
+    (
+      ({-i : I} -> (z : IData {I} F i) -> P {i} z) ->
+      {-i : I} ->
+      (y : F (IData {I} F) i) ->
+      P {i} (ICon {I} {F} {i} y)
+    ) ->
+    {-i : I} ->
+    (x : IData {I} F i) ->
+    P {i} x)
+**
+()
