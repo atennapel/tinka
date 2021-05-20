@@ -7,7 +7,7 @@ import { evaluate, force, quote, Val, vinst, VType } from './values';
 import * as V from './values';
 import { unify } from './unification';
 import { eqMode, Expl, Mode } from './mode';
-import { primType } from './prims';
+import { isPrimErased, primType } from './prims';
 import { Ix } from './names';
 import { getMeta } from './metas';
 
@@ -43,7 +43,10 @@ const synth = (local: Local, tm: Core): Val => {
     if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);
     return entry.type;
   }
-  if (tm.tag === 'Prim') return primType(tm.name);
+  if (tm.tag === 'Prim') {
+    if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
+    return primType(tm.name);
+  }
   if (tm.tag === 'Global') {
     const e = loadGlobal(tm.name);
     if (!e) return terr(`undefined global ${show(tm)}`);
@@ -73,14 +76,14 @@ const synth = (local: Local, tm: Core): Val => {
     return ty;
   }
   if (tm.tag === 'Pi') {
-    // if (!local.erased) return terr(`pi type in non-type context: ${show(tm)}`);
+    if (!local.erased) return terr(`pi type in non-type context: ${show(tm)}`);
     check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
     check(local.inType().bind(tm.erased, tm.mode, tm.name, ty), tm.body, VType);
     return VType;
   }
   if (tm.tag === 'Sigma') {
-    // if (!local.erased) return terr(`sigma type in non-type context: ${show(tm)}`);
+    if (!local.erased) return terr(`sigma type in non-type context: ${show(tm)}`);
     check(local.inType(), tm.type, VType);
     const ty = evaluate(tm.type, local.vs);
     check(local.inType().bind(tm.erased, Expl, tm.name, ty), tm.body, VType);

@@ -17,7 +17,6 @@ TODO:
 - [x] implement inductive-recursive fixpoints
 - [x] test inductive-recursive fixpoints
 - [x] separate file/url references in syntax
-- [ ] fix issue with erased inductive-recursive function
 - [ ] multi-line comments
 - [ ] add delayed unification in elaboration
 - [ ] add codata fixpoint type
@@ -33,7 +32,6 @@ TODO:
 - [ ] fix case-insensitive filesystem support
 - [x] add primitive Nat
 - [x] add primitive Fin
-- [ ] do not allow non-erased types (but make sure IR types keep working)
 - [ ] replace void, unit, bool with Fin
 - [ ] add surface syntax for modules
 - [ ] add surface syntax for datatypes

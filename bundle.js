@@ -358,8 +358,13 @@ const synth = (local, tm) => {
     if (tm.tag === 'Var') {
         const i = local.nsSurface.indexOf(tm.name);
         if (i < 0) {
-            if (prims_1.isPrimName(tm.name))
+            if (prims_1.isPrimName(tm.name)) {
+                if (prims_1.isPrimErased(tm.name) && !local.erased)
+                    return utils_1.terr(`erased prim used: ${surface_1.show(tm)}`);
                 return [core_1.Prim(tm.name), prims_1.primType(tm.name)];
+            }
+            else
+                utils_1.terr(`undefined variable of primitive: ${surface_1.show(tm)}`);
             utils_1.terr(`undefined variable of primitive: ${surface_1.show(tm)}`);
         }
         else {
@@ -399,7 +404,8 @@ const synth = (local, tm) => {
         }
     }
     if (tm.tag === 'Pi') {
-        // if (!local.erased) return terr(`pi type in non-type context: ${show(tm)}`);
+        if (!local.erased)
+            return utils_1.terr(`pi type in non-type context: ${surface_1.show(tm)}`);
         const type = check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(type, local.vs);
         const body = check(local.inType().bind(tm.erased, tm.mode, tm.name, ty), tm.body, values_1.VType);
@@ -407,7 +413,8 @@ const synth = (local, tm) => {
         return [pi, values_1.VType];
     }
     if (tm.tag === 'Sigma') {
-        // if (!local.erased) return terr(`sigma type in non-type context: ${show(tm)}`);
+        if (!local.erased)
+            return utils_1.terr(`sigma type in non-type context: ${surface_1.show(tm)}`);
         const type = check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(type, local.vs);
         const body = check(local.inType().bind(tm.erased, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);
@@ -1422,9 +1429,12 @@ exports.parse = parse;
 },{"./config":1,"./mode":7,"./surface":12,"./utils/utils":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.primType = exports.isPrimName = exports.PrimNames = void 0;
+exports.primType = exports.isPrimName = exports.PrimNames = exports.isPrimErased = exports.ErasedPrims = void 0;
 const mode_1 = require("./mode");
 const values_1 = require("./values");
+exports.ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'IIRData', 'Nat', 'Fin', 'Symbol'];
+const isPrimErased = (name) => exports.ErasedPrims.includes(name);
+exports.isPrimErased = isPrimErased;
 exports.PrimNames = [
     '*',
     'HEq', 'HRefl', 'elimHEq',
@@ -1503,7 +1513,7 @@ const primType = (name) => {
       {-I : *} ->
       {-R : I -> *} ->
       {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-      {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+      {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
       (-P : {i : I} -> Data {I} {R} F G i -> *) ->
       (
         ({-j : I} -> (z : Data {I} {R} F G j) -> P {j} z) ->
@@ -1516,7 +1526,7 @@ const primType = (name) => {
       P {i} x
     */
     if (name === 'elimIIRData')
-        return values_1.VPi(true, mode_1.Impl, 'I', values_1.VType, I => values_1.VPi(true, mode_1.Impl, 'R', values_1.VPi(false, mode_1.Expl, '_', I, _ => values_1.VType), R => values_1.VPi(true, mode_1.Impl, 'F', values_1.viirF(I, R), F => values_1.VPi(false, mode_1.Impl, 'G', values_1.viirG(I, R, F), G => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, '_', values_1.VIIRData(I, R, F, G, i), _ => values_1.VType)), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Impl, 'j', I, j => values_1.VPi(false, mode_1.Expl, 'z', values_1.VIIRData(I, R, F, G, j), z => values_1.vapp2(P, mode_1.Impl, j, mode_1.Expl, z))), _ => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'y', values_1.vapp3(F, mode_1.Expl, values_1.VIIRDataPartial(I, R, F, G), mode_1.Expl, values_1.vfunIIRDataPartial(I, R, F, G), mode_1.Expl, i), y => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, values_1.VIIRCon(I, R, F, G, i, y))))), _ => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'x', values_1.VIIRData(I, R, F, G, i), x => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, x)))))))));
+        return values_1.VPi(true, mode_1.Impl, 'I', values_1.VType, I => values_1.VPi(true, mode_1.Impl, 'R', values_1.VPi(false, mode_1.Expl, '_', I, _ => values_1.VType), R => values_1.VPi(true, mode_1.Impl, 'F', values_1.viirF(I, R), F => values_1.VPi(true, mode_1.Impl, 'G', values_1.viirG(I, R, F), G => values_1.VPi(true, mode_1.Expl, 'P', values_1.VPi(false, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, '_', values_1.VIIRData(I, R, F, G, i), _ => values_1.VType)), P => values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(false, mode_1.Expl, '_', values_1.VPi(true, mode_1.Impl, 'j', I, j => values_1.VPi(false, mode_1.Expl, 'z', values_1.VIIRData(I, R, F, G, j), z => values_1.vapp2(P, mode_1.Impl, j, mode_1.Expl, z))), _ => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'y', values_1.vapp3(F, mode_1.Expl, values_1.VIIRDataPartial(I, R, F, G), mode_1.Expl, values_1.vfunIIRDataPartial(I, R, F, G), mode_1.Expl, i), y => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, values_1.VIIRCon(I, R, F, G, i, y))))), _ => values_1.VPi(true, mode_1.Impl, 'i', I, i => values_1.VPi(false, mode_1.Expl, 'x', values_1.VIIRData(I, R, F, G, i), x => values_1.vapp2(P, mode_1.Impl, i, mode_1.Expl, x)))))))));
     /*
       {-I : *} ->
       {-R : I -> *} ->
@@ -3309,8 +3319,11 @@ const synth = (local, tm) => {
             return utils_1.terr(`erased var used: ${core_1.show(tm)}`);
         return entry.type;
     }
-    if (tm.tag === 'Prim')
+    if (tm.tag === 'Prim') {
+        if (prims_1.isPrimErased(tm.name) && !local.erased)
+            return utils_1.terr(`erased prim used: ${core_1.show(tm)}`);
         return prims_1.primType(tm.name);
+    }
     if (tm.tag === 'Global') {
         const e = globals_1.loadGlobal(tm.name);
         if (!e)
@@ -3343,14 +3356,16 @@ const synth = (local, tm) => {
         return ty;
     }
     if (tm.tag === 'Pi') {
-        // if (!local.erased) return terr(`pi type in non-type context: ${show(tm)}`);
+        if (!local.erased)
+            return utils_1.terr(`pi type in non-type context: ${core_1.show(tm)}`);
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
         check(local.inType().bind(tm.erased, tm.mode, tm.name, ty), tm.body, values_1.VType);
         return values_1.VType;
     }
     if (tm.tag === 'Sigma') {
-        // if (!local.erased) return terr(`sigma type in non-type context: ${show(tm)}`);
+        if (!local.erased)
+            return utils_1.terr(`sigma type in non-type context: ${core_1.show(tm)}`);
         check(local.inType(), tm.type, values_1.VType);
         const ty = values_1.evaluate(tm.type, local.vs);
         check(local.inType().bind(tm.erased, mode_1.Expl, tm.name, ty), tm.body, values_1.VType);

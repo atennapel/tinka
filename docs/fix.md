@@ -44,7 +44,7 @@ funData :
 elimData :
   {-R : *} ->
   {-F : (S : *) -> (S -> R) -> *} ->
-  {G : {-S : *} -> (T : S -> R) -> F S T -> R} ->
+  {-G : {-S : *} -> (T : S -> R) -> F S T -> R} ->
   (-P : Data {R} F G -> *) ->
   (
     ((z : Data {R} F G) -> P z) ->
@@ -84,7 +84,7 @@ elimData :
   {-I : *} ->
   {-R : I -> *} ->
   {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-  {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+  {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
   (-P : {i : I} -> Data {I} {R} F G i -> *) ->
   (
     ({-j : I} -> (z : Data {I} {R} F G j) -> P {j} z) ->

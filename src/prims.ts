@@ -5,6 +5,9 @@ export type PrimConName = '*' | 'HEq' | 'HRefl' | 'Void' | '()' | '[]' | 'Bool' 
 export type PrimElimName = 'elimHEq' | 'absurd' | 'elimBool' | 'elimIIRData' | 'funIIRData' | 'S' | 'elimNat' | 'FS' | 'elimFin' | 'weakenFin' | 'eqSymbol';
 export type PrimName = PrimConName | PrimElimName;
 
+export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'IIRData', 'Nat', 'Fin', 'Symbol'];
+export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
+
 export const PrimNames: string[] = [
   '*',
   'HEq', 'HRefl', 'elimHEq',
@@ -97,7 +100,7 @@ export const primType = (name: PrimName): Val => {
     {-I : *} ->
     {-R : I -> *} ->
     {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-    {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+    {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
     (-P : {i : I} -> Data {I} {R} F G i -> *) ->
     (
       ({-j : I} -> (z : Data {I} {R} F G j) -> P {j} z) ->
@@ -113,7 +116,7 @@ export const primType = (name: PrimName): Val => {
     return VPi(true, Impl, 'I', VType, I =>
       VPi(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
       VPi(true, Impl, 'F', viirF(I, R), F =>
-      VPi(false, Impl, 'G', viirG(I, R, F), G =>
+      VPi(true, Impl, 'G', viirG(I, R, F), G =>
       VPi(true, Expl, 'P', VPi(false, Impl, 'i', I, i => VPi(false, Expl, '_', VIIRData(I, R, F, G, i), _ => VType)), P =>
       VPi(false, Expl, '_',
         VPi(false, Expl, '_', VPi(true, Impl, 'j', I, j => VPi(false, Expl, 'z', VIIRData(I, R, F, G, j), z => vapp2(P, Impl, j, Expl, z))), _ =>

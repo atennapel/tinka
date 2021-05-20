@@ -7,7 +7,7 @@ import lib/sum;
 -- definition of T
 let -TF = \T El. Sum () ((A : T) ** (K : El A -> T) ** ());
 -- definition of El
-let TG
+let -TG
   : {-T : *} -> (El : T -> *) -> TF T El -> *
   = \{T} El x. caseSum x (\_. ()) (\p. (x : El p.A) -> El (p.K x));
 

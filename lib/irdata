@@ -32,7 +32,7 @@ let IRCon
 let elimIRData
   : {-R : *}
     -> {-F : (S : *) -> (S -> R) -> *}
-    -> {G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> {-G : {-S : *} -> (T : S -> R) -> F S T -> R}
     -> (-P : IRData {R} F G -> *)
     -> (
       ((z : IRData {R} F G) -> P z)
@@ -67,7 +67,7 @@ let elimIRData
 (elimIRData
   : {-R : *}
     -> {-F : (S : *) -> (S -> R) -> *}
-    -> {G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> {-G : {-S : *} -> (T : S -> R) -> F S T -> R}
     -> (-P : IRData {R} F G -> *)
     -> (
       ((z : IRData {R} F G) -> P z)

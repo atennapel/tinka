@@ -12,7 +12,7 @@ import { unify } from './unification';
 import { Ix, Name } from './names';
 import { loadGlobal } from './globals';
 import { eqMode, Erasure, Expl, Impl, Mode } from './mode';
-import { isPrimName, primType } from './prims';
+import { isPrimErased, isPrimName, primType } from './prims';
 
 export type HoleInfo = [Val, Val, Local, boolean];
 
@@ -124,7 +124,10 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);
     if (i < 0) {
-      if (isPrimName(tm.name)) return [Prim(tm.name), primType(tm.name)];
+      if (isPrimName(tm.name)) {
+        if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
+        return [Prim(tm.name), primType(tm.name)];
+      } else terr(`undefined variable of primitive: ${show(tm)}`);
       terr(`undefined variable of primitive: ${show(tm)}`);
     } else {
       const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
@@ -159,7 +162,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
     }
   }
   if (tm.tag === 'Pi') {
-    // if (!local.erased) return terr(`pi type in non-type context: ${show(tm)}`);
+    if (!local.erased) return terr(`pi type in non-type context: ${show(tm)}`);
     const type = check(local.inType(), tm.type, VType);
     const ty = evaluate(type, local.vs);
     const body = check(local.inType().bind(tm.erased, tm.mode, tm.name, ty), tm.body, VType);
@@ -167,7 +170,7 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
     return [pi, VType];
   }
   if (tm.tag === 'Sigma') {
-    // if (!local.erased) return terr(`sigma type in non-type context: ${show(tm)}`);
+    if (!local.erased) return terr(`sigma type in non-type context: ${show(tm)}`);
     const type = check(local.inType(), tm.type, VType);
     const ty = evaluate(type, local.vs);
     const body = check(local.inType().bind(tm.erased, Expl, tm.name, ty), tm.body, VType);
