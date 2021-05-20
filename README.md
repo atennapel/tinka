@@ -23,7 +23,7 @@ TODO:
 - [x] make sure metas solutions are correct with respect to erasure
 - [x] add primitive Nat
 - [x] add primitive Fin
-- [ ] pruning and intersecting
+- [x] pruning and intersecting
 - [ ] add delayed unification in elaboration
 - [ ] check applications in elaboration
 - [ ] fix negative vars in output

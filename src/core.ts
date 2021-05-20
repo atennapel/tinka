@@ -45,8 +45,10 @@ export const FinLit = (value: bigint, diff: Core, type: Core): FinLit => ({ tag:
 
 export interface Meta { readonly tag: 'Meta'; readonly id: MetaVar }
 export const Meta = (id: MetaVar): Meta => ({ tag: 'Meta', id });
-export interface InsertedMeta { readonly tag: 'InsertedMeta'; readonly id: MetaVar; readonly spine: List<[Mode, boolean]> }
-export const InsertedMeta = (id: MetaVar, spine: List<[Mode, boolean]>): InsertedMeta => ({ tag: 'InsertedMeta', id, spine });
+export type Pruning = List<[Mode, boolean]>;
+export type RevPruning = Pruning;
+export interface InsertedMeta { readonly tag: 'InsertedMeta'; readonly id: MetaVar; readonly spine: Pruning }
+export const InsertedMeta = (id: MetaVar, spine: Pruning): InsertedMeta => ({ tag: 'InsertedMeta', id, spine });
 
 export type ProjType = PProj | PIndex;
 

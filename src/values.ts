@@ -1,4 +1,4 @@
-import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit, FinLit, SymbolLit } from './core';
+import { App, Core, Var, show as showCore, Abs, Pi, Global, Meta, Let, Sigma, Pair, Proj, ProjType, PIndex, Prim, NatLit, FinLit, SymbolLit, Pruning } from './core';
 import { getMeta, MetaVar } from './metas';
 import { Ix, Lvl, Name } from './names';
 import { Lazy } from './utils/Lazy';
@@ -284,7 +284,7 @@ export const vfunIIRDataPartial = (I: Val, R: Val, F: Val, G: Val): Val =>
   VAbs(false, Expl, 'x', VIIRData(I, R, F, G, i), x =>
   vprimelim('funIIRData', x, [[Impl, I], [Impl, R], [Impl, F], [Impl, G], [Impl, i]])));
 
-export const velimBD = (env: EnvV, v: Val, s: List<[Mode, boolean]>): Val => {
+export const velimBD = (env: EnvV, v: Val, s: Pruning): Val => {
   if (env.isNil() && s.isNil()) return v;
   if (env.isCons() && s.isCons())
     return s.head[1] ? vapp(velimBD(env.tail, v, s.tail), s.head[0], env.head) : velimBD(env.tail, v, s.tail);

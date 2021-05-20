@@ -2149,67 +2149,137 @@ const mode_1 = require("./mode");
 const verification_1 = require("./verification");
 const local_1 = require("./local");
 const insert = (map, key, value) => ({ ...map, [key]: value });
-const PRen = (dom, cod, ren) => ({ dom, cod, ren });
-const lift = (pren) => PRen(pren.dom + 1, pren.cod + 1, insert(pren.ren, pren.cod, pren.dom));
-const invertSpine = (sp) => sp.foldr((app, [dom, ren]) => {
+const deleteKey = (map, key) => {
+    const n = {};
+    for (let k in map) {
+        if (+k !== key)
+            n[k] = map[k];
+    }
+    return n;
+};
+const PRen = (occ, dom, cod, ren) => ({ occ, dom, cod, ren });
+const lift = (pren) => PRen(pren.occ, pren.dom + 1, pren.cod + 1, insert(pren.ren, pren.cod, pren.dom));
+const skip = (pren) => PRen(pren.occ, pren.dom, pren.cod + 1, pren.ren);
+const invertSpine = (sp) => sp.foldr((app, [dom, ren, pr, isLinear]) => {
     if (app.tag !== 'EApp')
         return utils_1.terr(`not a variable in the spine: ${app.tag === 'EPrim' ? app.name : app.tag}`);
     const v = values_1.force(app.arg);
     if (!values_1.isVVar(v))
         return utils_1.terr(`not a variable in the spine`);
     const x = v.head.level;
-    if (typeof ren[x] === 'number')
-        return utils_1.terr(`non-linear spine`);
-    return [dom + 1, insert(ren, x, dom)];
-}, [0, {}]);
+    return typeof ren[x] === 'number' ?
+        [dom + 1, deleteKey(ren, x), List_1.cons([app.mode, false], pr), false] :
+        [dom + 1, insert(ren, x, dom), List_1.cons([app.mode, true], pr), isLinear];
+}, [0, {}, List_1.nil, true]);
 const invert = (gamma, sp) => {
-    const [dom, ren] = invertSpine(sp);
-    return PRen(dom, gamma, ren);
+    const [dom, ren, pr, isLinear] = invertSpine(sp);
+    return [PRen(-1, dom, gamma, ren), isLinear ? pr : null];
 };
-const renameElim = (id, pren, t, e) => {
+const pruneTy = (pr, a_, pren = PRen(-1, 0, 0, {})) => {
+    const a = values_1.force(a_);
+    if (pr.isNil())
+        return rename(pren, a);
+    if (pr.isCons() && a.tag === 'VPi') {
+        if (pr.head[1])
+            return core_1.Pi(a.erased, a.mode, a.name, rename(pren, a.type), pruneTy(pr.tail, values_1.vinst(a, values_1.VVar(pren.cod)), lift(pren)));
+        else
+            return pruneTy(pr.tail, values_1.vinst(a, values_1.VVar(pren.cod)), skip(pren));
+    }
+    return utils_1.impossible(`pruneTy, not a pi: ${a.tag}`);
+};
+const pruneMeta = (pr, m) => {
+    const entry = metas_1.getMeta(m);
+    if (entry.tag === 'Solved')
+        return utils_1.impossible(`pruneMeta, meta is solved: ?${m}`);
+    const mty = entry.type;
+    const prunedTy = values_1.evaluate(pruneTy(pr.reverse(), mty), List_1.nil);
+    const m2 = metas_1.freshMeta(prunedTy, entry.erased);
+    const solution = lams(pr.length(), mty, C.InsertedMeta(m2, pr));
+    const vsolution = values_1.evaluate(solution, List_1.nil);
+    metas_1.setMeta(m, vsolution);
+    return [m2, prunedTy];
+};
+const pruneVFlexSpine = (pren, spine) => spine.foldr((app, [sp, status]) => {
+    if (app.tag !== 'EApp')
+        return utils_1.terr(`not a variable in the spine: ${app.tag === 'EPrim' ? app.name : app.tag}`);
+    const v = values_1.force(app.arg);
+    if (values_1.isVVar(v)) {
+        const y = pren.ren[v.head.level];
+        const contained = typeof y === 'number';
+        if (contained)
+            return [List_1.cons([core_1.Var(pren.dom - (y + 1)), app.mode], sp), status];
+        if (status === 'OKNonRenaming')
+            return utils_1.terr(`pruneVFlexSpine: failed to prune spine (1)`);
+        return [List_1.cons([null, app.mode], sp), 'NeedsPruning'];
+    }
+    else {
+        if (status === 'NeedsPruning')
+            return utils_1.terr(`pruneVFlexSpine: failed to prune spine (2)`);
+        const t = rename(pren, v);
+        return [List_1.cons([t, app.mode], sp), 'OKNonRenaming'];
+    }
+}, [List_1.nil, 'OKRenaming']);
+const pruneVFlex = (pren, m, sp_) => {
+    const [sp, status] = pruneVFlexSpine(pren, sp_);
+    let m2, mty;
+    if (status === 'NeedsPruning')
+        [m2, mty] = pruneMeta(sp.map(([t, i]) => [i, t !== null]), m);
+    else {
+        const entry = metas_1.getMeta(m);
+        if (entry.tag === 'Solved')
+            return utils_1.impossible(`pruneVFlex, solved meta: ?${m}`);
+        [m2, mty] = [m, entry.type];
+    }
+    const t = sp.foldr(([mu, i], t) => mu ? core_1.App(t, i, mu) : t, core_1.Meta(m2));
+    return [t, m2, mty];
+};
+const renameElim = (pren, t, e) => {
     if (e.tag === 'EApp')
-        return core_1.App(t, e.mode, rename(id, pren, e.arg));
+        return core_1.App(t, e.mode, rename(pren, e.arg));
     if (e.tag === 'EProj')
         return C.Proj(t, e.proj);
     if (e.tag === 'EPrim')
-        return core_1.App(e.args.reduce((x, [m, v]) => core_1.App(x, m, rename(id, pren, v)), core_1.Prim(e.name)), mode_1.Expl, t);
+        return core_1.App(e.args.reduce((x, [m, v]) => core_1.App(x, m, rename(pren, v)), core_1.Prim(e.name)), mode_1.Expl, t);
     return e;
 };
-const renameSpine = (id, pren, t, sp) => sp.foldr((app, fn) => renameElim(id, pren, fn, app), t);
-const rename = (id, pren, v_) => {
+const renameSpine = (pren, t, sp) => sp.foldr((app, fn) => renameElim(pren, fn, app), t);
+const rename = (pren, v_) => {
     const v = values_1.force(v_, false);
     if (v.tag === 'VNatLit')
         return C.NatLit(v.value);
     if (v.tag === 'VFinLit')
-        return C.FinLit(v.value, rename(id, pren, v.diff), rename(id, pren, v.type));
+        return C.FinLit(v.value, rename(pren, v.diff), rename(pren, v.type));
     if (v.tag === 'VSymbolLit')
         return C.SymbolLit(v.name);
-    if (v.tag === 'VFlex') {
-        if (v.head === id)
-            return utils_1.terr(`occurs check failed: ${id}`);
-        return renameSpine(id, pren, core_1.Meta(v.head), v.spine);
-    }
     if (v.tag === 'VRigid') {
         if (v.head.tag === 'HPrim')
-            return renameSpine(id, pren, core_1.Prim(v.head.name), v.spine);
+            return renameSpine(pren, core_1.Prim(v.head.name), v.spine);
         const x = pren.ren[v.head.level];
         if (typeof x !== 'number')
             return utils_1.terr(`escaping variable '${v.head.level}`);
-        return renameSpine(id, pren, core_1.Var(pren.dom - x - 1), v.spine);
+        return renameSpine(pren, core_1.Var(pren.dom - x - 1), v.spine);
     }
     if (v.tag === 'VGlobal') {
         if (v.head.tag === 'HLVar')
-            return rename(id, pren, v.val.get());
-        return renameSpine(id, pren, core_1.Global(v.head.name), v.spine); // TODO: should global be forced?
+            return rename(pren, v.val.get());
+        return renameSpine(pren, core_1.Global(v.head.name), v.spine); // TODO: should global be forced?
     }
     if (v.tag === 'VAbs')
-        return core_1.Abs(v.erased, v.mode, v.name, rename(id, pren, v.type), rename(id, lift(pren), values_1.vinst(v, values_1.VVar(pren.cod))));
+        return core_1.Abs(v.erased, v.mode, v.name, rename(pren, v.type), rename(lift(pren), values_1.vinst(v, values_1.VVar(pren.cod))));
     if (v.tag === 'VPi')
-        return core_1.Pi(v.erased, v.mode, v.name, rename(id, pren, v.type), rename(id, lift(pren), values_1.vinst(v, values_1.VVar(pren.cod))));
+        return core_1.Pi(v.erased, v.mode, v.name, rename(pren, v.type), rename(lift(pren), values_1.vinst(v, values_1.VVar(pren.cod))));
     if (v.tag === 'VSigma')
-        return core_1.Sigma(v.erased, v.name, rename(id, pren, v.type), rename(id, lift(pren), values_1.vinst(v, values_1.VVar(pren.cod))));
+        return core_1.Sigma(v.erased, v.name, rename(pren, v.type), rename(lift(pren), values_1.vinst(v, values_1.VVar(pren.cod))));
     if (v.tag === 'VPair')
-        return core_1.Pair(rename(id, pren, v.fst), rename(id, pren, v.snd), rename(id, pren, v.type));
+        return core_1.Pair(rename(pren, v.fst), rename(pren, v.snd), rename(pren, v.type));
+    if (v.tag === 'VFlex') {
+        const [m2, sp] = [v.head, v.spine];
+        if (pren.occ === -1 || pren.occ !== m2) {
+            const [t] = pruneVFlex(pren, m2, sp);
+            return t;
+        }
+        return utils_1.terr(`occurs check failed: ${m2}`);
+    }
     return v;
 };
 const lams = (lvl, a_, t, k = 0) => {
@@ -2272,14 +2342,22 @@ const solve = (gamma, m, sp, rhs_) => {
         }
     }
     const pren = invert(gamma, sp);
-    const rhs = rename(m, pren, rhs_);
-    const sol = metas_1.getMeta(m);
-    if (sol.tag !== 'Unsolved')
-        return utils_1.impossible(`solved meta ?${m} in solve`);
-    const solutionq = lams(pren.dom, sol.type, rhs);
+    return solveWithPRen(gamma, m, pren, rhs_);
+};
+const solveWithPRen = (gamma, m, [pren, pruneNonlinear], rhs_) => {
+    config_1.log(() => `solveWithPRen ?${m} ${pruneNonlinear ? '(pruneNonlinear)' : ''}`);
+    const entry = metas_1.getMeta(m);
+    if (entry.tag === 'Solved')
+        return utils_1.impossible(`solveWithPRen, solved meta: ?${m}`);
+    const mty = entry.type;
+    config_1.log(() => `meta type: ${values_1.show(mty, gamma)}`);
+    if (pruneNonlinear)
+        pruneTy(pruneNonlinear.reverse(), mty);
+    const rhs = rename(PRen(m, pren.dom, pren.cod, pren.ren), rhs_);
+    const solutionq = lams(pren.dom, mty, rhs);
     config_1.log(() => `solution: ${C.show(solutionq)}`);
     if (config_1.config.verifyMetaSolutions) {
-        const mtype = verification_1.verify(solutionq, sol.erased ? local_1.Local.empty().inType() : local_1.Local.empty());
+        const mtype = verification_1.verify(solutionq, entry.erased ? local_1.Local.empty().inType() : local_1.Local.empty());
         config_1.log(() => `meta verified: ${C.show(mtype)}`);
     }
     const solution = values_1.evaluate(solutionq, List_1.nil);
@@ -2326,6 +2404,42 @@ const unifySpines = (l, va, vb, sa, sb) => {
         }
     }
     return utils_1.terr(`failed to unify: ${values_1.show(va, l)} ~ ${values_1.show(vb, l)}`);
+};
+const flexFlex = (l, m, sp, m2, sp2) => {
+    if (sp.length() < sp2.length())
+        return flexFlex(l, m2, sp2, m, sp);
+    const res = utils_1.tryTE(() => invert(l, sp));
+    if (res instanceof TypeError) {
+        const pren = invert(l, sp2);
+        return solveWithPRen(l, m2, pren, values_1.VFlex(m, sp));
+    }
+    else
+        return solveWithPRen(l, m, res, values_1.VFlex(m2, sp2));
+};
+const intersectPruning = (sp, sp2) => {
+    if (sp.isNil() && sp2.isNil())
+        return List_1.nil;
+    if (sp.isCons() && sp2.isCons()) {
+        const app = sp.head;
+        const app2 = sp2.head;
+        if (app.tag !== 'EApp' || app2.tag !== 'EApp' || !mode_1.eqMode(app.mode, app2.mode))
+            return null;
+        const v = values_1.force(app.arg);
+        const v2 = values_1.force(app2.arg);
+        if (values_1.isVVar(v) && values_1.isVVar(v2)) {
+            const prev = intersectPruning(sp.tail, sp2.tail);
+            return prev && List_1.cons([app.mode, v.head.level === v2.head.level], prev);
+        }
+        return null;
+    }
+    return utils_1.impossible(`intersectPruning`);
+};
+const intersect = (l, m, sp, sp2, va, vb) => {
+    const pr = intersectPruning(sp, sp2);
+    if (pr)
+        pruneMeta(pr, m);
+    else
+        unifySpines(l, va, vb, sp, sp2);
 };
 const eqHead = (a, b) => {
     if (a === b)
@@ -2404,8 +2518,10 @@ const unify = (l, a_, b_) => {
     }
     if (a.tag === 'VRigid' && b.tag === 'VRigid' && exports.eqHead(a.head, b.head))
         return utils_1.tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}: ${e}`));
-    if (a.tag === 'VFlex' && b.tag === 'VFlex' && a.head === b.head)
-        return utils_1.tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}: ${e}`));
+    if (a.tag === 'VFlex' && b.tag === 'VFlex')
+        return a.head === b.head ?
+            utils_1.tryT(() => intersect(l, a.head, a.spine, b.spine, a, b), e => utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}: ${e}`)) :
+            utils_1.tryT(() => flexFlex(l, a.head, a.spine, b.head, b.spine), e => utils_1.terr(`failed to unify: ${values_1.show(a, l)} ~ ${values_1.show(b, l)}: ${e}`));
     if (a.tag === 'VFlex')
         return solve(l, a.head, a.spine, b);
     if (b.tag === 'VFlex')
