@@ -1,8 +1,17 @@
+{--
+  this file implements the following inductive-recursive type:
+
+  data T where
+    U : T
+    P : (A : T) -> (El A -> T) -> T
+
+  El : T -> *
+  El U = ()
+  El (P A K) = (x : El A) -> El (K x)
+--}
+
 import lib/irdata;
 import lib/sum;
-
--- data T = U : T | P : (A : T) -> (El A -> T) -> T
--- El : T -> *; El U = (); El (P A K) = (x : El A) -> El (K x)
 
 -- definition of T
 let -TF = \T El. Sum () ((A : T) ** (K : El A -> T) ** ());

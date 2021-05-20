@@ -17,7 +17,7 @@ TODO:
 - [x] implement inductive-recursive fixpoints
 - [x] test inductive-recursive fixpoints
 - [x] separate file/url references in syntax
-- [ ] multi-line comments
+- [x] multi-line comments
 - [ ] add delayed unification in elaboration
 - [ ] add codata fixpoint type
 - [ ] add symbols and enumerations

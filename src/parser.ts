@@ -42,21 +42,25 @@ const NAME = 1;
 const COMMENT = 2;
 const NUMBER = 3;
 const STRING = 4;
+const BLOCKCOMMENT = 5;
 const tokenize = (sc: string): Token[] => {
   let state = START;
   let r: Token[] = [];
   let t = '';
   let esc = false;
+  let commentlevel = 0;
   let p: Token[][] = [], b: BracketO[] = [];
   for (let i = 0, l = sc.length; i <= l; i++) {
     const c = sc[i] || ' ';
     const next = sc[i + 1] || '';
+    const next2 = sc[i + 2] || '';
     if (state === START) {
-      if (SYM2.indexOf(c + next) >= 0) r.push(createTName(c + next)), i++;
+      if (c + next === '--') i++, state = COMMENT;
+      else if (c + next + next2 === '{--') i += 2, commentlevel++, state = BLOCKCOMMENT;
+      else if (SYM2.indexOf(c + next) >= 0) r.push(createTName(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(createTName(c));
       else if (c === '"') state = STRING;
       else if (c === '.' && !/[\.\%\_a-z]/i.test(next)) r.push(TName('.'));
-      else if (c + next === '--') i++, state = COMMENT;
       else if (/[\'\-\.\?\@\#\%\_\@a-z\/]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{' || c === '[') b.push(c), p.push(r), r = [];
@@ -89,12 +93,19 @@ const tokenize = (sc: string): Token[] => {
         r.push(TStr(t));
         t = '', state = START;
       } else t += c;
+    } else if (state === BLOCKCOMMENT) {
+      if (c + next + next2 === '{--') i += 2, commentlevel++;
+      else if (c + next + next2 === '--}') {
+        i += 2; commentlevel--;
+        if (commentlevel === 0) state = START;
+      }
     }
   }
   if (b.length > 0) return serr(`unclosed brackets: ${b.join(' ')}`);
   if (state !== START && state !== COMMENT)
     return serr('invalid tokenize end state');
   if (esc) return serr(`escape is true after tokenize`);
+  if (commentlevel !== 0) return serr(`unclosed block comment`);
   return r;
 };
 
