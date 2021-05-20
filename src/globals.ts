@@ -4,7 +4,7 @@ import { Local } from './local';
 import { Erasure } from './mode';
 import { Name } from './names';
 import { parse } from './parser';
-import { freeVars, Surface } from './surface';
+import { globalsInSurface, Surface } from './surface';
 import { nil } from './utils/List';
 import { impossible, loadFile, loadFileSync, removeAll } from './utils/utils';
 import { evaluate, Val } from './values';
@@ -42,7 +42,7 @@ export const deleteGlobal = (name: Name): void => {
 
 export const loadGlobal = (x: string, erased: boolean = false): GlobalEntry | null => {
   if (globals[x]) return globals[x];
-  const sc = loadFileSync(`lib/${x}`);
+  const sc = loadFileSync(`${x}`);
   if (sc instanceof Error) return null;
   const e = parse(sc);
   const [tm, ty] = elaborate(e);
@@ -52,11 +52,11 @@ export const loadGlobal = (x: string, erased: boolean = false): GlobalEntry | nu
 };
 
 export const preload = (t: Surface, local: Local = Local.empty()): Promise<GlobalEntry[]> => {
-  const vs = freeVars(t);
+  const vs = globalsInSurface(t);
   const localVars = local.nsSurface.toArray();
   removeAll(vs, localVars);
   return Promise.all(vs.map(async v => {
-    const sc = await loadFile(`lib/${v}`);
+    const sc = await loadFile(`${v}`);
     const e = parse(sc);
     const [tm, ty] = elaborate(e);
     verify(tm);

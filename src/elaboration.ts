@@ -127,18 +127,19 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
       if (isPrimName(tm.name)) {
         if (isPrimErased(tm.name) && !local.erased) return terr(`erased prim used: ${show(tm)}`);
         return [Prim(tm.name), primType(tm.name)];
-      } else {
-        const entry = loadGlobal(tm.name);
-        if (!entry) return terr(`global ${tm.name} not found`);
-        if (entry.erased && !local.erased) return terr(`erased global used: ${show(tm)}`);
-        return [Global(tm.name), entry.type];
-      }
+      } else terr(`undefined variable of primitive: ${show(tm)}`);
     } else {
       const [entry, j] = indexEnvT(local.ts, i) || terr(`var out of scope ${show(tm)}`);
       log(() => `local: ${i} ~> ${j}`);
       if (entry.erased && !local.erased) return terr(`erased var used: ${show(tm)}`);
       return [Var(j), entry.type];
     }
+  }
+  if (tm.tag === 'Global') {
+    const entry = loadGlobal(tm.name);
+    if (!entry) return terr(`global ${tm.name} not found`);
+    if (entry.erased && !local.erased) return terr(`erased global used: ${show(tm)}`);
+    return [Global(tm.name), entry.type];
   }
   if (tm.tag === 'App') {
     const [fn, fnty] = synth(local, tm.fn);

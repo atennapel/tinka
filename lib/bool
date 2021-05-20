@@ -1,4 +1,4 @@
-import eq;
+import lib/eq;
 
 let if : {-A : *} -> Bool -> A -> A -> A
   = \{A} b t f. elimBool (\_. A) t f b;

@@ -363,14 +363,8 @@ const synth = (local, tm) => {
                     return utils_1.terr(`erased prim used: ${surface_1.show(tm)}`);
                 return [core_1.Prim(tm.name), prims_1.primType(tm.name)];
             }
-            else {
-                const entry = globals_1.loadGlobal(tm.name);
-                if (!entry)
-                    return utils_1.terr(`global ${tm.name} not found`);
-                if (entry.erased && !local.erased)
-                    return utils_1.terr(`erased global used: ${surface_1.show(tm)}`);
-                return [core_1.Global(tm.name), entry.type];
-            }
+            else
+                utils_1.terr(`undefined variable of primitive: ${surface_1.show(tm)}`);
         }
         else {
             const [entry, j] = local_1.indexEnvT(local.ts, i) || utils_1.terr(`var out of scope ${surface_1.show(tm)}`);
@@ -379,6 +373,14 @@ const synth = (local, tm) => {
                 return utils_1.terr(`erased var used: ${surface_1.show(tm)}`);
             return [core_1.Var(j), entry.type];
         }
+    }
+    if (tm.tag === 'Global') {
+        const entry = globals_1.loadGlobal(tm.name);
+        if (!entry)
+            return utils_1.terr(`global ${tm.name} not found`);
+        if (entry.erased && !local.erased)
+            return utils_1.terr(`erased global used: ${surface_1.show(tm)}`);
+        return [core_1.Global(tm.name), entry.type];
     }
     if (tm.tag === 'App') {
         const [fn, fnty] = synth(local, tm.fn);
@@ -658,7 +660,7 @@ exports.deleteGlobal = deleteGlobal;
 const loadGlobal = (x, erased = false) => {
     if (globals[x])
         return globals[x];
-    const sc = utils_1.loadFileSync(`lib/${x}`);
+    const sc = utils_1.loadFileSync(`${x}`);
     if (sc instanceof Error)
         return null;
     const e = parser_1.parse(sc);
@@ -669,11 +671,11 @@ const loadGlobal = (x, erased = false) => {
 };
 exports.loadGlobal = loadGlobal;
 const preload = (t, local = local_1.Local.empty()) => {
-    const vs = surface_1.freeVars(t);
+    const vs = surface_1.globalsInSurface(t);
     const localVars = local.nsSurface.toArray();
     utils_1.removeAll(vs, localVars);
     return Promise.all(vs.map(async (v) => {
-        const sc = await utils_1.loadFile(`lib/${v}`);
+        const sc = await utils_1.loadFile(`${v}`);
         const e = parser_1.parse(sc);
         const [tm, ty] = elaboration_1.elaborate(e);
         verification_1.verify(tm);
@@ -887,7 +889,7 @@ const tokenize = (sc) => {
                 r.push(TName('.'));
             else if (c + next === '--')
                 i++, state = COMMENT;
-            else if (/[\'\-\.\?\@\#\%\_\@a-z]/i.test(c))
+            else if (/[\'\-\.\?\@\#\%\_\@a-z\/]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUMBER;
@@ -909,7 +911,7 @@ const tokenize = (sc) => {
                 return utils_1.serr(`invalid char ${c} in tokenize`);
         }
         else if (state === NAME) {
-            if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9\_]/i.test(next)))) {
+            if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9\_\/]/i.test(next)))) {
                 r.push(TName(t));
                 t = '', i--, state = START;
             }
@@ -1077,6 +1079,8 @@ const expr = (t) => {
         const x = t.name;
         if (x === '*')
             return [surface_1.Type, false];
+        if (x.includes('/'))
+            return [surface_1.Global(x), false];
         if (x[0] === "'")
             return [surface_1.SymbolLit(x.slice(1)), false];
         if (x[0] === '_') {
@@ -1684,7 +1688,7 @@ const runREPL = (s_, cb) => {
         }
         if (s.startsWith(':load') || s.startsWith(':eload')) {
             const erased = s.startsWith(':eload');
-            const name = `lib/${s.slice(s.startsWith(':load') ? 5 : 6).trim()}`;
+            const name = `${s.slice(s.startsWith(':load') ? 5 : 6).trim()}`;
             utils_1.loadFile(name)
                 .then(sc => parser_1.parse(sc))
                 .then(e => doPreload ? globals_1.preload(e, local).then(() => e) : e)
@@ -1778,7 +1782,7 @@ exports.runREPL = runREPL;
 },{"./config":1,"./core":2,"./elaboration":3,"./globals":4,"./local":5,"./parser":9,"./surface":12,"./utils/List":15,"./utils/utils":16,"./values":17,"./verification":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Rigid = exports.Hole = exports.Meta = exports.NatLit = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.SymbolLit = exports.Var = void 0;
+exports.globalsInSurface = exports.freeVars = exports.freeVarsAll = exports.showVal = exports.showCore = exports.fromCore = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Type = exports.PIndex = exports.PName = exports.PSnd = exports.PFst = exports.PProj = exports.Rigid = exports.Hole = exports.Meta = exports.NatLit = exports.Import = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Ann = exports.Let = exports.SymbolLit = exports.Global = exports.Var = void 0;
 const names_1 = require("./names");
 const List_1 = require("./utils/List");
 const utils_1 = require("./utils/utils");
@@ -1787,6 +1791,8 @@ const config_1 = require("./config");
 const prims_1 = require("./prims");
 const Var = (name) => ({ tag: 'Var', name });
 exports.Var = Var;
+const Global = (name) => ({ tag: 'Global', name });
+exports.Global = Global;
 const SymbolLit = (name) => ({ tag: 'SymbolLit', name });
 exports.SymbolLit = SymbolLit;
 const Let = (erased, name, type, val, body) => ({ tag: 'Let', erased, name, type, val, body });
@@ -1900,7 +1906,7 @@ const absIsSimple = (t) => {
     const [params, body] = exports.flattenAbs(t);
     return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
 };
-const isSimple = (t) => t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
+const isSimple = (t) => t.tag === 'Var' || t.tag === 'Global' || t.tag === 'SymbolLit' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
 const showS = (t) => showP(!isSimple(t), t);
 const showProjType = (p) => {
     if (p.tag === 'PProj')
@@ -1912,6 +1918,8 @@ const showProjType = (p) => {
     return p;
 };
 const show = (t) => {
+    if (t.tag === 'Global')
+        return `${t.name}`;
     if (t.tag === 'Var')
         return t.name === '*' && config_1.config.unicode ? '★' : `${t.name}`;
     if (t.tag === 'SymbolLit')
@@ -1971,7 +1979,7 @@ const fromCore = (t, ns = List_1.nil) => {
     if (t.tag === 'SymbolLit')
         return exports.SymbolLit(t.name);
     if (t.tag === 'Global')
-        return exports.Var(t.name);
+        return exports.Global(t.name);
     if (t.tag === 'Prim')
         return exports.Var(t.name);
     if (t.tag === 'NatLit')
@@ -2066,6 +2074,47 @@ const freeVars = (t) => {
     return vs;
 };
 exports.freeVars = freeVars;
+const globalsInSurface = (t, a = []) => {
+    if (t.tag === 'Global')
+        return utils_1.pushUniq(a, t.name);
+    if (t.tag === 'Pi') {
+        exports.globalsInSurface(t.body, a);
+        return exports.globalsInSurface(t.type, a);
+    }
+    if (t.tag === 'Abs') {
+        exports.globalsInSurface(t.body, a);
+        return t.type ? exports.globalsInSurface(t.type, a) : a;
+    }
+    if (t.tag === 'App') {
+        exports.globalsInSurface(t.fn, a);
+        return exports.globalsInSurface(t.arg, a);
+    }
+    if (t.tag === 'Let') {
+        exports.globalsInSurface(t.body, a);
+        exports.globalsInSurface(t.val, a);
+        return t.type ? exports.globalsInSurface(t.type, a) : a;
+    }
+    if (t.tag === 'Import')
+        return exports.globalsInSurface(t.term, a);
+    if (t.tag === 'Sigma') {
+        exports.globalsInSurface(t.body, a);
+        return exports.globalsInSurface(t.type, a);
+    }
+    if (t.tag === 'Pair') {
+        exports.globalsInSurface(t.fst, a);
+        return exports.globalsInSurface(t.snd, a);
+    }
+    if (t.tag === 'Proj')
+        return exports.globalsInSurface(t.term, a);
+    if (t.tag === 'Ann') {
+        exports.globalsInSurface(t.term, a);
+        return exports.globalsInSurface(t.type, a);
+    }
+    if (t.tag === 'Rigid')
+        return exports.globalsInSurface(t.term, a);
+    return a;
+};
+exports.globalsInSurface = globalsInSurface;
 
 },{"./config":1,"./names":8,"./prims":10,"./utils/List":15,"./utils/utils":16,"./values":17}],13:[function(require,module,exports){
 "use strict";

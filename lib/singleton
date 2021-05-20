@@ -1,4 +1,4 @@
-import eq (Eq, Refl, rewrite);
+import lib/eq (Eq, Refl, rewrite);
 
 let -Singleton : {A : *} -> A -> *
   = \{A} v. (value : A) ** (proof : Eq value v) ** ();

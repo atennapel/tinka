@@ -1,4 +1,4 @@
-import sum;
+import lib/sum;
 
 let -Maybe : * -> * = \A. Sum () A;
 let Nothing : {-A : *} -> Maybe A = Left [];

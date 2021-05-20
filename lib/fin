@@ -1,4 +1,4 @@
-import nat;
+import lib/nat;
 
 let fin2nat : {-n : Nat} -> Fin n -> Nat
   = \f. elimFin (\_ _. Nat) 0 (\rec z. S (rec z)) f;

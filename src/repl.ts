@@ -118,7 +118,7 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
     }
     if (s.startsWith(':load') || s.startsWith(':eload')) {
       const erased = s.startsWith(':eload');
-      const name = `lib/${s.slice(s.startsWith(':load') ? 5 : 6).trim()}`;
+      const name = `${s.slice(s.startsWith(':load') ? 5 : 6).trim()}`;
       loadFile(name)
         .then(sc => parse(sc))
         .then(e => doPreload ? preload(e, local).then(() => e) : e)

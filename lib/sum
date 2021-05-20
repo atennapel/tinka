@@ -1,4 +1,4 @@
-import bool;
+import lib/bool;
 
 let -Sum : * -> * -> *
   = \A B. (b : Bool) ** (if b B A);

@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid, NatLit, SymbolLit } from './surface';
+import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid, NatLit, SymbolLit, Global } from './surface';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{' | '['
@@ -57,7 +57,7 @@ const tokenize = (sc: string): Token[] => {
       else if (c === '"') state = STRING;
       else if (c === '.' && !/[\.\%\_a-z]/i.test(next)) r.push(TName('.'));
       else if (c + next === '--') i++, state = COMMENT;
-      else if (/[\'\-\.\?\@\#\%\_\@a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\'\-\.\?\@\#\%\_\@a-z\/]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if(c === '(' || c === '{' || c === '[') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}' || c === ']') {
@@ -71,7 +71,7 @@ const tokenize = (sc: string): Token[] => {
       else if (/\s/.test(c)) continue;
       else return serr(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
-      if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9\_]/i.test(next)))) {
+      if (!(/[a-z0-9\-\_\/]/i.test(c) || (c === '.' && /[a-z0-9\_\/]/i.test(next)))) {
         r.push(TName(t));
         t = '', i--, state = START;
       } else t += c;
@@ -222,6 +222,7 @@ const expr = (t: Token): [Surface, boolean] => {
   if (t.tag === 'Name') {
     const x = t.name;
     if (x === '*') return [Type, false];
+    if (x.includes('/')) return [Global(x), false];
     if (x[0] === "'") return [SymbolLit(x.slice(1)), false];
     if (x[0] === '_') {
       const y = x.slice(1);

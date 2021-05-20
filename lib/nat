@@ -1,5 +1,5 @@
-import eq;
-import bool;
+import lib/eq;
+import lib/bool;
 
 let caseNat
   : {-A : *} -> Nat -> A -> (Nat -> A) -> A

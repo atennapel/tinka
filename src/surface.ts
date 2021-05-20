@@ -9,7 +9,7 @@ import { config } from './config';
 import { PrimNames } from './prims';
 
 export type Surface =
-  Var | SymbolLit | Let | Ann |
+  Var | Global | SymbolLit | Let | Ann |
   Pi | Abs | App |
   Sigma | Pair | Proj |
   Import |
@@ -18,6 +18,8 @@ export type Surface =
 
 export interface Var { readonly tag: 'Var'; readonly name: Name }
 export const Var = (name: Name): Var => ({ tag: 'Var', name });
+export interface Global { readonly tag: 'Global'; readonly name: Name }
+export const Global = (name: Name): Global => ({ tag: 'Global', name });
 export interface SymbolLit { readonly tag: 'SymbolLit'; readonly name: Name }
 export const SymbolLit = (name: Name): SymbolLit => ({ tag: 'SymbolLit', name });
 export interface Let { readonly tag: 'Let'; readonly erased: Erasure; readonly name: Name; readonly type: Surface | null; readonly val: Surface; readonly body: Surface }
@@ -133,7 +135,7 @@ const absIsSimple = (t: Surface): boolean => {
   return !params.some(([_, m]) => m.tag === 'Expl') && isSimple(body);
 };
 const isSimple = (t: Surface) =>
-  t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
+  t.tag === 'Var' || t.tag === 'Global' || t.tag === 'SymbolLit' || t.tag === 'Hole' || t.tag === 'Meta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit' || appIsSimple(t) || absIsSimple(t);
 const showS = (t: Surface) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -142,6 +144,7 @@ const showProjType = (p: ProjType): string => {
   return p;
 };
 export const show = (t: Surface): string => {
+  if (t.tag === 'Global') return `${t.name}`;
   if (t.tag === 'Var') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
   if (t.tag === 'SymbolLit') return `'${t.name}`;
   if (t.tag === 'Hole') return `_${t.name === null ? '' : t.name}`;
@@ -190,7 +193,7 @@ export const show = (t: Surface): string => {
 export const fromCore = (t: Core, ns: List<Name> = nil): Surface => {
   if (t.tag === 'Var') return Var(ns.index(t.index) || impossible(`var out of scope in fromCore: ${t.index}`));
   if (t.tag === 'SymbolLit') return SymbolLit(t.name);
-  if (t.tag === 'Global') return Var(t.name);
+  if (t.tag === 'Global') return Global(t.name);
   if (t.tag === 'Prim') return Var(t.name);
   if (t.tag === 'NatLit') return NatLit(t.value);
   if (t.tag === 'FinLit') return NatLit(t.value);
@@ -270,4 +273,41 @@ export const freeVars = (t: Surface): Name[] => {
   remove(vs, '_');
   removeAll(vs, PrimNames);
   return vs;
+};
+
+export const globalsInSurface = (t: Surface, a: Name[] = []): Name[] => {
+  if (t.tag === 'Global') return pushUniq(a, t.name);
+  if (t.tag === 'Pi') {
+    globalsInSurface(t.body, a);
+    return globalsInSurface(t.type, a);
+  }
+  if (t.tag === 'Abs') {
+    globalsInSurface(t.body, a);
+    return t.type ? globalsInSurface(t.type, a) : a;
+  }
+  if (t.tag === 'App') {
+    globalsInSurface(t.fn, a);
+    return globalsInSurface(t.arg, a);
+  }
+  if (t.tag === 'Let') {
+    globalsInSurface(t.body, a);
+    globalsInSurface(t.val, a);
+    return t.type ? globalsInSurface(t.type, a) : a;
+  }
+  if (t.tag === 'Import') return globalsInSurface(t.term, a);
+  if (t.tag === 'Sigma') {
+    globalsInSurface(t.body, a);
+    return globalsInSurface(t.type, a);
+  }
+  if (t.tag === 'Pair') {
+    globalsInSurface(t.fst, a);
+    return globalsInSurface(t.snd, a);
+  }
+  if (t.tag === 'Proj') return globalsInSurface(t.term, a);
+  if (t.tag === 'Ann') {
+    globalsInSurface(t.term, a);
+    return globalsInSurface(t.type, a);
+  }
+  if (t.tag === 'Rigid') return globalsInSurface(t.term, a);
+  return a;
 };

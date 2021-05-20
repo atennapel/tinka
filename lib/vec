@@ -1,7 +1,7 @@
-import sum;
-import nat;
-import eq;
-import idata;
+import lib/sum;
+import lib/nat;
+import lib/eq;
+import lib/idata;
 
 let -VecF : * -> (Nat -> *) -> Nat -> * = \A R n. Sum (Eq 0 n) ((-m : Nat) ** A ** R m ** (Eq (S m) n));
 let -Vec : Nat -> * -> * = \n A. IData (VecF A) n;

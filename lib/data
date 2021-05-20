@@ -1,4 +1,4 @@
-import idata;
+import lib/idata;
 
 let -liftFunctor : (* -> *) -> (() -> *) -> () -> * = \R X i. R (X i);
 let -Data : (* -> *) -> * = \F. IData (liftFunctor F) [];
