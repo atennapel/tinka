@@ -18,9 +18,6 @@ export const PrimNames: string[] = [
 ];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
-export const ErasedPrims = ['*', 'Eq', 'Void', '()', 'Bool', 'IIRData', 'Nat', 'Fin', 'Symbol'];
-export const isPrimErased = (name: PrimName): boolean => ErasedPrims.includes(name);
-
 export const primType = (name: PrimName): Val => {
   if (name === '*') return VType;
   // HEq : {A B : *} -> A -> B -> *
@@ -83,7 +80,7 @@ export const primType = (name: PrimName): Val => {
     {-I : *} ->
     {-R : I -> *} ->
     {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-    {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+    {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
     {-i : I} ->
     F (Data {I} {R} F G) (funData {I} {R} {F} {G}) i ->
     Data {I} {R} F G i
@@ -92,7 +89,7 @@ export const primType = (name: PrimName): Val => {
     return VPi(true, Impl, 'I', VType, I =>
       VPi(true, Impl, 'R', VPi(false, Expl, '_', I, _ => VType), R =>
       VPi(true, Impl, 'F', viirF(I, R), F =>
-      VPi(false, Impl, 'G', viirG(I, R, F), G =>
+      VPi(true, Impl, 'G', viirG(I, R, F), G =>
       VPi(true, Impl, 'i', I, i =>
       VPi(false, Expl, '_', vapp3(F, Expl, VIIRDataPartial(I, R, F, G), Expl, vfunIIRDataPartial(I, R, F, G), Expl, i), _ =>
       VIIRData(I, R, F, G, i)))))));

@@ -1,0 +1,80 @@
+let -liftFunctor
+  : (R : *) -> ((S : *) -> (S -> R) -> *) -> (S : () -> *) -> ({-i : ()} -> S i -> R) -> () -> *
+  = \R F S f i. F (S i) (f {i});
+let liftFunction
+  : (-R : *) -> (-F : (S : *) -> (S -> R) -> *) -> ({-S : *} -> (T : S -> R) -> F S T -> R)
+    -> {-S : () -> *} -> (T : {-i : ()} -> S i -> R) -> {-i : ()} -> liftFunctor R F S T i -> R
+  = \R F G {S} T {i} x. G {S i} (T {i}) x;
+
+let -IRData
+  : {R : *}
+    -> (F : (S : *) -> (S -> R) -> *)
+    -> ({-S : *} -> (T : S -> R) -> F S T -> R)
+    -> *
+  = \{R} F G. IIRData {()} {\_. R} (liftFunctor R F) (liftFunction R F G) [];
+
+let funIRData
+  : {-R : *}
+    -> {-F : (S : *) -> (S -> R) -> *}
+    -> {G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> IRData {R} F @G
+    -> R
+  = \{R} {F} {G} x. funIIRData {()} {\_. R} {liftFunctor R F} {liftFunction R F G} {[]} x;
+
+let IRCon
+  : {-R : *}
+    -> {-F : (S : *) -> (S -> R) -> *}
+    -> {-G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> F (IRData {R} F @G) (funIRData {R} {F} {@G})
+    -> IRData {R} F G
+  = \{R} {F} {G} x. IIRCon {()} {\_. R} {liftFunctor R F} {liftFunction R F G} {[]} x;
+
+let elimIRData
+  : {-R : *}
+    -> {-F : (S : *) -> (S -> R) -> *}
+    -> {G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> (-P : IRData {R} F G -> *)
+    -> (
+      ((z : IRData {R} F G) -> P z)
+      -> (y : F (IRData {R} F G) (funIRData {R} {F} {G}))
+      -> P (IRCon {R} {F} {G} y)
+    )
+    -> (x : IRData {R} F G)
+    -> P x
+  = \{R} {F} {G} P alg x. elimIIRData {()} {\_. R} {liftFunctor R F} {liftFunction R F G} P (\rec {i} y. alg (rec {i}) y) {[]} x;
+
+[@IRData, @funIRData, @IRCon, @elimIRData]
+:
+(-IRData
+  : {R : *}
+    -> (F : (S : *) -> (S -> R) -> *)
+    -> ({-S : *} -> (T : S -> R) -> F S T -> R)
+    -> *)
+**
+(funIRData : {-R : *}
+    -> {-F : (S : *) -> (S -> R) -> *}
+    -> {G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> IRData {R} F @G
+    -> R)
+**
+(IRCon
+  : {-R : *}
+    -> {-F : (S : *) -> (S -> R) -> *}
+    -> {-G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> F (IRData {R} F @G) (funIRData {R} {F} {@G})
+    -> IRData {R} F G)
+**
+(elimIRData
+  : {-R : *}
+    -> {-F : (S : *) -> (S -> R) -> *}
+    -> {G : {-S : *} -> (T : S -> R) -> F S T -> R}
+    -> (-P : IRData {R} F G -> *)
+    -> (
+      ((z : IRData {R} F G) -> P z)
+      -> (y : F (IRData {R} F G) (funIRData {R} {F} {G}))
+      -> P (IRCon {R} {F} {G} y)
+    )
+    -> (x : IRData {R} F G)
+    -> P x)
+**
+()

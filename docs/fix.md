@@ -38,16 +38,16 @@ Con :
 funData :
   {-R : *} ->
   {-F : (S : *) -> (S -> R) -> *} ->
-  {-G : {-S : *} -> (T : S -> R) -> F S T -> R} ->
+  {G : {-S : *} -> (T : S -> R) -> F S T -> R} ->
   Data {R} F G ->
   R
 elimData :
   {-R : *} ->
   {-F : (S : *) -> (S -> R) -> *} ->
-  {-G : {-S : *} -> (T : S -> R) -> F S T -> R} ->
+  {G : {-S : *} -> (T : S -> R) -> F S T -> R} ->
   (-P : Data {R} F G -> *) ->
   (
-    ((z : Data {R} F G) -> P y) ->
+    ((z : Data {R} F G) -> P z) ->
     (y : F (Data {R} F G) (funData {R} {F} {G})) ->
     P (Con {R} {F} {G} y)
   ) ->
@@ -68,7 +68,7 @@ Con :
   {-I : *} ->
   {-R : I -> *} ->
   {-F : (S : I -> *) -> ({-i : I} -> S i -> R i) -> I -> *} ->
-  {G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
+  {-G : {-S : I -> *} -> (T : {-i : I} -> S i -> R i) -> {-i : I} -> F S T i -> R i} ->
   {-i : I} ->
   F (Data {I} {R} F G) (funData {I} {R} {F} {G}) i ->
   Data {I} {R} F G i

@@ -1,0 +1,79 @@
+import lib/irdata;
+import lib/sum;
+
+-- data T = U : T | P : (A : T) -> (El A -> T) -> T
+-- El : T -> *; El U = (); El (P A K) = (x : El A) -> El (K x)
+
+-- definition of T
+let -TF = \T El. Sum () ((A : T) ** (K : El A -> T) ** ());
+-- definition of El
+let TG
+  : {-T : *} -> (El : T -> *) -> TF T El -> *
+  = \{T} El x. caseSum x (\_. ()) (\p. (x : El p.A) -> El (p.K x));
+
+-- derivation of T, El, U and P
+let -T : * = IRData {*} TF TG;
+let -El : T -> * = funIRData {*} {TF} {TG};
+
+let U : T = IRCon {*} {TF} {TG} (Left []);
+let P : (A : T) -> (El A -> T) -> T
+  = \A K. IRCon {*} {TF} {TG} (Right {()} {(A : T) ** (K : El A -> T) ** ()} [A, K]);
+
+-- derivation of elimination
+let elimT
+  : (-M : T -> *)
+    -> M U
+    -> (((x : T) -> M x) -> (A : T) -> (K : El A -> T) -> M (P A K))
+    -> (x : T)
+    -> M x
+  = \M u p x. elimIRData {*} {TF} {TG} M (\rec. elimSum (\s. M (IRCon {*} {TF} {TG} s)) (\_. u) (\z. p rec z.A z.K)) x;
+
+let caseT
+  : {-R : *}
+    -> T
+    -> R
+    -> ((A : T) -> (K : El A -> T) -> R)
+    -> R
+  = \{R} x u p. elimT (\_. R) u (\_. p) x;
+
+let recT
+  : {-R : *}
+    -> T
+    -> R
+    -> ((T -> R) -> (A : T) -> (K : El A -> T) -> R)
+    -> R
+  = \{R} x u p. elimT (\_. R) u p x;
+
+-- export
+[T, El, U, P, elimT, @caseT, @recT]
+:
+(-T : *)
+**
+(-El : T -> *)
+**
+(U : T)
+**
+(P : (A : T) -> (El A -> T) -> T)
+**
+(elimT
+  : (-M : T -> *)
+    -> M U
+    -> (((x : T) -> M x) -> (A : T) -> (K : El A -> T) -> M (P A K))
+    -> (x : T)
+    -> M x)
+**
+(caseT
+  : {-R : *}
+    -> T
+    -> R
+    -> ((A : T) -> (K : El A -> T) -> R)
+    -> R)
+**
+(recT
+  : {-R : *}
+    -> T
+    -> R
+    -> ((T -> R) -> (A : T) -> (K : El A -> T) -> R)
+    -> R)
+**
+()
