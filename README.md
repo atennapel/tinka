@@ -18,22 +18,22 @@ TODO:
 - [x] test inductive-recursive fixpoints
 - [x] separate file/url references in syntax
 - [x] multi-line comments
-- [ ] add delayed unification in elaboration
-- [ ] add codata fixpoint type
-- [ ] add symbols and enumerations
 - [x] fix importing in web repl
-- [ ] add syntax to explicitly reference local (debruijn), global and primitive vars
-- [ ] add testing
-- [ ] fix negative vars in output
 - [x] typed metas
 - [x] make sure metas solutions are correct with respect to erasure
-- [ ] pruning and intersecting
-- [ ] have smarter way to verify meta solutions
-- [ ] fix case-insensitive filesystem support
 - [x] add primitive Nat
 - [x] add primitive Fin
+- [ ] pruning and intersecting
+- [ ] add delayed unification in elaboration
+- [ ] check applications in elaboration
+- [ ] fix negative vars in output
+- [ ] have smarter way to verify meta solutions
+- [ ] add syntax to explicitly reference local (debruijn)
+- [ ] add codata fixpoint type
+- [ ] add symbols and enumerations
+- [ ] add testing
+- [ ] fix case-insensitive filesystem support
 - [ ] replace void, unit, bool with Fin
 - [ ] add surface syntax for modules
 - [ ] add surface syntax for datatypes
-- [ ] check applications in elaboration
 - [ ] inductive-inductive fixpoints
