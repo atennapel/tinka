@@ -40,7 +40,15 @@ let lengthVecSingleton : {-A : *} -> {-n : Nat} -> Vec n A -> Singleton n
 let mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B
   = \{A} {B} fn v. elimVec (\{n} _. Vec n B) VNil (\rec hd tl. VCons (fn hd) (rec tl)) v;
 
-[VecF, Vec, @VNil, @VCons, @elimVec, @foldrVec, @lengthVec, @lengthVecSingleton, @mapVec]
+let headVec : {-A : *} -> {-n : Nat} -> Vec (S n) A -> A
+  = \{A} {n} v. elimVec (\{m} _. Eq m (S n) -> A) (\q. absurd (z_neq_S q)) (\_ hd _ _. hd) v Refl;
+let tailVec : {-A : *} -> {-n : Nat} -> Vec (S n) A -> Vec n A
+  = \{A} {n} v. elimVec (\{m} _. Eq m (S n) -> Vec (pred m) A) (\q. absurd (z_neq_S q)) (\_ _ tl _. tl) v Refl;
+
+let ixVec : {-A : *} -> {-n : Nat} -> Fin n -> Vec n A -> A
+  = \{A} {n}. elimFin (\n _. Vec n A -> A) headVec (\rec y v. rec y (tailVec v));
+
+[VecF, Vec, @VNil, @VCons, @elimVec, @foldrVec, @lengthVec, @lengthVecSingleton, @mapVec, @headVec, @tailVec, @ixVec]
 :
 (-VecF : * -> (Nat -> *) -> Nat -> *)
 **
@@ -66,5 +74,11 @@ let mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B
 (lengthVecSingleton : {-A : *} -> {-n : Nat} -> Vec n A -> Singleton n)
 **
 (mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B)
+**
+(headVec : {-A : *} -> {-n : Nat} -> Vec (S n) A -> A)
+**
+(tailVec : {-A : *} -> {-n : Nat} -> Vec (S n) A -> Vec n A)
+**
+(ixVec : {-A : *} -> {-n : Nat} -> Fin n -> Vec n A -> A)
 **
 ()

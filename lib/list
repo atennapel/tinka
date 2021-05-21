@@ -23,9 +23,12 @@ let length : {-A : *} -> List A -> Nat
   = foldr 0 (\_. S);
 
 let map : {-A -B : *} -> (A -> B) -> List A -> List B
-  = \fn list. foldr Nil (\hd tl. Cons (fn hd) tl) list;
+  = \fn. foldr Nil (\hd tl. Cons (fn hd) tl);
 
-[ListF, List, @Nil, @Cons, @elimList, @foldr, @length, @map]
+let mapWithIx : {-A -B : *} -> (Nat -> A -> B) -> List A -> List B
+  = \{A} {B} fn list. foldr {A} {Nat -> List B} (\_. Nil) (\hd tl i. Cons (fn i hd) (tl (S i))) list 0;
+
+[ListF, List, @Nil, @Cons, @elimList, @foldr, @length, @map, @mapWithIx]
 :
 (-ListF : * -> * -> *)
 **
@@ -48,5 +51,7 @@ let map : {-A -B : *} -> (A -> B) -> List A -> List B
 (length : {-A : *} -> List A -> Nat)
 **
 (map : {-A -B : *} -> (A -> B) -> List A -> List B)
+**
+(mapWithIx : {-A -B : *} -> (Nat -> A -> B) -> List A -> List B)
 **
 ()
