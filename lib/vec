@@ -2,6 +2,7 @@ import lib/sum;
 import lib/nat;
 import lib/eq;
 import lib/idata;
+import lib/singleton;
 
 let -VecF : * -> (Nat -> *) -> Nat -> * = \A R n. Sum (Eq 0 n) ((-m : Nat) ** A ** R m ** (Eq (S m) n));
 let -Vec : Nat -> * -> * = \n A. IData (VecF A) n;
@@ -30,10 +31,16 @@ let elimVec
 let foldrVec : {-A -R : *} -> {-n : Nat} -> R -> (A -> R -> R) -> Vec n A -> R
   = \{A} {R} {n} nil cons v. elimVec (\_. R) nil (\rec hd tl. cons hd (rec tl)) v;
 
+let lengthVec : {-A : *} -> {-n : Nat} -> Vec n A -> Nat
+  = foldrVec 0 (\_. S);
+
+let lengthVecSingleton : {-A : *} -> {-n : Nat} -> Vec n A -> Singleton n
+  = elimVec (\{n} _. Singleton n) (MkSingleton 0) (\rec _ tl. mapSingleton S (rec tl));
+
 let mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B
   = \{A} {B} fn v. elimVec (\{n} _. Vec n B) VNil (\rec hd tl. VCons (fn hd) (rec tl)) v;
 
-[VecF, Vec, @VNil, @VCons, @elimVec, @foldrVec, @mapVec]
+[VecF, Vec, @VNil, @VCons, @elimVec, @foldrVec, @lengthVec, @lengthVecSingleton, @mapVec]
 :
 (-VecF : * -> (Nat -> *) -> Nat -> *)
 **
@@ -53,6 +60,10 @@ let mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B
     P v)
 **
 (foldrVec : {-A -R : *} -> {-n : Nat} -> R -> (A -> R -> R) -> Vec n A -> R)
+**
+(lengthVec : {-A : *} -> {-n : Nat} -> Vec n A -> Nat)
+**
+(lengthVecSingleton : {-A : *} -> {-n : Nat} -> Vec n A -> Singleton n)
 **
 (mapVec : {-A -B : *} -> {-n : Nat} -> (A -> B) -> Vec n A -> Vec n B)
 **

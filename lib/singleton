@@ -9,14 +9,19 @@ let MkSingleton : {-A : *} -> (v : A) -> Singleton v
 let manifest : {-A : *} -> {-v : A} -> (-P : A -> *) -> (s : Singleton v) -> P s.value -> P v
   = \{A} P s x. rewrite P s.proof x;
 
+let mapSingleton : {-A : *} -> {-v : A} -> (f : A -> A) -> Singleton v -> Singleton (f v)
+  = \f s. manifest (\v. Singleton (f v)) s (MkSingleton (f s.value));
+
 let -SingletonAlias = Singleton;
 
-[@Singleton, @MkSingleton, @manifest]
+[@Singleton, @MkSingleton, @manifest, @mapSingleton]
 :
 (-Singleton : {A : *} -> A -> *)
 **
 (MkSingleton : {-A : *} -> (v : A) -> Singleton v)
 **
 (manifest : {-A : *} -> {-v : A} -> (-P : A -> *) -> (s : SingletonAlias v) -> P s.value -> P v)
+**
+(mapSingleton : {-A : *} -> {-v : A} -> (f : A -> A) -> Singleton v -> Singleton (f v))
 **
 ()

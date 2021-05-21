@@ -19,10 +19,13 @@ let elimList
 let foldr : {-A -R : *} -> R -> (A -> R -> R) -> List A -> R
   = \{A} {R} nil cons list. elimList {A} (\_. R) nil (\rec hd tl. cons hd (rec tl)) list;
 
+let length : {-A : *} -> List A -> Nat
+  = foldr 0 (\_. S);
+
 let map : {-A -B : *} -> (A -> B) -> List A -> List B
   = \fn list. foldr Nil (\hd tl. Cons (fn hd) tl) list;
 
-[ListF, List, @Nil, @Cons, @elimList, @foldr, @map]
+[ListF, List, @Nil, @Cons, @elimList, @foldr, @length, @map]
 :
 (-ListF : * -> * -> *)
 **
@@ -41,6 +44,8 @@ let map : {-A -B : *} -> (A -> B) -> List A -> List B
     P x)
 **
 (foldr : {-A -R : *} -> R -> (A -> R -> R) -> List A -> R)
+**
+(length : {-A : *} -> List A -> Nat)
 **
 (map : {-A -B : *} -> (A -> B) -> List A -> List B)
 **
