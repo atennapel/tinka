@@ -1,7 +1,7 @@
 import { log } from './config';
 import { Erasure, Expl, Impl, Mode } from './mode';
 import { Name } from './names';
-import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid, NatLit, SymbolLit, Global } from './surface';
+import { Abs, App, Let, Pair, PFst, Pi, PIndex, PName, Proj, ProjType, PSnd, show, Sigma, Surface, Var, Hole, Ann, Type, Import, Rigid, SymbolLit, Global } from './surface';
 import { serr } from './utils/utils';
 
 type BracketO = '(' | '{' | '['
@@ -228,7 +228,7 @@ const expr = (t: Token): [Surface, boolean] => {
     const s = codepoints(t.str).reverse();
     const Cons = Var('Cons');
     const Nil = Var('Nil');
-    return [s.reduce((t, n) => App(App(Cons, Expl, NatLit(BigInt(n))), Expl, t), Nil as Surface), false];
+    return [s.reduce((t, n) => App(App(Cons, Expl, numToNat(n, `${n}`)), Expl, t), Nil as Surface), false];
   }
   if (t.tag === 'Name') {
     const x = t.name;
@@ -269,7 +269,7 @@ const expr = (t: Token): [Surface, boolean] => {
     } else if (t.num.endsWith('n')) {
       return [numToNat(+t.num.slice(0, -1), t.num), false];
     } else {
-      return [NatLit(BigInt(t.num)), false];
+      return [numToNat(+t.num, t.num), false];
     }
   }
   return t;
@@ -295,7 +295,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       ts = ts.slice(1);
       type = 3;
     }
-    if (ts.length === 0) return Pair(NatLit(0n), Unit);
+    if (ts.length === 0) return Pair(numToNat(0, '0'), Unit);
     const jp = ts.findIndex(x => isName(x, ','));
     if (jp >= 0) {
       const s = splitTokens(ts, x => isName(x, ','));
@@ -309,7 +309,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
         return [exprs(x, '('), false];
       });
       if (args.length === 0) {
-        if (type === 1) return Pair(NatLit(0n), Unit);
+        if (type === 1) return Pair(numToNat(0, '0'), Unit);
         if (type === 2) return Nil;
         if (type === 3) return VNil;
         return Unit;
@@ -326,11 +326,11 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
         if (i) return serr(`pair element cannot be implicit`);
         return Pair(y, x);
       }, Unit as Surface);
-      if (type === 1) Pair(NatLit(BigInt(args.length)), p);
+      if (type === 1) Pair(numToNat(args.length, `${args.length}`), p);
       return p;
     } else {
       const expr = exprs(ts, '(');
-      if (type === 1) return Pair(NatLit(1n), Pair(expr, Unit));
+      if (type === 1) return Pair(numToNat(1, `1`), Pair(expr, Unit));
       if (type === 2) return App(App(Cons, Expl, expr), Expl, Nil);
       if (type === 3) return App(App(VCons, Expl, expr), Expl, VNil);
       return Pair(expr, Unit);

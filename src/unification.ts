@@ -4,7 +4,7 @@ import { freshMeta, getMeta, MetaVar, setMeta } from './metas';
 import { Ix, Lvl } from './names';
 import { cons, List, nil } from './utils/List';
 import { impossible, terr, tryT, tryTE } from './utils/utils';
-import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote, VNatLit, VRigid, VFlex, VFinLit, vpred, isVUnitType, VS, VMeta, VNat } from './values';
+import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote, VFlex } from './values';
 import * as C from './core';
 import { eqMode, Expl, Mode } from './mode';
 import { verify } from './verification';
@@ -123,8 +123,6 @@ const renameSpine = (pren: PartialRenaming, t: Core, sp: Spine): Core =>
 
 const rename = (pren: PartialRenaming, v_: Val): Core => {
   const v = force(v_, false);
-  if (v.tag === 'VNatLit') return C.NatLit(v.value);
-  if (v.tag === 'VFinLit') return C.FinLit(v.value, rename(pren, v.diff), rename(pren, v.type));
   if (v.tag === 'VSymbolLit') return C.SymbolLit(v.name);
   if (v.tag === 'VRigid') {
     if (v.head.tag === 'HPrim') return renameSpine(pren, Prim(v.head.name), v.spine);
@@ -164,58 +162,6 @@ const lams = (lvl: Lvl, a_: Val, t: Core, k: Lvl = 0): Core => {
 
 const solve = (gamma: Lvl, m: MetaVar, sp: Spine, rhs_: Val): void => {
   log(() => `solve ?${m}${sp.reverse().toString(v => v.tag === 'EApp' ? `${v.mode.tag === 'Expl' ? '' : '{'}${show(v.arg, gamma)}${v.mode.tag === 'Expl' ? '' : '}'}` : v.tag === 'EPrim' ? v.name : v.tag)} := ${show(rhs_, gamma)}`);
-
-  // special case for S (?0 ...) ~ v
-  if (sp.isCons() && sp.head.tag === 'EPrim' && sp.head.name === 'S') {
-    if (rhs_.tag === 'VNatLit' && rhs_.value > 0n)
-      return solve(gamma, m, sp.tail, VNatLit(rhs_.value - 1n));
-    if (rhs_.tag === 'VRigid' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'S')
-      return solve(gamma, m, sp.tail, VRigid(rhs_.head, rhs_.spine.tail));
-    if (rhs_.tag === 'VFlex' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'S')
-      return solve(gamma, m, sp.tail, VFlex(rhs_.head, rhs_.spine.tail));
-    if (rhs_.tag === 'VGlobal' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'S')
-      return solve(gamma, m, sp, rhs_.val.get());
-  }
-
-  // special case for FS (?0 ...) ~ v
-  if (sp.isCons() && sp.head.tag === 'EPrim' && sp.head.name === 'FS') {
-    if (rhs_.tag === 'VFinLit' && rhs_.value > 0n)
-      return solve(gamma, m, sp.tail, VFinLit(rhs_.value - 1n, rhs_.diff, vpred(rhs_.type)));
-    if (rhs_.tag === 'VRigid' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'FS')
-      return solve(gamma, m, sp.tail, VRigid(rhs_.head, rhs_.spine.tail));
-    if (rhs_.tag === 'VFlex' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'FS')
-      return solve(gamma, m, sp.tail, VFlex(rhs_.head, rhs_.spine.tail));
-    if (rhs_.tag === 'VGlobal' && rhs_.spine.isCons() && rhs_.spine.head.tag === 'EPrim' && rhs_.spine.head.name === 'FS')
-      return solve(gamma, m, sp, rhs_.val.get());
-  }
-
-  // special case for elimNat _ () (\_ _. A ** B) (?0 ...) ~ v
-  // if v is not a neutral and the shape of a or b matches v
-  // then we can decide whether (?0 ...) is Z or S m
-  if (sp.isCons()) {
-    const head = sp.head;
-    if (head.tag === 'EPrim' && head.name === 'elimNat') {
-      const args = head.args;
-      const z = force(args[1][1]);
-      const s = force(args[2][1]);
-      const v = force(rhs_);
-      if (isVUnitType(z) && isVUnitType(v))
-        return solve(gamma, m, sp.tail, VNatLit(0n));
-      if (v.tag === 'VSigma' && s.tag === 'VAbs') {
-        const s2 = force(vinst(s, VVar(gamma)));
-        if (s2.tag === 'VAbs') {
-          const s3 = force(vinst(s2, VVar(gamma + 1)));
-          // elimNat _ () (\_ _. (x:A) ** B) (?0 ...) ~ (x:A) ** B
-          // ?0 ... ~ S (?1 ...)
-          if (s3.tag === 'VSigma') {
-            solve(gamma, m, sp.tail, VS(VMeta(freshMeta(VNat, false))));
-            return unify(gamma, VMeta(m, sp), rhs_);
-          }
-        }
-      }
-    }
-  }
-
   const pren = invert(gamma, sp);
   return solveWithPRen(gamma, m, pren, rhs_);
 };
@@ -323,8 +269,6 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
   const b = force(b_, false);
   log(() => `unify ${show(a, l)} ~ ${show(b, l)}`);
   if (a === b) return;
-  if (a.tag === 'VNatLit' && b.tag === 'VNatLit' && a.value === b.value) return;
-  if (a.tag === 'VFinLit' && b.tag === 'VFinLit' && a.value === b.value) return;
   if (a.tag === 'VSymbolLit' && b.tag === 'VSymbolLit' && a.name === b.name) return;
   if (a.tag === 'VAbs' && b.tag === 'VAbs') {
     const v = VVar(l);
@@ -365,14 +309,6 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
   }
 
   if (primEta(a) || primEta(b)) return;
-  if (a.tag === 'VFinLit' && a.value === 0n) {
-    const ty = force(a.type);
-    if (ty.tag === 'VNatLit' && ty.value === 0n) return;
-  }
-  if (b.tag === 'VFinLit' && b.value === 0n) {
-    const ty = force(b.type);
-    if (ty.tag === 'VNatLit' && ty.value === 0n) return;
-  }
 
   if (a.tag === 'VRigid' && b.tag === 'VRigid' && eqHead(a.head, b.head))
     return tryT(() => unifySpines(l, a, b, a.spine, b.spine), e => terr(`failed to unify: ${show(a, l)} ~ ${show(b, l)}: ${e}`));

@@ -3,6 +3,8 @@ import lib/nat;
 import lib/eq;
 import lib/idata;
 import lib/singleton;
+import lib/void;
+import lib/fin;
 
 let -VecF : * -> (Nat -> *) -> Nat -> * = \A R n. Sum (Eq 0 n) ((-m : Nat) ** A ** R m ** (Eq (S m) n));
 let -Vec : Nat -> * -> * = \n A. IData (VecF A) n;
@@ -46,7 +48,7 @@ let tailVec : {-A : *} -> {-n : Nat} -> Vec (S n) A -> Vec n A
   = \{A} {n} v. elimVec (\{m} _. Eq m (S n) -> Vec (pred m) A) (\q. absurd (z_neq_S q)) (\_ _ tl _. tl) v Refl;
 
 let ixVec : {-A : *} -> {-n : Nat} -> Fin n -> Vec n A -> A
-  = \{A} {n}. elimFin (\n _. Vec n A -> A) headVec (\rec y v. rec y (tailVec v));
+  = \{A} {n}. elimFin (\{n} _. Vec n A -> A) headVec (\rec y v. rec y (tailVec v));
 
 [VecF, Vec, @VNil, @VCons, @elimVec, @foldrVec, @lengthVec, @lengthVecSingleton, @mapVec, @headVec, @tailVec, @ixVec]
 :

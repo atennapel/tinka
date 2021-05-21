@@ -33,7 +33,6 @@ TODO:
 - [ ] add symbols and enumerations
 - [ ] add testing
 - [ ] fix case-insensitive filesystem support
-- [ ] replace void, unit, bool with Fin
 - [ ] add surface syntax for modules
 - [ ] add surface syntax for datatypes
 - [ ] inductive-inductive fixpoints

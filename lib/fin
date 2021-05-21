@@ -1,12 +1,63 @@
 import lib/nat;
+import lib/sum;
+import lib/eq;
+import lib/idata;
+
+let -FinF : (Nat -> *) -> Nat -> * = \R n. Sum ((-m : Nat) ** Eq (S m) n) ((-m : Nat) ** R m ** (Eq (S m) n));
+let -Fin : Nat -> * = IData FinF;
+let FZ : {-n : Nat} -> Fin (S n) = \{n}. ICon {_} {FinF} (Left (n, Refl));
+let FS : {-n : Nat} -> Fin n -> Fin (S n) = \{n} f. ICon {_} {FinF} (Right (n, f, Refl));
+
+let elimFin
+  : (-P : {n : Nat} -> Fin n -> *) ->
+    ({-n : Nat} -> P (FZ {n})) ->
+    (({-n : Nat} -> (f : Fin n) -> P f) -> {-n : Nat} -> (f : Fin n) -> P (FS f)) ->
+    {-n : Nat} ->
+    (f : Fin n) ->
+    P f
+  = \P fz fs {n} v. elimIData {_} {FinF} P (\rec {m} y. elimSum (\s. P (ICon {_} {FinF} {m} s))
+      (\p.
+        let -k = p._1;
+        let q = p._2;
+        elimEq (\e. P (ICon {_} {FinF} (Left (k, e)))) (fz {k}) q)
+      (\p.
+        let -k = p.0;
+        let f = p.1;
+        let q = p._2._2;
+        elimEq (\e. P (ICon {_} {FinF} (Right (k, f, e)))) (fs @rec {k} f) q)
+    y) {n} v;
 
 let fin2nat : {-n : Nat} -> Fin n -> Nat
-  = \f. elimFin (\_ _. Nat) 0 (\rec z. S (rec z)) f;
+  = \f. elimFin (\_. Nat) 0 (\rec z. S (rec z)) f;
 
 let nat2fin : (n : Nat) -> Fin (S n)
-  = \n. elimNat (\n. Fin (S n)) 0 (\rec m. FS (rec m)) n;
+  = \n. elimNat (\n. Fin (S n)) 0f (\rec m. FS (rec m)) n;
 
-let addFin : {-n -m : Nat} -> Fin n -> Fin m -> Fin (add n m)
-  = \{n} {m} x y. elimFin (\n _. Fin (add n m)) (\{k}. weakenFin {S k} y) (\rec z. FS (rec z)) x;
+let weakenFin : {-n : Nat} -> {-m : Nat} -> Fin m -> Fin (add m n)
+  = \{n} {m} f. elimFin (\{k} f. Fin (add k n)) (\{k}. FZ {add k n}) (\rec {k} x. FS (rec x)) f;
 
-[fin2nat, nat2fin, addFin]
+[FinF, Fin, @FZ, @FS, elimFin, @fin2nat, nat2fin, @weakenFin]
+:
+(-FinF : (Nat -> *) -> Nat -> *)
+**
+(-Fin : Nat -> *)
+**
+(FZ : {-n : Nat} -> Fin (S n))
+**
+(FS : {-n : Nat} -> Fin n -> Fin (S n))
+**
+(elimFin
+  : (-P : {n : Nat} -> Fin n -> *) ->
+    ({-n : Nat} -> P (FZ {n})) ->
+    (({-n : Nat} -> (f : Fin n) -> P f) -> {-n : Nat} -> (f : Fin n) -> P (FS f)) ->
+    {-n : Nat} ->
+    (f : Fin n) ->
+    P f)
+**
+(fin2nat : {-n : Nat} -> Fin n -> Nat)
+**
+(nat2fin : (n : Nat) -> Fin (S n))
+**
+(weakenFin : {-n : Nat} -> {-m : Nat} -> Fin m -> Fin (add m n))
+**
+()

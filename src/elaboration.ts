@@ -3,7 +3,7 @@ import { indexEnvT, Local, Path } from './local';
 import { allMetasSolved, freshMeta, resetMetas, getUnsolvedMetas, MetaVar, registerMetaCallback } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
-import { evaluate, force, isVUnitType, quote, vadd, Val, vinst, VNat, vproj, VS, VSymbol, VType, VVar, zonk } from './values';
+import { evaluate, force, isVUnitType, quote, Val, vinst, vproj, VSymbol, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
 import { config, log, setConfig } from './config';
@@ -117,14 +117,6 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
     postpone(fty.head, local, tm, ty, evaluate(m, local.vs));
     return m;
   }
-  if (tm.tag === 'NatLit' && fty.tag === 'VRigid' && fty.head.tag === 'HPrim' && fty.head.name === 'Fin') {
-    const m = evaluate(newMeta(local, VNat, true), local.vs);
-    const n = vadd(VS(m), tm.value);
-    return tryT(() => {
-      unify(local.level, n, (fty.spine as any).head.arg);
-      return C.FinLit(tm.value, quote(m, local.level), quote(vadd(m, tm.value), local.level));
-    }, e => terr(`check failed (${show(tm)} : ${showV(local, fty)}): ${showV(local, n)} ~ ${showV(local, (fty.spine as any).head.arg)}: ${e}`));
-  }
   if (tm.tag === 'Let') {
     let vtype: Core;
     let vty: Val;
@@ -169,7 +161,6 @@ const freshSigma = (local: Local, erased: Erasure, x: Name): Val => {
 
 const synth = (local: Local, tm: Surface): [Core, Val] => {
   log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
-  if (tm.tag === 'NatLit') return [C.NatLit(tm.value), VNat];
   if (tm.tag === 'SymbolLit') return [C.SymbolLit(tm.name), VSymbol];
   if (tm.tag === 'Var') {
     const i = local.nsSurface.indexOf(tm.name);

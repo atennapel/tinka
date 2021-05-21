@@ -1,5 +1,20 @@
 import lib/eq;
 import lib/bool;
+import lib/data;
+import lib/sum;
+
+let -NatF : * -> * = \R. Sum () R;
+let -Nat : * = Data NatF;
+let Z : Nat = Con {NatF} (Left []);
+let S : Nat -> Nat = \n. Con {NatF} (Right n);
+
+let elimNat
+  : (-P : Nat -> *) ->
+    P Z ->
+    (((k : Nat) -> P k) -> (m : Nat) -> P (S m)) ->
+    (n : Nat) ->
+    P n
+  = \P z s x. elimData {NatF} P (\rec y. elimSum (\s. P (Con {NatF} s)) (\_. z) (\m. s rec m) y) x;
 
 let caseNat
   : {-A : *} -> Nat -> A -> (Nat -> A) -> A
@@ -18,4 +33,56 @@ let z_neq_S
   : {-n : Nat} -> Neq 0 (S n)
   = \{n} eq. rewrite (\n. liftBool (isZero n)) eq [];
 
-[caseNat, cataNat, pred, add, mul, isZero, z_neq_S]
+let add_n_0_eq_n
+  : (n : Nat) -> Eq (add n 0) n
+  = \n. elimNat (\n. Eq (add n 0) n) Refl (\rec m. cong S (rec m)) n;
+
+let add_S
+  : (a -b : Nat) -> Eq (S (add a b)) (add a (S b))
+  = \a b. elimNat (\x. Eq (S (add x b)) (add x (S b))) Refl (\rec m. cong S (rec m)) a;
+
+let add_comm
+  : (a b : Nat) -> Eq (add a b) (add b a)
+  = \a b. elimNat (\n. Eq (add n b) (add b n))
+      (let q = Refl {_} {add b Z}; rewrite (\x. Eq x (add b Z)) (add_n_0_eq_n b) q)
+      (\rec m. let q = rec m; rewrite (\x. Eq (S (add m b)) x) (add_S b m) (cong S q))
+      a;
+
+[NatF, Nat, Z, S, elimNat, @caseNat, @cataNat, pred, add, mul, isZero, @z_neq_S, add_n_0_eq_n, add_S, add_comm]
+:
+(-NatF : * -> *)
+**
+(-Nat : *)
+**
+(Z : Nat)
+**
+(S : Nat -> Nat)
+**
+(elimNat
+  : (-P : Nat -> *) ->
+    P Z ->
+    (((k : Nat) -> P k) -> (m : Nat) -> P (S m)) ->
+    (n : Nat) ->
+    P n)
+**
+(caseNat : {-A : *} -> Nat -> A -> (Nat -> A) -> A)
+**
+(cataNat : {-A : *} -> Nat -> A -> (A -> A) -> A)
+**
+(pred : Nat -> Nat)
+**
+(add : Nat -> Nat -> Nat)
+**
+(mul : Nat -> Nat -> Nat)
+**
+(isZero : Nat -> Bool)
+**
+(z_neq_S : {-n : Nat} -> Neq 0 (S n))
+**
+(add_n_0_eq_n : (n : Nat) -> Eq (add n 0) n)
+**
+(add_S : (a -b : Nat) -> Eq (S (add a b)) (add a (S b)))
+**
+(add_comm : (a b : Nat) -> Eq (add a b) (add b a))
+**
+()

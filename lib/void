@@ -1,4 +1,16 @@
+let -Void = (-A : *) -> A;
+
+let absurd : {-A : *} -> Void -> A = \{A} v. v A;
+
 let indVoid : (-P : Void -> *) -> (v : Void) -> P v
   = \P v. absurd {P v} v;
 
-[indVoid]
+[Void, @absurd, indVoid]
+:
+(-Void : *)
+**
+(absurd : {-A : *} -> Void -> A)
+**
+(indVoid : (-P : Void -> *) -> (v : Void) -> P v)
+**
+()

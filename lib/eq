@@ -1,3 +1,5 @@
+import lib/void;
+
 let -HNeq : {A B : *} -> A -> B -> * = \a b. HEq a b -> Void;
 let -Eq : {A : *} -> A -> A -> * = HEq;
 let -Neq : {A : *} -> A -> A -> * = HNeq;
@@ -34,8 +36,8 @@ let trans
   = \{A} {a} p q. rewrite (\x. Eq a x) q p;
 
 let cong
-  : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b)
-  = \{A} {B} {f} {a} p. rewrite (\x. Eq (f a) (f x)) p Refl;
+  : {-A -B : *} -> {-a -b : A} -> (-f : A -> B) -> Eq a b -> Eq (f a) (f b)
+  = \{A} {B} {a} f p. rewrite (\x. Eq (f a) (f x)) p Refl;
 
 let eqRefl
   : {-A : *} -> {-a : A} -> (p : Eq a a) -> Eq p Refl
@@ -82,7 +84,7 @@ let rewriteBoth
 **
 (trans : {-A : *} -> {-a -b -c : A} -> Eq a b -> Eq b c -> Eq a c)
 **
-(cong : {-A -B : *} -> {-f : A -> B} -> {-a -b : A} -> Eq a b -> Eq (f a) (f b))
+(cong : {-A -B : *} -> {-a -b : A} -> (-f : A -> B) -> Eq a b -> Eq (f a) (f b))
 **
 (eqRefl : {-A : *} -> {-a : A} -> (p : Eq a a) -> Eq p Refl)
 **

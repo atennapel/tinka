@@ -1,5 +1,6 @@
 import lib/data;
 import lib/sum;
+import lib/nat;
 
 let -ListF : * -> * -> * = \A R. Sum () (A ** R);
 let -List : * -> * = \A. Data (ListF A);

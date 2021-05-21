@@ -10,7 +10,6 @@ export type Core =
   Var | Global | Prim | SymbolLit | Let |
   Pi | Abs | App |
   Sigma | Pair | Proj |
-  NatLit | FinLit |
   Meta | InsertedMeta;
 
 export interface Var { readonly tag: 'Var'; readonly index: Ix }
@@ -37,11 +36,6 @@ export interface Pair { readonly tag: 'Pair'; readonly fst: Core; readonly snd: 
 export const Pair = (fst: Core, snd: Core, type: Core): Pair => ({ tag: 'Pair', fst, snd, type });
 export interface Proj { readonly tag: 'Proj'; readonly term: Core; readonly proj: ProjType }
 export const Proj = (term: Core, proj: ProjType): Proj => ({ tag: 'Proj', term, proj });
-
-export interface NatLit { readonly tag: 'NatLit'; readonly value: bigint }
-export const NatLit = (value: bigint): NatLit => ({ tag: 'NatLit', value });
-export interface FinLit { readonly tag: 'FinLit'; readonly value: bigint; readonly diff: Core; readonly type: Core }
-export const FinLit = (value: bigint, diff: Core, type: Core): FinLit => ({ tag: 'FinLit', value, diff, type });
 
 export interface Meta { readonly tag: 'Meta'; readonly id: MetaVar }
 export const Meta = (id: MetaVar): Meta => ({ tag: 'Meta', id });
@@ -118,7 +112,7 @@ export const flattenProj = (t: Core): [Core, ProjType[]] => {
 
 const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Core) =>
-  t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj' || t.tag === 'NatLit';
+  t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj';
 const showS = (t: Core) => showP(!isSimple(t), t);
 const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
@@ -131,8 +125,6 @@ export const show = (t: Core): string => {
   if (t.tag === 'Prim') return t.name === '*' && config.unicode ? '★' : `${t.name}`;
   if (t.tag === 'SymbolLit') return `'${t.name}`;
   if (t.tag === 'Meta') return `?${t.id}`;
-  if (t.tag === 'NatLit') return `${t.value}`;
-  if (t.tag === 'FinLit') return `${t.value}/${showS(t.diff)}/${showS(t.type)}`;
   if (t.tag === 'InsertedMeta') return `?*${t.id}${t.spine.reverse().toString(([m, b]) => `${m.tag === 'Expl' ? '' : '{'}${b ? 'b' : 'd'}${m.tag === 'Expl' ? '' : '}'}`)}`;
   if (t.tag === 'Pi') {
     const [params, ret] = flattenPi(t);
@@ -176,7 +168,6 @@ export const shift = (d: Ix, c: Ix, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.erased, t.name, shift(d, c, t.type), shift(d, c, t.val), shift(d, c + 1, t.body));
   if (t.tag === 'Pi') return Pi(t.erased, t.mode, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
   if (t.tag === 'Sigma') return Sigma(t.erased, t.name, shift(d, c, t.type), shift(d, c + 1, t.body));
-  if (t.tag === 'FinLit') return FinLit(t.value, shift(d, c, t.diff), shift(d, c, t.type));
   if (t.tag === 'InsertedMeta') return impossible(`InsertedMeta in shift`);
   return t;
 };
@@ -190,7 +181,6 @@ export const substVar = (j: Ix, s: Core, t: Core): Core => {
   if (t.tag === 'Let') return Let(t.erased, t.name, substVar(j, s, t.type), substVar(j, s, t.val), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Pi') return Pi(t.erased, t.mode, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
   if (t.tag === 'Sigma') return Sigma(t.erased, t.name, substVar(j, s, t.type), substVar(j + 1, shift(1, 0, s), t.body));
-  if (t.tag === 'FinLit') return FinLit(t.value, substVar(j, s, t.diff), substVar(j, s, t.type));
   if (t.tag === 'InsertedMeta') return impossible(`InsertedMeta in substVar`);
   return t;
 };

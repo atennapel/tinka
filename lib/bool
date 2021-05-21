@@ -1,3 +1,5 @@
+
+import lib/void;
 import lib/eq;
 
 let if : {-A : *} -> Bool -> A -> A -> A
