@@ -1,12 +1,12 @@
 import { Abs, App, Core, Global, InsertedMeta, Let, Pair, Pi, Sigma, Var, Proj, PIndex, PFst, PSnd, Prim } from './core';
 import { indexEnvT, Local, Path } from './local';
-import { allMetasSolved, freshMeta, resetMetas, getUnsolvedMetas } from './metas';
+import { allMetasSolved, freshMeta, resetMetas, getUnsolvedMetas, MetaVar, registerMetaCallback } from './metas';
 import { show, Surface } from './surface';
 import { cons, List, nil } from './utils/List';
 import { evaluate, force, isVUnitType, quote, vadd, Val, vinst, VNat, vproj, VS, VSymbol, VType, VVar, zonk } from './values';
 import * as S from './surface';
 import * as C from './core';
-import { config, log } from './config';
+import { config, log, setConfig } from './config';
 import { terr, tryT } from './utils/utils';
 import { unify } from './unification';
 import { Ix, Name } from './names';
@@ -46,6 +46,42 @@ const inst = (local: Local, ty_: Val): [Val, List<Core>] => {
   return [ty_, nil];
 };
 
+type Postpone = [MetaVar, Local, Surface, Val, Val];
+let postponed: Postpone[] = [];
+const postpone = (m: MetaVar, local: Local, tm: Surface, ty: Val, res: Val): void => {
+  log(() => `postpone for ?${m}`);
+  const problem: Postpone = [m, local, tm, ty, res];
+  postponed.push(problem);
+  registerMetaCallback(m, () => {
+    log(() => `try postponed problem for ?${m}`);
+    const p = check(local, tm, ty);
+    unify(local.level, res, evaluate(p, local.vs));
+    const i = postponed.findIndex(x => x === problem);
+    if (i >= 0) postponed.splice(i, 1);
+  });
+};
+const tryAllPostponed = (): void => {
+  log(() => `try all postponed problems`);
+  for (let i = 0, l = postponed.length; i < l; i++) {
+    const [m, local, tm, ty, res] = postponed[i];
+    log(() => `try postponed problem for ?${m}`);
+    const p = check(local, tm, ty);
+    unify(local.level, res, evaluate(p, local.vs));
+    const j = postponed.findIndex(x => x === postponed[i]);
+    if (j >= 0) postponed.splice(j, 1);
+  }
+  setConfig({ postpone: false });
+  for (let i = 0, l = postponed.length; i < l; i++) {
+    const [m, local, tm, ty, res] = postponed[i];
+    log(() => `try remaining postponed problem for ?${m}`);
+    const p = check(local, tm, ty);
+    unify(local.level, res, evaluate(p, local.vs));
+    const j = postponed.findIndex(x => x === postponed[i]);
+    if (j >= 0) postponed.splice(j, 1);
+  }
+  setConfig({ postpone: true });
+};
+
 const check = (local: Local, tm: Surface, ty: Val): Core => {
   log(() => `check ${show(tm)} : ${showV(local, ty)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
   if (tm.tag === 'Hole') {
@@ -75,6 +111,11 @@ const check = (local: Local, tm: Surface, ty: Val): Core => {
     const qty = quote(ty, local.level);
     log(() => `quoted sigma type (${show(tm)}): ${C.show(qty)}`);
     return Pair(fst, snd, qty);
+  }
+  if (config.postpone && tm.tag === 'Pair' && fty.tag === 'VFlex') {
+    const m = newMeta(local, ty, local.erased);
+    postpone(fty.head, local, tm, ty, evaluate(m, local.vs));
+    return m;
   }
   if (tm.tag === 'NatLit' && fty.tag === 'VRigid' && fty.head.tag === 'HPrim' && fty.head.name === 'Fin') {
     const m = evaluate(newMeta(local, VNat, true), local.vs);
@@ -116,6 +157,15 @@ const freshPi = (local: Local, erased: Erasure, mode: Mode, x: Name): Val => {
   const b = newMeta(local.bind(erased, mode, '_', va), VType, true);
   return evaluate(Pi(erased, mode, x, a, b), local.vs);
 };
+/*
+const freshSigma = (local: Local, erased: Erasure, x: Name): Val => {
+  const a = newMeta(local, VType, true);
+  const va = evaluate(a, local.vs);
+  const b = newMeta(local.bind(erased, Expl, '_', va), VType, true);
+  const sigma = Sigma(erased, x, a, b);
+  return evaluate(sigma, local.vs);
+};
+*/
 
 const synth = (local: Local, tm: Surface): [Core, Val] => {
   log(() => `synth ${show(tm)}${config.showEnvs ? ` in ${local.toString()}` : ''}`);
@@ -226,11 +276,14 @@ const synth = (local: Local, tm: Surface): [Core, Val] => {
         if (res) {
           erased = res[0].erased;
         }
+      } else if (isPrimName(tm.fst.name)) {
+        erased = isPrimErased(tm.fst.name);
       }
-    }
+    } // TODO: remove this ugliness
+    const x = tm.fst.tag === 'Var' ? tm.fst.name : '_';
     const [fst, fstty] = synth(erased ? local.inType() : local, tm.fst);
     const [snd, sndty] = synth(local, tm.snd);
-    const ty = Sigma(erased, tm.fst.tag === 'Var' ? tm.fst.name : '_', quote(fstty, local.level), quote(sndty, local.level + 1));
+    const ty = Sigma(erased, x, quote(fstty, local.level), quote(sndty, local.level + 1));
     return [Pair(fst, snd, ty), evaluate(ty, local.vs)];
   }
   if (tm.tag === 'Ann') {
@@ -356,8 +409,14 @@ const showUnsolvedMetas = (local: Local): string =>
 
 export const elaborate = (t: Surface, local: Local = Local.empty()): [Core, Core] => {
   holes = {};
+  postponed = [];
   resetMetas();
+
   const [tm, ty] = synth(local, t);
+
+  tryAllPostponed();
+  if (postponed.length > 0) return terr(`there are postponed problems left: ${postponed.map(x => `?${x[0]}`).join(' ')}`);
+
   const qty = quote(ty, local.level);
 
   log(() => C.show(qty));

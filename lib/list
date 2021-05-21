@@ -5,7 +5,7 @@ let -ListF : * -> * -> * = \A R. Sum () (A ** R);
 let -List : * -> * = \A. Data (ListF A);
 let Nil : {-A : *} -> List A = \{A}. Con {ListF A} (Left []);
 let Cons : {-A : *} -> A -> List A -> List A
-  = \{A} hd tl. Con {ListF A} (Right {()} {A ** List A} (hd, tl));
+  = \{A} hd tl. Con {ListF A} (Right (hd, tl));
 
 let elimList
   : {-A : *} ->

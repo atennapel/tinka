@@ -12,9 +12,17 @@ export const Solved = (id: MetaVar, solution: Val, type: Val): Solved => ({ tag:
 
 export type Metas = Solution[];
 
-let metas: Metas = [];
+type Callbacks = { [key: string]: (() => void)[] };
 
-export const resetMetas = (): void => { metas = [] };
+let metas: Metas = [];
+let callbacks: Callbacks = {};
+
+export const resetMetas = (): void => { metas = []; callbacks = {} };
+
+export const registerMetaCallback = (m: MetaVar, fn: () => void): void => {
+  if (!callbacks[m]) callbacks[m] = [];
+  callbacks[m].push(fn);
+};
 
 export const freshMeta = (type: Val, erased: Erasure): MetaVar => {
   const id = metas.length;
@@ -33,6 +41,9 @@ export const setMeta = (id: MetaVar, solution: Val): void => {
   if (!entry) return impossible(`setMeta with undefined meta ${id}`);
   if (entry.tag === 'Solved') return impossible(`setMeta with solved meta ${id}`);
   metas[id] = Solved(id, solution, entry.type);
+  const cbs = callbacks[id];
+  if (cbs) for (let i = 0, l = cbs.length; i < l; i++) cbs[i]();
+  delete callbacks[id];
 };
 
 export const allMetasSolved = (): boolean => metas.every(x => x.tag === 'Solved');

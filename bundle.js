@@ -9,6 +9,7 @@ exports.config = {
     unicode: true,
     hideImplicits: true,
     verifyMetaSolutions: true,
+    postpone: true,
 };
 const setConfig = (c) => {
     for (let k in c)
@@ -278,6 +279,43 @@ const inst = (local, ty_) => {
     }
     return [ty_, List_1.nil];
 };
+let postponed = [];
+const postpone = (m, local, tm, ty, res) => {
+    config_1.log(() => `postpone for ?${m}`);
+    const problem = [m, local, tm, ty, res];
+    postponed.push(problem);
+    metas_1.registerMetaCallback(m, () => {
+        config_1.log(() => `try postponed problem for ?${m}`);
+        const p = check(local, tm, ty);
+        unification_1.unify(local.level, res, values_1.evaluate(p, local.vs));
+        const i = postponed.findIndex(x => x === problem);
+        if (i >= 0)
+            postponed.splice(i, 1);
+    });
+};
+const tryAllPostponed = () => {
+    config_1.log(() => `try all postponed problems`);
+    for (let i = 0, l = postponed.length; i < l; i++) {
+        const [m, local, tm, ty, res] = postponed[i];
+        config_1.log(() => `try postponed problem for ?${m}`);
+        const p = check(local, tm, ty);
+        unification_1.unify(local.level, res, values_1.evaluate(p, local.vs));
+        const j = postponed.findIndex(x => x === postponed[i]);
+        if (j >= 0)
+            postponed.splice(j, 1);
+    }
+    config_1.setConfig({ postpone: false });
+    for (let i = 0, l = postponed.length; i < l; i++) {
+        const [m, local, tm, ty, res] = postponed[i];
+        config_1.log(() => `try remaining postponed problem for ?${m}`);
+        const p = check(local, tm, ty);
+        unification_1.unify(local.level, res, values_1.evaluate(p, local.vs));
+        const j = postponed.findIndex(x => x === postponed[i]);
+        if (j >= 0)
+            postponed.splice(j, 1);
+    }
+    config_1.setConfig({ postpone: true });
+};
 const check = (local, tm, ty) => {
     config_1.log(() => `check ${surface_1.show(tm)} : ${showV(local, ty)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     if (tm.tag === 'Hole') {
@@ -308,6 +346,11 @@ const check = (local, tm, ty) => {
         const qty = values_1.quote(ty, local.level);
         config_1.log(() => `quoted sigma type (${surface_1.show(tm)}): ${C.show(qty)}`);
         return core_1.Pair(fst, snd, qty);
+    }
+    if (config_1.config.postpone && tm.tag === 'Pair' && fty.tag === 'VFlex') {
+        const m = newMeta(local, ty, local.erased);
+        postpone(fty.head, local, tm, ty, values_1.evaluate(m, local.vs));
+        return m;
     }
     if (tm.tag === 'NatLit' && fty.tag === 'VRigid' && fty.head.tag === 'HPrim' && fty.head.name === 'Fin') {
         const m = values_1.evaluate(newMeta(local, values_1.VNat, true), local.vs);
@@ -349,6 +392,15 @@ const freshPi = (local, erased, mode, x) => {
     const b = newMeta(local.bind(erased, mode, '_', va), values_1.VType, true);
     return values_1.evaluate(core_1.Pi(erased, mode, x, a, b), local.vs);
 };
+/*
+const freshSigma = (local: Local, erased: Erasure, x: Name): Val => {
+  const a = newMeta(local, VType, true);
+  const va = evaluate(a, local.vs);
+  const b = newMeta(local.bind(erased, Expl, '_', va), VType, true);
+  const sigma = Sigma(erased, x, a, b);
+  return evaluate(sigma, local.vs);
+};
+*/
 const synth = (local, tm) => {
     config_1.log(() => `synth ${surface_1.show(tm)}${config_1.config.showEnvs ? ` in ${local.toString()}` : ''}`);
     if (tm.tag === 'NatLit')
@@ -477,10 +529,14 @@ const synth = (local, tm) => {
                     erased = res[0].erased;
                 }
             }
-        }
+            else if (prims_1.isPrimName(tm.fst.name)) {
+                erased = prims_1.isPrimErased(tm.fst.name);
+            }
+        } // TODO: remove this ugliness
+        const x = tm.fst.tag === 'Var' ? tm.fst.name : '_';
         const [fst, fstty] = synth(erased ? local.inType() : local, tm.fst);
         const [snd, sndty] = synth(local, tm.snd);
-        const ty = core_1.Sigma(erased, tm.fst.tag === 'Var' ? tm.fst.name : '_', values_1.quote(fstty, local.level), values_1.quote(sndty, local.level + 1));
+        const ty = core_1.Sigma(erased, x, values_1.quote(fstty, local.level), values_1.quote(sndty, local.level + 1));
         return [core_1.Pair(fst, snd, ty), values_1.evaluate(ty, local.vs)];
     }
     if (tm.tag === 'Ann') {
@@ -604,8 +660,12 @@ const showHoles = (tm, ty, toplocal) => {
 const showUnsolvedMetas = (local) => metas_1.getUnsolvedMetas().map(m => `${m.erased ? '-' : ''}?${m.id} : ${showV(local, m.type)}`).join('\n');
 const elaborate = (t, local = local_1.Local.empty()) => {
     holes = {};
+    postponed = [];
     metas_1.resetMetas();
     const [tm, ty] = synth(local, t);
+    tryAllPostponed();
+    if (postponed.length > 0)
+        return utils_1.terr(`there are postponed problems left: ${postponed.map(x => `?${x[0]}`).join(' ')}`);
     const qty = values_1.quote(ty, local.level);
     config_1.log(() => C.show(qty));
     config_1.log(() => C.show(tm));
@@ -758,15 +818,22 @@ exports.showValCore = showValCore;
 },{"./mode":7,"./surface":12,"./utils/List":15,"./values":17}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUnsolvedMetas = exports.allMetasSolved = exports.setMeta = exports.getMeta = exports.freshMeta = exports.resetMetas = exports.Solved = exports.Unsolved = void 0;
+exports.getUnsolvedMetas = exports.allMetasSolved = exports.setMeta = exports.getMeta = exports.freshMeta = exports.registerMetaCallback = exports.resetMetas = exports.Solved = exports.Unsolved = void 0;
 const utils_1 = require("./utils/utils");
 const Unsolved = (id, type, erased) => ({ tag: 'Unsolved', id, type, erased });
 exports.Unsolved = Unsolved;
 const Solved = (id, solution, type) => ({ tag: 'Solved', id, solution, type });
 exports.Solved = Solved;
 let metas = [];
-const resetMetas = () => { metas = []; };
+let callbacks = {};
+const resetMetas = () => { metas = []; callbacks = {}; };
 exports.resetMetas = resetMetas;
+const registerMetaCallback = (m, fn) => {
+    if (!callbacks[m])
+        callbacks[m] = [];
+    callbacks[m].push(fn);
+};
+exports.registerMetaCallback = registerMetaCallback;
 const freshMeta = (type, erased) => {
     const id = metas.length;
     metas.push(exports.Unsolved(id, type, erased));
@@ -787,6 +854,11 @@ const setMeta = (id, solution) => {
     if (entry.tag === 'Solved')
         return utils_1.impossible(`setMeta with solved meta ${id}`);
     metas[id] = exports.Solved(id, solution, entry.type);
+    const cbs = callbacks[id];
+    if (cbs)
+        for (let i = 0, l = cbs.length; i < l; i++)
+            cbs[i]();
+    delete callbacks[id];
 };
 exports.setMeta = setMeta;
 const allMetasSolved = () => metas.every(x => x.tag === 'Solved');
@@ -1656,6 +1728,11 @@ const runREPL = (s_, cb) => {
             config_1.setConfig({ hideImplicits: d });
             return cb(`hideImplicits: ${d}`);
         }
+        if (s === ':postpone') {
+            const d = !config_1.config.postpone;
+            config_1.setConfig({ postpone: d });
+            return cb(`postpone: ${d}`);
+        }
         if (s === ':showStackTrace') {
             showStackTrace = !showStackTrace;
             return cb(`showStackTrace: ${showStackTrace}`);
@@ -2490,12 +2567,12 @@ const unify = (l, a_, b_) => {
         exports.unify(l, a.snd, b.snd);
         return;
     }
-    if (a.tag === 'VPair') {
+    if (a.tag === 'VPair' && b.tag !== 'VFlex') {
         exports.unify(l, a.fst, values_1.vproj(b, core_1.PFst));
         exports.unify(l, a.snd, values_1.vproj(b, core_1.PSnd));
         return;
     }
-    if (b.tag === 'VPair') {
+    if (b.tag === 'VPair' && a.tag !== 'VFlex') {
         exports.unify(l, values_1.vproj(a, core_1.PFst), b.fst);
         exports.unify(l, values_1.vproj(a, core_1.PSnd), b.snd);
         return;

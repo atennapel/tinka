@@ -5,6 +5,7 @@ export interface Config {
   unicode: boolean;
   hideImplicits: boolean;
   verifyMetaSolutions: boolean;
+  postpone: boolean;
 }
 export const config: Config = {
   debug: false,
@@ -13,6 +14,7 @@ export const config: Config = {
   unicode: true,
   hideImplicits: true,
   verifyMetaSolutions: true,
+  postpone: true,
 };
 export const setConfig = (c: Partial<Config>) => {
   for (let k in c) (config as any)[k] = (c as any)[k];

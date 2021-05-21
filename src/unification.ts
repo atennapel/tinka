@@ -353,12 +353,12 @@ export const unify = (l: Lvl, a_: Val, b_: Val): void => {
     unify(l, a.snd, b.snd);
     return;
   }
-  if (a.tag === 'VPair') {
+  if (a.tag === 'VPair' && b.tag !== 'VFlex') {
     unify(l, a.fst, vproj(b, PFst));
     unify(l, a.snd, vproj(b, PSnd));
     return;
   }
-  if (b.tag === 'VPair') {
+  if (b.tag === 'VPair' && a.tag !== 'VFlex') {
     unify(l, vproj(a, PFst), b.fst);
     unify(l, vproj(a, PSnd), b.snd);
     return;

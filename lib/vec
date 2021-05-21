@@ -7,7 +7,7 @@ let -VecF : * -> (Nat -> *) -> Nat -> * = \A R n. Sum (Eq 0 n) ((-m : Nat) ** A 
 let -Vec : Nat -> * -> * = \n A. IData (VecF A) n;
 let VNil : {-A : *} -> Vec 0 A = \{A}. ICon {_} {VecF A} (Left Refl);
 let VCons : {-A : *} -> {-n : Nat} -> A -> Vec n A -> Vec (S n) A
-  = \{A} {n} hd tl. ICon {_} {VecF A} (Right {_} {(-m : Nat) ** A ** Vec m A ** (Eq (S m) (S n))} (n, hd, tl, Refl));
+  = \{A} {n} hd tl. ICon {_} {VecF A} (Right (n, hd, tl, Refl));
 
 let elimVec
   : {-A : *} ->
@@ -24,7 +24,7 @@ let elimVec
         let hd = p.1;
         let tl = p.2;
         let q = p._2._2._2;
-        elimEq (\{j} e. P {j} (ICon {_} {VecF A} (Right {_} {(-m : Nat) ** A ** Vec m A ** Eq (S m) j} (mm, hd, tl, e)))) (cons @rec {mm} hd tl) q)
+        elimEq (\{j} e. P {j} (ICon {_} {VecF A} (Right (mm, hd, tl, e)))) (cons @rec {mm} hd tl) q)
     y) {n} v;
 
 let foldrVec : {-A -R : *} -> {-n : Nat} -> R -> (A -> R -> R) -> Vec n A -> R

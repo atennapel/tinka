@@ -26,7 +26,7 @@ let -El : T -> * = funIRData {*} {TF} {TG};
 
 let U : T = IRCon {*} {TF} {TG} (Left []);
 let P : (A : T) -> (El A -> T) -> T
-  = \A K. IRCon {*} {TF} {TG} (Right {()} {(A : T) ** (K : El A -> T) ** ()} [A, K]);
+  = \A K. IRCon {*} {TF} {TG} (Right [A, K]);
 
 -- derivation of elimination
 let elimT

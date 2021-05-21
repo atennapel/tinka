@@ -24,8 +24,8 @@ TODO:
 - [x] add primitive Nat
 - [x] add primitive Fin
 - [x] pruning and intersecting
-- [ ] add delayed unification in elaboration
-- [ ] check applications in elaboration
+- [x] basic postponing
+- [ ] improve postponing
 - [ ] fix negative vars in output
 - [ ] have smarter way to verify meta solutions
 - [ ] add syntax to explicitly reference local (debruijn)

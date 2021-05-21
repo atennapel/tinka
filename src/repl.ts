@@ -72,6 +72,11 @@ export const runREPL = (s_: string, cb: (msg: string, err?: boolean) => void) =>
       setConfig({ hideImplicits: d });
       return cb(`hideImplicits: ${d}`);
     }
+    if (s === ':postpone') {
+      const d = !config.postpone;
+      setConfig({ postpone: d });
+      return cb(`postpone: ${d}`);
+    }
     if (s === ':showStackTrace') {
       showStackTrace = !showStackTrace;
       return cb(`showStackTrace: ${showStackTrace}`);
