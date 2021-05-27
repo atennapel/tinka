@@ -1,0 +1,76 @@
+import lib/sum;
+
+let -Sum3 : * -> * -> * -> *
+  = \A B C. Sum A (Sum B C);
+
+let Inj3-1 : {-A -B -C : *} -> A -> Sum3 A B C
+  = \{A} {B} {C} x. Left x;
+let Inj3-2 : {-A -B -C : *} -> B -> Sum3 A B C
+  = \{A} {B} {C} x. Right (Left x);
+let Inj3-3 : {-A -B -C : *} -> C -> Sum3 A B C
+  = \{A} {B} {C} x. Right (Right x);
+
+let elimSum3
+  : {-A -B -C : *}
+    -> (-P : Sum3 A B C -> *)
+    -> ((x : A) -> P (Inj3-1 x))
+    -> ((x : B) -> P (Inj3-2 x))
+    -> ((x : C) -> P (Inj3-3 x))
+    -> (x : Sum3 A B C)
+    -> P x
+  = \{A} {B} {C} P a b c x. elimSum P a (\y. elimSum (\y. P (Right y)) b c y) x;
+
+let caseSum3
+  : {-A -B -C -R : *}
+    -> Sum3 A B C
+    -> (A -> R)
+    -> (B -> R)
+    -> (C -> R)
+    -> R
+  = \{A} {B} {C} {R} x a b c. elimSum3 (\_. R) a b c x;
+
+let sum3
+  : {-A -B -C -R : *}
+    -> (A -> R)
+    -> (B -> R)
+    -> (C -> R)
+    -> Sum3 A B C
+    -> R
+  = \a b c x. caseSum3 x a b c;
+
+[Sum3, Inj3-1, Inj3-2, Inj3-3, elimSum3, caseSum3, sum3]
+:
+(-Sum3 : * -> * -> * -> *)
+**
+(Inj3-1 : {-A -B -C : *} -> A -> Sum3 A B C)
+**
+(Inj3-2 : {-A -B -C : *} -> B -> Sum3 A B C)
+**
+(Inj3-3 : {-A -B -C : *} -> C -> Sum3 A B C)
+**
+(elimSum3
+  : {-A -B -C : *}
+    -> (-P : Sum3 A B C -> *)
+    -> ((x : A) -> P (Inj3-1 x))
+    -> ((x : B) -> P (Inj3-2 x))
+    -> ((x : C) -> P (Inj3-3 x))
+    -> (x : Sum3 A B C)
+    -> P x)
+**
+(caseSum3
+  : {-A -B -C -R : *}
+    -> Sum3 A B C
+    -> (A -> R)
+    -> (B -> R)
+    -> (C -> R)
+    -> R)
+**
+(sum3
+  : {-A -B -C -R : *}
+    -> (A -> R)
+    -> (B -> R)
+    -> (C -> R)
+    -> Sum3 A B C
+    -> R)
+**
+()

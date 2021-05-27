@@ -1,10 +1,10 @@
 import { config, log } from './config';
-import { Abs, App, Core, Meta, Pi, Var, Global, Sigma, Pair, PFst, PSnd, Prim, Pruning, RevPruning } from './core';
+import { Abs, App, Core, Meta, Pi, Var, Global, Sigma, Pair, PFst, PSnd, Prim, Pruning, RevPruning, PIndex } from './core';
 import { freshMeta, getMeta, MetaVar, setMeta } from './metas';
 import { Ix, Lvl } from './names';
 import { cons, List, nil } from './utils/List';
 import { impossible, terr, tryT, tryTE } from './utils/utils';
-import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote, VFlex } from './values';
+import { force, isVVar, Spine, vinst, VVar, Val, evaluate, vapp, show, Elim, vproj, Head, GHead, getVPrim, quote, VFlex, EProj } from './values';
 import * as C from './core';
 import { eqMode, Expl, Mode } from './mode';
 import { verify } from './verification';
@@ -191,6 +191,7 @@ const unifyPIndex = (k: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine, index: Ix):
   return terr(`unify failed (${k}): ${show(va, k)} ~ ${show(vb, k)}`);
 };
 const unifySpines = (l: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
+  log(() => `unifySpines: ${show(va, l)} (${sa.length()}) ~ ${show(vb, l)} (${sb.length()})`);
   if (sa.isNil() && sb.isNil()) return;
   if (sa.isCons() && sb.isCons()) {
     const a = sa.head;
@@ -218,6 +219,10 @@ const unifySpines = (l: Lvl, va: Val, vb: Val, sa: Spine, sb: Spine): void => {
         return unifyPIndex(l, va, vb, sa.tail, sb.tail, b.proj.index);
       if (b.proj.tag === 'PProj' && b.proj.proj === 'fst' && a.proj.tag === 'PIndex')
         return unifyPIndex(l, va, vb, sb.tail, sa.tail, a.proj.index);
+      if (a.proj.tag === 'PIndex' && b.proj.tag === 'PIndex' && a.proj.index > b.proj.index)
+        return unifySpines(l, va, vb, cons(EProj(PIndex(a.proj.name, a.proj.index - 1)), cons(EProj(PSnd), sa.tail)), sb);
+      if (a.proj.tag === 'PIndex' && b.proj.tag === 'PIndex' && b.proj.index > a.proj.index)
+        return unifySpines(l, va, vb, sa, cons(EProj(PIndex(b.proj.name, b.proj.index - 1)), cons(EProj(PSnd), sb.tail)));
     }
   }
   return terr(`failed to unify: ${show(va, l)} ~ ${show(vb, l)}`);

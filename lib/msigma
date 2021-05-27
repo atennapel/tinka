@@ -1,0 +1,19 @@
+-- manifest sigma
+let -MSigma : (A : *) -> (B : A -> *) -> ((x : A) -> B x) -> *
+  = \A B f. A ** ((x : A) -> B x);
+
+let mfst : {-A : *} -> {-B : A -> *} -> {-f : (x : A) -> B x} -> MSigma A B f -> A
+  = \s. s._1;
+
+let msnd : {-A : *} -> {-B : A -> *} -> {-f : (x : A) -> B x} -> (s : MSigma A B f) -> B (mfst s)
+  = \s. s._2 s._1;
+
+[MSigma, mfst, msnd]
+:
+(-MSigma : (A : *) -> (B : A -> *) -> ((x : A) -> B x) -> *)
+**
+(mfst : {-A : *} -> {-B : A -> *} -> {-f : (x : A) -> B x} -> MSigma A B f -> A)
+**
+(msnd : {-A : *} -> {-B : A -> *} -> {-f : (x : A) -> B x} -> (s : MSigma A B f) -> B (mfst s))
+**
+()

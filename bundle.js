@@ -25,7 +25,7 @@ exports.log = log;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.subst = exports.substVar = exports.shift = exports.show = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.SymbolLit = exports.Prim = exports.Global = exports.Var = void 0;
+exports.subst = exports.substVar = exports.shift = exports.show = exports.showProjType = exports.flattenProj = exports.flattenPair = exports.flattenApp = exports.flattenAbs = exports.flattenSigma = exports.flattenPi = exports.Unit = exports.Type = exports.PIndex = exports.PSnd = exports.PFst = exports.PProj = exports.InsertedMeta = exports.Meta = exports.Proj = exports.Pair = exports.Sigma = exports.App = exports.Abs = exports.Pi = exports.Let = exports.SymbolLit = exports.Prim = exports.Global = exports.Var = void 0;
 const config_1 = require("./config");
 const utils_1 = require("./utils/utils");
 const Var = (index) => ({ tag: 'Var', index });
@@ -128,9 +128,10 @@ const showProjType = (p) => {
     if (p.tag === 'PProj')
         return p.proj === 'fst' ? '_1' : '_2';
     if (p.tag === 'PIndex')
-        return p.name ? `${p.name}` : `${p.index}`;
+        return p.name ? `${p.name}/${p.index}` : `${p.index}`;
     return p;
 };
+exports.showProjType = showProjType;
 const show = (t) => {
     if (t.tag === 'Var')
         return `'${t.index}`;
@@ -172,7 +173,7 @@ const show = (t) => {
         return `let ${t.erased ? '-' : ''}${t.name} : ${showP(t.type.tag === 'Let', t.type)} = ${showP(t.val.tag === 'Let', t.val)}; ${exports.show(t.body)}`;
     if (t.tag === 'Proj') {
         const [hd, ps] = exports.flattenProj(t);
-        return `${showS(hd)}.${ps.map(showProjType).join('.')}`;
+        return `${showS(hd)}.${ps.map(exports.showProjType).join('.')}`;
     }
     return t;
 };
@@ -2330,6 +2331,7 @@ const unifyPIndex = (k, va, vb, sa, sb, index) => {
     return utils_1.terr(`unify failed (${k}): ${values_1.show(va, k)} ~ ${values_1.show(vb, k)}`);
 };
 const unifySpines = (l, va, vb, sa, sb) => {
+    config_1.log(() => `unifySpines: ${values_1.show(va, l)} (${sa.length()}) ~ ${values_1.show(vb, l)} (${sb.length()})`);
     if (sa.isNil() && sb.isNil())
         return;
     if (sa.isCons() && sb.isCons()) {
@@ -2360,6 +2362,10 @@ const unifySpines = (l, va, vb, sa, sb) => {
                 return unifyPIndex(l, va, vb, sa.tail, sb.tail, b.proj.index);
             if (b.proj.tag === 'PProj' && b.proj.proj === 'fst' && a.proj.tag === 'PIndex')
                 return unifyPIndex(l, va, vb, sb.tail, sa.tail, a.proj.index);
+            if (a.proj.tag === 'PIndex' && b.proj.tag === 'PIndex' && a.proj.index > b.proj.index)
+                return unifySpines(l, va, vb, List_1.cons(values_1.EProj(core_1.PIndex(a.proj.name, a.proj.index - 1)), List_1.cons(values_1.EProj(core_1.PSnd), sa.tail)), sb);
+            if (a.proj.tag === 'PIndex' && b.proj.tag === 'PIndex' && b.proj.index > a.proj.index)
+                return unifySpines(l, va, vb, sa, List_1.cons(values_1.EProj(core_1.PIndex(b.proj.name, b.proj.index - 1)), List_1.cons(values_1.EProj(core_1.PSnd), sb.tail)));
         }
     }
     return utils_1.terr(`failed to unify: ${values_1.show(va, l)} ~ ${values_1.show(vb, l)}`);

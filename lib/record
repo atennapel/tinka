@@ -1,0 +1,39 @@
+import lib/msigma;
+import lib/sum3;
+import lib/irdata;
+
+let -RDeclT = \Sig Rec. (S : Sig) ** (l : Symbol) ** (-A : Rec S -> *) ** ();
+let -RDefT = \Sig Rec. (S : Sig) ** (l : Symbol) ** (-A : Rec S -> *) ** (a : (r : Rec S) -> A r) ** ();
+let -SigF = \Sig Rec. Sum3 () (RDeclT Sig Rec) (RDefT Sig Rec);
+
+let -RecF
+  : {-Sig : *} -> (Rec : Sig -> *) -> SigF Sig Rec -> *
+  = \{Sig} Rec x. caseSum3 x
+      (\_. ())
+      (\p. (r : Rec p.S) ** p.A r)
+      (\p. MSigma (Rec p.S) p.A p.a);
+
+let -Sig : * = IRData {*} SigF RecF;
+let -Rec : Sig -> * = funIRData {*} {SigF} {RecF};
+
+let REnd : Sig = IRCon {*} {SigF} {RecF} (Inj3-1 {()} {RDeclT Sig Rec} {RDefT Sig Rec} []);
+let RDecl
+  : (S : Sig) -> Symbol -> (-A : Rec S -> *) -> Sig
+  = \S l A. IRCon {*} {SigF} {@RecF} (Inj3-2 {()} {RDeclT Sig Rec} {RDefT Sig Rec} [S, l, A]);
+let RDef
+  : (S : Sig) -> Symbol -> (-A : Rec S -> *) -> ((r : Rec S) -> A r) -> Sig
+  = \S l A a. IRCon {*} {SigF} {@RecF} (Inj3-3 {()} {RDeclT Sig Rec} {RDefT Sig Rec} [S, l, A, a]);
+
+[Sig, Rec, REnd, RDecl, RDef]
+:
+(-Sig : *)
+**
+(-Rec : Sig -> *)
+**
+(REnd : Sig)
+**
+(RDecl : (S : Sig) -> Symbol -> (-A : Rec S -> *) -> Sig)
+**
+(RDef : (S : Sig) -> Symbol -> (-A : Rec S -> *) -> ((r : Rec S) -> A r) -> Sig)
+**
+()

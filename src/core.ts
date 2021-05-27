@@ -114,9 +114,9 @@ const showP = (b: boolean, t: Core) => b ? `(${show(t)})` : show(t);
 const isSimple = (t: Core) =>
   t.tag === 'Var' || t.tag === 'SymbolLit' || t.tag === 'Global' || t.tag === 'Prim' || t.tag === 'Meta' || t.tag === 'InsertedMeta' || t.tag === 'Pair' || t.tag === 'Proj';
 const showS = (t: Core) => showP(!isSimple(t), t);
-const showProjType = (p: ProjType): string => {
+export const showProjType = (p: ProjType): string => {
   if (p.tag === 'PProj') return p.proj === 'fst' ? '_1' : '_2';
-  if (p.tag === 'PIndex') return p.name ? `${p.name}` : `${p.index}`;
+  if (p.tag === 'PIndex') return p.name ? `${p.name}/${p.index}` : `${p.index}`;
   return p;
 };
 export const show = (t: Core): string => {

@@ -2,6 +2,7 @@ import lib/nat;
 import lib/sum;
 import lib/eq;
 import lib/idata;
+import lib/void;
 
 let -FinF : (Nat -> *) -> Nat -> * = \R n. Sum ((-m : Nat) ** Eq (S m) n) ((-m : Nat) ** R m ** (Eq (S m) n));
 let -Fin : Nat -> * = IData FinF;
@@ -36,7 +37,10 @@ let nat2fin : (n : Nat) -> Fin (S n)
 let weakenFin : {-n : Nat} -> {-m : Nat} -> Fin m -> Fin (add m n)
   = \{n} {m} f. elimFin (\{k} f. Fin (add k n)) (\{k}. FZ {add k n}) (\rec {k} x. FS (rec x)) f;
 
-[FinF, Fin, @FZ, @FS, elimFin, @fin2nat, nat2fin, @weakenFin]
+let fin0Void : Fin 0 -> Void
+  = \x. elimFin (\{n} _. Eq Z n -> Void) z_neq_S (\_ _. z_neq_S) x Refl;
+
+[FinF, Fin, @FZ, @FS, elimFin, @fin2nat, nat2fin, @weakenFin, fin0Void]
 :
 (-FinF : (Nat -> *) -> Nat -> *)
 **
@@ -59,5 +63,7 @@ let weakenFin : {-n : Nat} -> {-m : Nat} -> Fin m -> Fin (add m n)
 (nat2fin : (n : Nat) -> Fin (S n))
 **
 (weakenFin : {-n : Nat} -> {-m : Nat} -> Fin m -> Fin (add m n))
+**
+(fin0Void : Fin 0 -> Void)
 **
 ()
