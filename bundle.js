@@ -899,7 +899,7 @@ const TName = (name) => ({ tag: 'Name', name });
 const TNum = (num) => ({ tag: 'Num', num });
 const TList = (list, bracket) => ({ tag: 'List', list, bracket });
 const TStr = (str) => ({ tag: 'Str', str });
-const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '&', '%', 'λ', '×', '→', '★'];
+const SYM1 = ['\\', ':', '=', ';', '*', ',', '#', '&', '%', 'λ', '×', '→', '★', '~'];
 const SYM2 = ['->', '**'];
 const createTName = (x) => {
     if (x === 'λ')
@@ -1220,8 +1220,19 @@ const exprs = (ts, br, fromRepl = false) => {
             ts = ts.slice(1);
             type = 3;
         }
-        if (ts.length === 0)
-            return surface_1.Pair(numToNat(0, '0'), Unit);
+        else if (isName(ts[0], '~')) {
+            ts = ts.slice(1);
+            type = 4;
+        }
+        if (ts.length === 0) {
+            if (type === 1)
+                return surface_1.Pair(numToNat(0, '0'), Unit);
+            if (type === 2)
+                return Nil;
+            if (type === 3)
+                return VNil;
+            return Unit;
+        }
         const jp = ts.findIndex(x => isName(x, ','));
         if (jp >= 0) {
             const s = splitTokens(ts, x => isName(x, ','));
@@ -1256,6 +1267,12 @@ const exprs = (ts, br, fromRepl = false) => {
                         return utils_1.serr(`vec element cannot be implicit`);
                     return surface_1.App(surface_1.App(VCons, mode_1.Expl, y), mode_1.Expl, x);
                 }, VNil);
+            if (type === 4)
+                return args.reduce((x, [y, i]) => {
+                    if (i)
+                        return utils_1.serr(`tuple element cannot be implicit`);
+                    return surface_1.Pair(x, y);
+                }, Unit);
             const p = args.reduceRight((x, [y, i]) => {
                 if (i)
                     return utils_1.serr(`pair element cannot be implicit`);
@@ -1273,6 +1290,8 @@ const exprs = (ts, br, fromRepl = false) => {
                 return surface_1.App(surface_1.App(Cons, mode_1.Expl, expr), mode_1.Expl, Nil);
             if (type === 3)
                 return surface_1.App(surface_1.App(VCons, mode_1.Expl, expr), mode_1.Expl, VNil);
+            if (type === 4)
+                return surface_1.Pair(Unit, expr);
             return surface_1.Pair(expr, Unit);
         }
     }

@@ -26,7 +26,7 @@ const TNum = (num: string): Token => ({ tag: 'Num', num });
 const TList = (list: Token[], bracket: BracketO): Token => ({ tag: 'List', list, bracket });
 const TStr = (str: string): Token => ({ tag: 'Str', str });
 
-const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', '&', '%', 'λ', '×', '→', '★'];
+const SYM1: string[] = ['\\', ':', '=', ';', '*', ',', '#', '&', '%', 'λ', '×', '→', '★', '~'];
 const SYM2: string[] = ['->', '**'];
 
 const createTName = (x: string): Token => {
@@ -294,8 +294,16 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
     } else if (isName(ts[0], '%')) {
       ts = ts.slice(1);
       type = 3;
+    } else if (isName(ts[0], '~')) {
+      ts = ts.slice(1);
+      type = 4;
     }
-    if (ts.length === 0) return Pair(numToNat(0, '0'), Unit);
+    if (ts.length === 0) {
+      if (type === 1) return Pair(numToNat(0, '0'), Unit);
+      if (type === 2) return Nil;
+      if (type === 3) return VNil;
+      return Unit;
+    }
     const jp = ts.findIndex(x => isName(x, ','));
     if (jp >= 0) {
       const s = splitTokens(ts, x => isName(x, ','));
@@ -322,6 +330,10 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
         if (i) return serr(`vec element cannot be implicit`);
         return App(App(VCons, Expl, y), Expl, x);
       }, VNil as Surface);
+      if (type === 4) return args.reduce((x, [y, i]) => {
+        if (i) return serr(`tuple element cannot be implicit`);
+        return Pair(x, y);
+      }, Unit as Surface);
       const p = args.reduceRight((x, [y, i]) => {
         if (i) return serr(`pair element cannot be implicit`);
         return Pair(y, x);
@@ -333,6 +345,7 @@ const exprs = (ts: Token[], br: BracketO, fromRepl: boolean = false): Surface =>
       if (type === 1) return Pair(numToNat(1, `1`), Pair(expr, Unit));
       if (type === 2) return App(App(Cons, Expl, expr), Expl, Nil);
       if (type === 3) return App(App(VCons, Expl, expr), Expl, VNil);
+      if (type === 4) return Pair(Unit, expr);
       return Pair(expr, Unit);
     }
   }
