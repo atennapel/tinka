@@ -1,0 +1,37 @@
+-- derive stuff from Nat and Eq
+import lib/nat;
+import lib/eq;
+import lib/singleton;
+import lib/void;
+
+let -Unit = Eq 0 0;
+let unit : Unit = Refl;
+
+let -Lt : Nat -> Nat -> *
+  = \a b. elimNat (\_. Nat -> *) (\b. caseNat b Void (\_. Unit)) (\rec m b. caseNat b Void (\k. rec m k)) a b;
+let ltS : {n : Nat} -> Lt Z n -> (m : Nat) ** Eq (S m) n
+  = \{n} l. elimNat (\n. Lt Z n -> (m : Nat) ** Eq (S m) n) (\v. absurd v) (\rec m p. (m, Refl)) n l;
+
+let -Fin : Nat -> * = \k. (n : Nat) ** Lt n k;
+let FZ : {-n : Nat} -> Fin (S n) = (0, unit);
+let FS : {-n : Nat} -> Fin n -> Fin (S n) = \{n} f. (S f._1, f._2);
+
+let elimFin
+  : (P : {n : Nat} -> Fin n -> *)
+    -> ({-n : Nat} -> P {S n} FZ)
+    -> (({-m : Nat} -> (x : Fin m) -> P {m} x) -> {-m : Nat} -> (y : Fin m) -> P {S m} (FS y))
+    -> {-n : Nat}
+    -> (x : Fin n)
+    -> P {n} x
+  = \P z s {n} x. (let m = x._1; let q = x._2; elimNat (\m. (p : Lt m n) -> P {n} (m, p)) (\p. let -test = ltS {n} p; let -m = test._1; let -q = test._2; let test2 = z {m}; _z) (\rec m p. _s) m q);
+
+let -Void2 = Fin 0;
+
+let -Unit2 = Fin 1;
+let unit2 : Unit2 = FZ;
+
+let -Bool = Fin 2;
+let True : Bool = FS FZ;
+let False : Bool = FZ;
+
+[]

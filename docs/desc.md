@@ -26,6 +26,15 @@ El (Rix D f g) X j  = El D (\x. r (f x)) (g j)
 Data : (D : Desc (I + J) J) -> (I -> *) -> J -> *
 Con  : {D : Desc (I + J) J} -> {X : I -> *} -> {j : J} -> El D (sum X (Data D X)) X j -> Data D X j
 
+map : {r s : I -> *} -> (D : Desc I J) -> ({i : I} -> r i -> s i) -> {j : J} -> El D r i -> El D s i
+map {r} {s} (End j2) f {j} Refl = Refl
+map {r} {s} (Arg A K) f {j} (x, rest) = (x, map {r} {s} (K x) f {j} rest)
+map {r} {s} (Par i K) f {j} (x, rest) = (f {i} x, map {r} {s} K f {j} rest)
+map {r} {s} (HPar A i K) f {j} (g, rest) = (\x. f {i} (g x), map {r} {s} K f {j} rest)
+map {r} {s} (Fix K) f {j} (Con x) = Con {K} {r} {j} (map K (sum f (map (Fix K) f)) {j} x)
+map {r} {s} (Comp A B) f {j} x = map {r} {s} A (map {r} {s} B f) {j} x
+map {r} {s} (Rix D g h) f {j} x = map {r} {s} D (\x. f (g x)) {h j} x
+
 BoolD : Desc Void () = Arg Bool \b. if b (End []) (End [])
 Bool : * = El BoolD absurd []
 True : Bool = (True, Refl)
