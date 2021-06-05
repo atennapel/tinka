@@ -1,0 +1,27 @@
+import lib/eq (Eq, Refl, rewrite);
+
+let -WSingleton : {A : *} -> A -> *
+  = \{A} v. (-value : A) ** (proof : Eq value v) ** ();
+
+let MkWSingleton : {-A : *} -> (-v : A) -> WSingleton v
+  = \{A} v. [v, Refl];
+
+let manifestW : {-A : *} -> {-v : A} -> (-P : A -> *) -> (s : WSingleton v) -> P s.value -> P v
+  = \{A} P s x. rewrite P s.proof x;
+
+let mapWSingleton : {-A : *} -> {-v : A} -> (-f : A -> A) -> WSingleton v -> WSingleton (f v)
+  = \f s. manifestW (\v. WSingleton (f v)) s (MkWSingleton (f s.value));
+
+let -WSingletonAlias = WSingleton;
+
+[@WSingleton, @MkWSingleton, @manifestW, @mapWSingleton]
+:
+(-WSingleton : {A : *} -> A -> *)
+**
+(MkWSingleton : {-A : *} -> (-v : A) -> WSingleton v)
+**
+(manifestW : {-A : *} -> {-v : A} -> (-P : A -> *) -> (s : WSingletonAlias v) -> P s.value -> P v)
+**
+(mapWSingleton : {-A : *} -> {-v : A} -> (-f : A -> A) -> WSingleton v -> WSingleton (f v))
+**
+()
