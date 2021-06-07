@@ -630,8 +630,12 @@ const showHoles = (tm, ty, toplocal) => {
     const strterm = S.showCore(tm, toplocal.ns);
     const str = holeprops.map(([x, [t, v, local]]) => {
         const fst = local.ns.zipWith(local.vs, (x, v) => [x, v]);
-        const all = fst.zipWith(local.ts, ([x, v], { bound: def, type: ty, inserted, erased }) => [x, v, def, ty, inserted, erased]);
-        const allstr = all.toMappedArray(([x, v, b, t, _, p]) => `${p ? `{${x}}` : x} : ${showValSZ(local, t)}${b ? '' : ` = ${showValSZ(local, v)}`}`).join('\n');
+        const all = fst.zipWith(local.ts, ([x, v], { bound: def, type: ty, inserted, erased, mode }) => [x, v, def, ty, inserted, erased, mode]);
+        const allstr = all.toMappedArray(([x, v, b, t, i, p, m]) => {
+            const y = p ? `-${x}` : x;
+            const name = `${mode_1.eqMode(m, mode_1.Impl) ? `{${y}}` : y}`;
+            return `${i ? 'i ' : ''}${name} : ${showValSZ(local, t)}${b ? '' : ` = ${showValSZ(local, v)}`}`;
+        }).join('\n');
         return `\n_${x} : ${showValSZ(local, v)} = ${showValSZ(local, t)}\nlocal:\n${allstr}\n`;
     }).join('\n');
     return utils_1.terr(`unsolved holes\ntype: ${strtype}\nterm: ${strterm}\n${str}`);

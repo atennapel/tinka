@@ -1,4 +1,5 @@
 -- derive stuff from Nat and Eq
+-- this file is incomplete
 import lib/nat;
 import lib/eq;
 import lib/singleton;

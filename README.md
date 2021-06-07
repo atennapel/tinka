@@ -25,6 +25,7 @@ TODO:
 - [x] add primitive Fin
 - [x] pruning and intersecting
 - [x] basic postponing
+- [ ] fix issue with erasure in verification
 - [ ] improve postponing
 - [ ] fix negative vars in output
 - [ ] have smarter way to verify meta solutions
