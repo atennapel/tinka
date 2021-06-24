@@ -1529,6 +1529,7 @@ exports.PrimNames = [
     'Bool', 'True', 'False', 'elimBool',
     'IIRData', 'IIRCon', 'elimIIRData', 'funIIRData',
     'Symbol', 'eqSymbol',
+    'unsafeGuardedCoerce',
 ];
 const isPrimName = (x) => exports.PrimNames.includes(x);
 exports.isPrimName = isPrimName;
@@ -1620,6 +1621,9 @@ const primType = (name) => {
     // eqSymbol : Symbol -> Symbol -> Bool
     if (name === 'eqSymbol')
         return values_1.VPi(false, mode_1.Expl, '_', values_1.VSymbol, _ => values_1.VPi(false, mode_1.Expl, '_', values_1.VSymbol, _ => values_1.VBool));
+    // unsafeGuardedCoerce : {-A -B -C : *} -> A -> (-guard : B) -> C
+    if (name === 'unsafeGuardedCoerce')
+        return values_1.VPi(true, mode_1.Impl, 'A', values_1.VType, A => values_1.VPi(true, mode_1.Impl, 'B', values_1.VType, B => values_1.VPi(true, mode_1.Impl, 'C', values_1.VType, C => values_1.VPi(false, mode_1.Expl, '_', A, _ => values_1.VPi(true, mode_1.Expl, 'guard', B, _ => C)))));
     return name;
 };
 exports.primType = primType;
@@ -3052,6 +3056,7 @@ const vproj = (scrut, proj) => {
     return utils_1.impossible(`vproj: ${scrut.tag}`);
 };
 exports.vproj = vproj;
+const isNeutral = (v) => v.tag === 'VFlex' || v.tag === 'VRigid' || (v.tag === 'VGlobal' && isNeutral(v.val.get()));
 const vprimelim = (name, scrut, args) => {
     if (name === 'eqSymbol' && scrut.tag === 'VSymbolLit' && args[0][1].tag === 'VSymbolLit')
         return scrut.name === args[0][1].name ? exports.VTrue : exports.VFalse;
@@ -3099,6 +3104,8 @@ const vprimelim = (name, scrut, args) => {
             return exports.vapp4(G, mode_1.Impl, exports.VIIRDataPartial(I, R, F, G), mode_1.Expl, exports.vfunIIRDataPartial(I, R, F, G), mode_1.Impl, i, mode_1.Expl, x);
         }
     }
+    if (name === 'unsafeGuardedCoerce' && !isNeutral(scrut))
+        return args[3][1];
     if (scrut.tag === 'VRigid')
         return exports.VRigid(scrut.head, List_1.cons(exports.EPrim(name, args), scrut.spine));
     if (scrut.tag === 'VFlex')
@@ -3166,6 +3173,8 @@ const evaluate = (t, vs, glueBefore = vs.length()) => {
             return exports.VAbs(true, mode_1.Impl, 'I', exports.VType, I => exports.VAbs(true, mode_1.Impl, 'R', exports.VPi(false, mode_1.Expl, '_', I, _ => exports.VType), R => exports.VAbs(true, mode_1.Impl, 'F', exports.viirF(I, R), F => exports.VAbs(false, mode_1.Impl, 'G', exports.viirG(I, R, F), G => exports.VAbs(true, mode_1.Expl, 'P', exports.VPi(false, mode_1.Impl, 'i', I, i => exports.VPi(false, mode_1.Expl, '_', exports.VIIRData(I, R, F, G, i), _ => exports.VType)), P => exports.VAbs(false, mode_1.Expl, 'alg', exports.VPi(false, mode_1.Expl, '_', exports.VPi(true, mode_1.Impl, 'j', I, j => exports.VPi(false, mode_1.Expl, 'z', exports.VIIRData(I, R, F, G, j), z => exports.vapp2(P, mode_1.Impl, j, mode_1.Expl, z))), _ => exports.VPi(true, mode_1.Impl, 'i', I, i => exports.VPi(false, mode_1.Expl, 'y', exports.vapp3(F, mode_1.Expl, exports.VIIRDataPartial(I, R, F, G), mode_1.Expl, exports.vfunIIRDataPartial(I, R, F, G), mode_1.Expl, i), y => exports.vapp2(P, mode_1.Impl, i, mode_1.Expl, exports.VIIRCon(I, R, F, G, i, y))))), alg => exports.VAbs(true, mode_1.Impl, 'i', I, i => exports.VAbs(false, mode_1.Expl, 'x', exports.VIIRData(I, R, F, G, i), x => exports.vprimelim('elimIIRData', x, [[mode_1.Impl, I], [mode_1.Impl, R], [mode_1.Impl, F], [mode_1.Impl, G], [mode_1.Expl, P], [mode_1.Expl, alg], [mode_1.Impl, i]])))))))));
         if (t.name === 'funIIRData')
             return exports.VAbs(true, mode_1.Impl, 'I', exports.VType, I => exports.VAbs(true, mode_1.Impl, 'R', exports.VPi(false, mode_1.Expl, '_', I, _ => exports.VType), R => exports.VAbs(true, mode_1.Impl, 'F', exports.viirF(I, R), F => exports.VAbs(false, mode_1.Impl, 'G', exports.viirG(I, R, F), G => exports.VAbs(true, mode_1.Impl, 'i', I, i => exports.VAbs(false, mode_1.Expl, 'x', exports.VIIRData(I, R, F, G, i), x => exports.vprimelim('funIIRData', x, [[mode_1.Impl, I], [mode_1.Impl, R], [mode_1.Impl, F], [mode_1.Impl, G], [mode_1.Impl, i]])))))));
+        if (t.name === 'unsafeGuardedCoerce')
+            return exports.VAbs(true, mode_1.Impl, 'A', exports.VType, A => exports.VAbs(true, mode_1.Impl, 'B', exports.VType, B => exports.VAbs(true, mode_1.Impl, 'C', exports.VType, C => exports.VAbs(false, mode_1.Expl, 'value', A, value => exports.VAbs(true, mode_1.Expl, 'guard', B, guard => exports.vprimelim('unsafeGuardedCoerce', guard, [[mode_1.Impl, A], [mode_1.Impl, B], [mode_1.Impl, C], [mode_1.Expl, value]]))))));
         return exports.VPrim(t.name);
     }
     return t;

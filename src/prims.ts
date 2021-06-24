@@ -2,7 +2,7 @@ import { Expl, Impl } from './mode';
 import { Val, vapp, VEq, VPi, VType, VUnitType, VBool, VTrue, VFalse, vapp2, VIIRData, vfunIIRDataPartial, VHRefl, VSymbol, vapp3, VIIRDataPartial, VIIRCon, viirF, viirG } from './values';
 
 export type PrimConName = '*' | 'HEq' | 'HRefl' | '()' | '[]' | 'Bool' | 'True' | 'False' | 'IIRData' | 'IIRCon' | 'Symbol';
-export type PrimElimName = 'elimHEq' | 'elimBool' | 'elimIIRData' | 'funIIRData' | 'eqSymbol';
+export type PrimElimName = 'elimHEq' | 'elimBool' | 'elimIIRData' | 'funIIRData' | 'eqSymbol' | 'unsafeGuardedCoerce';
 export type PrimName = PrimConName | PrimElimName;
 
 export const ErasedPrims = ['*', 'HEq', '()', 'Bool', 'IIRData', 'Symbol'];
@@ -15,6 +15,7 @@ export const PrimNames: string[] = [
   'Bool', 'True', 'False', 'elimBool',
   'IIRData', 'IIRCon', 'elimIIRData', 'funIIRData',
   'Symbol', 'eqSymbol',
+  'unsafeGuardedCoerce',
 ];
 export const isPrimName = (x: string): x is PrimName => PrimNames.includes(x);
 
@@ -139,6 +140,15 @@ export const primType = (name: PrimName): Val => {
 
   // eqSymbol : Symbol -> Symbol -> Bool
   if (name === 'eqSymbol') return VPi(false, Expl, '_', VSymbol, _ => VPi(false, Expl, '_', VSymbol, _ => VBool));
+
+  // unsafeGuardedCoerce : {-A -B -C : *} -> A -> (-guard : B) -> C
+  if (name === 'unsafeGuardedCoerce')
+    return VPi(true, Impl, 'A', VType, A =>
+      VPi(true, Impl, 'B', VType, B =>
+      VPi(true, Impl, 'C', VType, C =>
+      VPi(false, Expl, '_', A, _ =>
+      VPi(true, Expl, 'guard', B, _ =>
+      C)))));
 
   return name;
 };

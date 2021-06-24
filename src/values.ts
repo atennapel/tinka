@@ -165,6 +165,7 @@ export const vproj = (scrut: Val, proj: ProjType): Val => {
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EProj(proj), scrut.spine), scrut.val.map(v => vproj(v, proj)));
   return impossible(`vproj: ${scrut.tag}`);
 };
+const isNeutral = (v: Val): boolean => v.tag === 'VFlex' || v.tag === 'VRigid' || (v.tag === 'VGlobal' && isNeutral(v.val.get()));
 export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): Val => {
   if (name === 'eqSymbol' && scrut.tag === 'VSymbolLit' && args[0][1].tag === 'VSymbolLit')
     return scrut.name === args[0][1].name ? VTrue : VFalse;
@@ -209,6 +210,7 @@ export const vprimelim = (name: PrimElimName, scrut: Val, args: [Mode, Val][]): 
       return vapp4(G, Impl, VIIRDataPartial(I, R, F, G), Expl, vfunIIRDataPartial(I, R, F, G), Impl, i, Expl, x);
     }
   }
+  if (name === 'unsafeGuardedCoerce' && !isNeutral(scrut)) return args[3][1];
   if (scrut.tag === 'VRigid') return VRigid(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VFlex') return VFlex(scrut.head, cons(EPrim(name, args), scrut.spine));
   if (scrut.tag === 'VGlobal') return VGlobal(scrut.head, cons(EPrim(name, args), scrut.spine), scrut.val.map(v => vprimelim(name, v, args)));
@@ -289,6 +291,13 @@ export const evaluate = (t: Core, vs: EnvV, glueBefore: Ix = vs.length()): Val =
         VAbs(true, Impl, 'i', I, i =>
         VAbs(false, Expl, 'x', VIIRData(I, R, F, G, i), x =>
         vprimelim('funIIRData', x, [[Impl, I], [Impl, R], [Impl, F], [Impl, G], [Impl, i]])))))));
+    if (t.name === 'unsafeGuardedCoerce')
+      return VAbs(true, Impl, 'A', VType, A =>
+        VAbs(true, Impl, 'B', VType, B =>
+        VAbs(true, Impl, 'C', VType, C =>
+        VAbs(false, Expl, 'value', A, value =>
+        VAbs(true, Expl, 'guard', B, guard =>
+        vprimelim('unsafeGuardedCoerce', guard, [[Impl, A], [Impl, B], [Impl, C], [Expl, value]]))))));
     return VPrim(t.name);
   }
   return t;
